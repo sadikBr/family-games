@@ -13,7 +13,7 @@ const KEY = 'fg.serverUrl.v1';
  */
 export function defaultServerUrl(): string {
   const env = process.env.EXPO_PUBLIC_SERVER_URL;
-  if (env) return normalizeServerUrl(env);
+  if (env && !env.includes('REPLACE-ME')) return normalizeServerUrl(env);
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
     return `ws://${window.location.hostname}:${DEFAULT_PORT}/ws`;
   }
@@ -59,4 +59,9 @@ export async function setServerOverride(url: string | null) {
 
 export function serverUrl() {
   return override ?? defaultServerUrl();
+}
+
+/** True for a server on the internet (it may need a moment to wake up), false for a computer on the Wi-Fi. */
+export function isRemoteServer(url: string) {
+  return url.startsWith('wss://');
 }

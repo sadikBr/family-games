@@ -118,3 +118,53 @@ bun run test:server
   [quranenc.com](https://quranenc.com), licensed CC BY-SA 4.0. Very short verses and verses that appear
   word-for-word in more than one surah are left out, so every question has exactly one right answer.
 - Verses are shown with the Amiri Quran font. The art never depicts prophets, companions or angels.
+
+## Putting it online and making an APK
+
+The app needs the game server to be reachable from every phone. This setup puts the server on
+[Railway](https://railway.com) (free, no card) and builds an Android APK with Expo's cloud builder (EAS).
+
+### 1. Put the server online (Railway)
+
+In the project folder:
+
+```bash
+npx @railway/cli up        # sign in / create an account in the browser, then it builds and deploys
+npx @railway/cli domain    # prints the public address, e.g. https://family-games-production-1a2b.up.railway.app
+```
+
+`railway up` creates the project and service by itself and builds the `Dockerfile` (a couple of minutes).
+Opening `…/health` in a browser should show `{"ok":true,…}`.
+
+Cost: new accounts get a $5 trial for 30 days, then the Free plan gives $1 of usage per month, no card.
+The server uses about 32 MB of memory, roughly $0.30–0.50 a month at Railway's prices, and it doesn't
+sleep. If the monthly credit ever runs out, the server stops until the next month (usage is shown in the
+Railway dashboard). To update the server later, run `npx @railway/cli up` again.
+
+<details>
+<summary>Alternative: Render</summary>
+
+`render.yaml` is a Render Blueprint (New → Blueprint → pick the GitHub repo). Render's free plan sleeps
+after 15 minutes without players (about a minute to wake) and may ask for a card for verification.
+</details>
+
+### 2. Build the APK
+
+1. In `eas.json`, replace `wss://REPLACE-ME` with your server address, starting with `wss://` instead of
+   `https://` (e.g. `wss://family-games-production-1a2b.up.railway.app`).
+2. Create a free account on expo.dev, then in the project folder:
+   ```bash
+   npx eas-cli@latest login
+   npx eas-cli@latest build -p android --profile preview
+   ```
+   The first time it asks to create the EAS project and to generate an Android keystore — answer yes to
+   both. The build runs on Expo's servers; on the free plan it can wait in a queue for a while.
+3. When it finishes you get a link and a QR code. Open it on the phone, download the `.apk` and install
+   it (Android asks you to allow installing apps from this source). Send the same file to the family.
+
+### Updating later
+
+- **Server / game rules:** `npx @railway/cli up`.
+- **App screens or new games:** build a new APK (step 2) and install it over the old one.
+- The server address can still be changed inside the app («إعدادات الخادم» on the profile screen), for
+  example to play on a computer at home over Wi-Fi (`bun run server`).

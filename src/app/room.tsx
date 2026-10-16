@@ -8,6 +8,7 @@ import { GameView } from '@/games/game-view';
 import { Lobby } from '@/games/lobby';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
+import { isRemoteServer } from '@/lib/server-url';
 import { playFx } from '@/lib/sfx';
 import { C } from '@/theme';
 import { Card, IconBubble, Pill, Row } from '@/ui/bits';
@@ -31,10 +32,12 @@ function Connecting() {
         {slow && status !== 'online' ? (
           <Card style={{ gap: 6 }}>
             <Txt v="bold" center>
-              لا يمكن الوصول إلى الخادم
+              {isRemoteServer(url) ? 'جاري إيقاظ الخادم…' : 'لا يمكن الوصول إلى الخادم'}
             </Txt>
             <Txt v="small" center color={C.muted}>
-              تأكد أن الخادم يعمل على الحاسوب (bun run server) وأن الهاتف على نفس شبكة الواي فاي.
+              {isRemoteServer(url)
+                ? 'الخادم يستيقظ بعد فترة راحة — قد يستغرق ذلك دقيقة. تأكد أيضاً من اتصال الهاتف بالإنترنت.'
+                : 'تأكد أن الخادم يعمل على الحاسوب (bun run server) وأن الهاتف على نفس شبكة الواي فاي.'}
             </Txt>
             <Txt v="tiny" center color={C.dim} style={{ writingDirection: 'ltr' }}>
               {url}

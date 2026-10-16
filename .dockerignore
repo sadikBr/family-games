@@ -1,0 +1,13 @@
+node_modules
+assets
+dist
+tools
+.expo
+android
+ios
+src/app
+src/games
+src/ui
+src/art
+src/lib
+**/*.test.ts

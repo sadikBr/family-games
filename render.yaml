@@ -1,0 +1,10 @@
+# Render Blueprint (alternative to Railway): Dashboard → New → Blueprint → pick this repo.
+# Free plan; Render may ask for a card for verification. Sleeps after 15 min without players.
+services:
+  - type: web
+    name: family-games
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
