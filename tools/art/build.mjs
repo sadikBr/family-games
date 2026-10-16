@@ -17,13 +17,14 @@ const AVATARS = ['boy', 'girl', 'grandma', 'grandpa', 'lion', 'cat', 'fox', 'bea
 const GAMES = ['werewolf', 'imposter', 'potato', 'names', 'headsup', 'taboo', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'codenames', 'draw', 'estate'];
 const ISLAMIC = ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'];
 const GAMES2 = ['connect4', 'chess', 'kdab', 'wave', 'wordle'];
-const ROLES = ['wolf', 'villager', 'seer', 'doctor', 'hunter'];
+const GAMES3 = ['kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory'];
+const ROLES = ['wolf', 'villager', 'seer', 'doctor', 'hunter', 'witch', 'guard', 'tanner', 'whitewolf', 'bigwolf'];
 const SUITS = ['coins', 'cups', 'swords', 'clubs'];
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 
 const groups = {
   avatars: [384, AVATARS.map((n) => ({ name: n, module: 'avatars.mjs', fn: n, ...avatar }))],
-  games: [384, [...GAMES.map((n) => ({ name: n, module: 'badges.mjs', fn: n, ...badge })), ...ISLAMIC.map((n) => ({ name: n, module: 'islamic.mjs', fn: n, ...badge })), ...GAMES2.map((n) => ({ name: n, module: 'games2.mjs', fn: n, ...badge }))]],
+  games: [384, [...GAMES.map((n) => ({ name: n, module: 'badges.mjs', fn: n, ...badge })), ...ISLAMIC.map((n) => ({ name: n, module: 'islamic.mjs', fn: n, ...badge })), ...GAMES2.map((n) => ({ name: n, module: 'games2.mjs', fn: n, ...badge })), ...GAMES3.map((n) => ({ name: n, module: 'games3.mjs', fn: n, ...badge }))]],
   roles: [512, ROLES.map((n) => ({ name: n, module: 'roles.mjs', fn: n, ...badge }))],
   cards: [330, [...SUITS.flatMap((s) => RANKS.map((r) => ({ name: `${s}-${r}`, module: 'cards.mjs', fn: 'card', args: [s, r], ...flat, px: 330, off: 3.2 }))), { name: 'back', module: 'cards.mjs', fn: 'back', ...flat, px: 330 }]],
   uno: [300, allFaces().map((f) => ({ name: `${f[0]}-${f[1] ?? 'wild'}-${f[2]}${f[3] ?? ''}`, module: 'uno.mjs', fn: 'face', args: f, ...flat, px: 300, off: 3 }))],

@@ -21,6 +21,7 @@ export const AVATAR_IMG: Record<string, number> = {
 };
 
 export const GAME_IMG: Record<string, number> = {
+  'battleship': require('../../assets/art/games/battleship.webp'),
   'chess': require('../../assets/art/games/chess.webp'),
   'codenames': require('../../assets/art/games/codenames.webp'),
   'connect4': require('../../assets/art/games/connect4.webp'),
@@ -33,28 +34,38 @@ export const GAME_IMG: Record<string, number> = {
   'imposter': require('../../assets/art/games/imposter.webp'),
   'kanza': require('../../assets/art/games/kanza.webp'),
   'kdab': require('../../assets/art/games/kdab.webp'),
+  'kharbga': require('../../assets/art/games/kharbga.webp'),
   'konkan': require('../../assets/art/games/konkan.webp'),
   'ladders': require('../../assets/art/games/ladders.webp'),
   'ludo': require('../../assets/art/games/ludo.webp'),
+  'memory': require('../../assets/art/games/memory.webp'),
   'names': require('../../assets/art/games/names.webp'),
   'potato': require('../../assets/art/games/potato.webp'),
   'quiz': require('../../assets/art/games/quiz.webp'),
   'ronda': require('../../assets/art/games/ronda.webp'),
+  'sudoku': require('../../assets/art/games/sudoku.webp'),
   'surah': require('../../assets/art/games/surah.webp'),
   'taboo': require('../../assets/art/games/taboo.webp'),
   'tris': require('../../assets/art/games/tris.webp'),
+  'trivia': require('../../assets/art/games/trivia.webp'),
   'unoflip': require('../../assets/art/games/unoflip.webp'),
   'wave': require('../../assets/art/games/wave.webp'),
   'werewolf': require('../../assets/art/games/werewolf.webp'),
   'whois': require('../../assets/art/games/whois.webp'),
   'wordle': require('../../assets/art/games/wordle.webp'),
+  'xo': require('../../assets/art/games/xo.webp'),
 };
 
 export const ROLE_IMG: Record<string, number> = {
+  'bigwolf': require('../../assets/art/roles/bigwolf.webp'),
   'doctor': require('../../assets/art/roles/doctor.webp'),
+  'guard': require('../../assets/art/roles/guard.webp'),
   'hunter': require('../../assets/art/roles/hunter.webp'),
   'seer': require('../../assets/art/roles/seer.webp'),
+  'tanner': require('../../assets/art/roles/tanner.webp'),
   'villager': require('../../assets/art/roles/villager.webp'),
+  'whitewolf': require('../../assets/art/roles/whitewolf.webp'),
+  'witch': require('../../assets/art/roles/witch.webp'),
   'wolf': require('../../assets/art/roles/wolf.webp'),
 };
 

@@ -34,7 +34,13 @@ export type GameId =
   | 'chess'
   | 'kdab'
   | 'wave'
-  | 'wordle';
+  | 'wordle'
+  | 'kharbga'
+  | 'battleship'
+  | 'xo'
+  | 'sudoku'
+  | 'trivia'
+  | 'memory';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -64,10 +70,16 @@ export const GAME_IDS: GameId[] = [
   'kdab',
   'wave',
   'wordle',
+  'kharbga',
+  'battleship',
+  'xo',
+  'sudoku',
+  'trivia',
+  'memory',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -98,10 +110,16 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   kdab: 2,
   wave: 2,
   wordle: 1,
+  kharbga: 2,
+  battleship: 2,
+  xo: 2,
+  sudoku: 1,
+  trivia: 2,
+  memory: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -181,6 +199,12 @@ export interface WerewolfSettings {
   seer: boolean;
   doctor: boolean;
   hunter: boolean;
+  witch: boolean;
+  guard: boolean;
+  mayor: boolean;
+  tanner: boolean;
+  whitewolf: boolean; // takes one of the wolf seats (needs 2+ wolves)
+  bigwolf: boolean; // takes one of the wolf seats
 }
 
 export interface RondaSettings {
@@ -251,6 +275,27 @@ export interface WaveSettings {
 export interface WordleSettings {
   rounds: number;
 }
+export interface KharbgaSettings {
+  level: 1 | 2;
+}
+export interface BattleshipSettings {
+  level: 1 | 2;
+}
+export interface XoSettings {
+  level: 1 | 2;
+}
+export interface SudokuSettings {
+  level: 'easy' | 'medium' | 'hard';
+}
+export type TriviaCategory = 'all' | 'morocco' | 'geography' | 'science' | 'sport' | 'animals' | 'mixed';
+export interface TriviaSettings {
+  rounds: number;
+  seconds: number;
+  category: TriviaCategory;
+}
+export interface MemorySettings {
+  pairs: number;
+}
 export interface KonkanSettings {
   limit: number; // eliminated at this many penalty points
 }
@@ -283,6 +328,12 @@ export interface AllSettings {
   kdab: KdabSettings;
   wave: WaveSettings;
   wordle: WordleSettings;
+  kharbga: KharbgaSettings;
+  battleship: BattleshipSettings;
+  xo: XoSettings;
+  sudoku: SudokuSettings;
+  trivia: TriviaSettings;
+  memory: MemorySettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -291,7 +342,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   headsup: { category: 'random', seconds: 60, turnsEach: 1 },
   taboo: { seconds: 60, turnsEach: 3 },
   potato: { rounds: 5, minFuse: 15, maxFuse: 45 },
-  werewolf: { narratorId: null, wolves: 0, seer: true, doctor: true, hunter: false },
+  werewolf: { narratorId: null, wolves: 0, seer: true, doctor: true, hunter: false, witch: false, guard: false, mayor: false, tanner: false, whitewolf: false, bigwolf: false },
   ronda: { target: 41 },
   kanza: { hands: 3 },
   tris: { target: 31 },
@@ -313,6 +364,12 @@ export const DEFAULT_SETTINGS: AllSettings = {
   kdab: { maxPlay: 4 },
   wave: { rounds: 1 },
   wordle: { rounds: 3 },
+  kharbga: { level: 1 },
+  battleship: { level: 2 },
+  xo: { level: 1 },
+  sudoku: { level: 'easy' },
+  trivia: { rounds: 10, seconds: 15, category: 'all' },
+  memory: { pairs: 10 },
 };
 
 /* ------------------------------------------------------------------ */
@@ -437,31 +494,51 @@ export interface PotatoView {
   lastWord: { by: string; word: string } | null;
 }
 
-export type WolfRole = 'wolf' | 'villager' | 'seer' | 'doctor' | 'hunter';
+export type WolfRole = 'wolf' | 'villager' | 'seer' | 'doctor' | 'hunter' | 'witch' | 'guard' | 'tanner' | 'whitewolf' | 'bigwolf';
+export const WOLF_ROLES: WolfRole[] = ['wolf', 'bigwolf', 'whitewolf'];
+export const isWolfRole = (r: WolfRole | null | undefined) => r === 'wolf' || r === 'bigwolf' || r === 'whitewolf';
 
 export type WolfStep =
   | 'sleep'
   | 'wolves'
+  | 'bigwolf'
+  | 'whitewolf'
+  | 'guard'
   | 'doctor'
   | 'seer'
+  | 'witch'
   | 'wake'
   | 'announce'
-  | 'vote'
-  | 'hunter';
+  | 'hunter'
+  | 'mayor'
+  | 'vote';
+
+export type WolfPickStep = 'wolves' | 'bigwolf' | 'whitewolf' | 'guard' | 'doctor' | 'seer' | 'witch' | 'hunter' | 'mayor';
 
 export interface WolfNarratorInfo {
   roles: Record<string, WolfRole>;
   step: WolfStep;
   steps: WolfStep[];
   wolvesTarget: string | null;
+  bigwolfTarget: string | null;
+  whitewolfTarget: string | null;
+  guardSave: string | null;
+  lastGuard: string | null; // the guard can't protect the same player two nights running
   doctorSave: string | null;
   seerCheck: string | null;
+  witchHeal: string | null; // one of tonight's victims
+  witchPoison: string | null;
+  healUsed: boolean;
+  poisonUsed: boolean;
   hunterTarget: string | null;
   hunterAfter: 'night' | 'day' | null; // when the hunter step was triggered
+  mayorPick: string | null;
   log: string[];
   /** which of the current picks were made automatically for bots */
-  auto: Partial<Record<'wolves' | 'doctor' | 'seer' | 'hunter', boolean>>;
+  auto: Partial<Record<WolfPickStep, boolean>>;
 }
+
+export type WolfWinner = 'wolves' | 'village' | 'tanner' | 'whitewolf';
 
 export interface WerewolfView {
   game: 'werewolf';
@@ -474,7 +551,8 @@ export interface WerewolfView {
   wolfPack: string[] | null;
   lastDeaths: string[] | null;
   lastEliminated: string | null | undefined; // undefined = no vote yet today
-  winner: 'wolves' | 'village' | null;
+  winner: WolfWinner | null;
+  mayorId: string | null;
   revealed: Record<string, WolfRole> | null;
   narrator: WolfNarratorInfo | null;
   roleCounts: Partial<Record<WolfRole, number>>;
@@ -757,7 +835,7 @@ export interface McqResult {
 
 /** Shared by «مسابقة إسلامية» and «من أي سورة؟». */
 export interface McqView {
-  game: 'quiz' | 'surah';
+  game: 'quiz' | 'surah' | 'trivia';
   phase: 'ask' | 'reveal' | 'final';
   round: number;
   rounds: number;
@@ -923,6 +1001,83 @@ export interface WordleView {
   scores: Record<string, number>;
 }
 
+export interface KharbgaView {
+  game: 'kharbga';
+  phase: 'place' | 'move' | 'final';
+  attacker: string; // side 1, places and moves first
+  defender: string; // side 2
+  board: number[]; // 49 cells: 0 empty, 1 attacker, 2 defender
+  turn: 1 | 2;
+  mySide: 1 | 2 | null;
+  toPlace: Record<1 | 2, number>;
+  chainFrom: number | null; // the piece that must keep capturing
+  moves: { from: number; to: number }[]; // my legal moves (movement phase)
+  last: { from: number; to: number; captured: number[] } | null;
+  counts: Record<1 | 2, number>;
+  winner: 1 | 2 | 'draw' | null;
+  reason: 'captured' | 'blocked' | 'limit' | 'resign' | 'left' | null;
+  feed: FeedItem[];
+}
+
+export type ShotResult = 'hit' | 'miss';
+export interface BattleshipView {
+  game: 'battleship';
+  phase: 'setup' | 'play' | 'final';
+  players: [string, string];
+  ready: string[];
+  turn: string;
+  myFleet: { cells: number[]; sunk: boolean }[];
+  myShots: Record<number, ShotResult>; // on the enemy grid
+  enemyShots: Record<number, ShotResult>; // on my grid
+  enemySunk: number[][];
+  enemyFleetLeft: number;
+  last: { by: string; cell: number; result: ShotResult | 'sunk'; id: number } | null;
+  winner: string | null;
+  enemyFleet: number[][] | null; // revealed at the end
+}
+
+export interface XoView {
+  game: 'xo';
+  phase: 'play' | 'final';
+  x: string;
+  o: string;
+  board: ('' | 'x' | 'o')[];
+  turn: 'x' | 'o';
+  mine: 'x' | 'o' | null;
+  line: number[] | null;
+  winner: 'x' | 'o' | 'draw' | null;
+  score: Record<string, number>;
+}
+
+export interface SudokuView {
+  game: 'sudoku';
+  phase: 'play' | 'final';
+  level: 'easy' | 'medium' | 'hard';
+  givens: number[]; // 81, 0 = empty
+  myGrid: number[]; // givens + my correct entries
+  mistakes: number;
+  wrong: { cell: number; value: number; id: number } | null; // my last wrong entry (flash)
+  progress: Record<string, number>; // cells filled correctly (out of the empty cells)
+  empty: number;
+  finished: { id: string; ms: number; mistakes: number }[];
+  startedAt: number;
+  scores: Record<string, number>;
+}
+
+export interface MemoryView {
+  game: 'memory';
+  phase: 'play' | 'final';
+  order: string[];
+  turn: string;
+  size: number;
+  faces: (string | null)[]; // visible faces (matched or currently turned over)
+  owners: (string | null)[]; // who matched each card
+  flipped: number[];
+  peek: boolean; // a failed pair is being shown before turning back
+  pairs: Record<string, number>;
+  winner: string[] | null;
+}
+
 export type GameView =
   | ImposterView
   | NamesView
@@ -949,7 +1104,12 @@ export type GameView =
   | ChessView
   | KdabView
   | WaveView
-  | WordleView;
+  | WordleView
+  | KharbgaView
+  | BattleshipView
+  | XoView
+  | SudokuView
+  | MemoryView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

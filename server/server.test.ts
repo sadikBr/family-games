@@ -6,6 +6,11 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import type { Subprocess } from 'bun';
 
 import type {
+  BattleshipView,
+  KharbgaView,
+  MemoryView,
+  SudokuView,
+  XoView,
   ChessView,
   Connect4View,
   KdabView,
@@ -1074,3 +1079,113 @@ test('wordle with a bot, and wave between two people', async () => {
   expect(r.phase).toBe('reveal');
   expect(r.scores[guesser.id]).toBe(4);
 }, 80000);
+
+test('xo, kharbga and battleship against a bot', async () => {
+  const { host } = await roomWithBots(1, 1, 'xo');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const x = await autoplay(
+    host,
+    (v: XoView) => (v.phase === 'play' && v.turn === v.mine ? { type: 'mark', cell: v.board.findIndex((c) => !c) } : null),
+    (v: XoView) => v.phase === 'final',
+    20000,
+  );
+  expect(x.winner).not.toBeNull();
+  host.ws.close();
+
+  const k = await roomWithBots(1, 1, 'kharbga');
+  k.host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  let placed = 0;
+  const kv = await autoplay(
+    k.host,
+    (v: KharbgaView) => {
+      if (v.turn !== v.mySide) return null;
+      if (v.phase === 'place') {
+        const cell = v.board.findIndex((c, i) => !c && i !== 24);
+        placed++;
+        return { type: 'place', cell };
+      }
+      if (v.phase === 'move') return v.moves.length ? { type: 'resign' } : null;
+      return null;
+    },
+    (v: KharbgaView) => v.phase === 'final',
+    60000,
+  );
+  expect(placed).toBe(24);
+  expect(kv.reason).toBe('resign');
+  k.host.ws.close();
+
+  const b = await roomWithBots(1, 1, 'battleship');
+  b.host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const before = JSON.stringify(b.host.view<BattleshipView>().myFleet);
+  b.host.act({ type: 'shuffle' });
+  await settle();
+  expect(JSON.stringify(b.host.view<BattleshipView>().myFleet)).not.toBe(before);
+  b.host.act({ type: 'ready' });
+  let next = 0;
+  const bv = await autoplay(
+    b.host,
+    (v: BattleshipView) => {
+      if (v.phase !== 'play' || v.turn !== b.host.id) return null;
+      while (v.myShots[next]) next++;
+      return { type: 'fire', cell: next };
+    },
+    (v: BattleshipView) => v.phase === 'final',
+    120000,
+  );
+  expect(bv.enemyFleet).not.toBeNull();
+  expect(bv.myFleet.length).toBe(5);
+}, 200000);
+
+test('sudoku race and memory with bots', async () => {
+  const { host } = await roomWithBots(1, 1, 'sudoku');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const sv = host.view<SudokuView>();
+  expect(sv.givens.filter(Boolean).length).toBe(40);
+  const cell = sv.givens.findIndex((v) => !v);
+  host.act({ type: 'set', cell, value: 10 }); // out of range → ignored
+  await settle();
+  expect(host.view<SudokuView>().mistakes).toBe(0);
+  host.act({ type: 'giveup' });
+  await settle();
+  expect(host.view<SudokuView>().finished.some((f) => f.id === host.id)).toBe(true);
+  host.ws.close();
+
+  const m = await roomWithBots(1, 2, 'memory');
+  m.host.send({ t: 'room', action: { type: 'settings', game: 'memory', patch: { pairs: 8 } } });
+  await settle();
+  m.host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const mv = await autoplay(
+    m.host,
+    (v: MemoryView) => {
+      if (v.phase !== 'play' || v.turn !== m.host.id || v.peek) return null;
+      const free = v.faces.map((f, i) => (f === null ? i : -1)).filter((i) => i >= 0);
+      return free.length ? { type: 'flip', card: free[0] } : null;
+    },
+    (v: MemoryView) => v.phase === 'final',
+    120000,
+  );
+  expect(mv.size).toBe(16);
+  expect(Object.values(mv.pairs as Record<string, number>).reduce((a, b) => a + b, 0)).toBe(8);
+  expect(mv.winner!.length).toBeGreaterThan(0);
+}, 150000);
+
+test('trivia with a bot', async () => {
+  const { host } = await roomWithBots(1, 1, 'trivia');
+  host.send({ t: 'room', action: { type: 'settings', game: 'trivia', patch: { rounds: 5, category: 'sport' } } });
+  await settle();
+  expect(host.room!.settings.trivia.category).toBe('sport');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const v = await autoplay(
+    host,
+    (x: McqView) => (x.phase === 'ask' && x.myAnswer === null ? { type: 'answer', choice: 0 } : null),
+    (x: McqView) => x.phase === 'final',
+    120000,
+  );
+  expect(v.rounds).toBe(5);
+}, 130000);

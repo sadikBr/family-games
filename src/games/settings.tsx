@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { client } from '@/lib/client';
+import { MEMORY_SIZES } from '@/shared/memory';
 import type { GameId, RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
@@ -138,7 +139,10 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       );
     }
     case 'connect4':
-    case 'chess': {
+    case 'chess':
+    case 'kharbga':
+    case 'battleship':
+    case 'xo': {
       const { settings, change } = settingsFor(room, room.game);
       return (
         <View style={{ gap: 8 }}>
@@ -151,6 +155,62 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
             value={String(settings.level) as '1' | '2'}
             editable={editable}
             onChange={(v) => change({ level: Number(v) as 1 | 2 })}
+          />
+        </View>
+      );
+    }
+    case 'sudoku': {
+      const { settings, change } = settingsFor(room, 'sudoku');
+      return (
+        <View style={{ gap: 8 }}>
+          <Txt v="bold">صعوبة اللغز</Txt>
+          <ChipPicker
+            options={[
+              { key: 'easy', label: 'سهل' },
+              { key: 'medium', label: 'متوسط' },
+              { key: 'hard', label: 'صعب' },
+            ]}
+            value={settings.level}
+            editable={editable}
+            onChange={(level) => change({ level })}
+          />
+        </View>
+      );
+    }
+    case 'trivia': {
+      const { settings, change } = settingsFor(room, 'trivia');
+      return (
+        <View style={{ gap: 10 }}>
+          <Stepper label="عدد الأسئلة" value={settings.rounds} min={5} max={30} step={5} editable={editable} onChange={(rounds) => change({ rounds })} />
+          <Stepper label="وقت السؤال" value={settings.seconds} min={10} max={30} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />
+          <Txt v="bold">نوع الأسئلة</Txt>
+          <ChipPicker
+            options={[
+              { key: 'all', label: 'الكل' },
+              { key: 'morocco', label: 'المغرب' },
+              { key: 'geography', label: 'جغرافيا' },
+              { key: 'science', label: 'علوم' },
+              { key: 'sport', label: 'رياضة' },
+              { key: 'animals', label: 'حيوانات' },
+              { key: 'mixed', label: 'منوّعات' },
+            ]}
+            value={settings.category}
+            editable={editable}
+            onChange={(category) => change({ category })}
+          />
+        </View>
+      );
+    }
+    case 'memory': {
+      const { settings, change } = settingsFor(room, 'memory');
+      return (
+        <View style={{ gap: 8 }}>
+          <Txt v="bold">عدد البطاقات</Txt>
+          <ChipPicker
+            options={MEMORY_SIZES.map((n) => ({ key: String(n), label: String(n * 2) }))}
+            value={String(settings.pairs)}
+            editable={editable}
+            onChange={(v) => change({ pairs: Number(v) })}
           />
         </View>
       );
@@ -274,6 +334,12 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
           <Toggle label="العرّافة" value={settings.seer} editable={editable} onChange={(seer) => change({ seer })} />
           <Toggle label="الطبيب" value={settings.doctor} editable={editable} onChange={(doctor) => change({ doctor })} />
           <Toggle label="الصيّاد" value={settings.hunter} editable={editable} onChange={(hunter) => change({ hunter })} />
+          <Toggle label="الساحرة (شفاء وسمّ)" value={settings.witch} editable={editable} onChange={(witch) => change({ witch })} />
+          <Toggle label="الحارس" value={settings.guard} editable={editable} onChange={(guard) => change({ guard })} />
+          <Toggle label="انتخاب العمدة" value={settings.mayor} editable={editable} onChange={(mayor) => change({ mayor })} />
+          <Toggle label="المجنون (يفوز إذا أُقصي)" value={settings.tanner} editable={editable} onChange={(tanner) => change({ tanner })} />
+          <Toggle label="الذئب الكبير" value={settings.bigwolf} editable={editable} onChange={(bigwolf) => change({ bigwolf })} />
+          <Toggle label="الذئب الأبيض (يحتاج ذئبين)" value={settings.whitewolf} editable={editable} onChange={(whitewolf) => change({ whitewolf })} />
         </View>
       );
     }

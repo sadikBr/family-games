@@ -94,3 +94,71 @@ export function hunter() {
     <path d="M38 58 l4 1 M58 59 l4 -1" stroke="#5a3a26" stroke-width="1.2" opacity="0.6" data-flat/>
 `);
 }
+
+export function whitewolf() {
+  return wolfBadge()
+    .replace('#2B3170', '#4E5A7E').replace('#3C4590', '#8390B4').replaceAll('#5E6AD8', '#9FD8F5').replaceAll('#9AA5FF', '#FFFFFF')
+    .replaceAll('#6B7394', '#F1F3F8').replaceAll('#59607E', '#D3D8E6').replace('#4A5170', '#C3CADB').replaceAll('#FFD23F', '#6FD3FF');
+}
+
+export function bigwolf() {
+  return wolfBadge()
+    .replace('#2B3170', '#3A1210').replace('#3C4590', '#6A1F18').replaceAll('#5E6AD8', '#F08A3E').replaceAll('#9AA5FF', '#FFD08A')
+    .replace('#FFE8A3', '#FF8A5C').replaceAll('#6B7394', '#5A3B30').replaceAll('#59607E', '#4A2E26').replace('#4A5170', '#3C241E').replaceAll('#FFD23F', '#FF4A3D');
+}
+
+export function witch() {
+  return svg100(`
+    ${shield('#2E5E2A', '#4C8C3A')}
+    <g fill="#E8FFB0" data-flat><circle cx="24" cy="34" r="1.4"/><circle cx="78" cy="30" r="1.2"/><circle cx="80" cy="48" r="1"/></g>
+    <path d="M18 94 C20 78 30 70 50 68 C70 70 80 78 82 94Z" fill="#4A2A7A"/>
+    <path d="M27 66 C24 50 30 38 36 34 L64 34 C70 38 76 50 73 66 C68 72 62 74 50 74 C38 74 32 72 27 66Z" fill="#2A1E3A" data-shade="0.6"/>
+    ${face(1)}
+    ${eyes('#3FBF5A', { fierce: 0.3, lash: 1 })}
+    ${brow(43, 43.5, { side: -1, angle: 0.5, w: 9, t: 1.8 })}${brow(57, 43.5, { side: 1, angle: 0.5, w: 9, t: 1.8 })}
+    ${nose(50, 56, 1.15)}${smile(50, 61.5, 8, { smirk: 1 })}${blush(39, 58)}${blush(61, 58)}
+    <ellipse cx="50" cy="35" rx="30" ry="6" fill="#3A2458"/>
+    <path d="M34 35 C38 26 42 18 46 10 C50 4 58 6 62 2 C58 10 60 22 66 35Z" fill="#4A2E70"/>
+    <path d="M35.5 31 Q50 27 64.5 31 L65.5 35 Q50 31 34.5 35Z" fill="#F2C23D" data-noshade/>
+    <path d="M66 74 h10 v4 l4 8 c1 4 -2 7 -6 7 h-6 c-4 0 -7 -3 -6 -7 l4 -8z" fill="#7FE07A" data-lw="1.4"/>
+    <rect x="68" y="70" width="6" height="5" rx="1" fill="#B07A45"/>
+    <path d="M22 76 h8 v3 l3 7 c1 4 -2 7 -5 7 h-4 c-3 0 -6 -3 -5 -7 l3 -7z" fill="#B3263C" data-lw="1.4"/>
+    <rect x="23.5" y="72" width="5" height="5" rx="1" fill="#B07A45"/>
+    <path d="M24 86 h6 M70 86 h8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity="0.7" data-flat/>`);
+}
+
+export function guard() {
+  return svg100(`
+    ${shield('#2A3E66', '#3F5E96')}
+    <path d="M18 94 C20 78 30 70 50 68 C70 70 80 78 82 94Z" fill="#8C96B4"/>
+    <path d="M30 80 H70 M34 88 H66" stroke="#5B6587" stroke-width="2" data-flat/>
+    ${neck}${ears()}${face()}
+    ${eyes('#3a6fd0', { fierce: 0.4 })}
+    ${brow(43, 43.5, { side: -1, angle: 0.4, w: 9, t: 2.2 })}${brow(57, 43.5, { side: 1, angle: 0.4, w: 9, t: 2.2 })}
+    ${nose(50, 56)}${smile(50, 61.5, 7)}
+    <path d="M32 46 C31 30 40 22 50 22 C60 22 69 30 68 46 L64 46 C63 36 58 31 50 31 C42 31 37 36 36 46Z" fill="#B9C2DA"/>
+    <path d="M50 22 V31" stroke="#5B6587" stroke-width="2.4" data-flat/>
+    <path d="M47 22 C46 14 50 8 56 6 C54 12 56 16 53 22Z" fill="#E2475F"/>
+    <path d="M70 52 L84 56 C84 70 80 80 70 86 C60 80 56 70 56 56Z" fill="#F2C23D"/>
+    <path d="M70 60 V78 M63 66 H77" stroke="#B3263C" stroke-width="3" stroke-linecap="round" data-flat/>`);
+}
+
+export function tanner() {
+  const bell = (x, y) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#F2C23D" data-lw="1.2"/>`;
+  return svg100(`
+    ${shield('#6E2A6E', '#A0459E')}
+    <path d="M18 94 C20 78 30 70 50 68 C70 70 80 78 82 94Z" fill="#E2475F"/>
+    <path d="M50 68 V94 M18 94 L50 68 L82 94" fill="none" stroke="none"/>
+    <path d="M50 70 L50 94 L82 94 C80 78 70 70 50 70Z" fill="#2FB67C" data-noline/>
+    <path d="M34 70 L40 78 L46 70 L50 78 L54 70 L60 78 L66 70" stroke="${INK}" stroke-width="5" fill="none" stroke-linejoin="round" data-flat/>
+    <path d="M34 70 L40 78 L46 70 L50 78 L54 70 L60 78 L66 70" stroke="#F4F1EA" stroke-width="2.6" fill="none" stroke-linejoin="round" data-flat/>
+    ${neck}${ears()}${face()}
+    ${eye(43, 50, { side: -1, iris: '#E2475F', w: 11, h: 9, look: 0.6, lash: 0.2 })}${eye(57, 50, { side: 1, iris: '#2FB67C', w: 9, h: 6, look: -0.6, lash: 0.2 })}
+    ${brow(43, 42.5, { side: -1, angle: -0.6, w: 9, t: 2 })}${brow(57, 44, { side: 1, angle: 0.6, w: 9, t: 2 })}
+    ${nose(50, 56)}${smile(50, 61, 12, { open: true, teeth: true })}${blush(38, 58)}${blush(62, 58)}
+    <path d="M33 40 C30 26 22 20 14 22 C22 26 30 32 36 40Z" fill="#E2475F"/>
+    <path d="M67 40 C70 26 78 20 86 22 C78 26 70 32 64 40Z" fill="#2FB67C"/>
+    <path d="M36 40 C38 26 44 16 50 12 C56 16 62 26 64 40Z" fill="#F2C23D"/>
+    <path d="M33 40 Q50 34 67 40 L67 44 Q50 38 33 44Z" fill="#A0459E" data-noshade/>
+    ${bell(14, 22)}${bell(86, 22)}${bell(50, 12)}`);
+}

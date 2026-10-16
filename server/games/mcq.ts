@@ -58,7 +58,7 @@ function ask(ctx: GameCtx, s: McqState<unknown>) {
 }
 
 export function makeMcq<S extends { rounds: number; seconds: number }>(
-  id: Extract<GameId, 'quiz' | 'surah'>,
+  id: Extract<GameId, 'quiz' | 'surah' | 'trivia'>,
   build: (settings: S) => McqItem[],
 ): GameModule<McqState<S>, S> {
   return {

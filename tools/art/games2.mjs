@@ -2,21 +2,21 @@
 import { INK, svg100 } from './mkit.mjs';
 import { piece } from './chess.mjs';
 
-const SHIELD = 'M50 7 L85 17 C86 50 76 77 50 93 C24 77 14 50 15 17Z';
-const SHIELD_IN = 'M50 14 L79 22 C79.5 50 71 71 50 85 C29 71 20.5 50 21 22Z';
-const HEX = 'M50 6 L88 27 V73 L50 94 L12 73 V27Z';
-const HEX_IN = 'M50 13 L82 31 V69 L50 87 L18 69 V31Z';
-const ROUND = 'M50 8 A42 42 0 1 1 49.9 8Z';
-const ROUND_IN = 'M50 15 A35 35 0 1 1 49.9 15Z';
+export const SHIELD = 'M50 7 L85 17 C86 50 76 77 50 93 C24 77 14 50 15 17Z';
+export const SHIELD_IN = 'M50 14 L79 22 C79.5 50 71 71 50 85 C29 71 20.5 50 21 22Z';
+export const HEX = 'M50 6 L88 27 V73 L50 94 L12 73 V27Z';
+export const HEX_IN = 'M50 13 L82 31 V69 L50 87 L18 69 V31Z';
+export const ROUND = 'M50 8 A42 42 0 1 1 49.9 8Z';
+export const ROUND_IN = 'M50 15 A35 35 0 1 1 49.9 15Z';
 
-function wings(c1, c2) {
+export function wings(c1, c2) {
   const L = `M20 34 L4 26 L10 38 L0 42 L12 50 L4 58 L18 60 L14 70 L27 66Z`;
   const L2 = `M22 44 L10 42 L16 50 L10 56 L24 58Z`;
   const mirror = (d) => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) => `${100 - parseFloat(x)} ${y}`);
   return `<path d="${L}" fill="${c1}"/><path d="${mirror(L)}" fill="${c1}"/>
     <path d="${L2}" fill="${c2}" data-noshade/><path d="${mirror(L2)}" fill="${c2}" data-noshade/>`;
 }
-const base = (shape, inner, c1, c2, w) => `${w ? wings(...w) : ''}<path d="${shape}" fill="${c1}"/><path d="${inner}" fill="${c2}" data-noline data-shade="0.8"/>`;
+export const base = (shape, inner, c1, c2, w) => `${w ? wings(...w) : ''}<path d="${shape}" fill="${c1}"/><path d="${inner}" fill="${c2}" data-noline data-shade="0.8"/>`;
 const inner = (svg) => svg.replace(/^<svg[^>]*><defs><\/defs>/, '').replace(/<\/svg>$/, '');
 
 export function connect4() {

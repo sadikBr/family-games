@@ -3,6 +3,7 @@ import type { ServerWebSocket } from 'bun';
 import {
   BOT_GAMES,
   type QuizCategory,
+  type TriviaCategory,
   DEFAULT_SETTINGS,
   GAME_IDS,
   MAX_BOTS,
@@ -27,12 +28,18 @@ import { unoflip } from './games/unoflip';
 import { ludo } from './games/ludo';
 import { codenames } from './games/codenames';
 import { dama } from './games/dama';
+import { battleship } from './games/battleship';
 import { chess } from './games/chess';
 import { connect4 } from './games/connect4';
 import { estate } from './games/estate';
 import { kdab } from './games/kdab';
+import { kharbga } from './games/kharbga';
+import { memory } from './games/memory';
+import { sudoku } from './games/sudoku';
+import { trivia } from './games/trivia';
 import { wave } from './games/wave';
 import { wordle } from './games/wordle';
+import { xo } from './games/xo';
 import { hajj } from './games/hajj';
 import { huroof } from './games/huroof';
 import { ladders } from './games/ladders';
@@ -87,6 +94,12 @@ const MODULES: Record<GameId, AnyModule> = {
   kdab,
   wave,
   wordle,
+  kharbga,
+  battleship,
+  xo,
+  sudoku,
+  trivia,
+  memory,
 };
 const MAX_PLAYERS = 20;
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
@@ -437,6 +450,24 @@ export class Room {
         this.settings.dama.flyingKings = bool(patch.flyingKings, this.settings.dama.flyingKings);
         this.settings.dama.backCapture = bool(patch.backCapture, this.settings.dama.backCapture);
         break;
+      case 'kharbga':
+      case 'battleship':
+      case 'xo':
+        if (patch.level === 1 || patch.level === 2) this.settings[game].level = patch.level;
+        break;
+      case 'sudoku':
+        if (patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') this.settings.sudoku.level = patch.level;
+        break;
+      case 'trivia': {
+        const q = this.settings.trivia;
+        q.rounds = int(patch.rounds, q.rounds, 5, 30);
+        q.seconds = int(patch.seconds, q.seconds, 10, 30);
+        q.category = cat(patch.category, q.category, ['all', 'morocco', 'geography', 'science', 'sport', 'animals', 'mixed']) as TriviaCategory;
+        break;
+      }
+      case 'memory':
+        if ([8, 10, 12, 15].includes(patch.pairs as number)) this.settings.memory.pairs = patch.pairs as number;
+        break;
       case 'connect4':
         if (patch.level === 1 || patch.level === 2) this.settings.connect4.level = patch.level;
         break;
@@ -496,6 +527,12 @@ export class Room {
         s.seer = bool(patch.seer, s.seer);
         s.doctor = bool(patch.doctor, s.doctor);
         s.hunter = bool(patch.hunter, s.hunter);
+        s.witch = bool(patch.witch, s.witch);
+        s.guard = bool(patch.guard, s.guard);
+        s.mayor = bool(patch.mayor, s.mayor);
+        s.tanner = bool(patch.tanner, s.tanner);
+        s.whitewolf = bool(patch.whitewolf, s.whitewolf);
+        s.bigwolf = bool(patch.bigwolf, s.bigwolf);
         break;
       }
     }

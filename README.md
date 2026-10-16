@@ -16,6 +16,12 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الكذّاب** (Cheat / Liar) | 2–6 | Spanish deck: play 1–4 cards face down claiming a rank; anyone can shout «كذّاب!». First to empty their hand wins. |
 | **موجة** (Wavelength) | 2–12 | One player gives a clue for a secret point on a scale (بارد ↔ ساخن…); the others turn a dial. Closer = more points. |
 | **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard. Guesses aren't checked against a dictionary. |
+| **الخربقة** (Kharbga) | 2 | The traditional Moroccan game on a 7×7 board: place two pieces per turn, then move one square and capture by sandwiching an enemy piece; captures chain. Simplified: a blocked player passes, and 80 moves without a capture ends the game on piece count. |
+| **معركة السفن** (Battleship) | 2 | Each phone hides its own fleet (shuffle until you like it). Fire at the other sea; a hit lets you fire again. Bot hunts with parity and follows up hits. |
+| **إكس أو** (Tic-tac-toe) | 2 | X and O swap every game; wins are counted across games. The strong bot never loses. |
+| **سودوكو** (Sudoku) | 1–12 | Everyone races through the same puzzle (easy / medium / hard, always one solution). Wrong numbers are refused and count as mistakes. 300 / 200 / 150… points, −20 per mistake. |
+| **معلومات عامة** (general quiz) | 2–12 | Timed multiple-choice questions: Morocco, geography, science, sport, animals, mixed. |
+| **الذاكرة** (Memory) | 2–6 | Turn over two cards; a pair is yours and you play again. 16–30 cards using the app's own illustrations. |
 | **حروف** (Huroof) | 2–12 | Two teams, a 5×5 grid of letter hexagons. Pick a letter; the first to answer the Islamic question (answer starts with that letter) wins the hexagon. Red joins right ↔ left, green top ↔ bottom. |
 | **مسابقة إسلامية** (quiz) | 2–12 | Timed multiple-choice questions on Quran, prophets, seerah, companions, worship, Hajj, history and places. Faster right answers score more. |
 | **من هو؟** (who is it?) | 2–12 | Clues about a prophet, companion, place or historical figure appear one by one; one guess each, earlier = more points. |
@@ -30,7 +36,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **على راسك** (Heads Up) | 2+ | The guesser holds the phone to their forehead (tilt down = correct, tilt up = skip). Everyone else sees the word on their own phone and can tap / . |
 | **ممنوع تقول** (Taboo) | 4+ | Red vs Blue. The describer and the **other** team see the card. Team-mates see only "guess!" and the other team has a buzzer. |
 | **البطاطا الحارة** (Hot Potato) | 3+ | A virtual potato jumps from phone to phone. Say a word from the topic, then throw it before it explodes at a random moment. |
-| **الذئب** (Werewolf) | 5+ | The narrator's phone shows every role plus a step-by-step night/day script. Each player sees only their own role (wolves also see their pack). |
+| **الذئب** (Werewolf) | 5+ | The narrator's phone shows every role plus a step-by-step night/day script. Each player sees only their own role (wolves also see their pack). Roles (chosen in the lobby): wolf, big bad wolf (a second victim while no wolf has died), white wolf (kills a wolf every other night, wins alone), villager, seer, doctor, guard (not the same player twice in a row), witch (one heal, one poison), hunter, tanner (wins if voted out), plus an elected mayor whose vote counts double. |
 
 ## Bots
 
@@ -42,11 +48,14 @@ Not enough people? In the lobby, the host taps **«أضف بوت»** (up to 8). 
 | اسم ولد اسم بنت | Fill their boxes one by one from a built-in dictionary (`server/bot-content.ts`). They don't always find an answer |
 | البطاطا الحارة | Shout a word from the topic and throw the potato |
 | لودو، الضامة | Bots roll, capture when they can and keep their pieces safe |
-| حروف، مسابقة، من هو؟، من أي سورة؟ | Bots answer after a while and are right about 65–70% of the time (on a team with people, they wait so people answer first) |
+| حروف، مسابقة، من هو؟، من أي سورة؟، معلومات عامة | Bots answer after a while and are right about 65–70% of the time (on a team with people, they wait so people answer first) |
 | رحلة الحج، سلّم الحسنات | Bots roll and answer question squares |
+| الخربقة، معركة السفن، إكس أو، أربعة في صف، الشطرنج | Casual or strong bot, chosen in the lobby |
+| سودوكو | Bots fill one correct cell every few seconds, at a human pace |
+| الذاكرة | Bots remember most of the cards they have seen |
 | ملك العقار | Bots buy while keeping a cash reserve, build on full sets, offer trades that finish a colour set and judge offers by value |
 | Card games | Bots play their own cards (they capture, follow suit, meld and discard). Use them to fill the 4 seats of التريس |
-| الذئب | Night picks for bot wolves / doctor / seer / hunter are made automatically on the narrator's screen. In the day, bots accuse someone (a bot seer goes after the wolf it found) |
+| الذئب | Night picks for bot wolves / big bad wolf / white wolf / guard / doctor / seer / witch / hunter are made automatically on the narrator's screen, and a dying bot mayor names a successor. In the day, bots accuse someone (a bot seer goes after the wolf it found) |
 
 Bots sit out **على راسك**، **ممنوع تقول**، **الكلمات السرية** and **ارسم وخمّن**, since those games need real people. The narrator is never a bot.
 
@@ -75,7 +84,7 @@ Build the app with `EXPO_PUBLIC_SERVER_URL=wss://your-server.example.com` so pho
 server/              Realtime game server (Bun WebSockets). Source of truth for every game.
   index.ts           Rooms, connections, timers
   room.ts            Lobby, settings, sending each player only what they may see
-  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle
+  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
   content-extra.ts   Words for Codenames and Draw & Guess
@@ -93,6 +102,7 @@ src/
   shared/chess.ts    Chess rules engine + bot (used by the server)
   shared/connect4.ts Connect Four rules + bot
   shared/wordle.ts   Word normalisation, keyboard, marking
+  shared/kharbga.ts, battleship.ts, xo.ts, sudoku.ts, memory.ts  Rules and bots for the newest games
   shared/islamic.ts  Hajj stations, good deeds / bad habits, board geometry for the Islamic games
   ui/dice3d.tsx      3D dice thrown across the board (pre-rendered three.js frames)
   art/               Illustrations: avatars, game emblems, roles, cards (HD WebP, see assets.ts) + vector icons

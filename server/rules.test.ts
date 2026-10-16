@@ -534,8 +534,10 @@ test('connect4: wins in every direction, full columns refused, strong bot blocks
   expect(bestColumn(e, 2, 2)).toBe(3);
   const ctx = fakeCtx();
   const s: any = connect4.start(ctx, ['r', 'y'], { level: 2 });
-  for (let k = 0; k < 6; k++) connect4.act(ctx, s, k % 2 ? 'y' : 'r', { type: 'drop', col: 0 });
-  expect(() => connect4.act(ctx, s, 'r', { type: 'drop', col: 0 })).toThrow();
+  for (let k = 0; k < 6; k++) connect4.act(ctx, s, k % 2 ? s.yellow : s.red, { type: 'drop', col: 0 });
+  expect(s.board.filter(Boolean).length).toBe(6);
+  expect(() => connect4.act(ctx, s, s.red, { type: 'drop', col: 0 })).toThrow(); // full column
+  expect(() => connect4.act(ctx, s, s.yellow, { type: 'drop', col: 1 })).toThrow(); // not their turn
 });
 
 test('kdab: all 40 cards always accounted for; games end with a winner', () => {
@@ -626,4 +628,301 @@ test('wordle: words are 5 letters, marking handles repeated letters, bots solve'
     }
   }
   expect(s.phase).toBe('final');
+});
+
+import { BN, FLEET, botShot, randomFleet } from '../src/shared/battleship';
+import { CENTER as K_CENTER, applyMove as kApply, capturesAt, movesFor as kMoves } from '../src/shared/kharbga';
+import { MEMORY_FACES, MEMORY_SIZES } from '../src/shared/memory';
+import { conflicts, countSolutions, generateSudoku } from '../src/shared/sudoku';
+import { xoBest, xoWinner, type Mark } from '../src/shared/xo';
+import { TRIVIA } from './content-trivia';
+import { battleship } from './games/battleship';
+import { kharbga } from './games/kharbga';
+import { memory } from './games/memory';
+import { sudoku } from './games/sudoku';
+import { trivia } from './games/trivia';
+import { xo } from './games/xo';
+
+/** Run a module with bots only until it ends (bots act instantly; ticks advance the clock). */
+function botRun(mod: any, players: string[], settings: any, steps = 5000) {
+  const q: any[] = [];
+  const ctx = fakeCtx((by, a) => q.push({ by, a }));
+  ctx.memo = new Map();
+  const s: any = mod.start(ctx, players, settings);
+  for (let k = 0; k < steps && s.phase !== 'final'; k++) {
+    q.length = 0;
+    mod.botPlan?.(ctx, s, players);
+    const batch = q.splice(0);
+    for (const z of batch) mod.act(ctx, s, z.by, z.a);
+    if (!batch.length) {
+      ctx.now += 2000;
+      mod.tick?.(ctx, s);
+    }
+  }
+  return { s, ctx };
+}
+
+test('kharbga: sandwich captures, safe between two, chains, bots finish', () => {
+  const b = Array(49).fill(0);
+  // a vertical line: 10 attacker, 17 defender, 24 empty
+  b[10] = 1;
+  b[17] = 2;
+  b[31] = 1; // attacker moves 31→24 and sandwiches 17
+  const r = kApply(b, { from: 31, to: 24 }, 1);
+  expect(r.captured).toEqual([17]);
+  expect(capturesAt(r.board, 24, 1)).toEqual([]);
+  // moving between two enemies is safe
+  const s2 = Array(49).fill(0);
+  s2[23] = 2;
+  s2[25] = 2;
+  s2[31] = 1;
+  expect(kApply(s2, { from: 31, to: 24 }, 1).captured).toEqual([]);
+  // first move must enter the centre
+  const full = Array(49).fill(0).map((_, i) => (i === K_CENTER ? 0 : i % 2 ? 1 : 2));
+  expect(kMoves(full, 1, null, true).every((m) => m.to === K_CENTER)).toBe(true);
+  // chain: only the chain piece may move, and only to capture
+  const c = Array(49).fill(0);
+  c[24] = 1;
+  c[25] = 0;
+  c[26] = 2;
+  c[27] = 1;
+  c[18] = 2;
+  c[11] = 1;
+  const chain = kMoves(c, 1, 24);
+  expect(chain.every((m) => m.from === 24)).toBe(true);
+  expect(chain.map((m) => m.to)).toEqual([25]);
+  for (let g = 0; g < 6; g++) {
+    const { s } = botRun(kharbga, ['a', 'b'], { level: (1 + (g % 2)) as 1 | 2 }, 4000);
+    expect(s.phase).toBe('final');
+    expect(s.winner).not.toBeNull();
+  }
+});
+
+test('battleship: fleets never touch, bots sink everything', () => {
+  for (let k = 0; k < 200; k++) {
+    const f = randomFleet();
+    expect(f.map((x) => x.length)).toEqual(FLEET);
+    const cells = new Set(f.flat());
+    expect(cells.size).toBe(17);
+    for (let i = 0; i < f.length; i++)
+      for (const c of f[i])
+        for (const d of [-BN - 1, -BN, -BN + 1, -1, 1, BN - 1, BN, BN + 1]) {
+          const n = c + d;
+          if (n < 0 || n >= BN * BN || Math.abs((n % BN) - (c % BN)) > 1) continue;
+          if (cells.has(n)) expect(f[i].includes(n)).toBe(true);
+        }
+  }
+  // the hunting bot never shoots the same cell twice and finishes in < 100 shots
+  for (const level of [1, 2] as const) {
+    let total = 0;
+    for (let g = 0; g < 30; g++) {
+      const fleet = randomFleet();
+      const shots: Record<number, 'hit' | 'miss'> = {};
+      let n = 0;
+      while (!fleet.every((sh) => sh.every((c) => shots[c] === 'hit'))) {
+        const c = botShot(shots, fleet.filter((sh) => sh.every((x) => shots[x] === 'hit')), level);
+        expect(shots[c]).toBeUndefined();
+        shots[c] = fleet.some((sh) => sh.includes(c)) ? 'hit' : 'miss';
+        n++;
+      }
+      expect(n).toBeLessThanOrEqual(100);
+      total += n;
+    }
+    if (level === 2) expect(total / 30).toBeLessThan(65);
+  }
+  const { s } = botRun(battleship, ['a', 'b'], { level: 2 });
+  expect(s.phase).toBe('final');
+  const v = battleship.view(fakeCtx(), s, s.winner) as any;
+  expect(v.enemyFleet).not.toBeNull();
+  expect(v.enemyFleetLeft).toBe(0);
+});
+
+test('xo: winner lines, the strong bot never loses', () => {
+  expect(xoWinner(['x', 'x', 'x', '', 'o', 'o', '', '', ''] as Mark[])?.mark).toBe('x');
+  for (let g = 0; g < 60; g++) {
+    const b: Mark[] = Array(9).fill('');
+    let turn: 'x' | 'o' = g % 2 ? 'x' : 'o';
+    const strong = 'x';
+    while (!xoWinner(b) && b.some((c) => !c)) {
+      const cell = turn === strong ? xoBest(b, turn, 2) : (() => { const free = b.map((c, i) => (c ? -1 : i)).filter((i) => i >= 0); return free[Math.floor(Math.random() * free.length)]; })();
+      b[cell] = turn;
+      turn = turn === 'x' ? 'o' : 'x';
+    }
+    expect(xoWinner(b)?.mark).not.toBe('o');
+  }
+  const { s } = botRun(xo, ['a', 'b'], { level: 2 });
+  expect(s.phase).toBe('final');
+});
+
+test('sudoku: unique puzzles, conflicts detected, a race finishes with scores', () => {
+  for (const level of ['easy', 'medium', 'hard'] as const) {
+    const { puzzle, solution } = generateSudoku(level);
+    expect(countSolutions(puzzle.slice(), 2)).toBe(1);
+    expect(conflicts(solution).size).toBe(0);
+    puzzle.forEach((v, i) => v && expect(v).toBe(solution[i]));
+  }
+  const g = Array(81).fill(0);
+  g[0] = 5;
+  g[8] = 5;
+  expect([...conflicts(g)].sort()).toEqual([0, 8]);
+  const ctx = fakeCtx();
+  const s: any = sudoku.start(ctx, ['a', 'b'], { level: 'easy' });
+  const empty = s.puzzle.map((v: number, i: number) => (v ? -1 : i)).filter((i: number) => i >= 0);
+  sudoku.act(ctx, s, 'a', { type: 'set', cell: empty[0], value: (s.solution[empty[0]] % 9) + 1 });
+  expect(s.mistakes.a).toBe(1);
+  expect(s.grids.a[empty[0]]).toBe(0);
+  for (const c of empty) sudoku.act(ctx, s, 'a', { type: 'set', cell: c, value: s.solution[c] });
+  expect(s.finished[0].id).toBe('a');
+  expect(s.scores.a).toBe(280);
+  expect(s.phase).toBe('play');
+  sudoku.act(ctx, s, 'b', { type: 'giveup' });
+  expect(s.phase).toBe('final');
+  const r = botRun(sudoku, ['x', 'y', 'z'], { level: 'easy' });
+  expect(r.s.phase).toBe('final');
+  expect(r.s.finished.length).toBe(3);
+});
+
+test('memory: every size has enough faces, pairs keep the turn, games finish', () => {
+  expect(new Set(MEMORY_FACES).size).toBe(MEMORY_FACES.length);
+  expect(Math.max(...MEMORY_SIZES)).toBeLessThanOrEqual(MEMORY_FACES.length);
+  const ctx = fakeCtx();
+  const s: any = memory.start(ctx, ['a', 'b'], { pairs: 8 });
+  const first = s.order[0];
+  const i = 0, j = s.deck.indexOf(s.deck[0], 1);
+  memory.act(ctx, s, first, { type: 'flip', card: i });
+  memory.act(ctx, s, first, { type: 'flip', card: j });
+  expect(s.pairs[first]).toBe(1);
+  expect(s.order[s.turnIdx]).toBe(first);
+  const k = s.deck.findIndex((f: string, x: number) => !s.owners[x]);
+  const miss = s.deck.findIndex((f: string, x: number) => !s.owners[x] && f !== s.deck[k]);
+  memory.act(ctx, s, first, { type: 'flip', card: k });
+  memory.act(ctx, s, first, { type: 'flip', card: miss });
+  expect((memory.view(ctx, s, 'a') as any).peek).toBe(true);
+  ctx.now += 2000;
+  memory.tick!(ctx, s);
+  expect(s.order[s.turnIdx]).not.toBe(first);
+  for (const pairs of MEMORY_SIZES) {
+    const r = botRun(memory, ['a', 'b', 'c'], { pairs });
+    expect(r.s.phase).toBe('final');
+    expect(Object.values(r.s.pairs as Record<string, number>).reduce((x, y) => x + y, 0)).toBe(pairs);
+  }
+});
+
+test('trivia: questions well-formed, every category big enough, a game plays out', () => {
+  for (const q of TRIVIA) {
+    expect(q.w.length).toBe(3);
+    expect(new Set([q.a, ...q.w]).size).toBe(4);
+  }
+  expect(new Set(TRIVIA.map((q) => q.q)).size).toBe(TRIVIA.length);
+  for (const cat of ['morocco', 'geography', 'science', 'sport', 'animals', 'mixed'] as const) expect(TRIVIA.filter((q) => q.cat === cat).length).toBeGreaterThanOrEqual(15);
+  const r = botRun(trivia, ['a', 'b'], { rounds: 5, seconds: 15, category: 'science' });
+  expect(r.s.phase).toBe('final');
+  expect(r.s.items.length).toBe(5);
+});
+
+import { werewolf } from './games/werewolf';
+
+const ALL_ROLES = { narratorId: 'n', wolves: 3, seer: true, doctor: true, hunter: true, witch: true, guard: true, mayor: true, tanner: true, whitewolf: true, bigwolf: true };
+
+test('werewolf: every role is dealt; witch, guard, big wolf, hunter, mayor and tanner work', () => {
+  const ctx = fakeCtx();
+  ctx.isBot = (id: string) => id === 'none';
+  const players = ['n', ...Array.from({ length: 10 }, (_, i) => `p${i}`)];
+  const s: any = werewolf.start(ctx, players, ALL_ROLES);
+  const who = (r: string) => Object.keys(s.roles).find((id) => s.roles[id] === r)!;
+  expect(Object.values(s.roles).sort()).toEqual(['bigwolf', 'doctor', 'guard', 'hunter', 'seer', 'tanner', 'villager', 'whitewolf', 'witch', 'wolf'].sort());
+  const N = (a: any) => werewolf.act(ctx, s, 'n', a);
+  const goTo = (step: string) => {
+    for (let k = 0; k < 20 && s.step !== step; k++) N({ type: 'next' });
+    expect(s.step).toBe(step);
+  };
+  expect(s.steps).toEqual(['sleep', 'wolves', 'bigwolf', 'guard', 'doctor', 'seer', 'witch', 'wake']); // no white wolf on odd nights
+  goTo('wolves');
+  N({ type: 'pick', target: who('wolf') }); // wolves can't eat a wolf
+  expect(s.wolvesTarget).toBeNull();
+  N({ type: 'pick', target: who('villager') });
+  goTo('bigwolf');
+  N({ type: 'pick', target: who('villager') }); // must be a second victim
+  expect(s.bigwolfTarget).toBeNull();
+  N({ type: 'pick', target: who('hunter') });
+  goTo('guard');
+  N({ type: 'pick', target: who('seer') });
+  goTo('witch');
+  N({ type: 'heal', target: who('doctor') }); // not a victim
+  expect(s.witchHeal).toBeNull();
+  N({ type: 'heal', target: who('villager') });
+  goTo('wake');
+  N({ type: 'next' });
+  expect(s.phase).toBe('day');
+  expect(s.lastDeaths).toEqual([who('hunter')]);
+  expect(s.healUsed).toBe(true);
+  expect(s.steps).toEqual(['announce', 'hunter', 'mayor', 'vote']);
+  goTo('hunter');
+  N({ type: 'pick', target: who('wolf') });
+  N({ type: 'next' });
+  expect(s.alive[who('wolf')]).toBe(false);
+  expect(s.wolfDied).toBe(true);
+  expect(s.step).toBe('mayor');
+  N({ type: 'pick', target: who('seer') });
+  N({ type: 'next' });
+  expect(s.mayorId).toBe(who('seer'));
+  expect(s.step).toBe('vote');
+  N({ type: 'eliminate', target: who('seer') }); // the mayor is voted out → successor
+  expect(s.step).toBe('mayor');
+  N({ type: 'pick', target: who('doctor') });
+  N({ type: 'next' });
+  expect(s.mayorId).toBe(who('doctor'));
+  // night 2: no big wolf any more (a wolf died), the white wolf wakes up, guard can't repeat
+  expect(s.phase).toBe('night');
+  expect(s.steps).toContain('whitewolf');
+  expect(s.steps).not.toContain('bigwolf');
+  goTo('whitewolf');
+  N({ type: 'pick', target: who('villager') }); // must be a wolf
+  expect(s.whitewolfTarget).toBeNull();
+  N({ type: 'pick', target: who('bigwolf') });
+  goTo('guard');
+  N({ type: 'pick', target: who('seer') }); // dead anyway, and guarded last night
+  expect(s.guardSave).toBeNull();
+  goTo('witch');
+  N({ type: 'heal', target: s.wolvesTarget ?? 'x' });
+  expect(s.witchHeal).toBeNull(); // potion already used
+  N({ type: 'pick', target: who('villager') }); // poison
+  goTo('wake');
+  N({ type: 'next' });
+  expect(s.alive[who('bigwolf')]).toBe(false);
+  expect(s.alive[who('villager')]).toBe(false);
+  expect(s.poisonUsed).toBe(true);
+  goTo('vote');
+  N({ type: 'eliminate', target: who('tanner') });
+  expect(s.phase).toBe('over');
+  expect(s.winner).toBe('tanner');
+});
+
+test('werewolf: the white wolf wins alone; bot-only games always end', () => {
+  const ctx = fakeCtx();
+  const s: any = werewolf.start(ctx, ['n', 'a', 'b', 'c', 'd', 'e'], { ...ALL_ROLES, wolves: 2, bigwolf: false, tanner: false });
+  const ww = Object.keys(s.roles).find((id) => s.roles[id] === 'whitewolf')!;
+  for (const id of s.participants) if (id !== ww) s.alive[id] = false;
+  const last = s.participants.find((id: string) => id !== ww && s.roles[id] !== 'wolf')!;
+  s.alive[last] = true;
+  werewolf.act(ctx, s, 'n', { type: 'toggleAlive', target: last });
+  expect(s.winner).toBe('whitewolf');
+
+  for (let g = 0; g < 60; g++) {
+    const n = 5 + (g % 8);
+    const players = ['n', ...Array.from({ length: n }, (_, i) => `b${i}`)];
+    const settings = { ...ALL_ROLES, wolves: 0, witch: g % 2 === 0, guard: g % 3 === 0, tanner: g % 4 === 0, whitewolf: g % 5 < 2, bigwolf: g % 3 === 1, mayor: g % 2 === 1 };
+    const t: any = werewolf.start(ctx, players, settings);
+    for (let k = 0; k < 500 && t.phase !== 'over'; k++) {
+      werewolf.botPlan!(ctx, t, players.slice(1));
+      const alive = t.participants.filter((id: string) => t.alive[id]);
+      if (t.step === 'vote') werewolf.act(ctx, t, 'n', { type: 'eliminate', target: Math.random() < 0.8 ? alive[Math.floor(Math.random() * alive.length)] : null });
+      else {
+        if (t.step === 'mayor' && !t.mayorPick && alive.length) werewolf.act(ctx, t, 'n', { type: 'pick', target: alive[0] });
+        werewolf.act(ctx, t, 'n', { type: 'next' });
+      }
+    }
+    expect(t.phase).toBe('over');
+    expect(t.winner).not.toBeNull();
+  }
 });

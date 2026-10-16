@@ -1,0 +1,122 @@
+/** «معركة السفن» — each phone hides its own fleet; take turns firing. A hit lets you fire again. */
+import { BN, botShot, randomFleet } from '../../src/shared/battleship';
+import type { BattleshipSettings, BattleshipView, ShotResult } from '../../src/shared/protocol';
+import { randDelay } from '../cardkit';
+import { GameError, type GameModule } from '../types';
+import { isNum, shuffle } from '../util';
+
+interface State {
+  settings: BattleshipSettings;
+  players: [string, string];
+  fleets: Record<string, number[][]>;
+  shots: Record<string, Record<number, ShotResult>>; // shooter → shots on the other grid
+  ready: string[];
+  turnIdx: number;
+  phase: BattleshipView['phase'];
+  last: BattleshipView['last'];
+  lastN: number;
+  winner: string | null;
+  moves: number;
+  botAt: number;
+}
+
+const enemyOf = (s: State, id: string) => (s.players[0] === id ? s.players[1] : s.players[0]);
+const sunkShips = (fleet: number[][], shots: Record<number, ShotResult>) => fleet.filter((ship) => ship.every((c) => shots[c] === 'hit'));
+
+export const battleship: GameModule<State, BattleshipSettings> = {
+  id: 'battleship',
+
+  start(ctx, participants, settings) {
+    const players = shuffle(participants.slice(0, 2)) as [string, string];
+    ctx.fx('start');
+    return {
+      settings,
+      players,
+      fleets: Object.fromEntries(players.map((p) => [p, randomFleet()])),
+      shots: Object.fromEntries(players.map((p) => [p, {}])),
+      ready: [],
+      turnIdx: 0,
+      phase: 'setup',
+      last: null,
+      lastN: 0,
+      winner: null,
+      moves: 0,
+      botAt: -1,
+    };
+  },
+
+  act(ctx, s, by, a) {
+    if (!s.players.includes(by) || s.phase === 'final') return;
+    if (s.phase === 'setup') {
+      if (s.ready.includes(by)) return;
+      if (a.type === 'shuffle') s.fleets[by] = randomFleet();
+      if (a.type === 'ready') {
+        s.ready.push(by);
+        if (s.ready.length === 2) {
+          s.phase = 'play';
+          ctx.fx('start');
+        }
+      }
+      return;
+    }
+    if (a.type !== 'fire') return;
+    if (s.players[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (!isNum(a.cell) || a.cell < 0 || a.cell >= BN * BN || s.shots[by][a.cell]) return;
+    const enemy = enemyOf(s, by);
+    const hit = s.fleets[enemy].some((ship) => ship.includes(a.cell as number));
+    s.shots[by][a.cell] = hit ? 'hit' : 'miss';
+    s.moves += 1;
+    const ship = s.fleets[enemy].find((sh) => sh.includes(a.cell as number));
+    const sunk = !!ship && ship.every((c) => s.shots[by][c] === 'hit');
+    s.last = { by, cell: a.cell, result: sunk ? 'sunk' : hit ? 'hit' : 'miss', id: ++s.lastN };
+    ctx.fx(sunk ? 'boom' : hit ? 'throw' : 'skip', by);
+    if (sunkShips(s.fleets[enemy], s.shots[by]).length === s.fleets[enemy].length) {
+      s.phase = 'final';
+      s.winner = by;
+      ctx.fx('win', by);
+      return;
+    }
+    if (!hit) s.turnIdx = 1 - s.turnIdx;
+  },
+
+  botPlan(ctx, s, bots) {
+    if (s.phase === 'setup') {
+      for (const b of bots) if (s.players.includes(b) && !s.ready.includes(b)) ctx.bot(b, 'ready', randDelay(800, 1500), { type: 'ready' });
+      return;
+    }
+    if (s.phase !== 'play') return;
+    const id = s.players[s.turnIdx];
+    if (!bots.includes(id) || s.botAt === s.moves) return;
+    s.botAt = s.moves;
+    const enemy = enemyOf(s, id);
+    const cell = botShot(s.shots[id], sunkShips(s.fleets[enemy], s.shots[id]), s.settings.level);
+    ctx.bot(id, `f:${s.moves}`, randDelay(900, 1500), { type: 'fire', cell });
+  },
+
+  view(ctx, s, me): BattleshipView {
+    const mine = s.players.includes(me) ? me : s.players[0];
+    const enemy = enemyOf(s, mine);
+    const incoming = s.shots[enemy];
+    return {
+      game: 'battleship',
+      phase: s.phase,
+      players: s.players,
+      ready: s.ready,
+      turn: s.players[s.turnIdx],
+      myFleet: s.fleets[mine].map((cells) => ({ cells, sunk: cells.every((c) => incoming[c] === 'hit') })),
+      myShots: s.shots[mine],
+      enemyShots: incoming,
+      enemySunk: sunkShips(s.fleets[enemy], s.shots[mine]),
+      enemyFleetLeft: s.fleets[enemy].length - sunkShips(s.fleets[enemy], s.shots[mine]).length,
+      last: s.last,
+      winner: s.winner,
+      enemyFleet: s.phase === 'final' ? s.fleets[enemy] : null,
+    };
+  },
+
+  onLeave(ctx, s, id) {
+    if (!s.players.includes(id) || s.phase === 'final') return;
+    s.phase = 'final';
+    s.winner = enemyOf(s, id);
+  },
+};

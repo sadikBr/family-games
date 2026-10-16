@@ -14,6 +14,11 @@ import { EstateGame } from './estate';
 import { KdabGame } from './kdab';
 import { WaveGame } from './wave';
 import { WordleGame } from './wordle';
+import { BattleshipGame } from './battleship';
+import { KharbgaGame } from './kharbga';
+import { MemoryGame } from './memory';
+import { SudokuGame } from './sudoku';
+import { XoGame } from './xo';
 import { HajjGame } from './hajj';
 import { HuroofGame } from './huroof';
 import { LaddersGame } from './ladders';
@@ -61,6 +66,7 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <EstateGame room={room} view={view} />;
     case 'quiz':
     case 'surah':
+    case 'trivia':
       return <McqGame room={room} view={view} />;
     case 'whois':
       return <WhoisGame room={room} view={view} />;
@@ -80,6 +86,16 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <WaveGame room={room} view={view} />;
     case 'wordle':
       return <WordleGame room={room} view={view} />;
+    case 'kharbga':
+      return <KharbgaGame room={room} view={view} />;
+    case 'battleship':
+      return <BattleshipGame room={room} view={view} />;
+    case 'xo':
+      return <XoGame room={room} view={view} />;
+    case 'sudoku':
+      return <SudokuGame room={room} view={view} />;
+    case 'memory':
+      return <MemoryGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

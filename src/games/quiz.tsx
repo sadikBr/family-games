@@ -1,4 +1,4 @@
-/** «مسابقة إسلامية» and «من أي سورة؟» — same timed multiple-choice screen. */
+/** «مسابقة إسلامية», «من أي سورة؟» and «معلومات عامة» — same timed multiple-choice screen. */
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -17,7 +17,7 @@ export function McqGame({ room, view }: { room: RoomView; view: McqView }) {
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game={view.game} h={h} />;
   if (!playing) return <Spectator room={room} />;
   const verse = view.game === 'surah';
-  const total = (view.game === 'surah' ? room.settings.surah.seconds : room.settings.quiz.seconds) * 1000;
+  const total = room.settings[view.game].seconds * 1000;
 
   return (
     <>

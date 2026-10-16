@@ -211,6 +211,85 @@ export const GAMES: Record<GameId, GameMeta> = {
       'ترى ألوان الآخرين دون حروفهم. كلما وجدتها بمحاولات أقل ربحت أكثر، وأول من يجدها يربح 100 إضافية.',
     ],
   },
+  kharbga: {
+    id: 'kharbga',
+    title: 'الخربقة',
+    tagline: 'لعبة الأجداد — حاصر قطع خصمك وكُلها.',
+    color: '#B5652A',
+    minPlayers: MIN_PLAYERS.kharbga,
+    maxPlayers: 2,
+    howTo: [
+      'لوحة 7×7 و24 قطعة لكل لاعب. أولاً يضع كل لاعب قطعتين في دوره حتى تمتلئ اللوحة إلا «الملحة» في الوسط.',
+      'بعدها تتحرك القطعة خانة واحدة (فوق، تحت، يمين، يسار) إلى خانة فارغة. أول حركة تكون إلى الوسط.',
+      'إذا حاصرت قطعة لخصمك بين قطعتين لك في خط واحد تأكلها، وتواصل الأكل بنفس القطعة ما دمت تستطيع.',
+      'الدخول بين قطعتين للخصم آمن. يفوز من يأكل كل قطع خصمه، أو الأكثر قطعاً إذا طال اللعب بلا أكل.',
+    ],
+  },
+  battleship: {
+    id: 'battleship',
+    title: 'معركة السفن',
+    tagline: 'أسطولك مخفي في هاتفك… أغرق سفن خصمك أولاً!',
+    color: '#2F7FD0',
+    minPlayers: MIN_PLAYERS.battleship,
+    maxPlayers: 2,
+    howTo: [
+      'لكل لاعب 5 سفن مخفية على شبكة 10×10. اخلط أسطولك حتى يعجبك ثم اضغط «جاهز».',
+      'بالتناوب، اضغط على خانة في شبكة الخصم لتطلق قذيفة: 🔥 إصابة أو 💧 خطأ.',
+      'إذا أصبت تطلق مرة أخرى. أول من يُغرق كل سفن خصمه يفوز.',
+    ],
+  },
+  xo: {
+    id: 'xo',
+    title: 'إكس أو',
+    tagline: 'ثلاثة في خط — لعبة سريعة لا تُملّ.',
+    color: '#7B4BD0',
+    minPlayers: MIN_PLAYERS.xo,
+    maxPlayers: 2,
+    howTo: [
+      'لاعبان (أو لاعب وبوت). X يبدأ، والأدوار تتبدّل في كل لعبة.',
+      'اضغط على خانة فارغة لتضع علامتك. أول من يصفّ ثلاثة في خط يفوز.',
+      'البوت القوي لا يخسر أبداً — جرّب أن تتعادل معه!',
+    ],
+  },
+  sudoku: {
+    id: 'sudoku',
+    title: 'سودوكو',
+    tagline: 'نفس اللغز للجميع — من يحلّه أولاً؟',
+    color: '#2A9D7C',
+    minPlayers: MIN_PLAYERS.sudoku,
+    maxPlayers: 12,
+    howTo: [
+      'املأ الشبكة بالأرقام من 1 إلى 9: لا يتكرر رقم في صف ولا عمود ولا مربع 3×3.',
+      'اختر خانة ثم رقماً. الرقم الخاطئ لا يُقبل ويُحسب خطأً عليك.',
+      'الجميع يحلّ نفس اللغز في نفس الوقت: الأول يربح 300 نقطة، ثم 200 و150… وتُخصم 20 عن كل خطأ.',
+    ],
+  },
+  trivia: {
+    id: 'trivia',
+    title: 'معلومات عامة',
+    tagline: 'المغرب، الجغرافيا، العلوم، الرياضة والحيوانات.',
+    color: '#E58A2B',
+    minPlayers: MIN_PLAYERS.trivia,
+    maxPlayers: 12,
+    howTo: [
+      'سؤال وأربعة اختيارات تظهر على كل الهواتف في نفس الوقت.',
+      'الإجابة الصحيحة تربح 500 نقطة، وحتى 500 إضافية كلما أسرعت.',
+      'اختر نوع الأسئلة من الإعدادات: المغرب، جغرافيا، علوم، رياضة، حيوانات أو منوّعات.',
+    ],
+  },
+  memory: {
+    id: 'memory',
+    title: 'الذاكرة',
+    tagline: 'اقلب بطاقتين… وتذكّر أين رأيت الصورة!',
+    color: '#D0457A',
+    minPlayers: MIN_PLAYERS.memory,
+    maxPlayers: 6,
+    howTo: [
+      'البطاقات مقلوبة على الطاولة، وكل صورة موجودة مرتين.',
+      'في دورك اقلب بطاقتين: إذا تطابقتا تأخذهما وتلعب مرة أخرى، وإلا تُقلبان من جديد ويلعب التالي.',
+      'من يجمع أكثر الأزواج يفوز.',
+    ],
+  },
   huroof: {
     id: 'huroof',
     title: 'حروف',
@@ -386,19 +465,21 @@ export const GAMES: Record<GameId, GameMeta> = {
     howTo: [
       'اختاروا راوياً يرى كل الأدوار على هاتفه.',
       'كل لاعب يرى دوره سراً على هاتفه.',
-      'في الليل: الذئاب تختار ضحية، والطبيب يحمي، والعرّافة تكشف.',
-      'في النهار: القرية تتناقش وتصوّت لإقصاء مشتبه به.',
-      'القرية تفوز إذا قضت على الذئاب، والذئاب تفوز إذا صارت أغلبية.',
+      'في الليل: الذئاب تختار ضحية، والطبيب والحارس يحميان، والعرّافة تكشف، والساحرة تنقذ أو تسمّم.',
+      'في النهار: القرية تتناقش وتصوّت لإقصاء مشتبه به. صوت العمدة بصوتين.',
+      'القرية تفوز إذا قضت على الذئاب، والذئاب تفوز إذا صارت أغلبية. المجنون يفوز إذا أُقصي، والذئب الأبيض إذا بقي وحده.',
+      'اختر الأدوار من إعدادات اللعبة.',
     ],
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory'];
 
 /** Grouping for the home screen. */
 export const GAME_GROUPS: { title: string; games: GameId[] }[] = [
   { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle'] },
   { title: 'ألعاب إسلامية', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
-  { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama', 'chess', 'connect4'] },
+  { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
+  { title: 'ذكاء وذاكرة', games: ['trivia', 'memory', 'sudoku', 'xo'] },
   { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip'] },
 ];
