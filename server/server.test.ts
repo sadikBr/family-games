@@ -6,6 +6,11 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import type { Subprocess } from 'bun';
 
 import type {
+  ChessView,
+  Connect4View,
+  KdabView,
+  WaveView,
+  WordleView,
   HajjView,
   HuroofView,
   LaddersView,
@@ -962,3 +967,110 @@ test('hajj and ladders with bots: full races finish', async () => {
     host.ws.close();
   }
 }, 190000);
+
+test('connect4 and chess against a bot: illegal moves refused, games finish', async () => {
+  const { host } = await roomWithBots(1, 1, 'connect4');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  let v = await autoplay(
+    host,
+    (x: Connect4View) => {
+      if (x.phase !== 'play' || x.turn !== x.myDisc) return null;
+      const free = [3, 2, 4, 1, 5, 0, 6].filter((c) => x.board[c] === 0);
+      return { type: 'drop', col: free[0] };
+    },
+    (x: Connect4View) => x.phase === 'final',
+    30000,
+  );
+  expect(v.winner).not.toBeNull();
+  host.ws.close();
+
+  const c = await roomWithBots(1, 1, 'chess');
+  c.host.send({ t: 'room', action: { type: 'settings', game: 'chess', patch: { level: 1 } } });
+  await settle();
+  c.host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const cv = c.host.view<ChessView>();
+  expect(cv.board.filter(Boolean).length).toBe(32);
+  if (cv.myColor === 'w') {
+    c.host.act({ type: 'move', from: 52, to: 36 }); // e2-e4
+    await settle();
+    expect(c.host.view<ChessView>().board[36]).toBe('P');
+  }
+  // a few more moves each side, then resign
+  let moves = 0;
+  await autoplay(
+    c.host,
+    (x: ChessView) => {
+      if (x.phase !== 'play' || x.turn !== x.myColor) return null;
+      if (moves++ >= 6) return { type: 'resign' };
+      const m = x.moves[Math.floor(Math.random() * x.moves.length)];
+      return { type: 'move', from: m.from, to: m.to, promo: m.promo };
+    },
+    (x: ChessView) => x.phase === 'final',
+    60000,
+  );
+  expect(c.host.view<ChessView>().reason).toBe('resign');
+}, 100000);
+
+test('kdab with bots: plays, calls, someone empties their hand', async () => {
+  const { host } = await roomWithBots(1, 2, 'kdab');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  let v = host.view<KdabView>();
+  expect(Object.values(v.handCounts).reduce((a, b) => a + b, 0)).toBe(40);
+  let called = false;
+  v = await autoplay(
+    host,
+    (x: KdabView) => {
+      if (x.phase !== 'play') return null;
+      if (x.canCall && !called && x.last && x.last.count >= 2) {
+        called = true;
+        return { type: 'call' };
+      }
+      if (x.turn !== host.id) return null;
+      const card = x.myHand[0];
+      if (!card) return null;
+      return x.rank === null ? { type: 'play', cards: [card.id], rank: card.rank } : { type: 'play', cards: [card.id] };
+    },
+    (x: KdabView) => x.phase === 'final',
+    150000,
+  );
+  expect(v.winner).not.toBeNull();
+}, 160000);
+
+test('wordle with a bot, and wave between two people', async () => {
+  const { host } = await roomWithBots(1, 1, 'wordle');
+  host.send({ t: 'room', action: { type: 'settings', game: 'wordle', patch: { rounds: 1 } } });
+  await settle();
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  host.act({ type: 'guess', word: 'ابجد' }); // too short → refused
+  await settle();
+  expect(host.errors.length).toBeGreaterThan(0);
+  const w = await autoplay(
+    host,
+    (x: WordleView) => (x.phase === 'play' && x.myRows.length < 6 && !x.myRows.some((r) => r.marks.every((m) => m === 'g')) ? { type: 'guess', word: 'سيارة' } : null),
+    (x: WordleView) => x.phase === 'reveal' || x.phase === 'final',
+    60000,
+  );
+  expect(w.answer).not.toBeNull();
+  host.ws.close();
+
+  const { phones } = await makeRoom(2, 'wave');
+  const [a, b] = phones;
+  a.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const va = a.view<WaveView>();
+  const psychic = va.psychic === a.id ? a : b;
+  const guesser = psychic === a ? b : a;
+  expect(guesser.view<WaveView>().target).toBeNull();
+  const target = psychic.view<WaveView>().target!;
+  psychic.act({ type: 'clue', text: 'قهوة الصباح' });
+  await settle();
+  guesser.act({ type: 'guess', value: target });
+  await settle();
+  const r = guesser.view<WaveView>();
+  expect(r.phase).toBe('reveal');
+  expect(r.scores[guesser.id]).toBe(4);
+}, 80000);

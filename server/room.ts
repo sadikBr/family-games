@@ -27,7 +27,12 @@ import { unoflip } from './games/unoflip';
 import { ludo } from './games/ludo';
 import { codenames } from './games/codenames';
 import { dama } from './games/dama';
+import { chess } from './games/chess';
+import { connect4 } from './games/connect4';
 import { estate } from './games/estate';
+import { kdab } from './games/kdab';
+import { wave } from './games/wave';
+import { wordle } from './games/wordle';
 import { hajj } from './games/hajj';
 import { huroof } from './games/huroof';
 import { ladders } from './games/ladders';
@@ -77,6 +82,11 @@ const MODULES: Record<GameId, AnyModule> = {
   surah,
   hajj,
   ladders,
+  connect4,
+  chess,
+  kdab,
+  wave,
+  wordle,
 };
 const MAX_PLAYERS = 20;
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
@@ -426,6 +436,21 @@ export class Room {
       case 'dama':
         this.settings.dama.flyingKings = bool(patch.flyingKings, this.settings.dama.flyingKings);
         this.settings.dama.backCapture = bool(patch.backCapture, this.settings.dama.backCapture);
+        break;
+      case 'connect4':
+        if (patch.level === 1 || patch.level === 2) this.settings.connect4.level = patch.level;
+        break;
+      case 'chess':
+        if (patch.level === 1 || patch.level === 2) this.settings.chess.level = patch.level;
+        break;
+      case 'kdab':
+        this.settings.kdab.maxPlay = int(patch.maxPlay, this.settings.kdab.maxPlay, 1, 4);
+        break;
+      case 'wave':
+        this.settings.wave.rounds = int(patch.rounds, this.settings.wave.rounds, 1, 3);
+        break;
+      case 'wordle':
+        this.settings.wordle.rounds = int(patch.rounds, this.settings.wordle.rounds, 1, 10);
         break;
       case 'huroof':
         this.settings.huroof.seconds = int(patch.seconds, this.settings.huroof.seconds, 10, 40);

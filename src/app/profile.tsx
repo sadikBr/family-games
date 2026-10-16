@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { AvatarArt } from '@/art/avatars';
 import { Icon } from '@/art/icons';
 
@@ -13,6 +13,7 @@ import { AVATARS, C, F, PLAYER_COLORS } from '@/theme';
 import { Avatar, Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Header } from '@/ui/controls';
+import { Field } from '@/ui/field';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
@@ -62,7 +63,7 @@ export default function ProfileScreen() {
 
       <Card>
         <Txt v="h3">ما اسمك؟</Txt>
-        <TextInput
+        <Field
           value={name}
           onChangeText={setName}
           placeholder="مثلاً: ماما، بابا، يوسف…"
@@ -126,7 +127,7 @@ export default function ProfileScreen() {
               <Txt v="small" color={C.muted}>
                 اتركه فارغاً لاستعمال الحاسوب الذي يشغّل التطبيق. أو اكتب عنوان الخادم (مثلاً 192.168.1.20).
               </Txt>
-              <TextInput
+              <Field
                 value={server}
                 onChangeText={setServer}
                 placeholder={defaultServerUrl()}

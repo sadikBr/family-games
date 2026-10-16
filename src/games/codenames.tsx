@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
@@ -8,6 +8,7 @@ import type { CodeColor, CodenamesView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
+import { Field } from '@/ui/field';
 import { Confetti } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
@@ -179,7 +180,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
 
       {iGiveClue ? (
         <Card>
-          <TextInput value={clue} onChangeText={setClue} placeholder="كلمة واحدة" placeholderTextColor={C.dim} style={styles.input} maxLength={24} autoCorrect={false} />
+          <Field value={clue} onChangeText={setClue} placeholder="كلمة واحدة" placeholderTextColor={C.dim} style={styles.input} maxLength={24} autoCorrect={false} />
           <Row gap={10}>
             <IconBtn icon="minus" size={40} label="أقل" onPress={() => setN(Math.max(0, n - 1))} />
             <Txt style={{ fontFamily: F.display, fontSize: 26, lineHeight: 38, minWidth: 30, textAlign: 'center' }}>{n === 0 ? '∞' : n}</Txt>

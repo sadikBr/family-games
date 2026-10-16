@@ -21,7 +21,9 @@ export const AVATAR_IMG: Record<string, number> = {
 };
 
 export const GAME_IMG: Record<string, number> = {
+  'chess': require('../../assets/art/games/chess.webp'),
   'codenames': require('../../assets/art/games/codenames.webp'),
+  'connect4': require('../../assets/art/games/connect4.webp'),
   'dama': require('../../assets/art/games/dama.webp'),
   'draw': require('../../assets/art/games/draw.webp'),
   'estate': require('../../assets/art/games/estate.webp'),
@@ -30,6 +32,7 @@ export const GAME_IMG: Record<string, number> = {
   'huroof': require('../../assets/art/games/huroof.webp'),
   'imposter': require('../../assets/art/games/imposter.webp'),
   'kanza': require('../../assets/art/games/kanza.webp'),
+  'kdab': require('../../assets/art/games/kdab.webp'),
   'konkan': require('../../assets/art/games/konkan.webp'),
   'ladders': require('../../assets/art/games/ladders.webp'),
   'ludo': require('../../assets/art/games/ludo.webp'),
@@ -41,8 +44,10 @@ export const GAME_IMG: Record<string, number> = {
   'taboo': require('../../assets/art/games/taboo.webp'),
   'tris': require('../../assets/art/games/tris.webp'),
   'unoflip': require('../../assets/art/games/unoflip.webp'),
+  'wave': require('../../assets/art/games/wave.webp'),
   'werewolf': require('../../assets/art/games/werewolf.webp'),
   'whois': require('../../assets/art/games/whois.webp'),
+  'wordle': require('../../assets/art/games/wordle.webp'),
 };
 
 export const ROLE_IMG: Record<string, number> = {
@@ -209,6 +214,18 @@ export const UNO_IMG: Record<string, number> = {
 };
 
 export const BOARD_IMG: Record<string, number> = {
+  'chess-bb': require('../../assets/art/boards/chess-bb.webp'),
+  'chess-bk': require('../../assets/art/boards/chess-bk.webp'),
+  'chess-bn': require('../../assets/art/boards/chess-bn.webp'),
+  'chess-bp': require('../../assets/art/boards/chess-bp.webp'),
+  'chess-bq': require('../../assets/art/boards/chess-bq.webp'),
+  'chess-br': require('../../assets/art/boards/chess-br.webp'),
+  'chess-wb': require('../../assets/art/boards/chess-wb.webp'),
+  'chess-wk': require('../../assets/art/boards/chess-wk.webp'),
+  'chess-wn': require('../../assets/art/boards/chess-wn.webp'),
+  'chess-wp': require('../../assets/art/boards/chess-wp.webp'),
+  'chess-wq': require('../../assets/art/boards/chess-wq.webp'),
+  'chess-wr': require('../../assets/art/boards/chess-wr.webp'),
   'dama-black-king': require('../../assets/art/boards/dama-black-king.webp'),
   'dama-black': require('../../assets/art/boards/dama-black.webp'),
   'dama-board': require('../../assets/art/boards/dama-board.webp'),

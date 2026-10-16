@@ -11,6 +11,11 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **التريس** | 4 | Two teams with partners sitting opposite, 10 cards each, follow suit, no trumps. 3 > 2 > 1 > 12 > 11 > 10 > 7…4. 1 = 1 pt, 3/2/figures = ⅓, last trick = 1. First to 31. |
 | **الكونكان** | 2–4 | Spanish-deck rummy: draw, lay down sets (3–4 same number) or runs (3+ same suit), add to melds, discard. First to empty their hand wins the hand. Others count their cards (figures = 10). 100 = out. |
 | **أونو فليب** (UNO FLIP) | 2–10 | Every card has a light side and a dark side. You see the active side of your own cards; everyone else sees the other side, so you know a bit about their hands. A Flip card turns the whole game over to the dark side (+5, Skip Everyone, Wild Draw Color). Say «أونو» with one card left or get caught for +2. Round winner scores the others' cards; first to 250 (adjustable) wins. |
+| **أربعة في صف** (Connect Four) | 2 | Drop discs; four in a row wins. Bot opponent (casual or strong), wins are counted across games. |
+| **الشطرنج** (Chess) | 2 | Full rules (castling, en passant, promotion, mate, stalemate, 50-move, repetition, insufficient material). Bot opponent. The rules engine is checked against standard perft counts. |
+| **الكذّاب** (Cheat / Liar) | 2–6 | Spanish deck: play 1–4 cards face down claiming a rank; anyone can shout «كذّاب!». First to empty their hand wins. |
+| **موجة** (Wavelength) | 2–12 | One player gives a clue for a secret point on a scale (بارد ↔ ساخن…); the others turn a dial. Closer = more points. |
+| **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard. Guesses aren't checked against a dictionary. |
 | **حروف** (Huroof) | 2–12 | Two teams, a 5×5 grid of letter hexagons. Pick a letter; the first to answer the Islamic question (answer starts with that letter) wins the hexagon. Red joins right ↔ left, green top ↔ bottom. |
 | **مسابقة إسلامية** (quiz) | 2–12 | Timed multiple-choice questions on Quran, prophets, seerah, companions, worship, Hajj, history and places. Faster right answers score more. |
 | **من هو؟** (who is it?) | 2–12 | Clues about a prophet, companion, place or historical figure appear one by one; one guess each, earlier = more points. |
@@ -70,7 +75,7 @@ Build the app with `EXPO_PUBLIC_SERVER_URL=wss://your-server.example.com` so pho
 server/              Realtime game server (Bun WebSockets). Source of truth for every game.
   index.ts           Rooms, connections, timers
   room.ts            Lobby, settings, sending each player only what they may see
-  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders
+  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
   content-extra.ts   Words for Codenames and Draw & Guess
@@ -85,6 +90,9 @@ src/
   shared/uno.ts      The 112 two-sided UNO FLIP cards and matching rules
   shared/ludo.ts     Ludo board geometry (track, home columns, safe squares)
   shared/estate.ts   «ملك العقار» board, rents and cards
+  shared/chess.ts    Chess rules engine + bot (used by the server)
+  shared/connect4.ts Connect Four rules + bot
+  shared/wordle.ts   Word normalisation, keyboard, marking
   shared/islamic.ts  Hajj stations, good deeds / bad habits, board geometry for the Islamic games
   ui/dice3d.tsx      3D dice thrown across the board (pre-rendered three.js frames)
   art/               Illustrations: avatars, game emblems, roles, cards (HD WebP, see assets.ts) + vector icons

@@ -145,6 +145,72 @@ export const GAMES: Record<GameId, GameMeta> = {
       'تفوز إذا أكلت كل قطع خصمك أو لم يبق له أي حركة.',
     ],
   },
+  connect4: {
+    id: 'connect4',
+    title: 'أربعة في صف',
+    tagline: 'أسقط الأقراص — أول من يصفّ أربعة يفوز.',
+    color: '#2F5BD0',
+    minPlayers: MIN_PLAYERS.connect4,
+    maxPlayers: 2,
+    howTo: [
+      'لاعبان (أو لاعب وبوت). الأحمر يبدأ.',
+      'في دورك اضغط على عمود ليسقط قرصك إلى أسفل خانة فارغة.',
+      'أول من يصفّ أربعة أقراص متتالية — أفقياً أو عمودياً أو مائلاً — يفوز.',
+    ],
+  },
+  chess: {
+    id: 'chess',
+    title: 'الشطرنج',
+    tagline: 'اللعبة الخالدة — كش مات!',
+    color: '#4A5180',
+    minPlayers: MIN_PLAYERS.chess,
+    maxPlayers: 2,
+    howTo: [
+      'لاعبان (أو لاعب وبوت). الأبيض يبدأ، واللوحة تدور لتكون قطعك في الأسفل.',
+      'اضغط على قطعة لترى خاناتها الممكنة، ثم اضغط على الخانة.',
+      'كل القواعد: التبييت، الأخذ بالمرور، ترقية الجندي، الكش والكش مات والتعادل.',
+    ],
+  },
+  kdab: {
+    id: 'kdab',
+    title: 'الكذّاب',
+    tagline: 'العب أوراقك مقلوبة… واكشف الكذّابين!',
+    color: '#C8384E',
+    minPlayers: MIN_PLAYERS.kdab,
+    maxPlayers: 6,
+    howTo: [
+      'توزّع كل الأوراق. من يبدأ الكومة يلعب من 1 إلى 4 أوراق مقلوبة ويقول رقماً.',
+      'بعده يجب على الجميع أن يقولوا نفس الرقم — بصدق أو بكذب — أو أن يمرّوا.',
+      'أي لاعب يستطيع أن يضغط «كذّاب!» قبل اللعبة التالية: إذا كان كاذباً يأخذ الكومة، وإذا كان صادقاً يأخذها من اتّهمه.',
+      'إذا مرّ الجميع تُبعد الكومة. أول من يتخلّص من أوراقه يفوز.',
+    ],
+  },
+  wave: {
+    id: 'wave',
+    title: 'موجة',
+    tagline: 'تلميح واحد… أين يقع على المقياس؟',
+    color: '#22B8B0',
+    minPlayers: MIN_PLAYERS.wave,
+    maxPlayers: 12,
+    howTo: [
+      'في كل جولة يرى لاعب واحد نقطة سرية على مقياس، مثلاً «بارد ↔ ساخن».',
+      'يكتب تلميحاً قصيراً، مثلاً «شاي الصباح»، والباقون يحرّكون المؤشر إلى حيث يظنون.',
+      'كلما اقتربت ربحت أكثر: 4 أو 3 أو 2 نقطة. ومعطي التلميح يربح متوسط نقاط الآخرين.',
+    ],
+  },
+  wordle: {
+    id: 'wordle',
+    title: 'كلمة السر',
+    tagline: 'خمّن الكلمة المخفية من 5 حروف في 6 محاولات.',
+    color: '#5B6296',
+    minPlayers: MIN_PLAYERS.wordle,
+    maxPlayers: 12,
+    howTo: [
+      'الجميع يبحث عن نفس الكلمة في نفس الوقت.',
+      'بعد كل محاولة: الأخضر حرف صحيح في مكانه، الأصفر حرف موجود في مكان آخر، والرمادي غير موجود.',
+      'ترى ألوان الآخرين دون حروفهم. كلما وجدتها بمحاولات أقل ربحت أكثر، وأول من يجدها يربح 100 إضافية.',
+    ],
+  },
   huroof: {
     id: 'huroof',
     title: 'حروف',
@@ -327,12 +393,12 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle'];
 
 /** Grouping for the home screen. */
 export const GAME_GROUPS: { title: string; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw'] },
+  { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle'] },
   { title: 'ألعاب إسلامية', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
-  { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama'] },
-  { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'unoflip'] },
+  { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama', 'chess', 'connect4'] },
+  { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip'] },
 ];

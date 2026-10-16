@@ -16,13 +16,14 @@ const flat = { style: 'mascot', line: 2.2, sticker: false };
 const AVATARS = ['boy', 'girl', 'grandma', 'grandpa', 'lion', 'cat', 'fox', 'bear', 'panda', 'rabbit', 'owl', 'frog', 'penguin', 'monkey', 'tiger', 'koala', 'robot'];
 const GAMES = ['werewolf', 'imposter', 'potato', 'names', 'headsup', 'taboo', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'codenames', 'draw', 'estate'];
 const ISLAMIC = ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'];
+const GAMES2 = ['connect4', 'chess', 'kdab', 'wave', 'wordle'];
 const ROLES = ['wolf', 'villager', 'seer', 'doctor', 'hunter'];
 const SUITS = ['coins', 'cups', 'swords', 'clubs'];
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 
 const groups = {
   avatars: [384, AVATARS.map((n) => ({ name: n, module: 'avatars.mjs', fn: n, ...avatar }))],
-  games: [384, [...GAMES.map((n) => ({ name: n, module: 'badges.mjs', fn: n, ...badge })), ...ISLAMIC.map((n) => ({ name: n, module: 'islamic.mjs', fn: n, ...badge }))]],
+  games: [384, [...GAMES.map((n) => ({ name: n, module: 'badges.mjs', fn: n, ...badge })), ...ISLAMIC.map((n) => ({ name: n, module: 'islamic.mjs', fn: n, ...badge })), ...GAMES2.map((n) => ({ name: n, module: 'games2.mjs', fn: n, ...badge }))]],
   roles: [512, ROLES.map((n) => ({ name: n, module: 'roles.mjs', fn: n, ...badge }))],
   cards: [330, [...SUITS.flatMap((s) => RANKS.map((r) => ({ name: `${s}-${r}`, module: 'cards.mjs', fn: 'card', args: [s, r], ...flat, px: 330, off: 3.2 }))), { name: 'back', module: 'cards.mjs', fn: 'back', ...flat, px: 330 }]],
   uno: [300, allFaces().map((f) => ({ name: `${f[0]}-${f[1] ?? 'wild'}-${f[2]}${f[3] ?? ''}`, module: 'uno.mjs', fn: 'face', args: f, ...flat, px: 300, off: 3 }))],
@@ -30,6 +31,7 @@ const groups = {
     { name: 'ludo-board', module: 'boards.mjs', fn: 'ludoBoard', px: 1080, style: 'mascot', line: 0.6, sticker: false },
     { name: 'dama-board', module: 'boards.mjs', fn: 'damaBoard', px: 1000, style: 'mascot', line: 1, sticker: false },
     { name: 'ladders-board', module: 'islamic.mjs', fn: 'laddersBoard', px: 1080, style: 'mascot', line: 0.6, sticker: false },
+    ...['w', 'b'].flatMap((c) => [...'kqrbnp'].map((t) => ({ name: `chess-${c}${t}`, module: 'chess.mjs', fn: 'piece', args: [c, t], style: 'mascot', px: 192, line: 2.6, border: 1.0, ring: 1.8, outer: 1.0, shadow: 0.3 }))),
     { name: 'hajj-board', module: 'islamic.mjs', fn: 'hajjBoard', px: 1260, style: 'mascot', line: 0.6, sticker: false },
     ...['red', 'green', 'yellow', 'blue'].map((c) => ({ name: `pawn-${c}`, module: 'boards.mjs', fn: 'pawn', args: [c], px: 192, style: 'mascot', line: 2.6, border: 1.2, ring: 2.4, outer: 1.4, shadow: 0.4 })),
     ...[1, 2, 3, 4, 5, 6].map((n) => ({ name: `dice-${n}`, module: 'boards.mjs', fn: 'dice', args: [n], px: 200, style: 'mascot', line: 2.4, border: 1, ring: 2, outer: 1.2 })),

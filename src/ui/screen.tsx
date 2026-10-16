@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { useRef, type ReactNode } from 'react';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Zellige } from '@/art/game-art';
 import { C } from '@/theme';
+
+import { KeyboardScrollContext } from './field';
 
 export interface ScreenProps {
   children: ReactNode;
@@ -18,29 +20,40 @@ export interface ScreenProps {
 
 export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true }: ScreenProps) {
   const { width, height } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
       {pattern ? <Zellige width={width} height={height} /> : null}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        {header}
-        {scroll ? (
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={[styles.content, contentStyle]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.inner}>{children}</View>
-          </ScrollView>
-        ) : (
-          <View style={[styles.flex, styles.content, contentStyle]}>
-            <View style={[styles.inner, styles.flex]}>{children}</View>
-          </View>
-        )}
-        {footer ? (
-          <View style={styles.footer}>
-            <View style={styles.inner}>{footer}</View>
-          </View>
-        ) : null}
+        {/* The app is drawn edge-to-edge, so Android does not shrink it for the keyboard: do it here. */}
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {header}
+          {scroll ? (
+            <KeyboardScrollContext.Provider value={{ scroll: scrollRef, content: contentRef }}>
+              <ScrollView
+                ref={scrollRef}
+                style={styles.flex}
+                contentContainerStyle={[styles.content, contentStyle]}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}>
+                <View ref={contentRef} style={styles.inner}>
+                  {children}
+                </View>
+              </ScrollView>
+            </KeyboardScrollContext.Provider>
+          ) : (
+            <View style={[styles.flex, styles.content, contentStyle]}>
+              <View style={[styles.inner, styles.flex]}>{children}</View>
+            </View>
+          )}
+          {footer ? (
+            <View style={styles.footer}>
+              <View style={styles.inner}>{footer}</View>
+            </View>
+          ) : null}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

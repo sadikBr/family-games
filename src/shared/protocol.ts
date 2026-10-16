@@ -29,7 +29,12 @@ export type GameId =
   | 'whois'
   | 'surah'
   | 'hajj'
-  | 'ladders';
+  | 'ladders'
+  | 'connect4'
+  | 'chess'
+  | 'kdab'
+  | 'wave'
+  | 'wordle';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -54,10 +59,15 @@ export const GAME_IDS: GameId[] = [
   'surah',
   'hajj',
   'ladders',
+  'connect4',
+  'chess',
+  'kdab',
+  'wave',
+  'wordle',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -83,10 +93,15 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   surah: 2,
   hajj: 2,
   ladders: 2,
+  connect4: 2,
+  chess: 2,
+  kdab: 2,
+  wave: 2,
+  wordle: 1,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -221,6 +236,21 @@ export interface HajjSettings {
 export interface LaddersSettings {
   exact: boolean;
 }
+export interface Connect4Settings {
+  level: 1 | 2; // bot strength
+}
+export interface ChessSettings {
+  level: 1 | 2;
+}
+export interface KdabSettings {
+  maxPlay: number; // most cards in one play
+}
+export interface WaveSettings {
+  rounds: number; // times each player gives the clue
+}
+export interface WordleSettings {
+  rounds: number;
+}
 export interface KonkanSettings {
   limit: number; // eliminated at this many penalty points
 }
@@ -248,6 +278,11 @@ export interface AllSettings {
   surah: SurahSettings;
   hajj: HajjSettings;
   ladders: LaddersSettings;
+  connect4: Connect4Settings;
+  chess: ChessSettings;
+  kdab: KdabSettings;
+  wave: WaveSettings;
+  wordle: WordleSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -273,6 +308,11 @@ export const DEFAULT_SETTINGS: AllSettings = {
   surah: { rounds: 10, seconds: 20, level: 'easy' },
   hajj: { questions: true },
   ladders: { exact: true },
+  connect4: { level: 2 },
+  chess: { level: 1 },
+  kdab: { maxPlay: 4 },
+  wave: { rounds: 1 },
+  wordle: { rounds: 3 },
 };
 
 /* ------------------------------------------------------------------ */
@@ -802,6 +842,87 @@ export interface LaddersView {
   feed: FeedItem[];
 }
 
+export interface Connect4View {
+  game: 'connect4';
+  phase: 'play' | 'final';
+  red: string; // disc 1, plays first
+  yellow: string; // disc 2
+  board: number[]; // 42 cells, row 0 on top
+  turn: 1 | 2;
+  myDisc: 1 | 2 | null;
+  last: number | null;
+  line: number[] | null;
+  winner: 1 | 2 | 'draw' | null;
+  score: Record<string, number>;
+}
+
+export interface ChessView {
+  game: 'chess';
+  phase: 'play' | 'final';
+  white: string;
+  black: string;
+  board: string[]; // 64, index 0 = a8
+  turn: 'w' | 'b';
+  myColor: 'w' | 'b' | null;
+  moves: { from: number; to: number; promo?: 'q' | 'r' | 'b' | 'n' }[];
+  lastMove: { from: number; to: number } | null;
+  check: boolean;
+  captured: { w: string[]; b: string[] }; // pieces each side has taken
+  winner: 'w' | 'b' | 'draw' | null;
+  reason: 'mate' | 'stalemate' | 'fifty' | 'repetition' | 'material' | 'resign' | 'left' | null;
+  feed: FeedItem[];
+}
+
+export interface KdabView {
+  game: 'kdab';
+  phase: 'play' | 'final';
+  order: string[];
+  turn: string;
+  myHand: Card[];
+  handCounts: Record<string, number>;
+  pileCount: number;
+  rank: number | null; // the rank everyone is claiming in this pile
+  last: { id: number; by: string; count: number; rank: number } | null;
+  canCall: boolean;
+  reveal: { id: number; caller: string; player: string; cards: Card[]; truthful: boolean; taker: string } | null;
+  finishing: { id: string; until: number } | null;
+  winner: string | null;
+  feed: FeedItem[];
+}
+
+export interface WaveView {
+  game: 'wave';
+  phase: 'clue' | 'guess' | 'reveal' | 'final';
+  round: number;
+  rounds: number;
+  psychic: string;
+  spectrum: [string, string];
+  target: number | null; // 0..100, hidden from guessers until the reveal
+  clue: string | null;
+  locked: string[];
+  myGuess: number | null;
+  guesses: Record<string, number> | null; // revealed
+  results: { id: string; guess: number | null; points: number }[] | null;
+  endsAt: number | null;
+  scores: Record<string, number>;
+}
+
+export type WordleMark = 'g' | 'y' | 'x';
+export interface WordleView {
+  game: 'wordle';
+  phase: 'play' | 'reveal' | 'final';
+  round: number;
+  rounds: number;
+  length: number;
+  maxTries: number;
+  myRows: { guess: string; marks: WordleMark[] }[];
+  others: { id: string; rows: WordleMark[][]; solved: boolean; done: boolean }[];
+  answer: string | null; // revealed
+  endsAt: number | null;
+  results: { id: string; tries: number | null; points: number }[] | null;
+  scores: Record<string, number>;
+}
+
 export type GameView =
   | ImposterView
   | NamesView
@@ -823,7 +944,12 @@ export type GameView =
   | WhoisView
   | HuroofView
   | HajjView
-  | LaddersView;
+  | LaddersView
+  | Connect4View
+  | ChessView
+  | KdabView
+  | WaveView
+  | WordleView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

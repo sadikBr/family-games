@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
@@ -9,6 +9,7 @@ import type { DrawStroke, DrawView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Card, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
+import { Field } from '@/ui/field';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
@@ -139,7 +140,7 @@ function GuessBox() {
   };
   return (
     <Row gap={8}>
-      <TextInput
+      <Field
         value={text}
         onChangeText={setText}
         onSubmitEditing={send}

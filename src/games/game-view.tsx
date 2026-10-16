@@ -8,7 +8,12 @@ import { UnoFlipGame } from './cards/unoflip';
 import { CodenamesGame } from './codenames';
 import { DamaGame } from './dama';
 import { DrawGame } from './draw';
+import { ChessGame } from './chess';
+import { Connect4Game } from './connect4';
 import { EstateGame } from './estate';
+import { KdabGame } from './kdab';
+import { WaveGame } from './wave';
+import { WordleGame } from './wordle';
 import { HajjGame } from './hajj';
 import { HuroofGame } from './huroof';
 import { LaddersGame } from './ladders';
@@ -65,6 +70,16 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <HajjGame room={room} view={view} />;
     case 'ladders':
       return <LaddersGame room={room} view={view} />;
+    case 'connect4':
+      return <Connect4Game room={room} view={view} />;
+    case 'chess':
+      return <ChessGame room={room} view={view} />;
+    case 'kdab':
+      return <KdabGame room={room} view={view} />;
+    case 'wave':
+      return <WaveGame room={room} view={view} />;
+    case 'wordle':
+      return <WordleGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

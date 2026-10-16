@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Icon, type IconName } from '@/art/icons';
 
@@ -11,6 +11,7 @@ import { NAMES_CATEGORIES, type NamesCell, type NamesView, type RoomView } from 
 import { C, F, alpha } from '@/theme';
 import { Avatar, Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
+import { Field } from '@/ui/field';
 import { Confetti, Podium, PopIn, Scoreboard, Shake, TimerBar } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
@@ -143,7 +144,7 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
                 </Txt>
                 {good ? <Icon name="check" size={18} color={C.green} /> : bad ? <Txt v="tiny" color={C.red}>لا يبدأ بـ «{view.letter}»</Txt> : null}
               </Row>
-              <TextInput
+              <Field
                 value={val}
                 onChangeText={(t) => change(c.key, t)}
                 editable={!locked}

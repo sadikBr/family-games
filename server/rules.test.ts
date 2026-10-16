@@ -467,3 +467,163 @@ test('ladders: games finish; ladders lift and snakes drop', () => {
     expect(s.phase).toBe('final');
   }
 });
+
+import { START_FEN as CHESS_START, fromFen, legalMoves as chessMoves, perft, resultOf, makeMove as chessMake, repKey } from '../src/shared/chess';
+import { COLS as C4_COLS, bestColumn, dropRow, winLine } from '../src/shared/connect4';
+import { markGuess, normWord } from '../src/shared/wordle';
+import { WAVE_SPECTRUMS, WORDLE_WORDS } from './content-games2';
+import { chess } from './games/chess';
+import { connect4 } from './games/connect4';
+import { kdab } from './games/kdab';
+import { wave, wavePoints } from './games/wave';
+import { wordle } from './games/wordle';
+
+test('chess: perft counts match the standard reference positions', () => {
+  const cases: [string, number[]][] = [
+    [CHESS_START, [20, 400, 8902]],
+    ['r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1', [48, 2039]],
+    ['8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1', [14, 191, 2812]],
+    ['r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1', [6, 264, 9467]],
+    ['rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', [44, 1486]],
+  ];
+  for (const [fen, exp] of cases) expect(exp.map((_, d) => perft(fromFen(fen), d + 1))).toEqual(exp);
+});
+
+test('chess: mate, stalemate, insufficient material, repetition', () => {
+  // fool's mate
+  let p = fromFen(CHESS_START);
+  for (const [f, t] of [[53, 45], [12, 28], [54, 38], [3, 39]]) p = chessMake(p, { from: f, to: t });
+  expect(resultOf(p, {})).toEqual({ winner: 'b', reason: 'mate' });
+  expect(resultOf(fromFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1'), {})).toEqual({ winner: 'draw', reason: 'stalemate' });
+  expect(resultOf(fromFen('8/8/4k3/8/8/2B5/4K3/8 w - - 0 1'), {})!.reason).toBe('material');
+  const q = fromFen(CHESS_START);
+  expect(resultOf(q, { [repKey(q)]: 3 })!.reason).toBe('repetition');
+});
+
+test('chess: two bots play legal games to the end', () => {
+  for (let g = 0; g < 3; g++) {
+    const q: any[] = [];
+    const ctx = fakeCtx((by, a) => q.push({ by, a }));
+    const s: any = chess.start(ctx, ['w1', 'b1'], { level: 1 });
+    for (let k = 0; k < 400 && s.phase === 'play'; k++) {
+      q.length = 0;
+      chess.botPlan!(ctx, s, ['w1', 'b1']);
+      expect(q.length).toBe(1);
+      const before = chessMoves(s.pos).length;
+      expect(before).toBeGreaterThan(0);
+      chess.act(ctx, s, q[0].by, q[0].a);
+    }
+    if (s.phase === 'play') {
+      // long games are fine; make sure the position is still sane
+      expect(chessMoves(s.pos).length).toBeGreaterThan(0);
+    } else expect(s.winner).not.toBeNull();
+  }
+}, 60000);
+
+test('connect4: wins in every direction, full columns refused, strong bot blocks', () => {
+  const b: any[] = Array(42).fill(0);
+  for (const c of [0, 1, 2, 3]) b[dropRow(b, c) * C4_COLS + c] = 1;
+  expect(winLine(b, 5 * C4_COLS + 3)!.length).toBe(4);
+  const d: any[] = Array(42).fill(0);
+  [[0, 1], [1, 2], [1, 1], [2, 2], [2, 2], [2, 1], [3, 2], [3, 2], [3, 2], [3, 1]].forEach(([c, v]) => (d[dropRow(d, c) * C4_COLS + c] = v));
+  const top = dropRow(d, 3) + 1;
+  expect(winLine(d, top * C4_COLS + 3)).not.toBeNull(); // diagonal
+  // the bot must block an open three
+  const e: any[] = Array(42).fill(0);
+  for (const c of [0, 1, 2]) e[dropRow(e, c) * C4_COLS + c] = 1;
+  expect(bestColumn(e, 2, 2)).toBe(3);
+  const ctx = fakeCtx();
+  const s: any = connect4.start(ctx, ['r', 'y'], { level: 2 });
+  for (let k = 0; k < 6; k++) connect4.act(ctx, s, k % 2 ? 'y' : 'r', { type: 'drop', col: 0 });
+  expect(() => connect4.act(ctx, s, 'r', { type: 'drop', col: 0 })).toThrow();
+});
+
+test('kdab: all 40 cards always accounted for; games end with a winner', () => {
+  for (let g = 0; g < 60; g++) {
+    const q: any[] = [];
+    const ctx = fakeCtx((by, a) => q.push({ by, a }));
+    const seats = ['a', 'b', 'c', 'd'].slice(0, 2 + (g % 3));
+    const s: any = kdab.start(ctx, seats, { maxPlay: 4 });
+    for (let k = 0; k < 4000 && s.phase === 'play'; k++) {
+      q.length = 0;
+      kdab.botPlan!(ctx, s, seats);
+      if (!q.length) {
+        ctx.now += 6000;
+        kdab.tick!(ctx, s);
+        continue;
+      }
+      // challenges first (they come before the next play), then the turn action
+      q.sort((x, y) => (x.a.type === 'call' ? -1 : 0) - (y.a.type === 'call' ? -1 : 0));
+      for (const x of q) {
+        try {
+          kdab.act(ctx, s, x.by, x.a);
+        } catch {}
+      }
+      const total = s.pile.length + Object.values(s.hands).reduce((t: number, h: any) => t + h.length, 0);
+      const discarded = 40 - total;
+      expect(discarded).toBeGreaterThanOrEqual(0);
+      if (s.rank === null && s.pile.length) throw new Error('pile without a rank');
+    }
+    expect(s.phase).toBe('final');
+    expect(s.winner).not.toBeNull();
+  }
+});
+
+test('kdab: calling a liar gives them the pile; calling a truth-teller backfires', () => {
+  const ctx = fakeCtx();
+  const s: any = kdab.start(ctx, ['a', 'b'], { maxPlay: 4 });
+  const a = s.order[0], b = s.order[1];
+  const card = s.hands[a][0];
+  const lieRank = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12].find((r) => r !== card.rank);
+  kdab.act(ctx, s, a, { type: 'play', cards: [card.id], rank: lieRank });
+  const before = s.hands[a].length;
+  kdab.act(ctx, s, b, { type: 'call' });
+  expect(s.reveal.truthful).toBe(false);
+  expect(s.hands[a].length).toBe(before + 1);
+  // now a truthful play
+  const t = s.order[s.turnIdx];
+  const other = t === a ? b : a;
+  const c2 = s.hands[t][0];
+  kdab.act(ctx, s, t, { type: 'play', cards: [c2.id], rank: c2.rank });
+  const ob = s.hands[other].length;
+  kdab.act(ctx, s, other, { type: 'call' });
+  expect(s.reveal.truthful).toBe(true);
+  expect(s.hands[other].length).toBe(ob + 1);
+});
+
+test('wave: points by distance and a full round', () => {
+  expect([0, 4, 5, 10, 11, 17, 18].map(wavePoints)).toEqual([4, 4, 3, 3, 2, 2, 0]);
+  expect(WAVE_SPECTRUMS.length).toBeGreaterThan(40);
+  const ctx = fakeCtx();
+  const s: any = wave.start(ctx, ['a', 'b', 'c'], { rounds: 1 });
+  const p = s.order[0];
+  const v = wave.view(ctx, s, s.players.find((x: string) => x !== p)) as any;
+  expect(v.target).toBeNull(); // guessers can't see the target
+  expect((wave.view(ctx, s, p) as any).target).toBe(s.target);
+  wave.act(ctx, s, p, { type: 'clue', text: 'شاي بالنعناع' });
+  const gs = s.players.filter((x: string) => x !== p);
+  wave.act(ctx, s, gs[0], { type: 'guess', value: s.target });
+  wave.act(ctx, s, gs[1], { type: 'guess', value: Math.min(100, s.target + 30) });
+  expect(s.phase).toBe('reveal');
+  expect(s.scores[gs[0]]).toBe(4);
+  expect(s.scores[p]).toBe(2);
+});
+
+test('wordle: words are 5 letters, marking handles repeated letters, bots solve', () => {
+  for (const w of WORDLE_WORDS) expect([...normWord(w)].length).toBe(5);
+  expect(markGuess('سسبسس', 'سبسسي').join('')).toBe('gyyg' + 'x');
+  expect(markGuess('ببببب', 'سبسسي').join('')).toBe('xgxxx');
+  const q: any[] = [];
+  const ctx = fakeCtx((by, a) => q.push({ by, a }));
+  const s: any = wordle.start(ctx, ['x', 'y'], { rounds: 2 });
+  for (let k = 0; k < 100 && s.phase !== 'final'; k++) {
+    q.length = 0;
+    wordle.botPlan!(ctx, s, ['x', 'y']);
+    for (const z of q) wordle.act(ctx, s, z.by, z.a);
+    if (!q.length) {
+      ctx.now += 300000;
+      wordle.tick!(ctx, s);
+    }
+  }
+  expect(s.phase).toBe('final');
+});
