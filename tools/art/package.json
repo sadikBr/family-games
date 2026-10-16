@@ -1,0 +1,14 @@
+{
+  "name": "family-games-art",
+  "private": true,
+  "type": "module",
+  "description": "Generates the app's HD illustrations (avatars, game emblems, roles, Spanish deck, UNO FLIP faces).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/lilita-one": "^5.2.5",
+    "playwright": "^1.49.0",
+    "three": "^0.169.0"
+  }
+}

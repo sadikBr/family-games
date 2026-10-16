@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# art pipeline
+tools/art/node_modules
+tools/art/.out
