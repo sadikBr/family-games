@@ -54,7 +54,7 @@
         "lint": "expo lint",
         "dev": "bun run scripts/dev.ts",
         "server": "bun run server/index.ts",
-        "build:apk-local": "JAVA_HOME=/usr/lib/jvm/java-17-openjdk ANDROID_HOME=$HOME/Android/Sdk bunx eas-cli build --platform android --profile preview --local --output quraani.apk",
+        "build:apk-local": "JAVA_HOME=/usr/lib/jvm/java-17-openjdk ANDROID_HOME=$HOME/Android/Sdk bunx eas-cli build --platform android --profile preview --local --output familiy-games.apk",
         "test:server": "BOT_SPEED=0.05 bun test server",
         "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json"
     },

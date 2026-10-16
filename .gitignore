@@ -45,3 +45,5 @@ example
 # art pipeline
 tools/art/node_modules
 tools/art/.out
+
+*.apk
