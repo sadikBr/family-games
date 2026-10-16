@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SERVER_URL": "wss://REPLACE-ME"
+        "EXPO_PUBLIC_SERVER_URL": "wss://family-games-production-a937.up.railway.app"
       }
     }
   }

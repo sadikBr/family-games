@@ -5,6 +5,7 @@ import { AvatarArt } from '@/art/avatars';
 import { Icon } from '@/art/icons';
 
 import { client } from '@/lib/client';
+import { goBack } from '@/lib/nav';
 import { saveProfile, useProfile } from '@/lib/profile';
 import { defaultServerUrl, getServerOverride, setServerOverride } from '@/lib/server-url';
 import { haptic } from '@/lib/sfx';
@@ -36,13 +37,13 @@ export default function ProfileScreen() {
     } else {
       client.refreshProfile();
     }
-    if (isFirst || !router.canGoBack()) router.replace('/');
-    else router.back();
+    if (isFirst) router.replace('/');
+    else goBack();
   };
 
   return (
     <Screen
-      header={<Header title={isFirst ? '' : 'ملفي'} onBack={isFirst ? undefined : () => router.back()} />}
+      header={<Header title={isFirst ? '' : 'ملفي'} onBack={isFirst ? undefined : goBack} />}
       footer={<Btn size="xl" icon="check" label={isFirst ? 'يلا نلعب' : 'حفظ'} color={C.green} disabled={!name.trim()} onPress={save} />}>
       {isFirst ? (
         <View style={{ alignItems: 'center' }}>

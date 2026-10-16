@@ -47,6 +47,19 @@ for (const [dir, [size, jobs]] of Object.entries(groups)) {
   execFileSync('node', [path.join(here, 'render.mjs'), jf, out], { stdio: 'inherit' });
   execFileSync('python3', [path.join(here, 'towebp.py'), out, path.join(ART, dir), String(size)], { stdio: 'inherit' });
 }
+// app icon + splash (assets/images)
+{
+  const jobs = [
+    { name: 'icon-bg', module: 'brand.mjs', fn: 'iconBackground', style: 'mascot', px: 1024, line: 0, sticker: false },
+    { name: 'icon-fg', module: 'brand.mjs', fn: 'iconForeground', args: [0.47], style: 'mascot', px: 1024, line: 2.1, off: 4.1, border: 0.7, ring: 1.4, outer: 0.8 },
+    { name: 'icon-fg-big', module: 'brand.mjs', fn: 'iconForeground', args: [0.62], style: 'mascot', px: 1024, line: 2.9, off: 5.6, border: 0.7, ring: 1.4, outer: 0.8 },
+    { name: 'splash', module: 'brand.mjs', fn: 'splashLogo', style: 'mascot', px: 1024, line: 1.3, off: 2.4, border: 0.8, ring: 1.7, outer: 0.95 },
+  ];
+  const out = path.join(tmp, 'brand');
+  fs.writeFileSync(path.join(tmp, 'brand.json'), JSON.stringify(jobs));
+  execFileSync('node', [path.join(here, 'render.mjs'), path.join(tmp, 'brand.json'), out], { stdio: 'inherit' });
+  execFileSync('python3', [path.join(here, 'brand.py'), out, path.join(here, '../../assets/images')], { stdio: 'inherit' });
+}
 // 3D dice (three.js): tumble sprite sheet + resting faces
 execFileSync('node', [path.join(here, 'dice3d.mjs'), path.join(tmp, 'dice3d'), '512'], { stdio: 'inherit' });
 execFileSync('python3', [path.join(here, 'dice_sheet.py'), path.join(tmp, 'dice3d'), path.join(ART, 'boards'), '256'], { stdio: 'inherit' });

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Icon } from '@/art/icons';
 import { client, useClient } from '@/lib/client';
+import { goBack } from '@/lib/nav';
 import { haptic, play } from '@/lib/sfx';
 import { C, F } from '@/theme';
 import { IconBubble } from '@/ui/bits';
@@ -52,7 +53,7 @@ export default function JoinScreen() {
   };
 
   return (
-    <Screen header={<Header title="ادخل غرفة" onBack={() => router.back()} />} scroll={false}>
+    <Screen header={<Header title="ادخل غرفة" onBack={goBack} />} scroll={false}>
       <View style={styles.wrap}>
         <IconBubble icon={busy ? 'door' : 'key'} size={64} color={C.surfaceStrong} iconColor={C.yellow} />
         <Txt v="h2" center>

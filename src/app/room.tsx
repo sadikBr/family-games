@@ -8,6 +8,7 @@ import { GameView } from '@/games/game-view';
 import { Lobby } from '@/games/lobby';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
+import { goBack } from '@/lib/nav';
 import { isRemoteServer } from '@/lib/server-url';
 import { playFx } from '@/lib/sfx';
 import { C } from '@/theme';
@@ -25,7 +26,7 @@ function Connecting() {
     return () => clearTimeout(t);
   }, []);
   return (
-    <Screen header={<Header onBack={() => router.back()} />} scroll={false}>
+    <Screen header={<Header onBack={goBack} />} scroll={false}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
         <IconBubble icon={slow && status !== 'online' ? 'wifiOff' : 'door'} size={72} iconColor={C.yellow} />
         <Txt v="title">جاري الدخول…</Txt>
@@ -134,8 +135,7 @@ export default function RoomScreen() {
           setConfirmLeave(false);
           hadRoom.current = false;
           client.leaveRoom();
-          if (router.canGoBack()) router.back();
-          else router.replace('/');
+          goBack();
         }}
       />
       <ConfirmModal
