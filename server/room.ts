@@ -42,6 +42,10 @@ import { spy } from './games/spy';
 import { survey } from './games/survey';
 import { dots } from './games/dots';
 import { mancala } from './games/mancala';
+import { life } from './games/life';
+import { blocks } from './games/blocks';
+import { codebreak } from './games/codebreak';
+import { boggle } from './games/boggle';
 import { sudoku } from './games/sudoku';
 import { trivia } from './games/trivia';
 import { wave } from './games/wave';
@@ -114,6 +118,10 @@ const MODULES: Record<GameId, AnyModule> = {
   survey,
   dots,
   mancala,
+  life,
+  blocks,
+  codebreak,
+  boggle,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */

@@ -15,6 +15,10 @@ import { SpySettings } from './spy';
 import { SurveySettings } from './survey';
 import { DotsSettings } from './dots';
 import { MancalaSettings } from './mancala';
+import { LifeSettings } from './life';
+import { BlocksSettings } from './blocks';
+import { CodebreakSettings } from './codebreak';
+import { BoggleSettings } from './boggle';
 
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
   const settings = room.settings[game];
@@ -41,6 +45,14 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <DotsSettings room={room} editable={editable} />;
     case 'mancala':
       return <MancalaSettings room={room} editable={editable} />;
+    case 'life':
+      return <LifeSettings room={room} editable={editable} />;
+    case 'blocks':
+      return <BlocksSettings room={room} editable={editable} />;
+    case 'codebreak':
+      return <CodebreakSettings room={room} editable={editable} />;
+    case 'boggle':
+      return <BoggleSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (

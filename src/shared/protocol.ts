@@ -12,6 +12,10 @@ import { SPY_DEFAULTS, type SpySettings, type SpyView } from './games/spy';
 import { SURVEY_DEFAULTS, type SurveySettings, type SurveyView } from './games/survey';
 import { DOTS_DEFAULTS, type DotsSettings, type DotsView } from './games/dots';
 import { MANCALA_DEFAULTS, type MancalaSettings, type MancalaView } from './games/mancala';
+import { LIFE_DEFAULTS, type LifeSettings, type LifeView } from './games/life';
+import { BLOCKS_DEFAULTS, type BlocksSettings, type BlocksView } from './games/blocks';
+import { CODEBREAK_DEFAULTS, type CodebreakSettings, type CodebreakView } from './games/codebreak';
+import { BOGGLE_DEFAULTS, type BoggleSettings, type BoggleView } from './games/boggle';
 export type { Phase10Settings, Phase10View } from './games/phase10';
 export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
 export type { CharadesSettings, CharadesView } from './games/charades';
@@ -19,6 +23,10 @@ export type { SpySettings, SpyView } from './games/spy';
 export type { SurveySettings, SurveyView } from './games/survey';
 export type { DotsSettings, DotsView } from './games/dots';
 export type { MancalaSettings, MancalaView } from './games/mancala';
+export type { LifeSettings, LifeView } from './games/life';
+export type { BlocksSettings, BlocksView } from './games/blocks';
+export type { CodebreakSettings, CodebreakView } from './games/codebreak';
+export type { BoggleSettings, BoggleView } from './games/boggle';
 
 export type { Card } from './cards';
 
@@ -62,7 +70,11 @@ export type GameId =
   | 'spy'
   | 'survey'
   | 'dots'
-  | 'mancala';
+  | 'mancala'
+  | 'life'
+  | 'blocks'
+  | 'codebreak'
+  | 'boggle';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -105,10 +117,14 @@ export const GAME_IDS: GameId[] = [
   'survey',
   'dots',
   'mancala',
+  'life',
+  'blocks',
+  'codebreak',
+  'boggle',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -152,10 +168,14 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   survey: 2,
   dots: 2,
   mancala: 2,
+  life: 2,
+  blocks: 2,
+  codebreak: 1,
+  boggle: 1,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, life: 6, blocks: 4, codebreak: 6, boggle: 12 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -392,6 +412,10 @@ export interface AllSettings {
   survey: SurveySettings;
   dots: DotsSettings;
   mancala: MancalaSettings;
+  life: LifeSettings;
+  blocks: BlocksSettings;
+  codebreak: CodebreakSettings;
+  boggle: BoggleSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -435,6 +459,10 @@ export const DEFAULT_SETTINGS: AllSettings = {
   survey: SURVEY_DEFAULTS,
   dots: DOTS_DEFAULTS,
   mancala: MANCALA_DEFAULTS,
+  life: LIFE_DEFAULTS,
+  blocks: BLOCKS_DEFAULTS,
+  codebreak: CODEBREAK_DEFAULTS,
+  boggle: BOGGLE_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1273,7 +1301,11 @@ export type GameView =
   | SpyView
   | SurveyView
   | DotsView
-  | MancalaView;
+  | MancalaView
+  | LifeView
+  | BlocksView
+  | CodebreakView
+  | BoggleView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

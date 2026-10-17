@@ -5,6 +5,10 @@ import { SPY_INFO } from '@/shared/games/spy';
 import { SURVEY_INFO } from '@/shared/games/survey';
 import { DOTS_INFO } from '@/shared/games/dots';
 import { MANCALA_INFO } from '@/shared/games/mancala';
+import { LIFE_INFO } from '@/shared/games/life';
+import { BLOCKS_INFO } from '@/shared/games/blocks';
+import { CODEBREAK_INFO } from '@/shared/games/codebreak';
+import { BOGGLE_INFO } from '@/shared/games/boggle';
 import type { IconName } from '@/art/icons';
 import type { GameId } from '@/shared/protocol';
 import { MIN_PLAYERS } from '@/shared/protocol';
@@ -28,6 +32,10 @@ export const GAMES: Record<GameId, GameMeta> = {
   survey: { id: 'survey', minPlayers: MIN_PLAYERS.survey, ...SURVEY_INFO },
   dots: { id: 'dots', minPlayers: MIN_PLAYERS.dots, ...DOTS_INFO },
   mancala: { id: 'mancala', minPlayers: MIN_PLAYERS.mancala, ...MANCALA_INFO },
+  life: { id: 'life', minPlayers: MIN_PLAYERS.life, ...LIFE_INFO },
+  blocks: { id: 'blocks', minPlayers: MIN_PLAYERS.blocks, ...BLOCKS_INFO },
+  codebreak: { id: 'codebreak', minPlayers: MIN_PLAYERS.codebreak, ...CODEBREAK_INFO },
+  boggle: { id: 'boggle', minPlayers: MIN_PLAYERS.boggle, ...BOGGLE_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -493,13 +501,13 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle'];
 
 /** Grouping for the home screen (`short`: the filter chip). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble'] },
+  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble', 'boggle'] },
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
-  { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['estate', 'ludo', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
-  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala'] },
+  { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['estate', 'life', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
+  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
   { title: 'الكارطة', short: 'الكارطة', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip', 'phase10'] },
 ];
