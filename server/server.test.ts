@@ -366,11 +366,12 @@ test('imposter with bots: bots get ready, give clues and vote', async () => {
   host.act({ type: 'toVote' });
   await settle();
   host.act({ type: 'vote', target: v.participants.find((id) => id !== host.id)! });
-  await Bun.sleep(6500 + 4600);
+  // bots vote; a caught bot imposter then has time to guess the word
+  for (let i = 0; i < 160 && host.view<ImposterView>().phase !== 'result'; i++) await Bun.sleep(250);
   v = host.view<ImposterView>();
   expect(v.phase).toBe('result');
   expect(Object.keys(v.result!.votes).length).toBe(4);
-}, 20000);
+}, 60000);
 
 test('hot potato with bots: bots throw and shout a word', async () => {
   const { host } = await roomWithBots(1, 2, 'potato');
@@ -871,7 +872,9 @@ test('estate with bots: buy, trade offers answered, game ends by round limit', a
   await settle();
   let v = host.view<EstateView>();
   expect(v.players.length).toBe(3);
-  expect(v.players.every((p) => p.cash === 1000 && p.pos === 0)).toBe(true);
+  // a bot may already have rolled; the host hasn't moved yet
+  const me = v.players.find((p) => p.id === host.id)!;
+  expect(me.cash === 1000 && me.pos === 0).toBe(true);
   // not my turn → refused
   if (v.turn !== host.id) {
     host.act({ type: 'roll' });
