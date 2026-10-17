@@ -3,11 +3,15 @@
  * kept as written) that the «شبكة الكلمات» bots are allowed to play, so they don't play obscure
  * stems or subtitle typos. Players can still play anything in names-dict.txt.
  * A word is kept when it is said often (OpenSubtitles frequency ≥ minFrequency) AND it is a Hunspell
- * dictionary word (or «ال» + one), and isn't on the small family blocklist below.
+ * dictionary word (or «ال» + one), and isn't on the small family blocklist below nor on the dialect
+ * blocklist shared with «كلمة السر» (DIALECT in tools/wordle-dict.mjs: Egyptian/Tunisian/Levantine/
+ * Moroccan forms like «شو», «شوية», «عايز», «اشوفك» — bots only play فصحى).
  * Sources: ar.dic, ar_full.txt — see tools/names-dict.mjs.
  *   node tools/common-words.mjs [minFrequency=100] && mv common-words.txt server/data/
  */
 import fs from 'node:fs';
+
+import { DIALECT } from './wordle-dict.mjs';
 const norm = (s) => s.trim().replace(/[ً-ْـٰ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي');
 const dic = fs.readFileSync('ar.dic', 'utf8');
 const stems = new Set();
@@ -21,6 +25,7 @@ for (const line of dic.split('\n').slice(1)) {
 const MIN = Number(process.argv[2] ?? 100);
 // words a family game's bots should never play (alcohol, insults)
 const BLOCK = new Set(['فودكا', 'خمر', 'خمور', 'نبيذ', 'ويسكي', 'بيره', 'شمبانيا', 'سكران', 'سكاري', 'ثمل', 'كحولي', 'حشيش', 'مخدرات', 'عاهره', 'قحبه', 'زاني', 'زنا', 'لعين', 'ملعون', 'حقير', 'غبي', 'احمق', 'وغد', 'سافل', 'تافه', 'قذر', 'لعنه'].map(norm));
+const DIA = new Set(DIALECT.map(norm)); // exact forms only («الفين» is not «ال» + «فين»)
 const out = new Set(); let checked = 0;
 const t = Date.now();
 for (const line of fs.readFileSync('ar_full.txt', 'utf8').split('\n')) {
@@ -28,7 +33,7 @@ for (const line of fs.readFileSync('ar_full.txt', 'utf8').split('\n')) {
   if (Number(c) < MIN) break;
   if (!w || !/^[ء-يً-ْٰ]+$/.test(w)) continue;
   const k = norm(w);
-  if (k.length < 2 || /(.)\1\1/.test(k) || BLOCK.has(k) || BLOCK.has(k.replace(/^ال/, ''))) continue;
+  if (k.length < 2 || /(.)\1\1/.test(k) || BLOCK.has(k) || BLOCK.has(k.replace(/^ال/, '')) || DIA.has(k)) continue;
   checked++;
   const rest = k.startsWith('ال') && k.length > 3 ? k.slice(2) : null;
   if (stems.has(k) || (rest && stems.has(rest))) out.add(k);
