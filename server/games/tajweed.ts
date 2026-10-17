@@ -42,6 +42,13 @@ export function verseText(s: number, a: number): string | undefined {
 
 export const verseWords = (text: string) => text.split(' ').filter(Boolean);
 
+/**
+ * quran-data.json writes the open (staggered) tanween of the Madani mushaf with U+0657 / U+065E / U+0656,
+ * which the Amiri Quran font draws as an inverted damma, a missing glyph and a subscript alef. For display,
+ * use the standard code points for open tanween (U+08F0 / U+08F1 / U+08F2): same text, right shapes.
+ */
+export const forFont = (word: string) => word.replace(/\u0657/g, '\u08F0').replace(/\u065E/g, '\u08F1').replace(/\u0656/g, '\u08F2');
+
 const topicLabel = (t: TajweedTopic) => TAJWEED_TOPICS.find((x) => x.key === t)?.label ?? '';
 const ruleLabel = (t: TajweedTopic, rule: string) => TAJWEED_RULES[t].find((r) => r.key === rule)?.label ?? rule;
 
@@ -60,12 +67,12 @@ export function tajweedItem(e: TajweedExample): TajweedItem {
   const others = shuffle(TAJWEED_RULES[e.topic].filter((r) => r.key !== e.rule).map((r) => r.label)).slice(0, 3);
   const surah = quranData().surahs[e.s - 1]?.name ?? '';
   return {
-    text: all.slice(from, to).join(' '),
+    text: all.slice(from, to).map(forFont).join(' '),
     ...mcqOptions(right, others),
     label: topicLabel(e.topic),
     ref: `سورة ${surah} — الآية ${e.a}`,
     topic: e.topic,
-    words: all.slice(from, to),
+    words: all.slice(from, to).map(forFont),
     hl: [e.w - from, e.w - from + n - 1],
     cutStart: from > 0,
     cutEnd: to < all.length,

@@ -118,7 +118,7 @@ export function TajweedSettings({ room, editable }: { room: RoomView; editable: 
 
 const styles = StyleSheet.create({
   card: { backgroundColor: GREEN, borderRadius: 22, padding: 16, gap: 6, minHeight: 120, justifyContent: 'center', borderWidth: 2, borderColor: alpha('#F4C02E', 0.5) },
-  verse: { fontFamily: F.quran, fontSize: 24, lineHeight: 52, color: INK, textAlign: 'center', writingDirection: 'rtl' },
+  verse: { fontFamily: F.quran, fontSize: 26, lineHeight: 56, color: INK, textAlign: 'center', writingDirection: 'rtl' },
   mark: { color: MARK },
   why: { backgroundColor: alpha(C.green, 0.18), borderColor: alpha(C.green, 0.6), borderWidth: 2, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12, gap: 2 },
 });

@@ -1,6 +1,6 @@
 /** «أسماء الله الحسنى» — the screen: «طابِق» (a timed race) and «الذاكرة» (Name ↔ meaning pairs). */
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, FlipInEasyY, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FlipInEasyY } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
@@ -30,7 +30,7 @@ function NameText({ name, max = 54, color = GOLD }: { name: string; max?: number
   return <Txt style={{ fontFamily: F.quran, fontSize: size, lineHeight: Math.round(size * 1.9), color, textAlign: 'center', writingDirection: 'rtl' }}>{name}</Txt>;
 }
 
-function Final({ room, scores, h, sub }: { room: RoomView; scores: Record<string, number>; h: Helpers; sub: string }) {
+function Final({ room, scores, h, sub, again = true }: { room: RoomView; scores: Record<string, number>; h: Helpers; sub: string; again?: boolean }) {
   const best = Math.max(...Object.values(scores));
   const winners = Object.keys(scores).filter((id) => scores[id] === best);
   const won = winners.includes(h.me);
@@ -45,7 +45,7 @@ function Final({ room, scores, h, sub }: { room: RoomView; scores: Record<string
       />
       <Podium players={room.players} scores={scores} />
       <Scoreboard players={room.players} scores={scores} highlight={h.me} />
-      <PlayAgain room={room} />
+      {again ? <PlayAgain room={room} /> : null}
     </>
   );
 }
@@ -110,7 +110,7 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
 
   return (
     <>
-      {view.phase === 'final' ? <Final room={room} scores={view.pairs} h={h} sub="بارك الله في ذاكرتكم" /> : null}
+      {view.phase === 'final' ? <Final room={room} scores={view.pairs} h={h} sub="بارك الله في ذاكرتكم" again={false} /> : null}
 
       {view.phase === 'play' ? (
         <>
@@ -176,7 +176,7 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
                   style={[
                     styles.card,
                     card.kind === 'name' ? styles.nameCard : styles.meaningCard,
-                    owner ? { borderColor: h.player(owner).color, borderWidth: 3 } : null,
+                    owner ? { borderColor: h.player(owner).color, borderWidth: 4 } : null,
                     wrong ? { borderColor: C.red, borderWidth: 3 } : null,
                   ]}>
                   {card.kind === 'name' ? (
@@ -184,11 +184,6 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
                   ) : (
                     <Txt style={{ fontFamily: F.bold, fontSize: meaningSize, lineHeight: Math.round(meaningSize * 1.4), color: '#0E3B36', textAlign: 'center' }}>{card.text}</Txt>
                   )}
-                  {owner && view.phase === 'play' ? (
-                    <Animated.View entering={ZoomIn.duration(200)} style={styles.ownerDot}>
-                      <Avatar player={h.player(owner)} size={16} />
-                    </Animated.View>
-                  ) : null}
                 </Animated.View>
               ) : (
                 <View key={`b${i}`} style={[styles.card, styles.back]}>
@@ -200,6 +195,7 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
           );
         })}
       </View>
+      {view.phase === 'final' ? <PlayAgain room={room} /> : null}
     </>
   );
 }
@@ -244,7 +240,7 @@ export function AsmaSettings({ room, editable }: { room: RoomView; editable: boo
         <>
           <Txt v="bold">عدد الأزواج</Txt>
           <ChipPicker
-            options={ASMA_PAIRS.map((n) => ({ key: String(n), label: `${n} أزواج` }))}
+            options={ASMA_PAIRS.map((n) => ({ key: String(n), label: `${num(n)} أزواج` }))}
             value={String(settings.pairs)}
             editable={editable}
             onChange={(v) => change({ pairs: Number(v) })}
@@ -269,5 +265,4 @@ const styles = StyleSheet.create({
   back: { backgroundColor: NIGHT, borderColor: alpha(GOLD, 0.7) },
   star: { position: 'absolute', borderWidth: 2, borderColor: GOLD, borderRadius: 3 },
   star2: { transform: [{ rotate: '45deg' }] },
-  ownerDot: { position: 'absolute', top: 2, right: 2 },
 });

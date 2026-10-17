@@ -2,7 +2,7 @@
 import { expect, test } from 'bun:test';
 
 import { TAJWEED_TOPICS, type TajweedSettings, type TajweedTopic, type TajweedView } from '../src/shared/games/tajweed';
-import { tajweed, tajweedItem, tajweedPool, verseText, verseWords } from './games/tajweed';
+import { forFont, tajweed, tajweedItem, tajweedPool, verseText, verseWords } from './games/tajweed';
 import { TAJWEED_EXAMPLES, TAJWEED_RULES, type TajweedExample } from './tajweed-content';
 
 type Job = { at: number; by: string; key: string; a: any };
@@ -169,7 +169,8 @@ test('tajweed: questions show the verse around the coloured words, with distinct
   for (const e of TAJWEED_EXAMPLES) {
     const item = tajweedItem(e);
     const all = words(e);
-    expect(item.words.slice(item.hl[0], item.hl[1] + 1)).toEqual(all.slice(e.w, e.w + (e.n ?? 1)));
+    expect(item.words.slice(item.hl[0], item.hl[1] + 1)).toEqual(all.slice(e.w, e.w + (e.n ?? 1)).map(forFont));
+    expect(item.words.join(' ')).not.toMatch(/[\u0656\u0657\u065E]/);
     expect(item.words.length).toBeLessThanOrEqual(14);
     expect(item.cutStart).toBe(e.w - item.hl[0] > 0);
     expect(item.cutEnd).toBe(e.w - item.hl[0] + item.words.length < all.length);
