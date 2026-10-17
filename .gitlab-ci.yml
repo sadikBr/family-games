@@ -1,0 +1,99 @@
+# GitLab CI for «ألعاب العائلة»
+#   check         — type check, lint and rules tests on every push
+#   build_apk     — builds family-games.apk on every push to main (download it from the job page)
+#   deploy_server — redeploys the game server to Railway when server code changes (needs RAILWAY_TOKEN)
+#
+# Optional CI/CD variables (Settings → CI/CD → Variables, masked):
+#   EXPO_TOKEN       — sign the APK with the same key as your earlier EAS builds, so it installs over them
+#   RAILWAY_TOKEN    — a Railway project token, to redeploy the server automatically
+#   RAILWAY_SERVICE  — the Railway service name, if the project has more than one
+
+stages: [check, build, deploy]
+
+variables:
+  EXPO_PUBLIC_SERVER_URL: 'wss://family-games-production-a937.up.railway.app'
+  NODE_VERSION: '22.12.0'
+
+default:
+  interruptible: true
+
+.node: &node
+  - curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" | tar -xJ -C /opt
+  - export PATH="/opt/node-v${NODE_VERSION}-linux-x64/bin:$PATH"
+  - npm install -g bun@1.3 > /dev/null
+  - bun install --frozen-lockfile
+
+check:
+  stage: check
+  image: debian:bookworm-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends curl xz-utils ca-certificates git > /dev/null
+    - *node
+  script:
+    - npx tsc --noEmit
+    - npx tsc -p server/tsconfig.json
+    - npx expo lint
+    - BOT_SPEED=0.05 bun test server/rules.test.ts
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"
+
+build_apk:
+  stage: build
+  image: eclipse-temurin:17-jdk
+  needs: [check]
+  timeout: 2h
+  variables:
+    ANDROID_HOME: '$CI_PROJECT_DIR/.android-sdk'
+    ANDROID_SDK_ROOT: '$CI_PROJECT_DIR/.android-sdk'
+    GRADLE_USER_HOME: '$CI_PROJECT_DIR/.gradle-home'
+    GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=2'
+    EAS_NO_VCS: '1'
+  cache:
+    key: android-sdk-v1
+    paths: [.android-sdk/]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends curl unzip xz-utils ca-certificates git > /dev/null
+    - *node
+    - |
+      if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+        mkdir -p "$ANDROID_HOME/cmdline-tools"
+        curl -fsSL -o /tmp/clt.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q /tmp/clt.zip -d "$ANDROID_HOME/cmdline-tools"
+        mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+      fi
+    - export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+    - yes | sdkmanager --licenses > /dev/null || true
+    - sdkmanager "platform-tools" > /dev/null
+    # every build gets a higher versionCode, so Android accepts it as an update
+    - node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('app.json','utf8'));j.expo.android.versionCode=Number(process.env.CI_PIPELINE_IID)||1;fs.writeFileSync('app.json',JSON.stringify(j,null,2)+'\n')"
+  script:
+    - |
+      if [ -n "$EXPO_TOKEN" ]; then
+        echo "Signing with your EAS credentials"
+        npx -y eas-cli@latest build --platform android --profile preview --local --non-interactive --output family-games.apk
+      else
+        echo "No EXPO_TOKEN: signing with the standard debug key (uninstall the old app once before installing)"
+        npx expo prebuild --platform android --no-install --clean
+        (cd android && ./gradlew assembleRelease --no-daemon)
+        cp android/app/build/outputs/apk/release/app-release.apk family-games.apk
+      fi
+  artifacts:
+    name: 'family-games-$CI_PIPELINE_IID'
+    paths: [family-games.apk]
+    expire_in: 30 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+deploy_server:
+  stage: deploy
+  image: node:22-bookworm-slim
+  needs: [check]
+  script:
+    - if [ -n "$RAILWAY_SERVICE" ]; then SERVICE="--service $RAILWAY_SERVICE"; fi
+    - npx -y @railway/cli@latest up --ci $SERVICE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $RAILWAY_TOKEN
+      changes: [server/**/*, src/shared/**/*, Dockerfile, railway.json, package.json, bun.lock]
+    - if: $CI_PIPELINE_SOURCE == "web" && $RAILWAY_TOKEN
+      when: manual

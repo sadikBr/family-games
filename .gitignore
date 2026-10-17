@@ -47,3 +47,7 @@ tools/art/node_modules
 tools/art/.out
 
 *.apk
+
+# CI caches
+.android-sdk/
+.gradle-home/
