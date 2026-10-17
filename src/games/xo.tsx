@@ -1,6 +1,6 @@
 /** «إكس أو» — tic-tac-toe on a big friendly board. */
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { ZoomIn } from 'react-native-reanimated';
+import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
@@ -37,6 +37,12 @@ function Mark({ m, size }: { m: 'x' | 'o'; size: number }) {
     </View>
   );
 }
+
+/** A placed mark: a quick, gentle fade-and-grow (no bounce). */
+const MARK_IN = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.7 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.quad) },
+}).duration(180);
 
 export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
   const h = helpers(room);
@@ -89,7 +95,7 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
                 pressed && { backgroundColor: alpha('#7B4BD0', 0.18) },
               ]}>
               {m ? (
-                <Animated.View key={m} entering={ZoomIn.springify().damping(12)}>
+                <Animated.View key={m} entering={MARK_IN}>
                   <Mark m={m} size={cell * 0.52} />
                 </Animated.View>
               ) : null}
