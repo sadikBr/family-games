@@ -155,3 +155,19 @@ export function hexWinPath(owners: (string | null)[], team: 'red' | 'green'): nu
   }
   return null;
 }
+
+/* ---------------- رحلة الحج: provision cards (زاد) ---------------- */
+
+export type ZadKind = 'talbiya' | 'dalil' | 'zamzam' | 'sadaqa' | 'sabr';
+
+export const ZAD_INFO: Record<ZadKind, { title: string; text: string; auto?: boolean }> = {
+  talbiya: { title: 'التلبية', text: '+2 على رميتك في هذا الدور' },
+  dalil: { title: 'الدليل', text: 'رميتك تعبر المحطة القادمة دون توقف' },
+  zamzam: { title: 'ماء زمزم', text: 'ارمِ مرة أخرى بعد هذا الدور' },
+  sadaqa: { title: 'الصدقة', text: 'اختر حاجّاً: تتقدّمان معاً خانة واحدة' },
+  sabr: { title: 'الصبر', text: 'يحميك من التأخير القادم — يُستعمل وحده', auto: true },
+};
+
+/** How many of each card are in the deck. */
+export const ZAD_DECK: Record<ZadKind, number> = { talbiya: 6, dalil: 4, zamzam: 3, sadaqa: 4, sabr: 4 };
+export const ZAD_HAND = 3;

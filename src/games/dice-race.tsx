@@ -131,6 +131,7 @@ const CARD_STYLE: Record<BoardCard['kind'], { color: string; icon: IconName }> =
   snake: { color: '#E2475F', icon: 'down' },
   right: { color: '#2FB67C', icon: 'check' },
   wrong: { color: '#E2475F', icon: 'close' },
+  zad: { color: '#7B61D9', icon: 'gift' },
 };
 
 export function EventCard({ card, h, extra }: { card: BoardCard; h: Helpers; extra?: ReactNode }) {

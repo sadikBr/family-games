@@ -3,6 +3,7 @@
  * Keep this file free of React Native / Bun specific imports.
  */
 import type { Card } from './cards';
+import type { ZadKind } from './islamic';
 import type { UnoColor, UnoFace, UnoSide } from './uno';
 
 export type { Card } from './cards';
@@ -872,14 +873,18 @@ export interface WhoisView {
 export type HuroofTeam = 'red' | 'green';
 export interface HuroofView {
   game: 'huroof';
-  phase: 'pick' | 'question' | 'final';
+  /** question: anyone allowed can press the buzzer; answer: the player who buzzed types the answer */
+  phase: 'pick' | 'question' | 'answer' | 'final';
   teams: Record<HuroofTeam, string[]>;
   cells: { letter: string; owner: HuroofTeam | null }[];
   turn: HuroofTeam; // team choosing the next letter
   cell: number | null;
-  question: { text: string; options: string[] } | null;
+  question: { text: string } | null;
   canAnswer: HuroofTeam[];
+  buzzer: string | null;
   endsAt: number | null;
+  timerTotal: number; // ms, for the timer bar
+  wrong: { by: string; text: string; id: number } | null; // the last wrong answer typed
   last: { cell: number; team: HuroofTeam | null; answer: string; by: string | null; id: number } | null;
   winner: HuroofTeam | null;
   winPath: number[] | null;
@@ -889,21 +894,41 @@ export interface HuroofView {
 export interface BoardCard {
   id: number;
   by: string;
-  kind: 'station' | 'event' | 'ladder' | 'snake' | 'right' | 'wrong';
+  kind: 'station' | 'event' | 'ladder' | 'snake' | 'right' | 'wrong' | 'zad';
   title: string;
   text: string;
   day?: string;
 }
 
+export interface HajjZad {
+  id: number;
+  kind: ZadKind;
+}
+
 export interface HajjView {
   game: 'hajj';
-  phase: 'roll' | 'question' | 'final';
-  players: { id: string; pos: number }[];
+  /** quiz: a station question everyone answers */
+  phase: 'roll' | 'question' | 'quiz' | 'final';
+  players: { id: string; pos: number; hand: number; shield: boolean }[];
   turn: string;
   dice: number | null;
   rollId: number;
+  landing: number | null; // where the last roll took the pilgrim (die + cards), before any event
   card: BoardCard | null;
   question: { text: string; options: string[]; endsAt: number; for: string } | null;
+  quiz: {
+    station: string;
+    text: string;
+    options: string[];
+    endsAt: number | null;
+    answered: string[];
+    myAnswer: number | null;
+    correct: number | null; // shown once everyone answered
+    results: { id: string; correct: boolean; first: boolean }[] | null;
+  } | null;
+  myHand: HajjZad[];
+  played: { by: string; kind: ZadKind; target: string | null; id: number } | null;
+  mods: { bonus: number; pass: boolean; again: boolean; played: boolean };
   winner: string | null;
   feed: FeedItem[];
 }

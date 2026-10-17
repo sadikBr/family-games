@@ -283,7 +283,7 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
     }
     case 'hajj': {
       const { settings, change } = settingsFor(room, 'hajj');
-      return <Toggle label="خانات الأسئلة (جواب صحيح = تقدّم خانتين)" value={settings.questions} editable={editable} onChange={(questions) => change({ questions })} />;
+      return <Toggle label="الأسئلة (أسئلة المحطات للجميع وخانات الاستفهام)" value={settings.questions} editable={editable} onChange={(questions) => change({ questions })} />;
     }
     case 'ladders': {
       const { settings, change } = settingsFor(room, 'ladders');

@@ -1,15 +1,20 @@
 /**
- * 3D dice that get thrown onto the table: they fly in, tumble (pre-rendered 3D frames),
- * bounce and land on the rolled value. Used by Ludo and «ملك العقار».
+ * Dice thrown onto the table. The real thing is rendered live in 3D (three.js on expo-gl, see
+ * dice-scene.ts): the dice roll in, bounce and settle on the rolled value. If the phone can't give us
+ * a GL context, the older sprite dice (pre-rendered frames) are used instead.
+ * Used by Ludo, «ملك العقار», «رحلة الحج» and «سلّم الحسنات».
  */
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { BOARD_IMG } from '@/art/assets';
 import { play } from '@/lib/sfx';
+
+import { DiceScene, THROW_MS } from './dice-scene';
 
 const FRAMES = 36; // 6×6 sprite sheet
 const FLIGHT_MS = 950;
@@ -93,11 +98,8 @@ function Die({ value, rollId, size, from, to, delay, animate, onLanded, linger }
   );
 }
 
-/**
- * values: the dice to show (null = nothing rolled yet). rollId changes on every new roll.
- * The dice are thrown inside a box of width × height.
- */
-export function ThrownDice({ values, rollId, width, height, size = 64, onLanded, linger }: {
+/** The fallback: sprite-sheet dice (pre-rendered 3D frames). */
+function SpriteDice({ values, rollId, width, height, size = 64, onLanded, linger }: {
   values: number[] | null;
   rollId: number;
   width: number;
@@ -136,6 +138,88 @@ export function ThrownDice({ values, rollId, width, height, size = 64, onLanded,
     </View>
   );
 }
+
+interface DiceProps {
+  values: number[] | null;
+  rollId: number;
+  width: number;
+  height: number;
+  size?: number;
+  onLanded?: () => void;
+  /** If set, the dice fade away this long after landing (when they're thrown over a board). */
+  linger?: number;
+}
+
+/**
+ * values: the dice to show (null = nothing rolled yet). rollId changes on every new roll.
+ * The dice are thrown inside a box of width × height.
+ */
+export function ThrownDice(props: DiceProps) {
+  const { values, rollId, width, height, size = 64, onLanded, linger } = props;
+  const [failed, setFailed] = useState(false);
+  // the first render shows the current roll at rest; later rolls are thrown
+  const [firstRoll] = useState(rollId);
+  const animate = rollId !== firstRoll;
+  const scene = useRef<DiceScene | null>(null);
+  const thrown = useRef(firstRoll);
+  const latest = useRef({ values, size, onLanded, linger });
+  const opacity = useSharedValue(linger === undefined ? 1 : 0);
+  const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+
+  useEffect(() => {
+    latest.current = { values, size, onLanded, linger };
+  });
+
+  const roll = () => {
+    const sc = scene.current;
+    const { values: vals, size: sz } = latest.current;
+    if (!sc || !vals) return;
+    opacity.set(1);
+    sc.throwDice(vals, sz, () => {
+      latest.current.onLanded?.();
+      const l = latest.current.linger;
+      if (l !== undefined) opacity.set(withDelay(l, withTiming(0, { duration: 300 })));
+    });
+  };
+
+  useEffect(() => {
+    if (!animate) return;
+    play('tick');
+    if (scene.current && thrown.current !== rollId) {
+      thrown.current = rollId;
+      roll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollId, animate]);
+
+  useEffect(() => () => scene.current?.dispose(), []);
+
+  if (failed) return <SpriteDice {...props} />;
+
+  const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
+    try {
+      scene.current = new DiceScene(gl as unknown as WebGLRenderingContext & { endFrameEXP: () => void }, width, height);
+    } catch (e) {
+      console.warn('3D dice unavailable, using the sprite dice', e);
+      setFailed(true);
+      return;
+    }
+    if (animate && thrown.current !== rollId) {
+      // a roll arrived before the 3D view was ready
+      thrown.current = rollId;
+      roll();
+    } else scene.current.rest(linger === undefined ? values : null, size);
+  };
+
+  return (
+    <Animated.View style={[{ width, height }, fade]} pointerEvents="none">
+      <GLView key={`${Math.round(width)}x${Math.round(height)}`} style={{ width, height }} onContextCreate={onContextCreate} />
+    </Animated.View>
+  );
+}
+
+/** How long a throw takes, for screens that wait for the dice before moving pieces. */
+export const DICE_THROW_MS = THROW_MS;
 
 const styles = StyleSheet.create({
   die: { position: 'absolute', left: 0, top: 0 },

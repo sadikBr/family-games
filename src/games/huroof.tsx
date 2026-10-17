@@ -1,4 +1,4 @@
-/** «حروف» — claim letter hexagons by answering; red joins right ↔ left, green joins top ↔ bottom. */
+/** «حروف» — claim letter hexagons: buzz first, then type the answer. Red joins right ↔ left, green joins top ↔ bottom. */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
@@ -11,13 +11,14 @@ import { HEX_N } from '@/shared/islamic';
 import type { HuroofTeam, HuroofView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { Confetti, TimerBar } from '@/ui/fun';
+import { Btn } from '@/ui/btn';
+import { Field } from '@/ui/field';
+import { Confetti, Shake, TimerBar } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { OptionGrid } from './islamic-ui';
 
 const TEAM_COLOR: Record<HuroofTeam, string> = { red: '#E2475F', green: '#2FB67C' };
 const TEAM_NAME: Record<HuroofTeam, string> = { red: 'الفريق الأحمر', green: 'الفريق الأخضر' };
@@ -123,7 +124,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
   const h = helpers(room);
   const { width } = useWindowDimensions();
   const size = Math.min(width - 24, 460);
-  const [picked, setPicked] = useState<{ q: string; i: number } | null>(null);
+  const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
   const mine: HuroofTeam | null = view.teams.red.includes(h.me) ? 'red' : view.teams.green.includes(h.me) ? 'green' : null;
   if (!mine && view.phase !== 'final') return <Spectator room={room} />;
 
@@ -141,9 +142,17 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
 
   const myPick = view.phase === 'pick' && view.turn === mine;
   const q = view.question;
-  const myChoice = q && picked?.q === q.text ? picked.i : null;
   const canAnswer = !!mine && view.canAnswer.includes(mine);
   const letter = view.cell !== null ? view.cells[view.cell].letter : null;
+  const iBuzzed = view.phase === 'answer' && view.buzzer === h.me;
+  // what I type is kept per buzz, so a new question starts empty
+  const answerKey = `${view.cell}:${view.buzzer}:${view.canAnswer.join()}`;
+  const answer = typed.key === answerKey ? typed.text : '';
+  const send = () => {
+    if (!answer.trim()) return;
+    haptic.medium();
+    h.act('answer', { text: answer });
+  };
 
   return (
     <>
@@ -169,24 +178,66 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
               {q.text}
             </Txt>
           </Row>
-          <TimerBar endsAt={view.endsAt} total={room.settings.huroof.seconds * 1000} onTick />
-          <OptionGrid
-            options={q.options}
-            mine={myChoice}
-            correct={null}
-            disabled={!canAnswer}
-            onPick={(i) => {
-              setPicked({ q: q.text, i });
-              h.act('answer', { choice: i });
-            }}
-          />
-          <Txt v="tiny" center color={canAnswer ? C.yellow : C.dim}>
-            {canAnswer
-              ? view.canAnswer.length === 2
-                ? 'أسرع فريق يجيب صحيحاً يأخذ الحرف'
-                : 'الفريق الآخر أخطأ — الفرصة لكم!'
-              : 'فريقك أخطأ — الفرصة الآن للفريق الآخر'}
-          </Txt>
+          <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick />
+          {view.wrong ? (
+            <Shake trigger={view.wrong.id}>
+              <Txt v="small" center color={C.red}>
+                {h.player(view.wrong.by).name}: «{view.wrong.text}» — خطأ
+              </Txt>
+            </Shake>
+          ) : null}
+
+          {view.phase === 'question' ? (
+            canAnswer ? (
+              <View style={{ alignItems: 'center', gap: 6 }}>
+                <Pressable
+                  onPress={() => {
+                    haptic.heavy();
+                    h.act('buzz');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="اضغط الجرس"
+                  style={({ pressed }) => [styles.buzzer, pressed && styles.buzzerDown]}>
+                  <Txt style={styles.buzzerText}>أجب!</Txt>
+                </Pressable>
+                <Txt v="tiny" center color={C.yellow}>
+                  {view.canAnswer.length === 2 ? 'أول من يضغط الجرس يجيب' : 'الفريق الآخر أخطأ — الفرصة لكم!'}
+                </Txt>
+              </View>
+            ) : (
+              <Txt v="small" center color={C.dim}>
+                فريقك أخطأ — الفرصة الآن للفريق الآخر
+              </Txt>
+            )
+          ) : view.buzzer && iBuzzed ? (
+            <View style={{ gap: 8 }}>
+              <Txt v="bold" center color={C.yellow}>
+                ضغطت الجرس — اكتب جوابك
+              </Txt>
+              <Row gap={8}>
+                <Field
+                  value={answer}
+                  onChangeText={(text) => setTyped({ key: answerKey, text })}
+                  onSubmitEditing={send}
+                  placeholder={`جواب يبدأ بحرف ${displayLetter(letter)}`}
+                  placeholderTextColor={C.dim}
+                  autoFocus
+                  autoCorrect={false}
+                  maxLength={60}
+                  returnKeyType="send"
+                  style={styles.input}
+                />
+                <Btn size="md" icon="check" label="أرسل" disabled={!answer.trim()} onPress={send} />
+              </Row>
+            </View>
+          ) : view.buzzer ? (
+            <Row gap={8} center>
+              <Avatar player={h.player(view.buzzer)} size={28} />
+              <Txt v="bold" color={C.muted}>
+                {h.player(view.buzzer).name} يكتب جوابه…
+              </Txt>
+            </Row>
+          ) : null}
         </Animated.View>
       ) : null}
 
@@ -205,6 +256,10 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
 const styles = StyleSheet.create({
   team: { flex: 1, borderRadius: 16, padding: 8, gap: 6, borderWidth: 2 },
   panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10 },
+  buzzer: { width: 120, height: 120, borderRadius: 60, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: INK, borderBottomWidth: 10 },
+  buzzerDown: { borderBottomWidth: 4, transform: [{ translateY: 5 }] },
+  buzzerText: { fontFamily: F.display, fontSize: 30, lineHeight: 46, color: '#FFFFFF' },
+  input: { flex: 1, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.yellow },
   letter: { width: 52, height: 52, borderRadius: 14, backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: INK },
   last: { borderRadius: 14, borderWidth: 2, padding: 8, backgroundColor: C.bg2 },
 });

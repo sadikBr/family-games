@@ -4,12 +4,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
+import { useClient } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import type { RoomView, WordleMark, WordleView } from '@/shared/protocol';
 import { KEY_ROWS } from '@/shared/wordle';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { TimerBar } from '@/ui/fun';
+import { Shake, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
@@ -32,6 +33,7 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
   const h = helpers(room);
   const contentWidth = useContentWidth();
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
+  const { error } = useClient();
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="wordle" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
 
@@ -59,10 +61,9 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
     haptic.tap();
     if (k === 'del') setTyped({ key: rowKey, text: letters.slice(0, -1).join('') });
     else if (k === 'enter') {
-      if (letters.length === view.length) {
-        h.act('guess', { word: text });
-        setTyped({ key: '', text: '' });
-      }
+      // the typed word stays until the server accepts it (a new row clears it), so a word
+      // that isn't in the dictionary can be fixed instead of retyped
+      if (letters.length === view.length) h.act('guess', { word: text });
     } else if (letters.length < view.length) setTyped({ key: rowKey, text: text + k });
   };
 
@@ -75,12 +76,19 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
         {Array.from({ length: view.maxTries }, (_, r) => {
           const row = view.myRows[r];
           const current = r === view.myRows.length && playing;
-          return (
-            <Row key={r} gap={6}>
+          const tiles = (
+            <Row gap={6}>
               {Array.from({ length: view.length }, (_, i) => (
                 <Tile key={i} size={tile} ch={row ? [...row.guess][i] : current ? (letters[i] ?? '') : ''} mark={row?.marks[i]} active={current && i === letters.length} />
               ))}
             </Row>
+          );
+          return current ? (
+            <Shake key={r} trigger={error?.id}>
+              {tiles}
+            </Shake>
+          ) : (
+            <View key={r}>{tiles}</View>
           );
         })}
       </View>

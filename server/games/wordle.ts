@@ -2,7 +2,10 @@
  * «كلمة السر» — everyone races to find the same hidden 5-letter word in 6 tries.
  * Green = right letter, right place; yellow = in the word, elsewhere; grey = not in the word.
  * You see the others' colours (not their letters). Points: (7 − tries) × 100, +100 for the first to solve.
+ * Guesses must be real words: see server/data/wordle-valid.txt (built by tools/wordle-dict.mjs).
  */
+import { readFileSync } from 'node:fs';
+
 import type { WordleMark, WordleSettings, WordleView } from '../../src/shared/protocol';
 import { MAX_TRIES, WORD_LEN, markGuess, normWord } from '../../src/shared/wordle';
 import { WORDLE_WORDS } from '../content-games2';
@@ -12,6 +15,12 @@ import { isStr, randInt, shuffle } from '../util';
 const ROUND_MS = 4 * 60_000;
 const REVEAL_MS = 7000;
 const ANSWERS = WORDLE_WORDS.map(normWord);
+
+/** Every accepted guess (already normalised), plus the answers themselves. */
+export const VALID_GUESSES: Set<string> = new Set([
+  ...readFileSync(new URL('../data/wordle-valid.txt', import.meta.url), 'utf8').split('\n').filter(Boolean),
+  ...ANSWERS,
+]);
 
 interface Row {
   guess: string;
@@ -83,6 +92,8 @@ export const wordle: GameModule<State, WordleSettings> = {
     if (a.type !== 'guess' || s.phase !== 'play' || !s.players.includes(by) || done(s, by)) return;
     const g = isStr(a.word) ? normWord(a.word) : '';
     if ([...g].length !== WORD_LEN || !/^[ء-ي]+$/.test(g)) throw new GameError('اكتب كلمة من 5 حروف');
+    if (!VALID_GUESSES.has(g)) throw new GameError('هذه الكلمة ليست في القاموس — جرّب كلمة أخرى');
+    if (s.rows[by].some((r) => r.guess === g)) throw new GameError('جرّبت هذه الكلمة من قبل');
     const marks = markGuess(g, answer(s));
     s.rows[by].push({ guess: g, marks });
     if (marks.every((m) => m === 'g')) {

@@ -933,13 +933,18 @@ test('huroof with a bot team: picks, answers, a team connects its sides', async 
   expect(v0.cells.length).toBe(25);
   const mine = v0.teams.red.includes(host.id) ? 'red' : 'green';
   let tried = '';
+  let typed = '';
   const v = await autoplay(
     host,
     (x: HuroofView) => {
       if (x.phase === 'pick' && x.turn === mine) return { type: 'pick', cell: x.cells.findIndex((c) => !c.owner) };
       if (x.phase === 'question' && x.question && x.canAnswer.includes(mine) && tried !== x.question.text + x.canAnswer.length) {
         tried = x.question.text + x.canAnswer.length;
-        return { type: 'answer', choice: Math.floor(Math.random() * 4) };
+        return { type: 'buzz' };
+      }
+      if (x.phase === 'answer' && x.buzzer === host.id && typed !== tried) {
+        typed = tried;
+        return { type: 'answer', text: 'لا أعرف' };
       }
       return null;
     },
@@ -957,6 +962,7 @@ test('hajj and ladders with bots: full races finish', async () => {
     const v = await autoplay(
       host,
       (x: HajjView | LaddersView) => {
+        if (x.game === 'hajj' && x.phase === 'quiz' && x.quiz && x.quiz.myAnswer === null && x.quiz.correct === null) return { type: 'quiz', choice: 0 };
         if (x.phase === 'final' || x.turn !== host.id) {
           if (x.game === 'hajj' && x.phase === 'question' && x.question?.for === host.id) return { type: 'answer', choice: 0 };
           return null;
@@ -966,12 +972,12 @@ test('hajj and ladders with bots: full races finish', async () => {
         return null;
       },
       (x: HajjView | LaddersView) => x.phase === 'final',
-      90000,
+      150000,
     );
     expect(v.winner).not.toBeNull();
     host.ws.close();
   }
-}, 190000);
+}, 320000);
 
 test('connect4 and chess against a bot: illegal moves refused, games finish', async () => {
   const { host } = await roomWithBots(1, 1, 'connect4');
@@ -1053,9 +1059,14 @@ test('wordle with a bot, and wave between two people', async () => {
   host.act({ type: 'guess', word: 'ابجد' }); // too short → refused
   await settle();
   expect(host.errors.length).toBeGreaterThan(0);
+  host.act({ type: 'guess', word: 'سجتحخ' }); // gibberish → refused
+  await settle();
+  expect(host.errors.at(-1)).toContain('القاموس');
+  expect(host.view<WordleView>().myRows.length).toBe(0);
+  const tries = ['سيارة', 'مدرسة', 'طاولة', 'حديقة', 'مكتبة', 'نافذة'];
   const w = await autoplay(
     host,
-    (x: WordleView) => (x.phase === 'play' && x.myRows.length < 6 && !x.myRows.some((r) => r.marks.every((m) => m === 'g')) ? { type: 'guess', word: 'سيارة' } : null),
+    (x: WordleView) => (x.phase === 'play' && x.myRows.length < 6 && !x.myRows.some((r) => r.marks.every((m) => m === 'g')) ? { type: 'guess', word: tries[x.myRows.length] } : null),
     (x: WordleView) => x.phase === 'reveal' || x.phase === 'final',
     60000,
   );

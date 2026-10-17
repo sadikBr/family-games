@@ -1,19 +1,20 @@
 /**
  * «حروف» — two teams, a 5×5 grid of letter hexagons.
  * The team whose turn it is picks a letter; a question appears whose answer starts with that letter.
- * The first player to answer correctly wins the hexagon for their team. A wrong answer locks that
- * team out and the other team gets the chance. Red joins right ↔ left, green joins top ↔ bottom.
+ * Like the TV show, the first player to press the buzzer answers — here by typing it (spelling slips
+ * are forgiven, see answerMatches). Right: the hexagon is theirs. Wrong or too slow: that team is
+ * locked out and the other team can buzz. Red joins right ↔ left, green joins top ↔ bottom.
  */
-import { firstLetter } from '../../src/shared/arabic';
+import { answerMatches, firstLetter } from '../../src/shared/arabic';
 import { HEX_N, hexWinPath } from '../../src/shared/islamic';
 import type { HuroofSettings, HuroofTeam, HuroofView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS, type Question } from '../content-islamic';
-import { GameError, type GameModule } from '../types';
-import { isNum, shuffle } from '../util';
-import { mcqOptions } from './mcq';
+import { GameError, type GameCtx, type GameModule } from '../types';
+import { isNum, isStr, shuffle } from '../util';
 
 const SKILL = 0.65;
+const ANSWER_MS = 20_000;
 const other = (t: HuroofTeam): HuroofTeam => (t === 'red' ? 'green' : 'red');
 
 /** Questions grouped by the first letter of their answer (only real letters, not numbers). */
@@ -36,9 +37,12 @@ interface State {
   phase: HuroofView['phase'];
   turn: HuroofTeam;
   cell: number | null;
-  question: { text: string; options: string[]; correct: number } | null;
+  question: { text: string; answer: string; wrong: string[] } | null;
   canAnswer: HuroofTeam[];
+  buzzer: string | null;
   endsAt: number | null;
+  timerTotal: number;
+  wrong: HuroofView['wrong'];
   attempt: number;
   last: HuroofView['last'];
   lastN: number;
@@ -53,13 +57,29 @@ const TEAM_NAME: Record<HuroofTeam, string> = { red: 'الفريق الأحمر'
 function drawQuestion(s: State, letter: string) {
   if (!s.decks[letter]?.length) s.decks[letter] = shuffle(BY_LETTER.get(letter) ?? []);
   const q = s.decks[letter].shift()!;
-  return { text: q.q, ...mcqOptions(q.a, q.w) };
+  return { text: q.q, answer: q.a, wrong: q.w };
+}
+
+/** Open (or reopen) the buzzers for the teams that may still answer. */
+function openBuzzers(ctx: GameCtx, s: State) {
+  s.phase = 'question';
+  s.buzzer = null;
+  s.timerTotal = s.settings.seconds * 1000;
+  s.endsAt = ctx.now + s.timerTotal;
+}
+
+/** A wrong (or missing) answer: lock that team out, give the other team its chance. */
+function miss(ctx: GameCtx, s: State, team: HuroofTeam) {
+  s.canAnswer = s.canAnswer.filter((t) => t !== team);
+  s.attempt += 1;
+  if (!s.canAnswer.length) settle(s, null, null);
+  else openBuzzers(ctx, s);
 }
 
 function settle(s: State, team: HuroofTeam | null, by: string | null) {
   const i = s.cell!;
   const q = s.question!;
-  s.last = { cell: i, team, answer: q.options[q.correct], by, id: ++s.lastN };
+  s.last = { cell: i, team, answer: q.answer, by, id: ++s.lastN };
   if (team) {
     s.cells[i].owner = team;
     s.turn = team;
@@ -78,6 +98,7 @@ function settle(s: State, team: HuroofTeam | null, by: string | null) {
   s.cell = null;
   s.question = null;
   s.canAnswer = [];
+  s.buzzer = null;
   s.endsAt = null;
 }
 
@@ -100,7 +121,10 @@ export const huroof: GameModule<State, HuroofSettings> = {
       cell: null,
       question: null,
       canAnswer: [],
+      buzzer: null,
       endsAt: null,
+      timerTotal: settings.seconds * 1000,
+      wrong: null,
       attempt: 0,
       last: null,
       lastN: 0,
@@ -121,35 +145,53 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.cell = a.cell;
       s.question = drawQuestion(s, s.cells[a.cell].letter);
       s.canAnswer = ['red', 'green'];
-      s.phase = 'question';
       s.attempt += 1;
-      s.endsAt = ctx.now + s.settings.seconds * 1000;
+      s.wrong = null;
+      openBuzzers(ctx, s);
       ctx.fx('reveal');
       return;
     }
+    if (a.type === 'buzz') {
+      if (s.phase !== 'question') return;
+      if (!s.canAnswer.includes(team)) throw new GameError('فريقك أخطأ في هذا السؤال');
+      s.phase = 'answer';
+      s.buzzer = by;
+      s.timerTotal = ANSWER_MS;
+      s.endsAt = ctx.now + ANSWER_MS;
+      s.feed.push(`${ctx.playerName(by)} ضغط الجرس!`, { by });
+      ctx.fx('throw', by);
+      return;
+    }
     if (a.type === 'answer') {
-      if (s.phase !== 'question' || !s.question || !isNum(a.choice)) return;
-      if (!s.canAnswer.includes(team)) throw new GameError('فريقك أجاب على هذا السؤال');
-      if (a.choice === s.question.correct) {
+      if (s.phase !== 'answer' || !s.question || s.buzzer !== by || !isStr(a.text)) return;
+      const text = a.text.trim().slice(0, 60);
+      if (!text) return;
+      if (answerMatches(text, s.question.answer)) {
         s.feed.push(`${ctx.playerName(by)} أجاب صحيحاً — الحرف لـ${TEAM_NAME[team]}`, { by });
         ctx.fx('correct', by);
         settle(s, team, by);
         if (s.winner) ctx.fx('win');
       } else {
-        s.feed.push(`${ctx.playerName(by)} أخطأ`, { by });
+        s.wrong = { by, text, id: ++s.lastN };
+        s.feed.push(`${ctx.playerName(by)}: «${text}» — خطأ`, { by });
         ctx.fx('buzz', by);
-        s.canAnswer = s.canAnswer.filter((t) => t !== team);
-        s.attempt += 1;
-        if (!s.canAnswer.length) settle(s, null, null);
-        else s.endsAt = ctx.now + s.settings.seconds * 1000;
+        miss(ctx, s, team);
       }
     }
   },
 
   tick(ctx, s) {
-    if (s.phase !== 'question' || s.endsAt === null || ctx.now < s.endsAt) return false;
-    s.feed.push('انتهى الوقت');
-    settle(s, null, null);
+    if ((s.phase !== 'question' && s.phase !== 'answer') || s.endsAt === null || ctx.now < s.endsAt) return false;
+    if (s.phase === 'answer' && s.buzzer) {
+      // the player who buzzed ran out of time: counts as a wrong answer
+      const team = teamOf(s, s.buzzer)!;
+      s.wrong = { by: s.buzzer, text: '…', id: ++s.lastN };
+      s.feed.push(`انتهى وقت ${ctx.playerName(s.buzzer)}`, { by: s.buzzer });
+      miss(ctx, s, team);
+    } else {
+      s.feed.push('انتهى الوقت — لم يضغط أحد الجرس');
+      settle(s, null, null);
+    }
     return true;
   },
 
@@ -162,18 +204,23 @@ export const huroof: GameModule<State, HuroofSettings> = {
       ctx.bot(members[0], `pick:${s.attempt}`, randDelay(1500, 2500), { type: 'pick', cell: free[Math.floor(Math.random() * free.length)] });
       return;
     }
-    if (s.phase !== 'question' || !s.question) return;
+    if (!s.question) return;
     const q = s.question;
-    for (const t of s.canAnswer) {
-      const bot = s.teams[t].find((m) => bots.includes(m));
-      if (!bot) continue;
-      const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
-      const total = s.settings.seconds * 1000;
+    if (s.phase === 'question') {
+      for (const t of s.canAnswer) {
+        const bot = s.teams[t].find((m) => bots.includes(m));
+        if (!bot) continue;
+        const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
+        const total = s.settings.seconds * 1000;
+        // with humans on the team, the bot waits longer so people get to buzz first
+        const delay = humans ? randDelay(total * 0.55, total * 0.9) : randDelay(2500, total * 0.7);
+        ctx.bot(bot, `buzz:${s.attempt}:${t}`, delay, { type: 'buzz' });
+      }
+    }
+    if (s.phase === 'answer' && s.buzzer && bots.includes(s.buzzer)) {
       const right = Math.random() < SKILL;
-      const wrong = [...q.options.keys()].filter((k) => k !== q.correct);
-      // with humans on the team, the bot waits longer so people get to answer first
-      const delay = humans ? randDelay(total * 0.55, total * 0.9) : randDelay(2500, total * 0.7);
-      ctx.bot(bot, `ans:${s.attempt}:${t}`, delay, { type: 'answer', choice: right ? q.correct : wrong[Math.floor(Math.random() * wrong.length)] });
+      const text = right ? q.answer : q.wrong[Math.floor(Math.random() * q.wrong.length)];
+      ctx.bot(s.buzzer, `ans:${s.attempt}`, randDelay(2500, 5000), { type: 'answer', text });
     }
   },
 
@@ -185,9 +232,12 @@ export const huroof: GameModule<State, HuroofSettings> = {
       cells: s.cells,
       turn: s.turn,
       cell: s.cell,
-      question: s.question ? { text: s.question.text, options: s.question.options } : null,
+      question: s.question ? { text: s.question.text } : null,
       canAnswer: s.canAnswer,
+      buzzer: s.buzzer,
       endsAt: s.endsAt,
+      timerTotal: s.timerTotal,
+      wrong: s.wrong,
       last: s.last,
       winner: s.winner,
       winPath: s.winPath,

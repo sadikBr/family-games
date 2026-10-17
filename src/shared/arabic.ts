@@ -38,3 +38,46 @@ export const GAME_LETTERS = [
 export function displayLetter(l: string): string {
   return l === 'ا' ? 'أ' : l;
 }
+
+/** Edit distance (insert / delete / replace one letter). */
+export function editDistance(a: string, b: string): number {
+  const x = [...a], y = [...b];
+  let prev = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= y.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+    prev = row;
+  }
+  return prev[y.length];
+}
+
+/** A typed answer, compared word by word without «ال», hamza shapes, ة/ه, spaces or honorifics. */
+function typedKey(s: string): string {
+  return norm(s.replace(/[ﷺ()«»"'.,،؛!?؟-]/g, ' '))
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => (w === 'الله' ? w : stripAl(w)))
+    .join('');
+}
+
+/** Short forms people really say: «عمر» for «عمر بن الخطاب», «أبو بكر» for «أبو بكر الصديق». */
+function acceptedForms(answer: string): string[] {
+  const words = norm(answer.replace(/[ﷺ()]/g, ' ')).split(' ').filter(Boolean);
+  const forms = [words.join(' ')];
+  const bin = words.findIndex((w) => w === 'بن' || w === 'بنت');
+  if (bin > 0) forms.push(words.slice(0, bin).join(' '));
+  if (words.length >= 3 && words[words.length - 1].startsWith('ال')) forms.push(words.slice(0, -1).join(' '));
+  return forms.map(typedKey).filter((f) => [...f].length >= 3 || f === typedKey(answer));
+}
+
+/** Is a typed answer close enough? Allows one slip in 4–7 letters, two from 8 letters. */
+export function answerMatches(typed: string, answer: string): boolean {
+  const t = typedKey(typed);
+  if (!t) return false;
+  return acceptedForms(answer).some((f) => {
+    if (t === f) return true;
+    const n = [...f].length;
+    const slack = n >= 8 ? 2 : n >= 4 ? 1 : 0;
+    return slack > 0 && editDistance(t, f) <= slack;
+  });
+}

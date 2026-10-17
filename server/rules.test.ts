@@ -301,6 +301,7 @@ test('estate: bot-only games always finish with sane state', () => {
 import { HAJJ_LEN, HAJJ_STATIONS, HEX_N, JUMPS, hajjSquare, hexNeighbors, hexWinPath } from '../src/shared/islamic';
 import { QUESTIONS, WHO } from './content-islamic';
 import { hajj } from './games/hajj';
+import { answerMatches } from '../src/shared/arabic';
 import { BY_LETTER, huroof } from './games/huroof';
 import { ladders } from './games/ladders';
 import { quiz } from './games/quiz';
@@ -347,6 +348,39 @@ test('huroof: hex neighbours and winning chains', () => {
     const b = Array.from({ length: 25 }, () => (Math.random() < 0.5 ? 'red' : 'green'));
     expect(!!hexWinPath(b, 'red') !== !!hexWinPath(b, 'green')).toBe(true);
   }
+});
+
+test('huroof: typed answers forgive spelling; buzz, wrong answer and timeout pass the turn', () => {
+  expect(answerMatches('عمر', 'عمر بن الخطاب')).toBe(true);
+  expect(answerMatches('ابو بكر', 'أبو بكر الصديق')).toBe(true);
+  expect(answerMatches('البقره', 'البقرة')).toBe(true);
+  expect(answerMatches('المسجد', 'المسجد الأقصى')).toBe(false);
+  expect(answerMatches('يوسف', 'يونس')).toBe(false);
+  expect(answerMatches('عبدالله', 'عبد الله')).toBe(true);
+  const ctx = fakeCtx();
+  const s: any = huroof.start(ctx, ['r1', 'g1'], { seconds: 15 });
+  s.teams = { red: ['r1'], green: ['g1'] };
+  s.turn = 'red';
+  huroof.act(ctx, s, 'r1', { type: 'pick', cell: 0 });
+  expect(s.phase).toBe('question');
+  expect((huroof.view(ctx, s, 'g1') as any).question).toEqual({ text: s.question.text }); // the answer stays on the server
+  huroof.act(ctx, s, 'g1', { type: 'buzz' });
+  expect(s.phase).toBe('answer');
+  huroof.act(ctx, s, 'r1', { type: 'answer', text: s.question.answer }); // not the one who buzzed
+  expect(s.phase).toBe('answer');
+  huroof.act(ctx, s, 'g1', { type: 'answer', text: 'كلام فارغ تماما' });
+  expect(s.canAnswer).toEqual(['red']);
+  expect(s.phase).toBe('question');
+  expect(() => huroof.act(ctx, s, 'g1', { type: 'buzz' })).toThrow();
+  huroof.act(ctx, s, 'r1', { type: 'buzz' });
+  ctx.now += 21000;
+  huroof.tick!(ctx, s); // r1 ran out of time
+  expect(s.phase).toBe('pick');
+  expect(s.cells[0].owner).toBeNull();
+  huroof.act(ctx, s, s.turn === 'red' ? 'r1' : 'g1', { type: 'pick', cell: 1 });
+  huroof.act(ctx, s, 'r1', { type: 'buzz' });
+  huroof.act(ctx, s, 'r1', { type: 'answer', text: s.question.answer });
+  expect(s.cells[1].owner).toBe('red');
 });
 
 test('huroof: bot teams play a full game to a winner', () => {
@@ -426,27 +460,84 @@ test('whois: options contain the answer, scoring by clue', () => {
   expect(s.scores.b).toBe(300);
 });
 
-test('hajj: bot races finish, and nobody ever skips a station', () => {
+test('hajj: bot races finish; only «الدليل» lets you pass a station; cards and station quizzes work', () => {
+  let quizzes = 0, plays = 0;
   for (let g = 0; g < 40; g++) {
     const q: any[] = [];
     const ctx = fakeCtx((by, a) => q.push({ by, a }));
     const seats = ['a', 'b', 'c'].slice(0, 2 + (g % 2));
     const s: any = hajj.start(ctx, seats, { questions: g % 3 !== 0 });
+    expect(s.players.every((p: any) => p.hand.length === 1)).toBe(true);
     const visited: Record<string, Set<number>> = Object.fromEntries(seats.map((x) => [x, new Set([0])]));
-    for (let k = 0; k < 3000 && s.phase !== 'final'; k++) {
+    for (let k = 0; k < 4000 && s.phase !== 'final'; k++) {
       q.length = 0;
       hajj.botPlan!(ctx, s, seats);
-      for (const x of q) hajj.act(ctx, s, x.by, x.a);
+      const passer = s.mods.pass ? s.players[s.turnIdx].id : null;
+      const batch = q.splice(0);
+      for (const x of batch) {
+        if (x.a.type === 'play') plays++;
+        hajj.act(ctx, s, x.by, x.a);
+      }
+      if (s.phase === 'quiz' && s.quiz?.revealed && batch.some((x) => x.a.type === 'quiz')) quizzes++;
       for (const p of s.players) {
         const last = Math.max(...visited[p.id]);
-        // every station between where you were and where you are must have been stood on
-        for (let st = 4; st < p.pos; st += 4) if (st > last) throw new Error(`skipped station ${st} (${last} → ${p.pos})`);
+        // every station between where you were and where you are must have been stood on (one may be passed with الدليل)
+        const skipped = [];
+        for (let st = 4; st < p.pos; st += 4) if (st > last) skipped.push(st);
+        if (skipped.length > (p.id === passer ? 1 : 0)) throw new Error(`skipped station ${skipped} (${last} → ${p.pos})`);
+        expect(p.hand.length).toBeLessThanOrEqual(3);
         visited[p.id].add(p.pos);
+      }
+      if (!batch.length) {
+        ctx.now += 4000;
+        hajj.tick!(ctx, s);
       }
     }
     expect(s.phase).toBe('final');
     expect(s.players.find((p: any) => p.id === s.winner).pos).toBe(HAJJ_LEN - 1);
   }
+  expect(quizzes).toBeGreaterThan(50);
+  expect(plays).toBeGreaterThan(50);
+});
+
+test('hajj: the station quiz rewards right answers, sabr cancels a delay', () => {
+  const ctx = fakeCtx();
+  const s: any = hajj.start(ctx, ['a', 'b'], { questions: true });
+  const [a, b] = s.players;
+  a.hand = [];
+  b.hand = [];
+  s.turnIdx = s.players.indexOf(a);
+  a.pos = 3;
+  const roll = Math.random;
+  Math.random = () => 0; // the die shows 1
+  hajj.act(ctx, s, a.id, { type: 'roll' });
+  Math.random = roll;
+  expect(a.pos).toBe(4);
+  expect(s.phase).toBe('quiz');
+  ctx.now += 100;
+  hajj.act(ctx, s, b.id, { type: 'quiz', choice: s.quiz.correct });
+  ctx.now += 100;
+  hajj.act(ctx, s, a.id, { type: 'quiz', choice: (s.quiz.correct + 1) % 4 });
+  expect(s.quiz.revealed).toBe(true);
+  expect(b.hand.length).toBe(1);
+  expect(a.hand.length).toBe(0);
+  expect(b.pos).toBe(1); // the fastest right answer steps forward
+  ctx.now += 4000;
+  hajj.tick!(ctx, s);
+  expect(s.phase).toBe('roll');
+  // الصبر is used up by the next delay instead of moving back
+  b.hand = [{ id: 99, kind: 'sabr' }];
+  s.events = [{ text: 'زحام شديد في الطريق — اصبر واحتسب. ارجع خانة.', move: -1 }];
+  s.turnIdx = s.players.indexOf(b);
+  b.pos = 4;
+  expect(hajjSquare(5)).toBe('event');
+  Math.random = () => 0; // a 1: from station 1 (square 4) onto the event square 5
+  hajj.act(ctx, s, b.id, { type: 'roll' });
+  Math.random = roll;
+  expect(s.card.kind).toBe('zad');
+  expect(b.pos).toBe(5);
+  expect(b.hand.length).toBe(0);
+  expect(() => hajj.act(ctx, s, s.players[s.turnIdx].id, { type: 'play', card: 12345 })).not.toThrow();
 });
 
 test('ladders: games finish; ladders lift and snakes drop', () => {
@@ -476,7 +567,7 @@ import { chess } from './games/chess';
 import { connect4 } from './games/connect4';
 import { kdab } from './games/kdab';
 import { wave, wavePoints } from './games/wave';
-import { wordle } from './games/wordle';
+import { VALID_GUESSES, wordle } from './games/wordle';
 
 test('chess: perft counts match the standard reference positions', () => {
   const cases: [string, number[]][] = [
@@ -613,6 +704,10 @@ test('wave: points by distance and a full round', () => {
 
 test('wordle: words are 5 letters, marking handles repeated letters, bots solve', () => {
   for (const w of WORDLE_WORDS) expect([...normWord(w)].length).toBe(5);
+  expect(VALID_GUESSES.size).toBeGreaterThan(50000);
+  for (const w of ['مكتوب', 'حريرة', 'جميلة', 'العام']) expect(VALID_GUESSES.has(normWord(w))).toBe(true);
+  for (const w of ['سجتحخ', 'ظظظظظ', 'ضصثقف']) expect(VALID_GUESSES.has(w)).toBe(false);
+  for (const w of VALID_GUESSES) expect([...w].length).toBe(5);
   expect(markGuess('سسبسس', 'سبسسي').join('')).toBe('gyyg' + 'x');
   expect(markGuess('ببببب', 'سبسسي').join('')).toBe('xgxxx');
   const q: any[] = [];

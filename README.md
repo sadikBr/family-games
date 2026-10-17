@@ -15,18 +15,18 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الشطرنج** (Chess) | 2 | Full rules (castling, en passant, promotion, mate, stalemate, 50-move, repetition, insufficient material). Bot opponent. The rules engine is checked against standard perft counts. |
 | **الكذّاب** (Cheat / Liar) | 2–6 | Spanish deck: play 1–4 cards face down claiming a rank; anyone can shout «كذّاب!». First to empty their hand wins. |
 | **موجة** (Wavelength) | 2–12 | One player gives a clue for a secret point on a scale (بارد ↔ ساخن…); the others turn a dial. Closer = more points. |
-| **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard. Guesses aren't checked against a dictionary. |
+| **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard. Guesses must be real words (a list of ~105k words built from the Ayaspell Hunspell dictionary and OpenSubtitles word frequencies — see `tools/wordle-dict.mjs`). |
 | **الخربقة** (Kharbga) | 2 | The traditional Moroccan game on a 7×7 board: place two pieces per turn, then move one square and capture by sandwiching an enemy piece; captures chain. Simplified: a blocked player passes, and 80 moves without a capture ends the game on piece count. |
 | **معركة السفن** (Battleship) | 2 | Each phone hides its own fleet (shuffle until you like it). Fire at the other sea; a hit lets you fire again. Bot hunts with parity and follows up hits. |
 | **إكس أو** (Tic-tac-toe) | 2 | X and O swap every game; wins are counted across games. The strong bot never loses. |
 | **سودوكو** (Sudoku) | 1–12 | Everyone races through the same puzzle (easy / medium / hard, always one solution). Wrong numbers are refused and count as mistakes. 300 / 200 / 150… points, −20 per mistake. |
 | **معلومات عامة** (general quiz) | 2–12 | Timed multiple-choice questions: Morocco, geography, science, sport, animals, mixed. |
 | **الذاكرة** (Memory) | 2–6 | Turn over two cards; a pair is yours and you play again. 16–30 cards using the app's own illustrations. |
-| **حروف** (Huroof) | 2–12 | Two teams, a 5×5 grid of letter hexagons. Pick a letter; the first to answer the Islamic question (answer starts with that letter) wins the hexagon. Red joins right ↔ left, green top ↔ bottom. |
+| **حروف** (Huroof) | 2–12 | Two teams, a 5×5 grid of letter hexagons. Pick a letter; the first to press the buzzer types the answer to an Islamic question that starts with that letter (spelling slips are forgiven). Wrong → the other team gets the buzzer. Red joins right ↔ left, green top ↔ bottom. |
 | **مسابقة إسلامية** (quiz) | 2–12 | Timed multiple-choice questions on Quran, prophets, seerah, companions, worship, Hajj, history and places. Faster right answers score more. |
 | **من هو؟** (who is it?) | 2–12 | Clues about a prophet, companion, place or historical figure appear one by one; one guess each, earlier = more points. |
 | **من أي سورة؟** (which surah?) | 2–12 | A verse is shown (Uthmani text) — pick its surah. Levels: Juz' Amma, Qaf–an-Nas, the whole Quran. |
-| **رحلة الحج** (Hajj journey) | 2–6 | Dice race along the Hajj rites; you must stop at every station, where a card explains the ritual. Good-deed / delay squares and question squares. |
+| **رحلة الحج** (Hajj journey) | 2–6 | Dice race along the Hajj rites; you stop at every station, where a card explains the ritual. The first pilgrim at a station opens its question for everyone (right answers earn a provision card, the fastest steps forward). Provision cards (التلبية +2, الدليل pass a station, ماء زمزم roll again, الصدقة help a friend, الصبر cancels a delay) are played before rolling. |
 | **سلّم الحسنات** (snakes & ladders) | 2–6 | Ladders are good deeds, snakes are bad habits; each one shows a short card. |
 | **ملك العقار** (property trading) | 2–6 | An original Monopoly-style game on a board of Moroccan cities and train stations. Buy, collect rent, build houses and hotels evenly on full colour sets, mortgage, trade with other players, draw «حظ» and «صندوق العائلة» cards. No auctions. Ends when one player is left, or after the round limit (richest net worth wins). Start cash and rounds are set in the lobby. |
 | **لودو** (Ludo) | 2–4 | Each phone moves its own pieces on the shared board. A 6 brings a piece out and rolls again; landing on others sends them home (stars and start squares are safe); exact roll to finish. |
@@ -104,7 +104,7 @@ src/
   shared/wordle.ts   Word normalisation, keyboard, marking
   shared/kharbga.ts, battleship.ts, xo.ts, sudoku.ts, memory.ts  Rules and bots for the newest games
   shared/islamic.ts  Hajj stations, good deeds / bad habits, board geometry for the Islamic games
-  ui/dice3d.tsx      3D dice thrown across the board (pre-rendered three.js frames)
+  ui/dice3d.tsx      3D dice thrown across the board, rendered live with three.js on expo-gl (ui/dice-scene.ts); sprite fallback
   art/               Illustrations: avatars, game emblems, roles, cards (HD WebP, see assets.ts) + vector icons
   ui/                Gamey UI kit: 3D buttons, timers, confetti, hold-to-reveal…
   lib/               Connection client, profile, sounds/haptics, tilt sensor
