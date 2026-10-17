@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { Icon } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
 import { client, useClient } from '@/lib/client';
 import type { ScrabbleMove, ScrabbleTile, ScrabbleView } from '@/shared/games/scrabble';
@@ -29,6 +30,7 @@ interface Pend {
   id: number;
   cell: number;
   l: string;
+  v: number;
   blank: boolean;
 }
 
@@ -48,7 +50,7 @@ function moveText(m: ScrabbleMove, h: Helpers): string {
   const name = m.by === h.me ? 'أنت' : h.player(m.by).name;
   switch (m.kind) {
     case 'play':
-      return `${name}: ${m.words.map((w) => `«${w.w}»`).join(' + ')}  +${num(m.score)}${m.bingo ? ' (الأحرف السبعة!)' : ''}`;
+      return `${name}: ${m.words.map((w) => `«${w.w}»`).join(' + ')}  ${num(`+${m.score}`)}${m.bingo ? ' (الأحرف السبعة!)' : ''}`;
     case 'swap':
       return `${name}: بدّل ${num(m.count)} ${m.count === 1 ? 'حرفاً' : 'أحرف'}`;
     case 'pass':
@@ -73,9 +75,12 @@ function Players({ view, h, width }: { view: ScrabbleView; h: Helpers; width: nu
               <Txt v="tiny" numberOfLines={1}>
                 {id === h.me ? 'أنت' : h.player(id).name}
               </Txt>
-              <Txt v="tiny" color={C.dim} numberOfLines={1}>
-                {num(view.rackCounts[id] ?? 0)} أحرف
-              </Txt>
+              <Row gap={3}>
+                <Icon name="layers" size={11} color={C.dim} />
+                <Txt v="tiny" color={C.dim} numberOfLines={1}>
+                  {num(view.rackCounts[id] ?? 0)}
+                </Txt>
+              </Row>
             </View>
             <Txt style={{ fontFamily: F.black, fontSize: 17, lineHeight: 24, color: on ? C.yellow : C.text }}>{num(view.scores[id] ?? 0)}</Txt>
           </View>
@@ -138,8 +143,7 @@ function Final({ room, view, h, width }: { room: RoomView; view: ScrabbleView; h
                 ))}
               </Row>
               <Txt v="bold" color={(f.adjust[id] ?? 0) >= 0 ? C.green : C.red} style={{ minWidth: 40, textAlign: 'center' }}>
-                {(f.adjust[id] ?? 0) > 0 ? '+' : ''}
-                {num(f.adjust[id] ?? 0)}
+                {num(`${(f.adjust[id] ?? 0) > 0 ? '+' : ''}${f.adjust[id] ?? 0}`)}
               </Txt>
             </Row>
           ))}
@@ -172,7 +176,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   // placements still valid (a new game, a tile played, or a square taken by someone else drops them)
   const list = pend.since <= view.turnNo ? pend.list.filter((p) => rackIds.has(p.id) && !view.board[p.cell]) : [];
   const placedIds = new Set(list.map((p) => p.id));
-  const pendingMap = new Map(list.map((p) => [p.cell, { l: p.l, blank: p.blank }]));
+  const pendingMap = new Map(list.map((p) => [p.cell, { l: p.l, v: p.v, blank: p.blank }]));
   const shown: ScrabbleTile[] = [...order.filter((id) => rackIds.has(id)), ...rack.map((t) => t.id).filter((id) => !order.includes(id))].map((id) => rack.find((t) => t.id === id)!);
   const selected = sel !== null && rackIds.has(sel) && !placedIds.has(sel) ? sel : null;
   const swapSel = swap?.filter((id) => rackIds.has(id)) ?? null;
@@ -208,10 +212,8 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
       setBlankAt({ id: tile.id, cell });
       return;
     }
-    setList([...list, { id: tile.id, cell, l: tile.l, blank: false }]);
-    // the next free tile is ready for the next square
-    const nextTile = shown.find((t) => t.id !== tile.id && !placedIds.has(t.id) && t.l);
-    setSel(nextTile ? nextTile.id : null);
+    setList([...list, { id: tile.id, cell, l: tile.l, v: tile.v, blank: false }]);
+    setSel(null);
   };
 
   const onTile = (t: ScrabbleTile) => {
@@ -245,23 +247,25 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
     <>
       <Players view={view} h={h} width={width} />
       {view.total > 0 ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={myTurn} /> : null}
-      <Row gap={8} style={{ justifyContent: 'space-between' }}>
-        <Txt v="bold" color={myTurn ? C.yellow : C.muted} style={{ flex: 1 }} numberOfLines={1}>
-          {myTurn ? 'دورك!' : `دور ${h.player(view.turn).name}…`}
-        </Txt>
-        <Pill icon="box" label={`في الكيس: ${num(view.bag)}`} />
-      </Row>
-      {view.last ? (
-        <Animated.View key={view.turnNo} entering={FadeIn.duration(200)}>
-          <Txt v="small" center color={view.last.kind === 'play' ? C.text : C.muted} numberOfLines={2}>
-            {moveText(view.last, h)}
+      <View style={{ gap: 2 }}>
+        <Row gap={8} style={{ justifyContent: 'space-between' }}>
+          <Txt v="bold" color={myTurn ? C.yellow : C.muted} style={{ flex: 1 }} numberOfLines={1}>
+            {myTurn ? 'دورك!' : `دور ${h.player(view.turn).name}…`}
           </Txt>
-        </Animated.View>
-      ) : (
-        <Txt v="small" center color={C.muted}>
-          الكلمة الأولى تمر بالنجمة ★ في الوسط
-        </Txt>
-      )}
+          <Pill icon="box" label={`في الكيس: ${num(view.bag)}`} />
+        </Row>
+        {view.last ? (
+          <Animated.View key={view.turnNo} entering={FadeIn.duration(200)}>
+            <Txt v="small" center color={view.last.kind === 'play' ? C.text : C.muted} numberOfLines={2}>
+              {moveText(view.last, h)}
+            </Txt>
+          </Animated.View>
+        ) : (
+          <Txt v="small" center color={C.muted}>
+            الكلمة الأولى تمر بالنجمة ★ في الوسط
+          </Txt>
+        )}
+      </View>
 
       <View style={{ gap: 6 }}>
         <Board board={view.board} pending={pendingMap} last={lastCells} width={width} win={win} onCell={playing ? onCell : undefined} />
@@ -289,13 +293,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
             </Row>
           ) : null}
         </Row>
-        {!zoomed ? <Legend /> : null}
-      </View>
-
-      {!playing ? (
-        <Spectator room={room} />
-      ) : (
-        <>
+        {playing ? (
           <Shake trigger={error?.id}>
             <View style={[styles.rack, { direction: 'rtl' }]}>
               {shown.map((t) => {
@@ -311,7 +309,13 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
               })}
             </View>
           </Shake>
+        ) : null}
+      </View>
 
+      {!playing ? (
+        <Spectator room={room} />
+      ) : (
+        <>
           {swapSel ? (
             <View style={{ gap: 8 }}>
               <Txt v="small" center color={C.muted}>
@@ -339,7 +343,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
                 res.ok ? (
                   <Txt v="small" center color={C.muted} numberOfLines={2}>
                     {res.words.map((w) => `«${w.w}» ${num(w.score)}`).join(' · ')}
-                    {res.bingo ? ` · الأحرف السبعة +${num(50)}` : ''}
+                    {res.bingo ? ` · الأحرف السبعة ${num(`+50`)}` : ''}
                   </Txt>
                 ) : (
                   <Txt v="small" center color={C.orange}>
@@ -352,18 +356,17 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
                 icon="check"
                 color={C.green}
                 disabled={!myTurn || !res?.ok}
-                label={res?.ok ? `العب  +${num(res.score)}` : myTurn ? 'العب' : 'انتظر دورك'}
+                label={res?.ok ? `العب  ${num(`+${res.score}`)}` : myTurn ? 'العب' : 'انتظر دورك'}
                 onPress={() => {
                   if (!res?.ok) return;
                   h.act('play', { tiles: list.map((p) => ({ id: p.id, cell: p.cell, l: p.l })) });
                 }}
               />
               <Row gap={8}>
-                {list.length ? (
-                  <Btn flex size="sm" ghost icon="refresh" label="أعد الأحرف" onPress={() => setList([])} />
-                ) : (
-                  <Btn flex size="sm" ghost icon="shuffle" label="اخلط" onPress={shuffleRack} />
-                )}
+                <Btn flex size="sm" ghost icon="refresh" label="أعد الأحرف" disabled={!list.length} onPress={() => setList([])} />
+                <Btn flex size="sm" ghost icon="shuffle" label="اخلط" onPress={shuffleRack} />
+              </Row>
+              <Row gap={8}>
                 <Btn
                   flex
                   size="sm"
@@ -378,12 +381,12 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
                 />
                 <Btn flex size="sm" ghost icon="skip" label="مرّر" disabled={!myTurn} onPress={() => setConfirmPass(true)} />
               </Row>
-              {list.length ? <Btn size="sm" ghost icon="shuffle" label="اخلط" onPress={shuffleRack} /> : null}
             </View>
           )}
         </>
       )}
 
+      <Legend />
       {view.log.length > 1 ? (
         <View style={{ gap: 2 }}>
           {view.log
@@ -402,7 +405,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
         visible={blankAt !== null}
         onCancel={() => setBlankAt(null)}
         onPick={(l) => {
-          if (blankAt) setList([...list, { id: blankAt.id, cell: blankAt.cell, l, blank: true }]);
+          if (blankAt) setList([...list, { id: blankAt.id, cell: blankAt.cell, l, v: 0, blank: true }]);
           setBlankAt(null);
           setSel(null);
         }}

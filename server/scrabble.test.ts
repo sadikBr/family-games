@@ -177,7 +177,7 @@ test('swap: only with 7+ tiles in the bag; same rack size, turn passes', () => {
   expect(s.turn).toBe(q);
   expect(s.scoreless).toBe(1);
   s.bag = s.bag.slice(0, 6);
-  expect(() => scrabble.act(ctx, s, q, { type: 'swap', ids: [s.racks[q][0].id] })).toThrow('أقل من ٧');
+  expect(() => scrabble.act(ctx, s, q, { type: 'swap', ids: [s.racks[q][0].id] })).toThrow('أقل من 7');
 });
 
 test('passes: everyone passing twice ends the game, leftover tiles are subtracted', () => {
@@ -263,7 +263,7 @@ test('bot search: finds legal dictionary words fast on an empty and a busy board
 });
 
 function playOut(players: string[], level: 1 | 2) {
-  const { ctx, s, sched } = fakeCtx();
+  const { ctx, sched } = fakeCtx();
   const st: any = scrabble.start(ctx, players, { seconds: 60, level });
   let guard = 0;
   while (st.phase === 'play' && guard++ < 600) {

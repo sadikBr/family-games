@@ -9,11 +9,11 @@ import { Txt } from '@/ui/txt';
 
 /** Our board colours: deep teal squares, warm premium squares, cream tiles. */
 export const PREMIUM_STYLE: Record<Exclude<Premium, ''>, { bg: string; label: string; legend: string }> = {
-  tw: { bg: '#C9473F', label: 'ك×3', legend: 'كلمة ×٣' },
-  dw: { bg: '#D9806A', label: 'ك×2', legend: 'كلمة ×٢' },
+  tw: { bg: '#C9473F', label: 'ك×3', legend: 'كلمة ×3' },
+  dw: { bg: '#D9806A', label: 'ك×2', legend: 'كلمة ×2' },
   star: { bg: '#D9806A', label: '★', legend: '' },
-  tl: { bg: '#3C63C9', label: 'ح×3', legend: 'حرف ×٣' },
-  dl: { bg: '#4A9DB5', label: 'ح×2', legend: 'حرف ×٢' },
+  tl: { bg: '#3C63C9', label: 'ح×3', legend: 'حرف ×3' },
+  dl: { bg: '#4A9DB5', label: 'ح×2', legend: 'حرف ×2' },
 };
 const SQUARE = '#1F4B52';
 const FRAME = '#0F2B30';
@@ -71,7 +71,7 @@ export function Board({
   onCell,
 }: {
   board: readonly (ScrabbleCell | null)[];
-  pending: ReadonlyMap<number, { l: string; blank: boolean }>;
+  pending: ReadonlyMap<number, { l: string; v: number; blank: boolean }>;
   last: ReadonlySet<number>;
   width: number;
   win: BoardWindow;
@@ -95,7 +95,7 @@ export function Board({
             const content = t ? (
               <TileFace l={t.l} v={t.v} blank={t.v === 0} size={inner} last={last.has(i)} />
             ) : p ? (
-              <TileFace l={p.l} v={0} blank={p.blank} size={inner} pending />
+              <TileFace l={p.l} v={p.v} blank={p.blank} size={inner} pending />
             ) : (
               <View style={[styles.square, { width: inner, height: inner, borderRadius: Math.max(2, inner * 0.12), backgroundColor: prem ? PREMIUM_STYLE[prem].bg : SQUARE }]}>
                 {prem && (inner >= 24 || prem === 'star') ? (

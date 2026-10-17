@@ -140,7 +140,7 @@ function play(ctx: GameCtx, s: State, by: string, raw: unknown) {
 }
 
 function swap(ctx: GameCtx, s: State, by: string, raw: unknown) {
-  if (s.bag.length < RACK) throw new GameError('لا يمكن التبديل: بقي في الكيس أقل من ٧ أحرف');
+  if (s.bag.length < RACK) throw new GameError('لا يمكن التبديل: بقي في الكيس أقل من 7 أحرف');
   const ids = Array.isArray(raw) ? [...new Set(raw.filter(isNum))] : [];
   const rack = s.racks[by];
   const out = rack.filter((t) => ids.includes(t.id));
