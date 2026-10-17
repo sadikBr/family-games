@@ -6,6 +6,7 @@
 # Optional CI/CD variables (Settings → CI/CD → Variables, masked):
 #   EXPO_TOKEN       — sign the APK with the same key as your earlier EAS builds, so it installs over them
 #   RAILWAY_TOKEN    — a Railway project token, to redeploy the server automatically
+#                      (an account/workspace token goes in RAILWAY_API_TOKEN instead)
 #   RAILWAY_SERVICE  — the Railway service name, if the project has more than one
 
 stages: [check, build, deploy]
@@ -93,7 +94,7 @@ deploy_server:
     - if [ -n "$RAILWAY_SERVICE" ]; then SERVICE="--service $RAILWAY_SERVICE"; fi
     - npx -y @railway/cli@latest up --ci $SERVICE
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $RAILWAY_TOKEN
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($RAILWAY_TOKEN || $RAILWAY_API_TOKEN)
       changes: [server/**/*, src/shared/**/*, Dockerfile, railway.json, package.json, bun.lock]
-    - if: $CI_PIPELINE_SOURCE == "web" && $RAILWAY_TOKEN
+    - if: $CI_PIPELINE_SOURCE == "web" && ($RAILWAY_TOKEN || $RAILWAY_API_TOKEN)
       when: manual
