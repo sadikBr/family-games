@@ -19,12 +19,21 @@ const key = (w) => {
 };
 const ARABIC = /^[ء-يً-ْٰ]+$/;
 const words = new Set();
-
+// grammar words and particles («ما», «في», «هذا»…) are real but no answer to anything
+const stop = new Set();
+let section = '';
 for (const line of fs.readFileSync('ar.dic', 'utf8').split('\n').slice(1)) {
+  const m = /^#\s*([\w.]+\.dic)\s*#/.exec(line);
+  if (m) section = m[1];
   const w = line.split('/')[0].trim();
-  if (w && !w.startsWith('#') && ARABIC.test(w)) words.add(key(w));
+  if (!w || w.startsWith('#') || !ARABIC.test(w)) continue;
+  if (section === 'stopwords.dic' || section === 'tools.dic') stop.add(key(w));
+  else words.add(key(w));
 }
+for (const w of stop) words.delete(w);
 const stems = words.size;
+// interjections and laughter from subtitles: «ممم», «ههههه», «اااه»
+const noise = (w) => /(.)\1\1/.test(w) || /^(ه|ا|ي|و|م|ء)+$/.test(w);
 
 const MIN = Number(process.argv[2] ?? 10);
 const freq = new Map();
@@ -34,7 +43,7 @@ for (const line of fs.readFileSync('ar_full.txt', 'utf8').split('\n')) {
   const k = key(w);
   freq.set(k, (freq.get(k) ?? 0) + Number(c));
 }
-for (const [k, n] of freq) if (n >= MIN) words.add(k);
+for (const [k, n] of freq) if (n >= MIN && !stop.has(k) && !noise(k) && [...k].length >= 3) words.add(k);
 
 const out = [...words].filter((w) => [...w].length >= 2 && /^[ء-ي]+$/.test(w)).sort();
 fs.writeFileSync('names-dict.txt', out.join('\n') + '\n');

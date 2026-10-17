@@ -23,7 +23,7 @@ test('dictionary: real words, names and places are known; gibberish and typos ar
     ['الدار البيضاء', 'country'], ['زمبابوي', 'country'], ['مراكش', 'country'], ['سباك', 'job'], ['نجّار', 'job'],
   ])
     expect([w, knownWord(w, cat)]).toEqual([w, true]);
-  for (const w of ['كخبتر', 'زززز', 'ببببب', 'قلمم', 'سشيبلا', 'تتتت'])
+  for (const w of ['كخبتر', 'زززز', 'ببببب', 'قلمم', 'سشيبلا', 'تتتت', 'ممم', 'ههههه', 'ما', 'من', 'هذا', 'في'])
     expect([w, knownWord(w, 'thing')]).toEqual([w, false]);
   expect(knownWord('', 'boy')).toBe(false);
 });
