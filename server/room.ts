@@ -443,6 +443,8 @@ export class Room {
         break;
       case 'ludo':
         this.settings.ludo.exitOnOne = bool(patch.exitOnOne, this.settings.ludo.exitOnOne);
+        this.settings.ludo.podium = bool(patch.podium, this.settings.ludo.podium ?? false);
+        this.settings.ludo.quick = bool(patch.quick, this.settings.ludo.quick ?? false);
         break;
       case 'codenames':
         this.settings.codenames.assassin = bool(patch.assassin, this.settings.codenames.assassin);

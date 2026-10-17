@@ -6,13 +6,14 @@ import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
 import { BOARD, GROUP_COLOR, JAIL_FINE, STATION_RENT, groupSquares, priceOf, type EstateGroup } from '@/shared/estate';
-import type { EstateView, RoomView } from '@/shared/protocol';
+import { useCountdown } from '@/lib/time';
+import type { EstateTrade, EstateView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal, Stepper } from '@/ui/controls';
 import { ThrownDice } from '@/ui/dice3d';
-import { Confetti, Scoreboard } from '@/ui/fun';
+import { Confetti, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
@@ -31,6 +32,7 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
   const [sheet, setSheet] = useState<'mine' | 'trade' | null>(null);
   const [seenCard, setSeenCard] = useState(0);
   const [confirmBk, setConfirmBk] = useState(false);
+  const [hiddenOffer, setHiddenOffer] = useState<number | null>(null); // offer minimised to watch the board
 
   const me = view.players.find((p) => p.id === h.me);
   if (!me && view.phase !== 'final') return <Spectator room={room} />;
@@ -57,10 +59,12 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
   const C0 = W - 2 * W * 0.14; // centre size
   const card = view.card && view.card.id !== seenCard && !rolling ? view.card : null;
   const incoming = view.trade && view.trade.to === h.me ? view.trade : null;
+  const offerHidden = !!incoming && hiddenOffer === incoming.id;
 
   return (
     <>
       <PlayersStrip view={view} h={h} />
+      {incoming && offerHidden ? <OfferBar h={h} trade={incoming} onOpen={() => setHiddenOffer(null)} /> : null}
 
       <EstateBoard W={W} view={view} player={h.player} onSquare={setDetail}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -98,7 +102,7 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
       <SquareSheet i={detail} view={view} h={h} onClose={() => setDetail(null)} />
       <MineSheet visible={sheet === 'mine'} view={view} h={h} onClose={() => setSheet(null)} onOpen={(i) => setDetail(i)} />
       {sheet === 'trade' ? <TradeSheet view={view} h={h} onClose={() => setSheet(null)} /> : null}
-      <OfferModal h={h} trade={incoming} />
+      <OfferModal h={h} trade={offerHidden ? null : incoming} onHide={(id) => setHiddenOffer(id)} />
       <ConfirmModal
         visible={confirmBk}
         danger
@@ -180,6 +184,8 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
         {myTurn ? 'النرد يتدحرج…' : `${h.player(view.turn).name} يرمي النرد…`}
       </Txt>
     );
+  } else if (view.phase === 'auction' && view.auction) {
+    body = <AuctionPanel view={view} h={h} />;
   } else if (!myTurn) {
     body = (
       <Txt v="bold" center color={C.muted}>
@@ -222,13 +228,17 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
         </Txt>
         <Row gap={8}>
           <Btn flex size="lg" color={C.green} icon="check" label={`اشترِ بـ ${num(price)}`} disabled={me.cash < price} onPress={() => h.act('buy')} />
-          <Btn flex size="lg" ghost label="تجاوز" onPress={() => h.act('skip')} />
+          <Btn flex size="lg" ghost label="مزاد" onPress={() => h.act('skip')} />
         </Row>
         {me.cash < price ? (
           <Txt v="tiny" center color={C.dim}>
-            لا يكفي المال — ارهن عقاراً من «عقاراتي» أو تجاوز
+            لا يكفي المال — ارهن عقاراً من «عقاراتي» أو اطرحه في المزاد
           </Txt>
-        ) : null}
+        ) : (
+          <Txt v="tiny" center color={C.dim}>
+            إذا لم تشترِه يُطرح في مزاد للجميع (وأنت معهم)
+          </Txt>
+        )}
       </View>
     );
   } else if (view.phase === 'debt' && view.debt) {
@@ -264,6 +274,66 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
         </Row>
       ) : null}
       {tools}
+    </View>
+  );
+}
+
+/* ---------------- auction ---------------- */
+
+const AUCTION_TOTAL = 7000;
+const STEPS = [10, 50, 100];
+
+function AuctionPanel({ view, h }: { view: EstateView; h: Helpers }) {
+  const a = view.auction!;
+  const me = view.players.find((p) => p.id === h.me);
+  const leader = a.leader ? h.player(a.leader) : null;
+  const out = a.out.includes(h.me);
+  const lead = a.leader === h.me;
+  return (
+    <View style={styles.auction}>
+      <Row gap={8} style={{ justifyContent: 'center' }}>
+        <Icon name="hand" size={20} color={C.yellow} />
+        <Txt v="h3" color={C.yellow}>
+          مزاد
+        </Txt>
+      </Row>
+      <PropTile i={a.sq} />
+      <Txt v="tiny" center color={C.dim}>
+        ثمنه عند البنك {num(priceOf(a.sq))}
+      </Txt>
+      <Row gap={10} style={{ justifyContent: 'center' }}>
+        {leader ? <Avatar player={leader} size={34} ring={leader.color} /> : null}
+        <View style={{ alignItems: 'center' }}>
+          <Txt style={{ fontFamily: F.black, fontSize: 30, lineHeight: 40, color: C.yellow }}>{a.price ? money(a.price) : '—'}</Txt>
+          <Txt v="small" color={C.muted}>
+            {leader ? (lead ? 'عرضك هو الأعلى' : `أعلى عرض: ${leader.name}`) : 'لا عرض بعد'}
+          </Txt>
+        </View>
+      </Row>
+      <TimerBar endsAt={a.endsAt} total={AUCTION_TOTAL} onTick={!out} />
+      {!me || me.bankrupt ? null : out ? (
+        <Txt v="small" center color={C.dim}>
+          انسحبت من هذا المزاد
+        </Txt>
+      ) : (
+        <Row gap={6}>
+          {STEPS.map((add) => (
+            <Btn
+              key={add}
+              flex
+              size="md"
+              color={C.green}
+              label={`+${num(add)}`}
+              disabled={lead || me.cash < a.price + add}
+              onPress={() => {
+                haptic.medium();
+                h.act('bid', { add });
+              }}
+            />
+          ))}
+          <Btn flex size="md" ghost label="انسحب" disabled={lead} onPress={() => h.act('pass')} />
+        </Row>
+      )}
     </View>
   );
 }
@@ -518,7 +588,23 @@ function TradeSheet({ view, h, onClose }: { view: EstateView; h: Helpers; onClos
   );
 }
 
-function OfferModal({ h, trade }: { h: Helpers; trade: EstateView['trade'] }) {
+function OfferBar({ h, trade, onOpen }: { h: Helpers; trade: EstateTrade; onOpen: () => void }) {
+  const left = useCountdown(trade.endsAt, 250);
+  return (
+    <Pressable onPress={onOpen} style={styles.offerBar} accessibilityLabel="افتح العرض">
+      <Icon name="swap" size={18} color={C.yellow} />
+      <Txt v="small" style={{ flex: 1 }} numberOfLines={1}>
+        عرض من {h.player(trade.from).name}
+      </Txt>
+      <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 22, color: C.yellow }}>{num(Math.ceil(left / 1000))}</Txt>
+      <Txt v="bold" color={C.yellow}>
+        افتح
+      </Txt>
+    </Pressable>
+  );
+}
+
+function OfferModal({ h, trade, onHide }: { h: Helpers; trade: EstateView['trade']; onHide: (id: number) => void }) {
   if (!trade) return null;
   const from = h.player(trade.from);
   const side = (s: { props: number[]; cash: number }) => (
@@ -548,10 +634,12 @@ function OfferModal({ h, trade }: { h: Helpers; trade: EstateView['trade'] }) {
             تعطي
           </Txt>
           {side(trade.get)}
+          <TimerBar endsAt={trade.endsAt} total={from.bot ? 15000 : 30000} />
           <Row gap={10} style={{ marginTop: 6 }}>
             <Btn flex size="md" ghost label="رفض" onPress={() => h.act('tradeDecline')} />
             <Btn flex size="md" color={C.green} label="قبول" onPress={() => h.act('tradeAccept')} />
           </Row>
+          <Btn size="sm" ghost icon="eye" label="شاهد اللوحة" onPress={() => onHide(trade.id)} />
         </Animated.View>
       </View>
     </Modal>
@@ -563,6 +651,8 @@ const styles = StyleSheet.create({
   player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
   panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10 },
   waitTrade: { backgroundColor: alpha(C.yellow, 0.1), borderRadius: 12, padding: 8 },
+  auction: { gap: 8, borderRadius: 16, borderWidth: 2, borderColor: alpha(C.yellow, 0.5), backgroundColor: alpha(C.yellow, 0.06), padding: 10 },
+  offerBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: alpha(C.yellow, 0.14), borderRadius: 14, borderWidth: 2, borderColor: C.yellow, paddingVertical: 8, paddingHorizontal: 12 },
   tile: { backgroundColor: PAPER, borderRadius: 10, borderWidth: 2, borderColor: INK, overflow: 'hidden', minWidth: 160, alignSelf: 'center' },
   tileBand: { height: 20, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderColor: INK },
   luckCard: { backgroundColor: PAPER, borderRadius: 12, borderWidth: 2.5, borderColor: INK, overflow: 'hidden' },

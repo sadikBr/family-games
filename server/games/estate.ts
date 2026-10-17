@@ -2,6 +2,7 @@
  * «ملك العقار» — roll, move, buy cities and stations, collect rent, build houses and hotels.
  * Full colour groups double the base rent and allow building (evenly). Mortgage to raise money.
  * Three doubles in a row, «إلى السجن» or a card sends you to jail (pay 50, use a card or roll doubles).
+ * A property the player declines goes to a short auction for everyone (7 s, restarting on every bid).
  * Can't pay? Sell houses / mortgage, or go bankrupt. Last player standing wins
  * (or the richest after the round limit).
  */
@@ -19,7 +20,7 @@ import {
   type EstateCard,
   type EstateGroup,
 } from '../../src/shared/estate';
-import type { EstatePlayer, EstateSettings, EstateTrade, EstateView } from '../../src/shared/protocol';
+import type { EstateAuction, EstatePlayer, EstateSettings, EstateTrade, EstateView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
@@ -47,8 +48,9 @@ interface State {
   family: EstateCard[];
   debt: { amount: number; to: string | null } | null;
   trade: EstateTrade | null;
-  tradeAt: number;
   tradeN: number;
+  auction: (EstateAuction & { n: number; bids: number }) | null;
+  auctionN: number;
   /** bot trade proposals already made: `${from}:${square}` → round */
   asked: Record<string, number>;
   round: number;
@@ -56,6 +58,14 @@ interface State {
   feed: Feed;
   moves: number;
 }
+
+/** Tests set BOT_SPEED to speed bots up; auction countdowns follow so test games stay short. */
+const SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
+export const AUCTION_MS = 7000 * SPEED;
+export const AUCTION_STEPS = [10, 50, 100];
+/** How long an offer waits for an answer. */
+export const BOT_TRADE_MS = 15_000;
+export const HUMAN_TRADE_MS = 30_000;
 
 const cur = (s: State) => s.players[s.turnIdx];
 const P = (s: State, id: string) => s.players.find((p) => p.id === id)!;
@@ -154,6 +164,10 @@ function bankrupt(ctx: GameCtx, s: State, id: string, to: string | null) {
   s.feed.push(`${name(ctx, id)} أفلس${to ? ` لصالح ${name(ctx, to)}` : ''}`, { by: id });
   ctx.fx('boom', id);
   if (s.trade && (s.trade.from === id || s.trade.to === id)) s.trade = null;
+  if (s.auction) {
+    if (!s.auction.out.includes(id)) s.auction.out.push(id);
+    if (s.auction.leader === id) s.auction.leader = null;
+  }
   checkEnd(ctx, s);
 }
 
@@ -210,6 +224,7 @@ function nextTurn(ctx: GameCtx, s: State) {
   s.extraRoll = false;
   s.buy = null;
   s.debt = null;
+  s.auction = null;
   for (let k = 0; k < s.players.length; k++) {
     s.turnIdx = (s.turnIdx + 1) % s.players.length;
     if (s.turnIdx === 0) s.round += 1;
@@ -353,6 +368,57 @@ function canBuild(s: State, id: string, i: number): string | null {
   return null;
 }
 
+/* ---------------- auction ---------------- */
+
+function startAuction(ctx: GameCtx, s: State, i: number) {
+  s.buy = null;
+  s.phase = 'auction';
+  s.auction = { n: ++s.auctionN, sq: i, price: 0, leader: null, endsAt: ctx.now + AUCTION_MS, out: [], bids: 0 };
+  s.feed.push(`مزاد على ${BOARD[i].name}!`);
+  ctx.fx('reveal');
+}
+
+/** Everyone except the highest bidder has withdrawn. */
+function auctionDone(s: State): boolean {
+  const a = s.auction;
+  if (!a) return false;
+  return s.players.every((p) => p.bankrupt || p.id === a.leader || a.out.includes(p.id));
+}
+
+function endAuction(ctx: GameCtx, s: State) {
+  const a = s.auction;
+  if (!a) return;
+  s.auction = null;
+  const sq = BOARD[a.sq];
+  const winner = a.leader ? P(s, a.leader) : null;
+  if (winner && !winner.bankrupt && winner.cash >= a.price && !s.props[a.sq]) {
+    winner.cash -= a.price;
+    s.props[a.sq] = { owner: winner.id, houses: 0, mortgaged: false };
+    s.feed.push(`${name(ctx, winner.id)} ربح المزاد: ${sq.name} بـ ${a.price}`, { by: winner.id });
+    ctx.fx('correct', winner.id);
+  } else s.feed.push(`لا أحد اشترى ${sq.name} — يبقى للبنك`);
+  s.moves += 1;
+  s.phase = 'manage';
+  afterResolve(ctx, s);
+}
+
+/** The most a bot pays at auction: a share of the price depending on its cash and its colour sets. */
+export function botAuctionMax(s: Pick<State, 'props' | 'players'>, id: string, i: number): number {
+  const pl = s.players.find((p) => p.id === id);
+  if (!pl) return 0;
+  const sq = BOARD[i];
+  const price = priceOf(i);
+  let f = 0.7;
+  if (sq.kind === 'city') {
+    const others = groupSquares(sq.group).filter((j) => j !== i);
+    if (others.every((j) => s.props[j]?.owner === id)) f = 1.3; // finishes my set
+    else if (others.some((j) => s.props[j]?.owner === id)) f = 1;
+    else if (others.every((j) => s.props[j]) && new Set(others.map((j) => s.props[j].owner)).size === 1) f = 0.95; // stops a rival finishing the set
+  } else if (BOARD.some((b, j) => j !== i && b.kind === sq.kind && s.props[j]?.owner === id)) f = 1;
+  const reserve = pl.cash < 500 ? 200 : 150;
+  return Math.max(0, Math.min(Math.round((price * f) / 10) * 10, pl.cash - reserve));
+}
+
 /* ---------------- bots ---------------- */
 
 function botManage(s: State, id: string): { type: string; [k: string]: unknown } | null {
@@ -449,8 +515,9 @@ export const estate: GameModule<State, EstateSettings> = {
       family: shuffle(FAMILY_CARDS),
       debt: null,
       trade: null,
-      tradeAt: 0,
       tradeN: 0,
+      auction: null,
+      auctionN: 0,
       asked: {},
       round: 1,
       winner: null,
@@ -495,6 +562,29 @@ export const estate: GameModule<State, EstateSettings> = {
       return;
     }
 
+    /* ---- auction (everyone bids, the decliner too) ---- */
+    if (a.type === 'bid' || a.type === 'pass') {
+      const au = s.auction;
+      if (s.phase !== 'auction' || !au) return;
+      if (isNum(a.at) && a.at !== au.bids) return; // a bot reacting to an outdated price
+      if (au.out.includes(by)) throw new GameError('انسحبت من هذا المزاد');
+      if (au.leader === by) throw new GameError('عرضك هو الأعلى');
+      if (a.type === 'pass') {
+        au.out.push(by);
+      } else {
+        if (!isNum(a.add) || !AUCTION_STEPS.includes(a.add)) return;
+        const price = au.price + a.add;
+        if (me.cash < price) throw new GameError('لا يكفي المال');
+        au.price = price;
+        au.leader = by;
+        au.bids += 1;
+        au.endsAt = ctx.now + AUCTION_MS;
+        ctx.fx('tick', by);
+      }
+      if (auctionDone(s)) endAuction(ctx, s);
+      return;
+    }
+
     if (!myTurn) throw new GameError('ماشي دورك');
 
     if (a.type === 'trade') {
@@ -517,8 +607,7 @@ export const estate: GameModule<State, EstateSettings> = {
       });
       if (built) throw new GameError('بِع المنازل أولاً قبل مبادلة مدن هذا اللون');
       if (give.cash > me.cash || get.cash > to.cash) throw new GameError('المبلغ أكبر من المتوفر');
-      s.trade = { id: ++s.tradeN, from: by, to: to.id, give, get };
-      s.tradeAt = ctx.now;
+      s.trade = { id: ++s.tradeN, from: by, to: to.id, give, get, endsAt: ctx.now + (ctx.isBot(by) ? BOT_TRADE_MS : HUMAN_TRADE_MS) };
       s.feed.push(`${name(ctx, by)} يقترح صفقة على ${name(ctx, to.id)}`, { by });
       return;
     }
@@ -661,12 +750,12 @@ export const estate: GameModule<State, EstateSettings> = {
       const i = s.buy;
       if (a.type === 'buy') {
         const price = priceOf(i);
-        if (me.cash < price) throw new GameError('لا يكفي المال — ارهن عقاراً أو تجاوز');
+        if (me.cash < price) throw new GameError('لا يكفي المال — ارهن عقاراً أو اطرحه في المزاد');
         me.cash -= price;
         s.props[i] = { owner: by, houses: 0, mortgaged: false };
         s.feed.push(`${name(ctx, by)} اشترى ${BOARD[i].name} بـ ${price}`, { by });
         ctx.fx('correct', by);
-      }
+      } else return startAuction(ctx, s, i);
       s.buy = null;
       s.phase = 'manage';
       afterResolve(ctx, s);
@@ -675,23 +764,35 @@ export const estate: GameModule<State, EstateSettings> = {
 
     if (a.type === 'end') {
       if (s.phase !== 'manage') return;
-      if (s.trade?.from === by) s.trade = null;
+      // a human's offer ends with their turn; a bot's offer keeps waiting (it expires on its own)
+      if (s.trade?.from === by && !ctx.isBot(by)) s.trade = null;
       nextTurn(ctx, s);
     }
   },
 
-  botPlan(ctx, s) {
+  botPlan(ctx, s, bots) {
     if (s.phase === 'final') return;
     // answer trades offered to a bot
     const t = s.trade;
     if (t && ctx.isBot(t.to)) {
       const accept = botLikes(s, t);
-      ctx.bot(t.to, `trade:${t.id}`, randDelay(1500, 2600), { type: accept ? 'tradeAccept' : 'tradeDecline' });
+      ctx.bot(t.to, `trade:${t.id}`, randDelay(800, 1300), { type: accept ? 'tradeAccept' : 'tradeDecline' });
+    }
+    const au = s.auction;
+    if (s.phase === 'auction' && au) {
+      for (const id of bots) {
+        const pl = s.players.find((x) => x.id === id);
+        if (!pl || pl.bankrupt || au.out.includes(id) || au.leader === id) continue;
+        const gap = botAuctionMax(s, id, au.sq) - au.price;
+        const key = `auc:${au.n}:${au.bids}`;
+        if (gap < 10) ctx.bot(id, key, randDelay(600, 1200), { type: 'pass', at: au.bids });
+        else ctx.bot(id, key, randDelay(700, 1500), { type: 'bid', add: gap >= 150 ? 100 : gap >= 60 ? 50 : 10, at: au.bids });
+      }
+      return;
     }
     const p = cur(s);
     if (!ctx.isBot(p.id)) return;
     const key = `${s.moves}:${s.phase}`;
-    if (s.trade && s.trade.from === p.id) return;
     if (s.phase === 'debt') {
       ctx.bot(p.id, `bk:${key}`, randDelay(600, 1000), { type: 'settle' });
       return;
@@ -703,7 +804,7 @@ export const estate: GameModule<State, EstateSettings> = {
       }
       const m = botManage(s, p.id);
       if (m) return void ctx.bot(p.id, `m:${key}`, randDelay(500, 900), m);
-      ctx.bot(p.id, `roll:${key}`, randDelay(1500, 2100), { type: 'roll' });
+      ctx.bot(p.id, `roll:${key}`, randDelay(750, 1050), { type: 'roll' });
       return;
     }
     if (s.phase === 'buy' && s.buy !== null) {
@@ -712,7 +813,7 @@ export const estate: GameModule<State, EstateSettings> = {
       const g = groupOf(i);
       const completes = g ? groupSquares(g).every((j) => j === i || owns(s, p.id, j)) : false;
       const want = p.cash >= price && (p.cash - price >= 150 || completes);
-      ctx.bot(p.id, `buy:${key}`, randDelay(2200, 2800), { type: want ? 'buy' : 'skip' });
+      ctx.bot(p.id, `buy:${key}`, randDelay(1100, 1400), { type: want ? 'buy' : 'skip' });
       return;
     }
     if (s.phase === 'manage') {
@@ -725,17 +826,22 @@ export const estate: GameModule<State, EstateSettings> = {
           return void ctx.bot(p.id, `tr:${key}`, randDelay(800, 1300), { type: 'trade', ...offer });
         }
       }
-      ctx.bot(p.id, `end:${key}`, randDelay(2000, 2600), { type: 'end' });
+      ctx.bot(p.id, `end:${key}`, randDelay(1000, 1300), { type: 'end' });
     }
   },
 
   tick(ctx, s) {
-    if (s.trade && ctx.now - s.tradeAt > 30_000) {
+    let changed = false;
+    if (s.trade && ctx.now > s.trade.endsAt) {
       s.feed.push(`انتهت مهلة العرض`, { by: s.trade.from });
       s.trade = null;
-      return true;
+      changed = true;
     }
-    return false;
+    if (s.phase === 'auction' && s.auction && (ctx.now >= s.auction.endsAt || auctionDone(s))) {
+      endAuction(ctx, s);
+      changed = true;
+    }
+    return changed;
   },
 
   view(ctx, s): EstateView {
@@ -751,6 +857,7 @@ export const estate: GameModule<State, EstateSettings> = {
       card: s.card,
       debt: s.debt,
       trade: s.trade,
+      auction: s.auction ? { sq: s.auction.sq, price: s.auction.price, leader: s.auction.leader, endsAt: s.auction.endsAt, out: s.auction.out } : null,
       round: s.round,
       maxRounds: s.settings.rounds,
       worth: Object.fromEntries(s.players.map((p) => [p.id, worthOf(s, p.id)])),

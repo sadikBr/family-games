@@ -115,7 +115,13 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
     }
     case 'ludo': {
       const { settings, change } = settingsFor(room, 'ludo');
-      return <Toggle label="الخروج بـ 1 أيضاً (وليس 6 فقط)" value={settings.exitOnOne} editable={editable} onChange={(exitOnOne) => change({ exitOnOne })} />;
+      return (
+        <View style={{ gap: 6 }}>
+          <Toggle label="الخروج بـ 1 أيضاً (وليس 6 فقط)" value={settings.exitOnOne} editable={editable} onChange={(exitOnOne) => change({ exitOnOne })} />
+          <Toggle label="لعبة سريعة: قطعتان لكل لاعب" value={!!settings.quick} editable={editable} onChange={(quick) => change({ quick })} />
+          <Toggle label="أكمل اللعب على المركز الثاني والثالث" value={!!settings.podium} editable={editable} onChange={(podium) => change({ podium })} />
+        </View>
+      );
     }
     case 'codenames': {
       const { settings, change } = settingsFor(room, 'codenames');
@@ -295,7 +301,7 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return (
         <View style={{ gap: 10 }}>
           <Stepper label="المال عند البداية" value={settings.startCash} min={1000} max={3000} step={500} editable={editable} onChange={(startCash) => change({ startCash })} />
-          <Stepper label="عدد الجولات" value={settings.rounds} min={0} max={60} step={10} editable={editable} onChange={(rounds) => change({ rounds })} format={(n) => (n === 0 ? 'بلا حد' : String(n))} />
+          <Stepper label="عدد الجولات" value={settings.rounds} min={0} max={60} step={5} editable={editable} onChange={(rounds) => change({ rounds })} format={(n) => (n === 0 ? 'بلا حد' : String(n))} />
         </View>
       );
     }
