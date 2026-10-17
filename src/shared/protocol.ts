@@ -180,6 +180,11 @@ export interface NamesSettings {
   seconds: number;
   /** true: the first to fill everything can call «ستوب» for everyone; false: play until the timer ends */
   stop: boolean;
+  /**
+   * The Arabic dictionary check: off; warn (unknown words are marked for the review); strict (unknown
+   * words are wrong unless most of the other players vote to keep them).
+   */
+  dict?: 'off' | 'warn' | 'strict';
 }
 
 export interface HeadsUpSettings {
@@ -349,7 +354,7 @@ export interface AllSettings {
 
 export const DEFAULT_SETTINGS: AllSettings = {
   imposter: { category: 'random', imposters: 0, hintForImposter: true, rounds: 5 },
-  names: { rounds: 5, seconds: 90, stop: true },
+  names: { rounds: 5, seconds: 90, stop: true, dict: 'strict' },
   headsup: { category: 'random', seconds: 60, turnsEach: 1 },
   taboo: { seconds: 60, turnsEach: 3 },
   potato: { rounds: 5, minFuse: 15, maxFuse: 45 },
@@ -434,13 +439,17 @@ export const NAMES_CATEGORIES: CategoryInfo[] = [
   { key: 'job', label: 'مهنة', emoji: '👷' },
 ];
 
-export type NamesVerdict = 'ok' | 'empty' | 'letter' | 'rejected';
+export type NamesVerdict = 'ok' | 'empty' | 'letter' | 'rejected' | 'unknown';
 
 export interface NamesCell {
   text: string;
   verdict: NamesVerdict;
   rejects: string[]; // who voted it invalid
   points: number | null; // filled in after scoring
+  /** not in the dictionary (when the check is on) */
+  unknown: boolean;
+  /** strict check: who voted to keep an unknown word */
+  keeps: string[];
 }
 
 export interface NamesView {
@@ -457,6 +466,9 @@ export interface NamesView {
   /** how many categories each player has filled (live progress) */
   progress: Record<string, number>;
   myAnswers: Record<string, string>;
+  /** my boxes whose word the dictionary doesn't know (live while writing) */
+  myUnknown: string[];
+  dict: 'off' | 'warn' | 'strict';
   /** everyone's answers: only after writing is over */
   board: Record<string, Record<string, NamesCell>> | null;
   roundPoints: Record<string, number> | null;

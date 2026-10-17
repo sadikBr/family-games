@@ -481,6 +481,7 @@ export class Room {
         s.rounds = int(patch.rounds, s.rounds, 1, 15);
         s.seconds = int(patch.seconds, s.seconds, 30, 240);
         s.stop = bool(patch.stop, s.stop);
+        if (patch.dict === 'off' || patch.dict === 'warn' || patch.dict === 'strict') s.dict = patch.dict;
         break;
       }
       case 'headsup': {

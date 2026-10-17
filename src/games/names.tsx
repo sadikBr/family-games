@@ -138,15 +138,19 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
         const good = val.trim().length > 0 && startsWithLetter(val, target);
         const bad = val.trim().length > 0 && !good;
         const article = bad && /^\s*ال/.test(val);
+        // the server's dictionary verdict, as long as it is about what is in the box now
+        const unknown = good && view.myUnknown.includes(c.key) && (view.myAnswers[c.key] ?? '') === val;
         return (
           <View key={c.key}>
-            <View style={[styles.field, good && { borderColor: C.green }, bad && { borderColor: C.red }]}>
+            <View style={[styles.field, good && { borderColor: unknown ? C.orange : C.green }, bad && { borderColor: C.red }]}>
               <Row gap={8}>
                 <CatMark k={c.key} />
                 <Txt v="bold" style={{ flex: 1 }}>
                   {c.label}
                 </Txt>
-                {good ? (
+                {unknown ? (
+                  <Icon name="question" size={18} color={C.orange} />
+                ) : good ? (
                   <Icon name="check" size={18} color={C.green} />
                 ) : bad ? (
                   <Txt v="tiny" color={C.red}>
@@ -165,6 +169,11 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
                 autoCorrect={false}
                 returnKeyType="next"
               />
+              {unknown ? (
+                <Txt v="tiny" color={C.orange}>
+                  {view.dict === 'strict' ? 'ليست في القاموس — تأكد من الإملاء، وإلا تُحسب خطأ إلا إذا قبلها الآخرون' : 'ليست في القاموس — تأكد من الإملاء'}
+                </Txt>
+              ) : null}
             </View>
           </View>
         );
@@ -206,6 +215,7 @@ const VERDICT: Record<NamesCell['verdict'], { icon: IconName; color: string; not
   empty: { icon: 'minus', color: C.dim, note: 'فارغ' },
   letter: { icon: 'close', color: C.red, note: 'حرف خاطئ' },
   rejected: { icon: 'thumbDown', color: C.red, note: 'مرفوض' },
+  unknown: { icon: 'question', color: C.orange, note: 'ليست في القاموس' },
 };
 
 function CategoryBoard({ view, h, cat }: { view: NamesView; h: Helpers; cat: (typeof CATS)[number] }) {
@@ -220,15 +230,21 @@ function CategoryBoard({ view, h, cat }: { view: NamesView; h: Helpers; cat: (ty
           const cell = view.board![id][cat.key];
           const mine = id === h.me;
           const iRejected = cell.rejects.includes(h.me);
+          // strict check: a word the dictionary doesn't know is voted IN (keep) rather than out
+          const keepVote = view.dict === 'strict' && cell.unknown;
+          const iKept = cell.keeps.includes(h.me);
           const canVote = reviewing && !mine && cell.verdict !== 'empty' && cell.verdict !== 'letter' && !h.player(h.me).bot;
           const v = VERDICT[cell.verdict];
+          // warn mode, or a kept unknown word: a small dictionary mark next to the answer
+          const dictMark = cell.unknown && cell.verdict !== 'unknown' && cell.verdict !== 'letter' && cell.verdict !== 'empty';
           return (
             <Pressable
               key={id}
               disabled={!canVote}
+              accessibilityHint={canVote ? (keepVote ? 'اضغط لقبول الكلمة رغم أنها ليست في القاموس' : 'اضغط للتصويت ضد هذا الجواب') : undefined}
               onPress={() => {
                 haptic.tap();
-                client.act({ type: 'reject', player: id, cat: cat.key });
+                client.act({ type: keepVote ? 'keep' : 'reject', player: id, cat: cat.key });
               }}>
               <Row
                 gap={8}
@@ -236,7 +252,8 @@ function CategoryBoard({ view, h, cat }: { view: NamesView; h: Helpers; cat: (ty
                   styles.cell,
                   cell.verdict === 'ok' && { backgroundColor: alpha(C.green, 0.14) },
                   cell.verdict !== 'ok' && { backgroundColor: C.bg2 },
-                  iRejected && { borderColor: C.red, borderWidth: 2 },
+                  iRejected && !keepVote && { borderColor: C.red, borderWidth: 2 },
+                  iKept && keepVote && { borderColor: C.green, borderWidth: 2 },
                 ]}>
                 <Avatar player={h.player(id)} size={30} />
                 <Txt
@@ -246,7 +263,16 @@ function CategoryBoard({ view, h, cat }: { view: NamesView; h: Helpers; cat: (ty
                   numberOfLines={1}>
                   {cell.text || '—'}
                 </Txt>
-                {cell.rejects.length && cell.verdict !== 'letter' ? (
+                {dictMark ? <Icon name="question" size={14} color={C.orange} /> : null}
+                {keepVote && cell.keeps.length ? (
+                  <Row gap={3}>
+                    <Icon name="check" size={13} color={C.green} />
+                    <Txt v="tiny" color={C.green}>
+                      {cell.keeps.length}
+                    </Txt>
+                  </Row>
+                ) : null}
+                {!keepVote && cell.rejects.length && cell.verdict !== 'letter' ? (
                   <Row gap={3}>
                     <Icon name="thumbDown" size={13} color={C.red} />
                     <Txt v="tiny" color={C.red}>
@@ -299,7 +325,7 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
     case 'review':
       return (
         <>
-          <PhaseTitle art={<LetterBadge letter={view.letter} size={64} />} title="المراجعة" sub="اضغط على جواب تراه غلطاً للتصويت ضده" />
+          <PhaseTitle art={<LetterBadge letter={view.letter} size={64} />} title="المراجعة" sub={view.dict === 'strict' ? 'اضغط على جواب تراه غلطاً للتصويت ضده — وعلى كلمة «؟» لقبولها رغم القاموس' : 'اضغط على جواب تراه غلطاً للتصويت ضده'} />
           <Txt v="small" center color={C.dim}>
             جواب فريد = 10 · مكرر = 5
           </Txt>

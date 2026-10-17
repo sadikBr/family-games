@@ -427,7 +427,8 @@ test('werewolf with bots: bot roles act automatically, bots accuse in the day', 
 
 test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', async () => {
   const { phones, host } = await makeRoom(3, 'names');
-  host.send({ t: 'room', action: { type: 'settings', game: 'names', patch: { seconds: 60, rounds: 2 } } });
+  // placeholder answers like «كboyA»: the dictionary check would flag them all
+  host.send({ t: 'room', action: { type: 'settings', game: 'names', patch: { seconds: 60, rounds: 2, dict: 'off' } } });
   host.send({ t: 'room', action: { type: 'start' } });
   await settle();
   let v = host.view<NamesView>();

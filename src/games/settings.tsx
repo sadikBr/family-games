@@ -56,6 +56,24 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
           <Stepper label="عدد الجولات" value={settings.rounds} min={1} max={15} editable={editable} onChange={(rounds) => change({ rounds })} />
           <Stepper label="الوقت لكل جولة" value={settings.seconds} min={30} max={240} step={15} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />
           <Toggle label="أول من يُكمل يقول «ستوب» للجميع (أطفئه لننتظر نهاية الوقت)" value={settings.stop} editable={editable} onChange={(stop) => change({ stop })} />
+          <Txt v="bold">التحقق بالقاموس</Txt>
+          <ChipPicker
+            options={[
+              { key: 'strict', label: 'صارم' },
+              { key: 'warn', label: 'تنبيه فقط' },
+              { key: 'off', label: 'بدون' },
+            ]}
+            value={settings.dict ?? 'strict'}
+            editable={editable}
+            onChange={(dict) => change({ dict })}
+          />
+          <Txt v="tiny" color={C.muted}>
+            {(settings.dict ?? 'strict') === 'strict'
+              ? 'كلمة ليست في القاموس تُحسب خطأ، إلا إذا صوّت أغلب اللاعبين الآخرين لقبولها.'
+              : (settings.dict ?? 'strict') === 'warn'
+                ? 'الكلمات التي ليست في القاموس تظهر بعلامة ؟ عند المراجعة، والقرار لكم.'
+                : 'لا تحقق: المراجعة بالتصويت فقط.'}
+          </Txt>
         </View>
       );
     }

@@ -6,6 +6,9 @@
  * Answers must really start with the letter: «الرباط» doesn't count for ر (see startsWithLetter).
  * Unique answer = 10, shared answer = 5 (also for the same word spelled a bit differently, like
  * «زيمبابوي» / «زمبابوي» — see similarAnswers), empty / wrong = 0.
+ * Answers are checked against an Arabic dictionary (server/dictionary.ts): players see a warning
+ * while writing, and with the strict check an unknown word is wrong unless most of the other players
+ * vote to keep it.
  */
 import {
   NAMES_CATEGORIES,
@@ -16,6 +19,7 @@ import {
 } from '../../src/shared/protocol';
 import { GAME_LETTERS, displayLetter, similarAnswers, startsWithLetter } from '../../src/shared/arabic';
 import { NAMES_DICT } from '../bot-content';
+import { knownWord } from '../dictionary';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
 
@@ -36,6 +40,8 @@ interface State {
   done: string[];
   answers: Record<string, Record<string, string>>;
   rejects: Record<string, Set<string>>; // `${player}|${cat}` -> voters
+  keeps: Record<string, Set<string>>; // strict check: `${player}|${cat}` -> voters keeping an unknown word
+  known: Map<string, boolean>; // `${cat}|${text}` -> dictionary answer (memo)
   roundPoints: Record<string, number> | null;
   cellPoints: Record<string, number> | null; // `${player}|${cat}` -> points
   scores: Record<string, number>;
@@ -63,6 +69,7 @@ function newRound(ctx: GameCtx, s: State) {
   s.done = [];
   s.answers = Object.fromEntries(s.participants.map((id) => [id, {}]));
   s.rejects = {};
+  s.keeps = {};
   s.roundPoints = null;
   s.cellPoints = null;
   ctx.fx('start');
@@ -78,12 +85,31 @@ function voters(ctx: GameCtx, s: State, owner: string) {
   return s.participants.filter((id) => id !== owner && ctx.isConnected(id) && !ctx.isBot(id));
 }
 
+const dictMode = (s: State) => s.settings.dict ?? 'strict';
+
+/** Is this answer in the dictionary? (always true with the check off) */
+function isKnown(s: State, cat: string, text: string): boolean {
+  if (dictMode(s) === 'off' || !text.trim()) return true;
+  const k = `${cat}|${text.trim()}`;
+  let v = s.known.get(k);
+  if (v === undefined) {
+    v = knownWord(text, cat);
+    s.known.set(k, v);
+  }
+  return v;
+}
+
 function verdict(ctx: GameCtx, s: State, owner: string, cat: string): NamesVerdict {
   const text = (s.answers[owner]?.[cat] ?? '').trim();
   if (!text) return 'empty';
   if (!startsWithLetter(text, s.letter)) return 'letter';
-  const votes = s.rejects[cellKey(owner, cat)]?.size ?? 0;
   const eligible = voters(ctx, s, owner).length;
+  // strict: a word the dictionary doesn't know needs most of the others to keep it
+  if (dictMode(s) === 'strict' && !isKnown(s, cat, text)) {
+    const keeps = s.keeps[cellKey(owner, cat)]?.size ?? 0;
+    if (!(eligible > 0 && keeps * 2 > eligible)) return 'unknown';
+  }
+  const votes = s.rejects[cellKey(owner, cat)]?.size ?? 0;
   if (eligible > 0 && votes * 2 > eligible) return 'rejected';
   return 'ok';
 }
@@ -128,6 +154,8 @@ export const names: GameModule<State, NamesSettings> = {
       done: [],
       answers: {},
       rejects: {},
+      keeps: {},
+      known: new Map(),
       roundPoints: null,
       cellPoints: null,
       scores: Object.fromEntries(participants.map((id) => [id, 0])),
@@ -176,6 +204,16 @@ export const names: GameModule<State, NamesSettings> = {
         if (!isStr(a.player) || !isStr(a.cat) || a.player === by) return;
         const k = cellKey(a.player, a.cat);
         const set = (s.rejects[k] ??= new Set());
+        if (set.has(by)) set.delete(by);
+        else set.add(by);
+        return;
+      }
+      case 'keep': {
+        // strict dictionary check: vote to keep a word the dictionary doesn't know
+        if (s.phase !== 'review' || !isPlayer || ctx.isBot(by)) return;
+        if (!isStr(a.player) || !isStr(a.cat) || a.player === by || !CATS.includes(a.cat)) return;
+        const k = cellKey(a.player, a.cat);
+        const set = (s.keeps[k] ??= new Set());
         if (set.has(by)) set.delete(by);
         else set.add(by);
         return;
@@ -256,6 +294,8 @@ export const names: GameModule<State, NamesSettings> = {
             verdict: verdict(ctx, s, id, cat),
             rejects: [...(s.rejects[cellKey(id, cat)] ?? [])],
             points: s.cellPoints ? (s.cellPoints[cellKey(id, cat)] ?? 0) : null,
+            unknown: !isKnown(s, cat, s.answers[id]?.[cat] ?? ''),
+            keeps: [...(s.keeps[cellKey(id, cat)] ?? [])],
           };
           board[id][cat] = cell;
         }
@@ -273,6 +313,14 @@ export const names: GameModule<State, NamesSettings> = {
       done: s.done,
       progress: Object.fromEntries(s.participants.map((id) => [id, filledCount(s, id)])),
       myAnswers: s.answers[me] ?? {},
+      myUnknown:
+        s.phase === 'write' || s.phase === 'stopping'
+          ? CATS.filter((c) => {
+              const t = s.answers[me]?.[c] ?? '';
+              return t.trim() !== '' && startsWithLetter(t, s.letter) && !isKnown(s, c, t);
+            })
+          : [],
+      dict: dictMode(s),
       board,
       roundPoints: s.roundPoints,
       scores: s.scores,
