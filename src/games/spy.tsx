@@ -189,9 +189,9 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle icon="eye" title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="شوف سرّك بدون ما يشوفك أحد" />
+          <PhaseTitle icon="eye" title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="انظر إلى سرّك دون أن يراك أحد" />
           <SecretCard view={view} h={h} />
-          <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'شفت، جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
+          <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'رأيت، أنا جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
           <WaitingFor players={notReady} />
           {isHost && notReady.length ? <Btn size="sm" ghost icon="skip" label="ابدأ بدون انتظار" onPress={() => act('skipReady')} /> : null}
         </>
@@ -217,7 +217,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
           <Card style={{ alignItems: 'center', gap: 8 }}>
             <Avatar player={asker} size={72} ring={C.yellow} badge="mic" />
             <Txt v="title" center>
-              {isAsker ? 'دورك تسأل' : `دور ${asker.name} يسأل`}
+              {isAsker ? 'دورك في السؤال' : `دور ${asker.name} في السؤال`}
             </Txt>
             <Txt v="small" center color={C.muted}>
               {isAsker ? 'اختر أي لاعب واسأله سؤالاً عن المكان' : 'يختار لاعباً ويسأله سؤالاً'}
@@ -317,7 +317,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
           <Txt v="small" center color={C.muted}>
             يكفي أن توافق الأغلبية. صوّت {num(acc.voted.length)} من {num(voters.length)}
           </Txt>
-          <WaitingFor players={waiting} label="ينتظر تصويت" />
+          <WaitingFor players={waiting} label="في انتظار تصويت" />
           {isHost ? <Btn size="sm" ghost icon="skip" label="أنهِ التصويت الآن" onPress={() => act('forceResolve')} /> : null}
         </>
       );
@@ -388,7 +388,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
             صوّت {num(view.finalVoted.length)} من {num(view.participants.length)}
             {view.myFinalVote ? ' · يمكنك تغيير صوتك' : ''}
           </Txt>
-          <WaitingFor players={notVoted} label="ينتظر تصويت" />
+          <WaitingFor players={notVoted} label="في انتظار تصويت" />
           <SecretCard view={view} height={130} h={h} />
           <LocationList view={view} isSpy={isSpy} onReveal={() => setRevealAsk(true)} />
           {isHost ? <Btn size="sm" ghost icon="skip" label="اكشف النتيجة الآن" onPress={() => act('forceResolve')} /> : null}

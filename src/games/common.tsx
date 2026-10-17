@@ -84,7 +84,7 @@ export function HostNote({ children }: { children: ReactNode }) {
 
 export function PlayAgain({ room }: { room: RoomView }) {
   if (room.hostId !== room.me) {
-    return <HostNote>المضيف يختار: نلعب مجدداً أو لعبة أخرى</HostNote>;
+    return <HostNote>المضيف يختار: اللعب مجدداً أو لعبة أخرى</HostNote>;
   }
   return (
     <View style={{ gap: 10 }}>

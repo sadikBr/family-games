@@ -246,7 +246,7 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
       <View style={{ gap: 8 }}>
         <Txt v="bold" center color={C.red}>
           عليك دفع {num(view.debt.amount)}
-          {view.debt.to ? ` لـ ${h.player(view.debt.to).name}` : ''} — معك {num(me.cash)}
+          {view.debt.to ? ` لـ ${h.player(view.debt.to).name}` : ''} — لديك {num(me.cash)}
         </Txt>
         <Txt v="small" center color={C.muted}>
           بِع منازل أو ارهن عقارات من «عقاراتي» لتجمع المبلغ.
@@ -387,7 +387,7 @@ function SquareSheet({ i, view, h, onClose }: { i: number | null; view: EstateVi
     luck: 'اسحب بطاقة «حظ».',
     family: 'اسحب بطاقة من «صندوق العائلة».',
     tax: sq.kind === 'tax' ? `ادفع ${num(sq.amount)} للبنك.` : '',
-    utility: 'الكراء 4× مجموع النرد، أو 10× إذا ملك نفس اللاعب الشركتين.',
+    utility: 'الكراء 4× مجموع النرد، أو 10× إذا ملك اللاعب نفسه الشركتين.',
   };
   return (
     <Sheet visible onClose={onClose} title={sq.name}>

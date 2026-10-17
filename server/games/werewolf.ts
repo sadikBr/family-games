@@ -184,7 +184,7 @@ function resolveNight(ctx: GameCtx, s: State) {
   const mayorWasAlive = !!s.mayorId && s.alive[s.mayorId];
   for (const d of deaths) kill(s, d);
 
-  const parts = [`الليلة ${s.day}: الذئاب اختاروا ${name(ctx, s.wolvesTarget)}`];
+  const parts = [`الليلة ${s.day}: اختارت الذئاب ${name(ctx, s.wolvesTarget)}`];
   if (s.steps.includes('bigwolf')) parts.push(`الذئب الكبير اختار ${name(ctx, s.bigwolfTarget)}`);
   if (s.steps.includes('whitewolf')) parts.push(`الذئب الأبيض اختار ${name(ctx, s.whitewolfTarget)}`);
   if (hasRole(s, 'guard')) parts.push(`الحارس حرس ${name(ctx, s.guardSave)}`);

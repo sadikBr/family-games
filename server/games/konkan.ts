@@ -204,7 +204,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
       return;
     }
     if (s.phase !== 'play') return;
-    if (s.turn !== by) throw new GameError('ماشي دورك');
+    if (s.turn !== by) throw new GameError('ليس دورك');
     const hand = s.hands[by];
     const name = ctx.playerName(by);
     switch (a.type) {
@@ -245,7 +245,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
         if (s.step !== 'play' || !Array.isArray(a.cards)) return;
         const cards = takeCards(hand, (a.cards as unknown[]).filter(isStr));
         if (!cards || !isValidMeld(cards)) {
-          throw new GameError('هذه ليست مجموعة صحيحة: 3–4 أوراق من نفس الرقم، أو 3+ متتالية من نفس النوع');
+          throw new GameError('هذه ليست مجموعة صحيحة: 3–4 أوراق من الرقم نفسه، أو 3 أوراق متتالية فأكثر من النوع نفسه');
         }
         for (const c of cards) hand.splice(hand.indexOf(c), 1);
         s.melds.push({ id: ++s.meldSeq, owner: by, cards: sortMeld(cards) });
@@ -260,12 +260,12 @@ export const konkan: GameModule<State, KonkanSettings> = {
         const meld = s.melds.find((m) => m.id === a.meld);
         const cards = takeCards(hand, (a.cards as unknown[]).filter(isStr));
         if (!meld || !cards || !cards.length || !isValidMeld([...meld.cards, ...cards])) {
-          throw new GameError('هذه الأوراق لا تركب مع هذه المجموعة');
+          throw new GameError('هذه الأوراق لا تتناسب مع هذه المجموعة');
         }
         for (const c of cards) hand.splice(hand.indexOf(c), 1);
         meld.cards = sortMeld([...meld.cards, ...cards]);
         s.actions += 1;
-        s.feed.push(`${name} زاد ${cards.length} على مجموعة`, { by });
+        s.feed.push(`${name} أضاف ${cards.length} ${cards.length === 1 ? 'ورقة' : 'أوراق'} إلى مجموعة`, { by });
         ctx.fx('correct', by);
         checkWin(ctx, s, by);
         return;

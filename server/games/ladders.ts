@@ -51,7 +51,7 @@ export const ladders: GameModule<State, LaddersSettings> = {
   act(ctx, s, by, a) {
     if (s.phase !== 'roll' || a.type !== 'roll') return;
     const p = cur(s);
-    if (!p || p.id !== by) throw new GameError('ماشي دورك');
+    if (!p || p.id !== by) throw new GameError('ليس دورك');
     const d = 1 + Math.floor(Math.random() * 6);
     s.dice = d;
     s.rollId += 1;

@@ -102,7 +102,7 @@ test('blocks: the first piece must cover the start square', () => {
   const ctx = fakeCtx();
   const s = blocks.start(ctx, ['a', 'b', 'c', 'd'], { level: 'easy' });
   const p = s.seats[0];
-  expect(() => blocks.act(ctx, s, s.seats[1], { type: 'place', piece: 0, t: 0, r: 0, c: 19 })).toThrow('ماشي دورك');
+  expect(() => blocks.act(ctx, s, s.seats[1], { type: 'place', piece: 0, t: 0, r: 0, c: 19 })).toThrow('ليس دورك');
   expect(() => blocks.act(ctx, s, p, { type: 'place', piece: 10, t: 0, r: 1, c: 0 })).toThrow('مربع البداية');
   expect(() => blocks.act(ctx, s, p, { type: 'place', piece: 10, t: 0, r: 0, c: 16 })).toThrow('تخرج');
   blocks.act(ctx, s, p, { type: 'place', piece: 10, t: 0, r: 0, c: 0 }); // the 5-straight along the top

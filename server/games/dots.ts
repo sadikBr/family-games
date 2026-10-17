@@ -123,7 +123,7 @@ export const dots: GameModule<State, DotsSettings> = {
     if (s.phase !== 'play' || !s.active.includes(by)) return;
     if (a.type === 'resign') return dropOut(ctx, s, by);
     if (a.type !== 'line') return;
-    if (turnOf(s) !== by) throw new GameError('ماشي دورك');
+    if (turnOf(s) !== by) throw new GameError('ليس دورك');
     const e = a.line;
     if (!isNum(e) || !Number.isInteger(e) || e < 0 || e >= s.lines.length) return;
     if (s.lines[e] >= 0) throw new GameError('هذا الخط مرسوم من قبل');

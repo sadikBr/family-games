@@ -151,7 +151,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
       return;
     }
     if (a.type !== 'play' || s.phase !== 'play') return;
-    if (s.seats[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.seats[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isStr(a.card)) return;
     const hand = s.hands[by];
     const card = hand.find((c) => c.id === a.card);
@@ -159,10 +159,10 @@ export const kanza: GameModule<State, KanzaSettings> = {
     const takeIds = Array.isArray(a.take) ? (a.take as unknown[]).filter(isStr) : [];
     const take = s.table.filter((c) => takeIds.includes(c.id));
     if (take.length !== takeIds.length) return;
-    if (take.length > MAX_TAKE) throw new GameError('أقصى حد 3 أوراق: ورقتك + ورقتين من الطاولة');
+    if (take.length > MAX_TAKE) throw new GameError('3 أوراق على الأكثر: ورقتك + ورقتان من الطاولة');
     if (take.length) {
       const sum = card.rank + take.reduce((t, c) => t + c.rank, 0);
-      if (sum !== TARGET_SUM) throw new GameError(`المجموع ${sum} — لازم يكون 15 بالضبط`);
+      if (sum !== TARGET_SUM) throw new GameError(`المجموع ${sum} — يجب أن يكون 15 بالضبط`);
     }
     removeCard(hand, card.id);
     s.moves += 1;

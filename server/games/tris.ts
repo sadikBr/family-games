@@ -121,12 +121,12 @@ export const tris: GameModule<State, TrisSettings> = {
       return;
     }
     if (a.type !== 'play' || s.phase !== 'play') return;
-    if (s.seats[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.seats[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isStr(a.card)) return;
     const hand = s.hands[by];
     const allowed = trisPlayable(hand, s.trick);
     if (!allowed.some((c) => c.id === a.card)) {
-      throw new GameError(`لازم تلعب ${s.trick.length ? 'من نفس النوع' : ''}`);
+      throw new GameError(s.trick.length ? 'يجب أن تلعب من النوع نفسه' : 'لا يمكنك لعب هذه الورقة');
     }
     const card = removeCard(hand, a.card)!;
     s.trick.push({ by, card });

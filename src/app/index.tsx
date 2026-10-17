@@ -250,7 +250,7 @@ export default function Home() {
             {greeting(now.getHours())}{profile.name ? ` يا ${profile.name}` : ''}
           </Txt>
           <Txt v="small" color={C.muted}>
-            ألعاب العائلة — كل واحد يلعب من هاتفه
+            ألعاب العائلة — كلٌّ يلعب من هاتفه
           </Txt>
         </View>
         <HeroArt width={Math.min(120, contentWidth * 0.32)} />
@@ -268,13 +268,13 @@ export default function Home() {
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
             <Icon name="door" size={18} color={C.text} />
             <Txt v="bold" style={{ flex: 1 }}>
-              ارجع للغرفة {num(lastCode)}
+              ارجع إلى الغرفة {num(lastCode)}
             </Txt>
             <Icon name="chevron" size={16} color={C.dim} />
           </Pressable>
         ) : null}
         <Txt v="tiny" center color={C.dim}>
-          أو اختر لعبة أسفله لتفتح غرفة جديدة وتدعو الآخرين
+          أو اختر لعبة في الأسفل لتفتح غرفة جديدة وتدعو الآخرين
         </Txt>
       </View>
 
@@ -282,7 +282,7 @@ export default function Home() {
 
       {!filtered && recentIds.length ? (
         <View style={{ gap: 8 }}>
-          <Txt v="h2">لعبتم مؤخراً</Txt>
+          <Txt v="h2">لعبتموها مؤخراً</Txt>
           <RecentRow ids={recentIds} />
         </View>
       ) : null}

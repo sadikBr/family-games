@@ -165,7 +165,7 @@ export const blocks: GameModule<State, BlocksSettings> = {
     if (s.phase !== 'play' || a.type !== 'place') return;
     const seat = s.seats.indexOf(by);
     if (seat < 0 || s.gone[seat]) return;
-    if (s.turn !== seat) throw new GameError('ماشي دورك');
+    if (s.turn !== seat) throw new GameError('ليس دورك');
     const int = (v: unknown): v is number => isNum(v) && Number.isInteger(v);
     const { piece, t, r, c } = a;
     if (!int(piece) || !int(t) || !int(r) || !int(c)) return;

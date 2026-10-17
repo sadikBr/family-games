@@ -188,7 +188,7 @@ function ChoicePanel({ choice, me, mine, h, who }: { choice: LifeChoice; me: Lif
             {choice.fork === 1 ? (
               <>
                 <OptionCard icon="book" color={C.purple} title="الجامعة" lines={[`المصاريف ${money(R.tuition)}`, 'طريق أطول ومهن أحسن راتباً']} onPress={tap('fork', { way: 0 })} />
-                <OptionCard icon="coins" color={C.orange} title="العمل مباشرة" lines={['مجاناً', 'اختر مهنتك الآن وابدأ تقبض']} onPress={tap('fork', { way: 1 })} />
+                <OptionCard icon="coins" color={C.orange} title="العمل مباشرة" lines={['مجاناً', 'اختر مهنتك الآن وابدأ قبض الراتب']} onPress={tap('fork', { way: 1 })} />
               </>
             ) : (
               <>
@@ -202,7 +202,7 @@ function ChoicePanel({ choice, me, mine, h, who }: { choice: LifeChoice; me: Lif
     case 'job':
       return (
         <View style={{ gap: 10 }}>
-          {head(choice.degree ? 'مبروك التخرج! اختر مهنتك' : 'اختر مهنتك', 'الراتب تقبضه في كل يوم أجرة')}
+          {head(choice.degree ? 'مبارك تخرّجك! اختر مهنتك' : 'اختر مهنتك', 'الراتب تقبضه في كل يوم أجرة')}
           <Row gap={6} style={{ alignItems: 'stretch' }}>
             {choice.cards.map((j: LifeJob) => (
               <OptionCard key={j.id} icon={j.icon as IconName} color={choice.degree ? C.purple : C.orange} title={j.title} lines={[`${money(j.salary)} د`]} onPress={tap('job', { id: j.id })} />
@@ -213,7 +213,7 @@ function ChoicePanel({ choice, me, mine, h, who }: { choice: LifeChoice; me: Lif
     case 'house':
       return (
         <View style={{ gap: 10 }}>
-          {head('اختر داراً', `معك ${money(me.money)} — الباقي قرض`)}
+          {head('اختر داراً', `لديك ${money(me.money)} — والباقي قرض`)}
           <Row gap={6} style={{ alignItems: 'stretch' }}>
             {choice.cards.map((x: LifeHouse) => {
               const loans = Math.max(0, Math.ceil((x.price - me.money) / R.loan));
@@ -229,7 +229,7 @@ function ChoicePanel({ choice, me, mine, h, who }: { choice: LifeChoice; me: Lif
               );
             })}
           </Row>
-          {mine ? <Btn size="md" ghost label="لا، أفضّل الكراء" onPress={() => h.act('house', { id: null })} /> : null}
+          {mine ? <Btn size="md" ghost label="لا، أفضّل الاستئجار" onPress={() => h.act('house', { id: null })} /> : null}
         </View>
       );
     case 'insure':

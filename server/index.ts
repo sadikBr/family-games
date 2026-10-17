@@ -71,7 +71,7 @@ function handle(ws: Sock, msg: ClientMsg) {
       const code = isStr(msg.code) ? msg.code.trim() : '';
       const target = rooms.get(code);
       if (!target) {
-        return send(ws, { t: 'error', code: 'no_room', message: 'لم نجد هذه الغرفة تأكد من الرمز' });
+        return send(ws, { t: 'error', code: 'no_room', message: 'لم نجد هذه الغرفة — تأكد من الرمز' });
       }
       if (room && room !== target) room.leave(player.id);
       target.join(player, ws);

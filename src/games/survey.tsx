@@ -134,7 +134,7 @@ function TeamsPhase({ room, view, h }: { room: RoomView; view: SurveyView; h: He
       {h.isHost ? (
         <>
           <Btn size="md" ghost icon="shuffle" label="خلط الفرق" onPress={() => h.act('shuffle')} />
-          <Btn size="xl" icon="play" label="يلا نبدأ" color={C.green} onPress={() => h.act('begin')} />
+          <Btn size="xl" icon="play" label="هيا نبدأ" color={C.green} onPress={() => h.act('begin')} />
         </>
       ) : (
         <HostNote>في انتظار المضيف</HostNote>
@@ -269,7 +269,7 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
           view={view}
           h={h}
           label="فرصة السرقة! جواب واحد فقط لفريقك"
-          hint={`تشاوروا معاً — يكفي أن يرسل واحد منكم${view.answerer ? ` (القائد: ${h.player(view.answerer).name})` : ''}`}
+          hint={`تشاوروا معاً — يكفي أن يرسل أحدكم${view.answerer ? ` (القائد: ${h.player(view.answerer).name})` : ''}`}
         />
       ) : (
         <View style={styles.waiting}>

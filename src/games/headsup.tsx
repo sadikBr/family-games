@@ -75,12 +75,12 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
           {header}
           {isGuesser ? (
             <>
-              <PhaseTitle icon="user" title="دورك تخمّن" sub="ضع الهاتف على جبينك والشاشة نحو العائلة" />
+              <PhaseTitle icon="user" title="دورك في التخمين" sub="ضع الهاتف على جبينك والشاشة نحو العائلة" />
               <Card style={{ gap: 10 }}>
-                <TiltHelp text="أمِل الهاتف للأسفل: خمّنت صح" />
-                <TiltHelp up text="أمِل الهاتف للأعلى: تخطّي" />
+                <TiltHelp text="أمِل الهاتف إلى الأسفل: أصبت" />
+                <TiltHelp up text="أمِل الهاتف إلى الأعلى: تخطٍّ" />
                 <Txt v="small" color={C.muted}>
-                  والعائلة تستطيع الضغط على «صح» أو «تخطّي» من هواتفهم
+                  ويستطيع أفراد العائلة الضغط على «صحيح» أو «تخطَّ» من هواتفهم
                 </Txt>
               </Card>
               <Btn size="xl" icon="play" label="ابدأ" color={C.green} onPress={() => act('start')} />
@@ -121,8 +121,8 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
               ) : null}
             </View>
             <Row gap={10}>
-              <Btn flex size="lg" icon="check" label="صح" color={C.green} silent onPress={() => mark(true)} />
-              <Btn flex size="lg" icon="skip" label="تخطّي" color={C.orange} silent onPress={() => mark(false)} />
+              <Btn flex size="lg" icon="check" label="صحيح" color={C.green} silent onPress={() => mark(true)} />
+              <Btn flex size="lg" icon="skip" label="تخطَّ" color={C.orange} silent onPress={() => mark(false)} />
             </Row>
             <Btn size="sm" ghost label={tiltOn ? 'إيقاف الإمالة' : 'تشغيل الإمالة'} onPress={() => setTiltOn((t) => !t)} />
           </View>
@@ -150,8 +150,8 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
             </Txt>
           </View>
           <Row gap={10}>
-            <Btn flex size="xl" icon="check" label="صح" color={C.green} silent onPress={() => mark(true)} />
-            <Btn flex size="xl" icon="skip" label="تخطّي" color={C.orange} silent onPress={() => mark(false)} />
+            <Btn flex size="xl" icon="check" label="صحيح" color={C.green} silent onPress={() => mark(true)} />
+            <Btn flex size="xl" icon="skip" label="تخطَّ" color={C.orange} silent onPress={() => mark(false)} />
           </Row>
           {isHost ? <Btn size="sm" ghost icon="stop" label="إنهاء الدور" onPress={() => act('endTurn')} /> : null}
         </View>

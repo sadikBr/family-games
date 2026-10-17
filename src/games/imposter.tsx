@@ -29,7 +29,7 @@ function SecretCard({ view, height, partners }: { view: ImposterView; height?: n
             {s.word}
           </Txt>
           <Txt v="small" color={INK_SOFT}>
-            لا تقلها، لمّح لها فقط
+            لا تقلها، بل لمّح إليها فقط
           </Txt>
         </View>
       ) : (
@@ -70,9 +70,9 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="شوف سرّك بدون ما يشوفك أحد" />
+          <PhaseTitle title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="انظر إلى سرّك دون أن يراك أحد" />
           <SecretCard view={view} partners={partnerNames} />
-          <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'شفت، جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
+          <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'رأيت، أنا جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
           <WaitingFor players={notReady} />
           {isHost && notReady.length ? <Btn size="sm" ghost icon="skip" label="ابدأ بدون انتظار" onPress={() => act('skipReady')} /> : null}
         </>
@@ -82,7 +82,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
     case 'clues': {
       return (
         <>
-          <PhaseTitle icon="chat" title="وقت التلميحات" sub="كل واحد يقول كلمة واحدة، بهذا الترتيب" />
+          <PhaseTitle icon="chat" title="وقت التلميحات" sub="يقول كلٌّ منكم كلمة واحدة، بهذا الترتيب" />
           <Card>
             <Row wrap gap={4} center>
               {view.order.map((id, i) => (
@@ -137,7 +137,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
             صوّت {view.voted.length} من {view.participants.length}
             {view.myVote ? ' · يمكنك تغيير صوتك' : ''}
           </Txt>
-          <WaitingFor players={notVoted} label="ينتظر تصويت" />
+          <WaitingFor players={notVoted} label="في انتظار تصويت" />
           {isHost ? <Btn size="sm" ghost icon="skip" label="اكشف النتيجة الآن" onPress={() => act('forceResolve')} /> : null}
         </>
       );
@@ -180,7 +180,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const accused = r.accused ? player(r.accused) : null;
       let story: string;
       if (!accused) story = 'تعادل في الأصوات، فنجا الدخيل';
-      else if (!r.caught) story = `صوّتم على ${accused.name} وهو بريء`;
+      else if (!r.caught) story = `صوّتّم على ${accused.name} وهو بريء`;
       else if (r.guessCorrect) story = `انكشف ${accused.name}، لكنه خمّن الكلمة`;
       else if (r.guessed === '') story = `أمسكتم بالدخيل ${accused.name}، ولم يخمّن الكلمة في الوقت`;
       else story = `أمسكتم بالدخيل ${accused.name}`;

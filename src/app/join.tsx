@@ -78,7 +78,7 @@ export default function JoinScreen() {
       <View style={styles.wrap}>
         <IconBubble icon={busy ? 'door' : 'key'} size={64} color={C.surfaceStrong} iconColor={C.yellow} />
         <Txt v="h2" center>
-          {busy ? 'جاري الدخول…' : 'اكتب رمز الغرفة'}
+          {busy ? 'جارٍ الدخول…' : 'اكتب رمز الغرفة'}
         </Txt>
         {stuck ? (
           <Txt center v="small" color={C.orange}>

@@ -257,7 +257,7 @@ export const hajj: GameModule<State, HajjSettings> = {
       return;
     }
     const p = cur(s);
-    if (!p || p.id !== by) throw new GameError('ماشي دورك');
+    if (!p || p.id !== by) throw new GameError('ليس دورك');
 
     if (a.type === 'play' && s.phase === 'roll') {
       if (s.mods.played) throw new GameError('بطاقة واحدة في كل دور');

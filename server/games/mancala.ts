@@ -63,7 +63,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     if (side < 0) return;
     if (a.type === 'resign') return forfeit(ctx, s, by);
     if (a.type !== 'sow') return;
-    if (side !== s.turn) throw new GameError('ماشي دورك');
+    if (side !== s.turn) throw new GameError('ليس دورك');
     const pit = a.pit;
     if (!isNum(pit) || !pitsOf(s.turn).includes(pit)) throw new GameError('اختر حفرة من جهتك');
     if (s.board[pit] === 0) throw new GameError('هذه الحفرة فارغة');

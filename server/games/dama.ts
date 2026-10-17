@@ -201,7 +201,7 @@ export const dama: GameModule<State, DamaSettings> = {
   id: 'dama',
 
   start(ctx, participants, settings) {
-    if (participants.length !== 2) throw new GameError('الضامة لاعبان فقط — أضيفوا بوتاً إذا كنت وحدك');
+    if (participants.length !== 2) throw new GameError('الضامة للاعبَين فقط — أضف بوتاً إن كنت وحدك');
     const { first: white, second: black, score } = startDuel(ctx, 'dama', participants); // white moves first
     ctx.fx('start');
     return {
@@ -226,7 +226,7 @@ export const dama: GameModule<State, DamaSettings> = {
     if (!side) return;
     if (a.type === 'resign') return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
     if (a.type !== 'move') return;
-    if (side !== s.turn) throw new GameError('ماشي دورك');
+    if (side !== s.turn) throw new GameError('ليس دورك');
     if (!isNum(a.from) || !isNum(a.to)) return;
     const legal = legalMoves(s.board, s.turn, s.settings);
     const ends = (m: Move) => m.from === a.from && m.path[m.path.length - 1] === a.to;

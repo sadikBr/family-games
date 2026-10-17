@@ -210,7 +210,7 @@ export function ConnectionBanner() {
     <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.conn}>
       <Icon name="wifiOff" size={16} color={C.ink} />
       <Txt v="tiny" color={C.ink}>
-        جاري الاتصال بالخادم…
+        جارٍ الاتصال بالخادم…
       </Txt>
     </Animated.View>
   );

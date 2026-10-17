@@ -568,7 +568,7 @@ export const NAMES_CATEGORIES: CategoryInfo[] = [
   { key: 'boy', label: 'اسم ولد', emoji: '👦' },
   { key: 'girl', label: 'اسم بنت', emoji: '👧' },
   { key: 'animal', label: 'حيوان', emoji: '🐾' },
-  { key: 'plant', label: 'نبات / فاكهة / خضرة', emoji: '🌿' },
+  { key: 'plant', label: 'نبات / فاكهة / خضراوات', emoji: '🌿' },
   { key: 'thing', label: 'جماد', emoji: '🪑' },
   { key: 'country', label: 'بلاد / مدينة', emoji: '🌍' },
   { key: 'job', label: 'مهنة', emoji: '👷' },

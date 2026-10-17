@@ -90,7 +90,7 @@ function payday(ctx: GameCtx, s: LifeState, p: Pl, landed: boolean) {
   const net = p.salary - interest;
   addMoney(ctx, s, p, net);
   s.feed.push(`${name(ctx, p.id)} قبض راتبه ${dh(p.salary)}${interest ? ` (فائدة القروض ${dh(-interest)})` : ''}`, { by: p.id });
-  if (landed) setCard(s, p.id, 'payday', 'يوم الأجرة', interest ? `راتبك ${dh(p.salary)}، ناقص فائدة القروض ${dh(interest)}.` : `قبضت راتبك ${p.job ? `كـ${p.job.title}` : ''}.`, net);
+  if (landed) setCard(s, p.id, 'payday', 'يوم الأجرة', interest ? `راتبك ${dh(p.salary)}، بعد خصم فائدة القروض ${dh(interest)}.` : `قبضت راتبك ${p.job ? `كـ${p.job.title}` : ''}.`, net);
   ctx.fx('correct', p.id);
 }
 
@@ -239,7 +239,7 @@ function land(ctx: GameCtx, s: LifeState, p: Pl) {
     case 'raise': {
       if (p.job) {
         p.salary += R.raise;
-        setCard(s, p.id, 'raise', 'ترقية في العمل', `راتبك يزيد ${dh(R.raise)}، صار ${dh(p.salary)}.`);
+        setCard(s, p.id, 'raise', 'ترقية في العمل', `زاد راتبك ${dh(R.raise)}، فصار ${dh(p.salary)}.`);
       } else {
         p.money += R.raise;
         setCard(s, p.id, 'raise', 'مكافأة', `مكافأة صغيرة على اجتهادك.`, R.raise);
@@ -266,7 +266,7 @@ function land(ctx: GameCtx, s: LifeState, p: Pl) {
       ctx.fx('reveal', p.id);
       return;
     case 'house':
-      if (p.house) s.feed.push(`${name(ctx, p.id)} عنده دار من قبل`, { by: p.id });
+      if (p.house) s.feed.push(`${name(ctx, p.id)} يملك داراً من قبل`, { by: p.id });
       else s.choice = { kind: 'house', cards: shuffle(HOUSES).slice(0, 3).sort((a, z) => a.price - z.price) };
       return;
     case 'retire':
@@ -383,7 +383,7 @@ export const life: GameModule<LifeState, LifeSettings> = {
     if (s.phase === 'final') return;
     const p = cur(s);
     if (!p || !P(s, by)) return;
-    if (p.id !== by) throw new GameError('ماشي دورك');
+    if (p.id !== by) throw new GameError('ليس دورك');
 
     if (a.type === 'repay') {
       if (s.phase !== 'roll' || !p.loans) return;
@@ -428,7 +428,7 @@ export const life: GameModule<LifeState, LifeSettings> = {
       if (c.fork === 1) {
         if (way === 0) {
           addMoney(ctx, s, p, -R.tuition);
-          setCard(s, by, 'uni', 'الجامعة', `اخترت الجامعة: مصاريف الدراسة ${dh(R.tuition)}. المهن بعد التخرج أحسن راتباً.`, -R.tuition);
+          setCard(s, by, 'uni', 'الجامعة', `اخترت الجامعة: مصاريف الدراسة ${dh(R.tuition)}. المهن بعد التخرج أعلى راتباً.`, -R.tuition);
           s.feed.push(`${name(ctx, by)} اختار الجامعة`, { by });
         } else {
           s.choice = { kind: 'job', cards: shuffle(WORK_JOBS).slice(0, 3), degree: false };
@@ -449,7 +449,7 @@ export const life: GameModule<LifeState, LifeSettings> = {
       ctx.fx('correct', by);
     } else if (c.kind === 'house') {
       if (a.id === null || a.id === undefined) {
-        s.feed.push(`${name(ctx, by)} فضّل الكراء`, { by });
+        s.feed.push(`${name(ctx, by)} فضّل الاستئجار`, { by });
       } else {
         const h = isStr(a.id) ? c.cards.find((x) => x.id === a.id) : null;
         if (!h) {

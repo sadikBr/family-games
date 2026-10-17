@@ -58,7 +58,7 @@ export function CountdownBig({ endsAt }: { endsAt: number | null }) {
   const st = useAnimatedStyle(() => ({ opacity: o.get() }));
   return (
     <Animated.View style={[{ alignItems: 'center' }, st]}>
-      <Txt style={{ fontFamily: F.display, fontSize: 110, lineHeight: 150, color: C.yellow }}>{n > 0 ? n : 'يلا'}</Txt>
+      <Txt style={{ fontFamily: F.display, fontSize: 110, lineHeight: 150, color: C.yellow }}>{n > 0 ? n : 'هيا'}</Txt>
     </Animated.View>
   );
 }

@@ -23,7 +23,7 @@ export const joinLink = (code: string) => `familygames://join?code=${code}`;
 
 export function shareRoom(room: RoomView) {
   const title = GAMES[room.game].title;
-  Share.share({ message: `تعال نلعب «${title}» 🎲\nرمز الغرفة: ${room.code}\nافتح الرابط: ${joinLink(room.code)}` }).catch(() => {});
+  Share.share({ message: `انضمّ إلينا لنلعب «${title}» 🎲\nرمز الغرفة: ${room.code}\nافتح الرابط: ${joinLink(room.code)}` }).catch(() => {});
 }
 
 export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; visible: boolean; onClose: () => void; onLobby: () => void }) {
@@ -84,7 +84,7 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
                 size="md"
                 ghost
                 icon="home"
-                label="العودة لغرفة الانتظار"
+                label="العودة إلى غرفة الانتظار"
                 onPress={() => {
                   onClose();
                   onLobby();
