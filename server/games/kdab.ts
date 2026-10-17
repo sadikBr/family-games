@@ -15,7 +15,7 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const FINISH_MS = 5000; // time others get to challenge a player's last cards
-const RANK_NAME: Record<number, string> = { 1: 'الآص', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 10: 'الصوطا', 11: 'العود', 12: 'الري' };
+const RANK_NAME: Record<number, string> = { 1: 'الآس', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 10: 'الخادم', 11: 'الفارس', 12: 'الملك' };
 const rankText = (r: number, n = 2) => (r <= 7 && r !== 1 ? `${n === 1 ? '' : `${n} × `}${r}` : `${n === 1 ? '' : `${n} × `}${RANK_NAME[r]}`);
 
 interface Play {
@@ -143,19 +143,19 @@ export const kdab: GameModule<State, KdabSettings> = {
       return;
     }
 
-    if (cur(s) !== by) throw new GameError('ماشي دورك');
+    if (cur(s) !== by) throw new GameError('ليس دورك');
 
     if (a.type === 'pass') {
       if (s.rank === null) throw new GameError('أنت تبدأ الكومة — العب ورقة على الأقل');
       s.moves += 1;
       s.passes += 1;
-      s.feed.push(`${ctx.playerName(by)} مرّ`, { by });
+      s.feed.push(`${ctx.playerName(by)} مرّر`, { by });
       const others = active(s).filter((id) => id !== s.last?.by).length;
       if (s.passes >= others) {
         // everybody passed: the pile goes away and the last player to play starts afresh
         settleFinishing(ctx, s);
         if ((s.phase as KdabView['phase']) === 'final') return;
-        s.feed.push('الكل مرّ — الكومة تُبعد', {});
+        s.feed.push('مرّر الجميع — تُبعَد الكومة', {});
         s.pile = [];
         s.rank = null;
         s.passes = 0;

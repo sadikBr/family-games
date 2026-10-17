@@ -30,9 +30,9 @@ export const WALK_DELAY = DICE_THROW_MS;
 export const SPACE: Record<LifeKind, { color: string; icon: IconName; name: string; help: string }> = {
   start: { color: '#2FB67C', icon: 'go', name: 'الانطلاق', help: 'هنا يبدأ المشوار.' },
   event: { color: '#F08A3E', icon: 'question', name: 'مفاجأة', help: 'حدث من الحياة: قد تربح أو تخسر.' },
-  payday: { color: '#2F9E6E', icon: 'coins', name: 'يوم الأجرة', help: 'تقبض راتبك كلما مررت من هنا (ناقص فائدة القروض).' },
+  payday: { color: '#2F9E6E', icon: 'coins', name: 'يوم الأجرة', help: 'تقبض راتبك كلما مررت من هنا (بعد خصم فائدة القروض).' },
   family: { color: '#E86FA6', icon: 'heart', name: 'العائلة', help: 'فرد جديد (عائلة أو صديق أو حيوان أليف) وهدية من كل لاعب.' },
-  house: { color: '#4F5BD5', icon: 'house', name: 'المنزل', help: 'توقّف هنا: اختر داراً تشتريها أو واصل بالكراء.' },
+  house: { color: '#4F5BD5', icon: 'house', name: 'المنزل', help: 'توقّف هنا: اختر داراً تشتريها أو واصل مستأجراً.' },
   insure: { color: '#22B8B0', icon: 'hand', name: 'التأمين', help: 'اشترِ التأمين ليحميك من الأعطال والسرقات.' },
   risk: { color: '#E2475F', icon: 'rocket', name: 'مشروع مغامر', help: 'ارمِ النرد إن شئت: ربح كبير أو خسارة.' },
   fork: { color: '#F2B33D', icon: 'swap', name: 'مفترق الطرق', help: 'توقّف هنا واختر طريقك.' },

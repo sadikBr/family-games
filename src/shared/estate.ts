@@ -106,12 +106,12 @@ export const LUCK_CARDS: EstateCard[] = [
   { text: 'تقدّم إلى أقرب محطة قطار', act: { t: 'nearest', kind: 'station' } },
   { text: 'تقدّم إلى أقرب شركة (الماء أو الكهرباء)', act: { t: 'nearest', kind: 'utility' } },
   { text: 'نسيت شيئاً في البيت! ارجع 3 خانات', act: { t: 'back', n: 3 } },
-  { text: 'مخالفة سرعة على الطريق السيار: ادفع 15', act: { t: 'money', amount: -15 } },
+  { text: 'مخالفة سرعة على الطريق السريع: ادفع 15', act: { t: 'money', amount: -15 } },
   { text: 'ربحت مسابقة الطبخ بطاجين رائع: خذ 50', act: { t: 'money', amount: 50 } },
   { text: 'إصلاحات في عقاراتك: 25 لكل منزل و 100 لكل فندق', act: { t: 'repairs', house: 25, hotel: 100 } },
   { text: 'اذهب إلى السجن مباشرة', act: { t: 'jail' } },
   { text: 'بطاقة الخروج من السجن مجاناً', act: { t: 'free' } },
-  { text: 'انتخبوك رئيس جمعية الحي: ادفع لكل لاعب 50', act: { t: 'each', amount: -50 } },
+  { text: 'انتُخبت رئيساً لجمعية الحي: ادفع لكل لاعب 50', act: { t: 'each', amount: -50 } },
   { text: 'استثمار ناجح في السوق: خذ 150', act: { t: 'money', amount: 150 } },
 ];
 
@@ -126,7 +126,7 @@ export const FAMILY_CARDS: EstateCard[] = [
   { text: 'تقدّم إلى «انطلاق» وخذ 200', act: { t: 'goto', to: 0 } },
   { text: 'بطاقة الخروج من السجن مجاناً', act: { t: 'free' } },
   { text: 'اذهب إلى السجن مباشرة', act: { t: 'jail' } },
-  { text: 'حفل زفاف ابن العم: ادفع 100', act: { t: 'money', amount: -100 } },
+  { text: 'حفل زفاف ابن عمك: ادفع 100', act: { t: 'money', amount: -100 } },
   { text: 'ورثت مبلغاً صغيراً: خذ 100', act: { t: 'money', amount: 100 } },
   { text: 'إصلاح سقف الدار: 40 لكل منزل و 115 لكل فندق', act: { t: 'repairs', house: 40, hotel: 115 } },
   { text: 'فزت في مسابقة الحي: خذ 10', act: { t: 'money', amount: 10 } },

@@ -361,7 +361,7 @@ function canBuild(s: State, id: string, i: number): string | null {
   if (!owns(s, id, i)) return 'ليست ملكك';
   if (!ownsGroup(s.props, id, sq.group)) return 'تحتاج كل مدن هذا اللون';
   const g = groupSquares(sq.group);
-  if (g.some((j) => s.props[j].mortgaged)) return 'افكّ رهن مدن هذا اللون أولاً';
+  if (g.some((j) => s.props[j].mortgaged)) return 'فُكّ رهن مدن هذا اللون أولاً';
   if (s.props[i].houses >= 5) return 'فيها فندق';
   if (s.props[i].houses > Math.min(...g.map((j) => s.props[j].houses))) return 'ابنِ بالتساوي على مدن اللون';
   if (P(s, id).cash < sq.house) return 'لا يكفي المال';
@@ -396,7 +396,7 @@ function endAuction(ctx: GameCtx, s: State) {
     s.props[a.sq] = { owner: winner.id, houses: 0, mortgaged: false };
     s.feed.push(`${name(ctx, winner.id)} ربح المزاد: ${sq.name} بـ ${a.price}`, { by: winner.id });
     ctx.fx('correct', winner.id);
-  } else s.feed.push(`لا أحد اشترى ${sq.name} — يبقى للبنك`);
+  } else s.feed.push(`لم يشترِ أحدٌ ${sq.name} — يبقى للبنك`);
   s.moves += 1;
   s.phase = 'manage';
   afterResolve(ctx, s);
@@ -586,7 +586,7 @@ export const estate: GameModule<State, EstateSettings> = {
       return;
     }
 
-    if (!myTurn) throw new GameError('ماشي دورك');
+    if (!myTurn) throw new GameError('ليس دورك');
 
     if (a.type === 'trade') {
       if (s.trade) throw new GameError('هناك عرض ينتظر الرد');

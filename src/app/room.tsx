@@ -32,16 +32,16 @@ function Connecting() {
     <Screen header={<Header onBack={goBack} />} scroll={false}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
         <IconBubble icon={slow && status !== 'online' ? 'wifiOff' : 'door'} size={72} iconColor={C.yellow} />
-        <Txt v="title">جاري الدخول…</Txt>
+        <Txt v="title">جارٍ الدخول…</Txt>
         {slow && status !== 'online' ? (
           <Card style={{ gap: 6 }}>
             <Txt v="bold" center>
-              {isRemoteServer(url) ? 'جاري إيقاظ الخادم…' : 'لا يمكن الوصول إلى الخادم'}
+              {isRemoteServer(url) ? 'جارٍ إيقاظ الخادم…' : 'لا يمكن الوصول إلى الخادم'}
             </Txt>
             <Txt v="small" center color={C.muted}>
               {isRemoteServer(url)
                 ? 'الخادم يستيقظ بعد فترة راحة — قد يستغرق ذلك دقيقة. تأكد أيضاً من اتصال الهاتف بالإنترنت.'
-                : 'تأكد أن الخادم يعمل على الحاسوب (bun run server) وأن الهاتف على نفس شبكة الواي فاي.'}
+                : 'تأكد أن الخادم يعمل على الحاسوب (bun run server) وأن الهاتف متصل بشبكة الواي فاي نفسها.'}
             </Txt>
             <Txt v="tiny" center color={C.dim} style={{ writingDirection: 'ltr' }}>
               {url}
@@ -87,7 +87,7 @@ export default function RoomScreen() {
     wasMyTurn.current = myTurn;
   }, [myTurn]);
 
-  // a game that really started goes to «لعبتم مؤخراً» on the home screen
+  // a game that really started goes to «لعبتموها مؤخراً» on the home screen
   const startedGame = room?.status === 'playing' ? room.game : null;
   useEffect(() => {
     if (startedGame) notePlayed(startedGame);
@@ -169,7 +169,7 @@ export default function RoomScreen() {
         visible={confirmLobby}
         icon="home"
         title="إنهاء اللعبة؟"
-        message="الكل سيرجع لغرفة الانتظار لاختيار لعبة أخرى"
+        message="سيعود الجميع إلى غرفة الانتظار لاختيار لعبة أخرى"
         confirmLabel="نعم"
         cancelLabel="لا"
         onCancel={() => setConfirmLobby(false)}

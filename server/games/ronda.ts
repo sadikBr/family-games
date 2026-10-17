@@ -79,7 +79,7 @@ function announcement(cards: Card[]) {
       best = Math.max(best, 100 + rankIndex(rank));
     }
   }
-  const label = tringa ? 'تريلا!!' : value >= 2 ? 'جوج روندات!' : 'روندا!';
+  const label = tringa ? 'تريلا!!' : value >= 2 ? 'روندتان!' : 'روندا!';
   return { value, best, label };
 }
 
@@ -120,7 +120,7 @@ function announce(ctx: GameCtx, s: State): boolean {
     return addPoints(ctx, s, side, total);
   }
   // equal announcements: everyone keeps their own
-  setAnnounce(s, null, `${named}\nتعادل — كل واحد يأخذ نقاطه`);
+  setAnnounce(s, null, `${named}\nتعادل — يأخذ كلٌّ نقاطه`);
   for (const [side, v] of leaders) if (addPoints(ctx, s, side, v.value)) return true;
   s.feed.push('تعادل في الروندا');
   return false;
@@ -231,7 +231,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       return;
     }
     if (a.type !== 'play' || s.phase !== 'play') return;
-    if (s.seats[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.seats[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isStr(a.card)) return;
     const hand = s.hands[by];
     const card = removeCard(hand, a.card);

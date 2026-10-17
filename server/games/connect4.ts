@@ -58,7 +58,7 @@ export const connect4: GameModule<State, Connect4Settings> = {
     if (!me) return;
     if (a.type === 'resign') return forfeit(ctx, s, by);
     if (a.type !== 'drop') return;
-    if (me !== s.turn) throw new GameError('ماشي دورك');
+    if (me !== s.turn) throw new GameError('ليس دورك');
     if (!isNum(a.col) || a.col < 0 || a.col >= COLS) return;
     const r = dropRow(s.board, a.col);
     if (r < 0) throw new GameError('العمود ممتلئ');

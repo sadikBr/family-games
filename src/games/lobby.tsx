@@ -157,7 +157,7 @@ export function Lobby({ room }: { room: RoomView }) {
           ))}
         </Row>
         {isHost && botsAllowed ? (
-          <Btn size="sm" ghost icon="bot" label="أضف بوت" disabled={botCount >= MAX_BOTS} onPress={() => client.roomAction({ type: 'addBot' })} />
+          <Btn size="sm" ghost icon="bot" label="أضف بوتاً" disabled={botCount >= MAX_BOTS} onPress={() => client.roomAction({ type: 'addBot' })} />
         ) : null}
         {botCount > 0 && !botsAllowed ? (
           <Txt v="small" center color={C.muted}>
@@ -177,12 +177,12 @@ export function Lobby({ room }: { room: RoomView }) {
           <Btn size="xl" icon="play" label="ابدأ اللعبة" color={C.green} disabled={missing > 0 || tooMany} onPress={() => client.roomAction({ type: 'start' })} />
           {tooMany ? (
             <Txt v="small" center color={C.muted}>
-              هذه اللعبة لـ {maxSeats} لاعبين كحد أقصى
+              هذه اللعبة لـ {maxSeats} لاعبين على الأكثر
             </Txt>
           ) : null}
           {missing > 0 ? (
             <Txt v="small" center color={C.muted}>
-              تحتاجون {missing} {missing === 1 ? 'لاعباً' : 'لاعبين'} إضافيين
+              تحتاجون {missing} {missing === 1 ? 'لاعباً إضافياً' : 'لاعبين إضافيين'}
               {botsAllowed ? '، أو أضيفوا بوتات' : ''}
             </Txt>
           ) : null}

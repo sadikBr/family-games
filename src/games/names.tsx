@@ -130,7 +130,7 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
       </Row>
 
       {locked ? (
-        <ResultBanner tone="bad" title="ستوب" sub={`${stopper ? `${stopper.name} قال ستوب` : 'انتهى الوقت'} · ارفعوا الأقلام`} />
+        <ResultBanner tone="bad" title="ستوب" sub={`${stopper ? `${stopper.name} قال «ستوب»` : 'انتهى الوقت'} · ارفعوا الأقلام`} />
       ) : null}
 
       {CATS.map((c) => {
@@ -325,7 +325,7 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
     case 'review':
       return (
         <>
-          <PhaseTitle art={<LetterBadge letter={view.letter} size={64} />} title="المراجعة" sub={view.dict === 'strict' ? 'اضغط على جواب تراه غلطاً للتصويت ضده — وعلى كلمة «؟» لقبولها رغم القاموس' : 'اضغط على جواب تراه غلطاً للتصويت ضده'} />
+          <PhaseTitle art={<LetterBadge letter={view.letter} size={64} />} title="المراجعة" sub={view.dict === 'strict' ? 'اضغط على جواب تراه خاطئاً للتصويت ضده — وعلى كلمة «؟» لقبولها رغم القاموس' : 'اضغط على جواب تراه خاطئاً للتصويت ضده'} />
           <Txt v="small" center color={C.dim}>
             جواب فريد = 10 · مكرر = 5
           </Txt>

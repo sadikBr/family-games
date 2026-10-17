@@ -98,7 +98,7 @@ export const chess: GameModule<State, ChessSettings> = {
       return;
     }
     if (a.type !== 'move') return;
-    if (s.pos.turn !== me) throw new GameError('ماشي دورك');
+    if (s.pos.turn !== me) throw new GameError('ليس دورك');
     if (!isNum(a.from) || !isNum(a.to)) return;
     play(ctx, s, by, a.from, a.to, isStr(a.promo) && 'qrbn'.includes(a.promo) ? a.promo : undefined);
   },

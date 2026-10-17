@@ -45,7 +45,7 @@ export const memory: GameModule<State, MemorySettings> = {
 
   act(ctx, s, by, a) {
     if (s.phase !== 'play' || a.type !== 'flip' || s.peekUntil !== null) return;
-    if (s.order[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.order[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isNum(a.card) || a.card < 0 || a.card >= s.deck.length || s.owners[a.card] || s.flipped.includes(a.card)) return;
     s.flipped.push(a.card);
     s.seen[a.card] = s.deck[a.card];

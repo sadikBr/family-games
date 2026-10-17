@@ -306,7 +306,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
     }
     if (s.phase !== 'play') return;
     if (!s.active.includes(by)) return;
-    if (s.turn !== by) throw new GameError('ماشي دورك');
+    if (s.turn !== by) throw new GameError('ليس دورك');
     const hand = s.hands[by];
     const name = ctx.playerName(by);
     switch (a.type) {
@@ -372,7 +372,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
         const group = s.groups.find((g) => g.id === a.group);
         const cards = takeCards(hand, a.cards);
         if (!isNum(a.group) || !group || !cards || !canHit(group.kind, group.cards, cards)) {
-          throw new GameError('هذه الأوراق لا تركب مع هذه المجموعة');
+          throw new GameError('هذه الأوراق لا تتناسب مع هذه المجموعة');
         }
         removeFrom(hand, cards);
         group.cards.push(...cards);

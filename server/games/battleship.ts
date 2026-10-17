@@ -77,7 +77,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
       return;
     }
     if (a.type !== 'fire') return;
-    if (s.players[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.players[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isNum(a.cell) || a.cell < 0 || a.cell >= BN * BN || s.shots[by][a.cell]) return;
     const enemy = enemyOf(s, by);
     const hit = s.fleets[enemy].some((ship) => ship.includes(a.cell as number));

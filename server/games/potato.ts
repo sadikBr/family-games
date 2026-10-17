@@ -98,7 +98,7 @@ export const potato: GameModule<State, PotatoSettings> = {
         let to: string = a.to;
         if (ctx.isBot(by) && !eligible.includes(to) && eligible.length) to = pick(eligible);
         if (!eligible.includes(to)) {
-          throw new GameError('ممنوع ترجعها لمن رماها لك!');
+          throw new GameError('لا يجوز أن تعيدها إلى من رماها إليك!');
         }
         s.fromId = by;
         s.holderId = to;

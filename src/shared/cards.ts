@@ -1,4 +1,4 @@
-/** The Moroccan / Spanish 40-card deck (الكارطة). Shared by app and server. */
+/** The Moroccan / Spanish 40-card deck (ورق اللعب). Shared by app and server. */
 
 export type Suit = 'coins' | 'cups' | 'swords' | 'clubs';
 
@@ -13,15 +13,15 @@ export const RANKS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 
 export const SUIT_INFO: Record<Suit, { name: string; emoji: string; color: string }> = {
   coins: { name: 'ذهب', emoji: '🪙', color: '#C98A00' },
-  cups: { name: 'كوبا', emoji: '🏆', color: '#D7263D' },
+  cups: { name: 'كؤوس', emoji: '🏆', color: '#D7263D' },
   swords: { name: 'سيوف', emoji: '🗡️', color: '#2563EB' },
-  clubs: { name: 'زرواطة', emoji: '🪵', color: '#15803D' },
+  clubs: { name: 'عصيّ', emoji: '🪵', color: '#15803D' },
 };
 
 export const FIGURES: Record<number, { name: string; emoji: string }> = {
-  10: { name: 'الصوطا', emoji: '🧒' },
-  11: { name: 'العود', emoji: '🐎' },
-  12: { name: 'الري', emoji: '👑' },
+  10: { name: 'الخادم', emoji: '🧒' },
+  11: { name: 'الفارس', emoji: '🐎' },
+  12: { name: 'الملك', emoji: '👑' },
 };
 
 export function cardName(c: Card): string {

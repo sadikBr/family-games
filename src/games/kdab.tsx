@@ -17,7 +17,7 @@ import { CardRow, Felt, LastEvent, PlayingCard, Seats } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
 
-const RANK_NAME: Record<number, string> = { 1: 'آص', 10: 'صوطا', 11: 'عود', 12: 'ري' };
+const RANK_NAME: Record<number, string> = { 1: 'الآس', 10: 'الخادم', 11: 'الفارس', 12: 'الملك' };
 const rankLabel = (r: number) => RANK_NAME[r] ?? String(r);
 
 export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
@@ -107,7 +107,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
 
       <View style={{ gap: 8 }}>
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? (starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank!)}» — أو مرّ`) : `دور ${h.player(view.turn).name}…`}
+          {myTurn ? (starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank!)}» — أو مرّر`) : `دور ${h.player(view.turn).name}…`}
         </Txt>
         <CardRow
           cards={view.myHand}
@@ -147,7 +147,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
                 setClaim(null);
               }}
             />
-            {!starting ? <Btn size="lg" ghost label="مرّ" onPress={() => h.act('pass')} /> : null}
+            {!starting ? <Btn size="lg" ghost label="مرّر" onPress={() => h.act('pass')} /> : null}
           </Row>
         ) : null}
       </View>

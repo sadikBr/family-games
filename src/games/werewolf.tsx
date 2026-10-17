@@ -98,7 +98,7 @@ const SCRIPT: Record<WolfStep, { art: ScriptArt; say: string; todo?: string }> =
   wolves: { art: { role: 'wolf' }, say: 'أيها الذئاب، افتحوا أعينكم، واختاروا ضحيتكم بالإشارة', todo: 'اضغط على الضحية التي اختارتها الذئاب' },
   doctor: { art: { role: 'doctor' }, say: 'أيها الطبيب، افتح عينيك. من تريد أن تحمي الليلة؟', todo: 'اضغط على من اختار الطبيب حمايته' },
   seer: { art: { role: 'seer' }, say: 'أيتها العرّافة، افتحي عينيك. من تريدين أن تكشفي؟', todo: 'اضغط على من اختارته، ثم أشر لها بالجواب' },
-  wake: { art: { icon: 'sun' }, say: 'طلع الصباح، الجميع يفتح عينيه', todo: 'اضغط الزر لمعرفة ما حدث في الليل' },
+  wake: { art: { icon: 'sun' }, say: 'أشرق الصباح، الجميع يفتح عينيه', todo: 'اضغط الزر لمعرفة ما حدث في الليل' },
   announce: { art: { icon: 'bell' }, say: '' },
   vote: { art: { icon: 'vote' }, say: 'تناقشوا وصوّتوا: من تشكّون أنه ذئب؟', todo: 'اضغط على اللاعب الذي اختارته القرية' },
   hunter: { art: { role: 'hunter' }, say: 'الصيّاد مات، وسيأخذ معه لاعباً واحداً. من يختار؟', todo: 'اضغط على اختيار الصيّاد' },
@@ -227,7 +227,7 @@ function Narrator({ room, view }: { room: RoomView; view: WerewolfView }) {
         ) : null}
         {stepRole[n.step] && roleDead(stepRole[n.step]!) ? (
           <Txt v="small" color={C.yellow}>
-            هذا الدور ميت. قلها على كل حال حتى لا يعرف أحد، ثم تابع
+            صاحب هذا الدور ميت. قل العبارة على كل حال حتى لا يعرف أحد، ثم تابع
           </Txt>
         ) : null}
       </Animated.View>
@@ -239,7 +239,7 @@ function Narrator({ room, view }: { room: RoomView; view: WerewolfView }) {
             <Row gap={6} center>
               <Icon name="bot" size={16} color={C.cyan} />
               <Txt v="small" center color={C.cyan}>
-                هذا الدور لبوت، تم الاختيار تلقائياً
+                هذا الدور لبوت، وقد اختار تلقائياً
               </Txt>
             </Row>
           ) : null}

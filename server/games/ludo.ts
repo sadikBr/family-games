@@ -162,7 +162,7 @@ export const ludo: GameModule<State, LudoSettings> = {
 
   act(ctx, s, by, a) {
     if (s.phase === 'final') return;
-    if (current(s) !== by) throw new GameError('ماشي دورك');
+    if (current(s) !== by) throw new GameError('ليس دورك');
     if (a.type === 'roll') {
       if (s.phase !== 'roll') return;
       const d = 1 + Math.floor(Math.random() * 6);
@@ -173,7 +173,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       if (d === 6) {
         s.sixes += 1;
         if (s.sixes === 3) {
-          s.feed.push(`${ctx.playerName(by)}: ثلاث ستات! ضاع الدور`, { by });
+          s.feed.push(`${ctx.playerName(by)}: ثلاث رميات من 6 متتالية! ضاع الدور`, { by });
           nextTurn(s);
           s.dice = d;
           return;

@@ -38,7 +38,7 @@ export const xo: GameModule<State, XoSettings> = {
     if (s.phase !== 'play' || a.type !== 'mark') return;
     const me = by === s.x ? 'x' : by === s.o ? 'o' : null;
     if (!me) return;
-    if (me !== s.turn) throw new GameError('ماشي دورك');
+    if (me !== s.turn) throw new GameError('ليس دورك');
     if (!isNum(a.cell) || a.cell < 0 || a.cell >= s.board.length || s.board[a.cell]) return;
     s.board[a.cell] = me;
     s.last = a.cell;

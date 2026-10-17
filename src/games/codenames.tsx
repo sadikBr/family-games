@@ -208,7 +208,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           </>
         ) : (
           <Txt v="bold">
-            {iGiveClue ? 'أنت القائد: أعط تلميحاً لفريقك' : `ينتظر تلميح قائد ${TEAM[view.turn].name}`}
+            {iGiveClue ? 'أنت القائد: أعط تلميحاً لفريقك' : `في انتظار تلميح قائد ${TEAM[view.turn].name}`}
           </Txt>
         )}
       </View>

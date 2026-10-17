@@ -464,7 +464,7 @@ export const survey: GameModule<State, SurveySettings> = {
     const isBot = (id: string) => bots.includes(id) || ctx.isBot(id);
     switch (s.phase) {
       case 'teams':
-        // only a room full of bots (everyone offline) starts by itself; people press «يلا نبدأ»
+        // only a room full of bots (everyone offline) starts by itself; people press «هيا نبدأ»
         if (s.participants.length && s.participants.every(isBot)) ctx.bot(s.participants[0], 'begin', randDelay(1500, 2500), { type: 'begin' });
         return;
       case 'faceoff': {

@@ -112,7 +112,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           {isHost ? (
             <>
               <Btn size="md" ghost icon="shuffle" label="خلط الفرق" onPress={() => act('shuffle')} />
-              <Btn size="xl" icon="play" label="يلا نبدأ" color={C.green} onPress={() => act('begin')} />
+              <Btn size="xl" icon="play" label="هيا نبدأ" color={C.green} onPress={() => act('begin')} />
             </>
           ) : (
             <HostNote>في انتظار المضيف</HostNote>
@@ -127,13 +127,13 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           {notice}
           <PhaseTitle
             art={<Avatar player={actor} size={88} ring={active.color} />}
-            title={isActor ? 'دورك تمثّل' : `${actor.name} سيمثّل`}
+            title={isActor ? 'دورك في التمثيل' : `${actor.name} سيمثّل`}
             sub={`دور ${active.name}`}
           />
           <Card>
             <Txt center>
               {isActor
-                ? 'ستظهر لك كلمة. مثّلها بلا كلام ولا أصوات، ولا تشر إلى الحروف. اضغط «صح» عندما يخمّنها فريقك.'
+                ? 'ستظهر لك كلمة. مثّلها بلا كلام ولا أصوات، ولا تشر إلى الحروف. اضغط «صحيح» عندما يخمّنها فريقك.'
                 : onActiveTeam
                   ? 'شاهد جيداً وقل تخميناتك بصوت عالٍ!'
                   : 'أنتم تراقبون: سترون الكلمة على هواتفكم. ممنوع المساعدة!'}
@@ -172,7 +172,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
             <>
               <WordCard card={card} big />
               <Row gap={10}>
-                <Btn flex size="xl" icon="check" label="صح" color={C.green} silent onPress={() => act('ok', { index: card.index })} />
+                <Btn flex size="xl" icon="check" label="صحيح" color={C.green} silent onPress={() => act('ok', { index: card.index })} />
                 <Btn
                   flex
                   size="xl"
@@ -184,7 +184,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
                 />
               </Row>
               <Txt v="tiny" center color={C.dim}>
-                {unlimited ? 'التخطّي مجاني' : view.skipsLeft > 0 ? `باقي ${num(view.skipsLeft)} تخطٍّ مجاني، بعده يكلّف نقطة` : 'انتهى التخطّي المجاني: كل تخطٍّ الآن يكلّف نقطة'}
+                {unlimited ? 'التخطّي مجاني' : view.skipsLeft > 0 ? `التخطّي المجاني المتبقي: ${num(view.skipsLeft)}، وبعده يكلّف كل تخطٍّ نقطة` : 'انتهى التخطّي المجاني: كل تخطٍّ الآن يكلّف نقطة'}
               </Txt>
             </>
           ) : onActiveTeam ? (

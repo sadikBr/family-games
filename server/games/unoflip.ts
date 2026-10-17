@@ -307,7 +307,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       return;
     }
 
-    if (s.seats[s.turnIdx] !== by) throw new GameError('ماشي دورك');
+    if (s.seats[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (s.choosing) return;
 
     if (a.type === 'draw') {

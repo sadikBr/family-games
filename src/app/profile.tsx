@@ -45,7 +45,7 @@ export default function ProfileScreen() {
   return (
     <Screen
       header={<Header title={isFirst ? '' : 'ملفي'} onBack={isFirst ? undefined : goBack} />}
-      footer={<Btn size="xl" icon="check" label={isFirst ? 'يلا نلعب' : 'حفظ'} color={C.green} disabled={!name.trim()} onPress={save} />}>
+      footer={<Btn size="xl" icon="check" label={isFirst ? 'هيا نلعب' : 'حفظ'} color={C.green} disabled={!name.trim()} onPress={save} />}>
       {isFirst ? (
         <View style={{ alignItems: 'center' }}>
           <Txt v="display" color={C.yellow}>
@@ -66,7 +66,7 @@ export default function ProfileScreen() {
         <Field
           value={name}
           onChangeText={setName}
-          placeholder="مثلاً: ماما، بابا، يوسف…"
+          placeholder="مثلاً: يوسف، مريم، الجدّة…"
           placeholderTextColor={C.dim}
           maxLength={20}
           style={styles.input}

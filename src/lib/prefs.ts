@@ -59,7 +59,7 @@ export function toggleFavorite(id: GameId) {
   set({ ...prefs, favorites: on ? prefs.favorites.filter((x) => x !== id) : [id, ...prefs.favorites] });
 }
 
-/** A game was played on this phone: it goes to the front of «لعبتم مؤخراً». */
+/** A game was played on this phone: it goes to the front of «لعبتموها مؤخراً». */
 export function notePlayed(id: GameId) {
   load();
   if (prefs.recent[0] === id) return;

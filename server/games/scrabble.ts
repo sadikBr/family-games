@@ -222,7 +222,7 @@ export const scrabble: GameModule<State, ScrabbleSettings> = {
     if (s.phase !== 'play' || !s.order.includes(by)) return;
     // a bot move planned for an earlier turn (the turn timed out meanwhile): drop it
     if (a.turn !== undefined && a.turn !== s.turnNo) return;
-    if (s.turn !== by) throw new GameError('ماشي دورك');
+    if (s.turn !== by) throw new GameError('ليس دورك');
     switch (a.type) {
       case 'play':
         try {

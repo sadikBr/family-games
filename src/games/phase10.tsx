@@ -364,7 +364,7 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
     else hint = 'اختر أوراقاً ثم اضغط على خانة، أو اختر ورقة واحدة لترميها';
   } else if (playing && laid) {
     if (anyFits) hint = 'اضغط على مجموعة مضاءة لتضيف إليها';
-    else if (sel.length > 1) hint = 'هذه الأوراق لا تركب معاً على مجموعة — جرّب ورقة واحدة';
+    else if (sel.length > 1) hint = 'هذه الأوراق لا تصلح معاً لأي مجموعة — جرّب ورقة واحدة';
     else hint = 'اختر ورقة لتضيفها إلى مجموعة على الطاولة، أو لترميها';
   }
 

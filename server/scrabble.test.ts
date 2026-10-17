@@ -138,7 +138,7 @@ test('analyse: blanks score 0 and seven tiles earn the +50 bonus', () => {
 test('play: valid word scores and refills the rack; a word not in the dictionary is refused by name', () => {
   const { ctx, s, p, q } = setup();
   const bag = s.bag.length;
-  expect(() => scrabble.act(ctx, s, q, { type: 'pass' })).toThrow('ماشي دورك');
+  expect(() => scrabble.act(ctx, s, q, { type: 'pass' })).toThrow('ليس دورك');
   const bad = place(s, p, 'ززز', 7, 6);
   expect(() => scrabble.act(ctx, s, p, { type: 'play', tiles: bad })).toThrow('«ززز» ليست في القاموس');
   expect(s.board.every((c: unknown) => c === null)).toBe(true);

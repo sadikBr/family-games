@@ -108,7 +108,7 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
           {isHost ? (
             <>
               <Btn size="md" ghost icon="shuffle" label="خلط الفرق" onPress={() => act('shuffle')} />
-              <Btn size="xl" icon="play" label="يلا نبدأ" color={C.green} onPress={() => act('begin')} />
+              <Btn size="xl" icon="play" label="هيا نبدأ" color={C.green} onPress={() => act('begin')} />
             </>
           ) : (
             <HostNote>في انتظار المضيف</HostNote>
@@ -157,8 +157,8 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
             <>
               <TabooCardView card={view.card} />
               <Row gap={10}>
-                <Btn flex size="xl" icon="check" label="صح" color={C.green} silent onPress={() => act('ok', { index: view.card!.index })} />
-                <Btn flex size="xl" icon="skip" label="تخطّي" color={C.orange} silent onPress={() => act('skip', { index: view.card!.index })} />
+                <Btn flex size="xl" icon="check" label="صحيح" color={C.green} silent onPress={() => act('ok', { index: view.card!.index })} />
+                <Btn flex size="xl" icon="skip" label="تخطَّ" color={C.orange} silent onPress={() => act('skip', { index: view.card!.index })} />
               </Row>
             </>
           ) : onActiveTeam ? (

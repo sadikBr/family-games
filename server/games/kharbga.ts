@@ -108,7 +108,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     const side: Side | null = by === s.attacker ? 1 : by === s.defender ? 2 : null;
     if (!side) return;
     if (a.type === 'resign') return end(ctx, s, other(side), 'resign');
-    if (side !== s.turn) throw new GameError('ماشي دورك');
+    if (side !== s.turn) throw new GameError('ليس دورك');
 
     if (s.phase === 'place') {
       if (a.type === 'undo') {

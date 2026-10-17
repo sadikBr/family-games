@@ -229,7 +229,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
         )}
         {view.phase === 'draw' && !isDrawer && iGuessed ? (
           <Txt v="tiny" center color={C.green}>
-            خمّنت صح!
+            أصبت! خمّنت الكلمة
           </Txt>
         ) : null}
       </View>
