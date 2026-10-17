@@ -8,11 +8,11 @@ import { C } from '@/theme';
 import { Card as Panel, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, Felt, FeedList, LastEvent, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
+import { AnnounceBanner, CardRow, DOUBLE_TAP_MS, FeedList, Felt, LastEvent, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
 
 /** Cards a play would take: the match + the following sequence. */
 function preview(table: Card[], card: Card): string[] {
@@ -30,6 +30,7 @@ function preview(table: Card[], card: Card): string[] {
 export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   const h = helpers(room);
   const [sel, setSel] = useState<string | null>(null);
+  const [selAt, setSelAt] = useState(0);
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
 
   const mySide = view.sides.find((x) => x.members.includes(h.me))?.key;
@@ -39,6 +40,13 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   const play = (id: string) => {
     h.act('play', { card: id });
     setSel(null);
+  };
+  const tap = (id: string) => {
+    const now = tapClock();
+    if (sel !== id) {
+      setSel(id);
+      setSelAt(now);
+    } else if (now - selAt >= DOUBLE_TAP_MS) play(id);
   };
   const strip = <ScoreStrip sides={view.sides} scores={view.scores} h={h} target={view.target} />;
 
@@ -67,7 +75,7 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
         </Txt>
         <Panel>
           <Txt v="small" color={C.muted}>
-            كل ورقة فوق 20 = نقطة
+            كل ورقة فوق {num(view.base)} = نقطة
           </Txt>
           {view.handSummary?.map((r) => (
             <Row key={r.side} gap={8}>
@@ -95,7 +103,9 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
       <Seats seats={others} turn={view.turn} counts={view.handCounts} h={h} />
       <Felt active={myTurn}>
         <CardRow cards={view.table} size="sm" glow={glow} empty="الطاولة فارغة" />
+        <LastPlay play={view.lastPlay} h={h} />
         <LastEvent feed={view.feed} h={h} />
+        <AnnounceBanner announce={view.announce} h={h} />
       </Felt>
       <Txt v="tiny" center color={C.dim}>
         اليد {view.hand} · في الكومة {view.deckLeft}
@@ -106,7 +116,7 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
           cards={view.myHand}
           size="lg"
           selected={sel ? [sel] : []}
-          onPress={myTurn ? (c) => (sel === c.id ? play(c.id) : setSel(c.id)) : undefined}
+          onPress={myTurn ? (c) => tap(c.id) : undefined}
         />
         {myTurn && selected ? (
           <Btn

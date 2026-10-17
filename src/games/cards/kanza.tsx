@@ -12,7 +12,7 @@ import { Txt } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, Felt, LastEvent, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
+import { CardRow, Felt, FeedList, LastEvent, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
 
 const TARGET = 15;
 
@@ -88,6 +88,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           ))}
         </Panel>
         {strip}
+        <FeedList feed={view.feed} h={h} />
         {final ? (
           <PlayAgain room={room} />
         ) : h.isHost ? (
@@ -117,6 +118,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
               : undefined
           }
         />
+        <LastPlay play={view.lastPlay} h={h} />
         <LastEvent feed={view.feed} h={h} />
       </Felt>
       <Txt v="tiny" center color={C.dim}>
