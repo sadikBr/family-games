@@ -48,8 +48,12 @@ interface State {
   log: string[];
   auto: Partial<Record<WolfPickStep, boolean>>;
   seerKnown: Record<string, boolean>; // what a bot seer has learned (true = wolf)
-  accusations: { by: string; target: string }[];
+  /** bot accusations, each shown once its time has come */
+  accusations: { by: string; target: string; at: number }[];
   accusedDay: number;
+  accShown: number;
+  /** why the game ended early (e.g. the narrator left) */
+  endNote: string | null;
 }
 
 const WIN_TEXT: Record<WolfWinner, string> = {
@@ -132,6 +136,7 @@ function startNight(ctx: GameCtx, s: State) {
   s.mayorPick = null;
   s.auto = {};
   s.accusations = [];
+  s.accShown = 0;
   ctx.fx('tick');
 }
 
@@ -274,6 +279,7 @@ function resetGame(ctx: GameCtx, s: State) {
   deal(s);
   s.day = 0;
   s.winner = null;
+  s.endNote = null;
   s.lastDeaths = null;
   s.lastEliminated = undefined;
   s.log = [];
@@ -350,6 +356,8 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
       seerKnown: {},
       accusations: [],
       accusedDay: 0,
+      accShown: 0,
+      endNote: null,
     };
     resetGame(ctx, s);
     return s;
@@ -456,8 +464,18 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
           }
         : null,
       roleCounts,
-      accusations: s.phase === 'day' ? s.accusations : [],
+      accusations: s.phase === 'day' ? s.accusations.filter((a) => a.at <= ctx.now).map((a) => ({ by: a.by, target: a.target })) : [],
+      endNote: s.endNote,
     };
+  },
+
+  tick(ctx, s) {
+    // reveal the bots' day accusations one by one
+    if (s.phase !== 'day' || s.accShown >= s.accusations.length) return false;
+    const shown = s.accusations.filter((a) => a.at <= ctx.now).length;
+    if (shown === s.accShown) return false;
+    s.accShown = shown;
+    return true;
   },
 
   botPlan(ctx, s) {
@@ -550,6 +568,8 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
     if (s.phase === 'day' && s.accusedDay !== s.day) {
       s.accusedDay = s.day;
       s.accusations = [];
+      s.accShown = 0;
+      let at = ctx.now;
       const seerBot = alive.find((id) => s.roles[id] === 'seer' && ctx.isBot(id));
       const knownWolf = seerBot ? alive.find((id) => s.seerKnown[id]) : undefined;
       for (const b of alive.filter((id) => ctx.isBot(id))) {
@@ -564,7 +584,8 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
         } else {
           target = pick(others);
         }
-        s.accusations.push({ by: b, target });
+        at += 2000 + Math.random() * 2000; // one every 2–4 s
+        s.accusations.push({ by: b, target, at });
       }
       changed = true;
     }
@@ -572,6 +593,14 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
   },
 
   onLeave(ctx, s, id) {
+    if (id === s.narratorId && s.phase !== 'over') {
+      // nobody can run the game any more: reveal everything so the host can start again
+      s.endNote = 'غادر الراوي — انتهت اللعبة';
+      s.log.push(s.endNote);
+      endGame(ctx, s, null);
+      ctx.fx('reveal');
+      return;
+    }
     if (s.participants.includes(id)) {
       kill(s, id);
       if (s.phase !== 'over') finishIfWon(ctx, s);

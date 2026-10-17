@@ -6,13 +6,14 @@ import type { ImposterView, RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti, HoldReveal, Scoreboard } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Confetti, HoldReveal, Podium, Scoreboard, TimerBar } from '@/ui/fun';
+import { Txt, num } from '@/ui/txt';
 
-import { HostNote, PhaseTitle, ResultBanner, Spectator, WaitingFor } from './common';
+import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
 import { helpers } from './helpers';
 
 const INK_SOFT = '#6B6488';
+const GUESS_MS = 25_000; // keep in sync with server/games/imposter.ts
 
 function SecretCard({ view, height, partners }: { view: ImposterView; height?: number; partners?: string }) {
   const s = view.secret;
@@ -69,7 +70,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle title={`الجولة ${view.round}`} sub="شوف سرّك بدون ما يشوفك أحد" />
+          <PhaseTitle title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="شوف سرّك بدون ما يشوفك أحد" />
           <SecretCard view={view} partners={partnerNames} />
           <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'شفت، جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
           <WaitingFor players={notReady} />
@@ -148,6 +149,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
         return (
           <>
             <PhaseTitle icon="target" color={C.red} title="انكشفت" sub="فرصة أخيرة: ما هي الكلمة السرية؟" />
+            <TimerBar endsAt={view.guessEndsAt} total={GUESS_MS} onTick />
             <View style={{ gap: 10 }}>
               {view.guessOptions.map((w) => (
                 <Btn key={w} size="lg" label={w} color={C.surfaceStrong} textColor={C.text} onPress={() => act('guess', { word: w })} />
@@ -159,6 +161,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       return (
         <>
           <PhaseTitle title={`${g.name} انكشف`} />
+          <TimerBar endsAt={view.guessEndsAt} total={GUESS_MS} />
           <Card style={{ alignItems: 'center', gap: 10 }}>
             <Avatar player={g} size={92} />
             <Txt v="h3" center>
@@ -172,12 +175,14 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
     case 'result': {
       const r = view.result!;
       const iWasImposter = r.imposters.includes(me);
+      const last = view.round >= view.totalRounds;
       const iWon = (r.winners === 'imposters') === iWasImposter;
       const accused = r.accused ? player(r.accused) : null;
       let story: string;
       if (!accused) story = 'تعادل في الأصوات، فنجا الدخيل';
       else if (!r.caught) story = `صوّتم على ${accused.name} وهو بريء`;
       else if (r.guessCorrect) story = `انكشف ${accused.name}، لكنه خمّن الكلمة`;
+      else if (r.guessed === '') story = `أمسكتم بالدخيل ${accused.name}، ولم يخمّن الكلمة في الوقت`;
       else story = `أمسكتم بالدخيل ${accused.name}`;
       return (
         <>
@@ -226,10 +231,35 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
             <Scoreboard players={room.players} scores={view.scores} highlight={me} />
           </Card>
           {isHost ? (
-            <Btn size="xl" icon="refresh" label="جولة جديدة" onPress={() => act('next')} />
+            last ? (
+              <Btn size="xl" icon="trophy" label="النتيجة النهائية" onPress={() => act('next')} />
+            ) : (
+              <Btn size="xl" icon="refresh" label="جولة جديدة" onPress={() => act('next')} />
+            )
           ) : (
-            <HostNote>المضيف يبدأ الجولة التالية</HostNote>
+            <HostNote>{last ? 'المضيف يعرض النتيجة النهائية' : 'المضيف يبدأ الجولة التالية'}</HostNote>
           )}
+        </>
+      );
+    }
+
+    case 'final': {
+      const scores = Object.fromEntries(view.participants.map((id) => [id, view.scores[id] ?? 0]));
+      const best = Math.max(...Object.values(scores));
+      const winners = Object.keys(scores).filter((id) => scores[id] === best);
+      const won = winners.includes(me);
+      return (
+        <>
+          {won ? <Confetti /> : null}
+          <ResultBanner
+            tone={won ? 'good' : 'neutral'}
+            art={<GameArt id="imposter" size={84} />}
+            title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
+            sub="انتهت كل الجولات"
+          />
+          <Podium players={room.players} scores={scores} />
+          <Scoreboard players={room.players} scores={scores} highlight={me} />
+          <PlayAgain room={room} />
         </>
       );
     }

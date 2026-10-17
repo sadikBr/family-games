@@ -170,6 +170,7 @@ export interface ImposterSettings {
   category: string; // 'random' or a category key
   imposters: number; // 0 = auto
   hintForImposter: boolean; // imposter sees the category
+  rounds: number;
 }
 
 export interface NamesSettings {
@@ -340,7 +341,7 @@ export interface AllSettings {
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
-  imposter: { category: 'random', imposters: 0, hintForImposter: true },
+  imposter: { category: 'random', imposters: 0, hintForImposter: true, rounds: 5 },
   names: { rounds: 5, seconds: 90, stop: true },
   headsup: { category: 'random', seconds: 60, turnsEach: 1 },
   taboo: { seconds: 60, turnsEach: 3 },
@@ -389,6 +390,7 @@ export interface ImposterResult {
   imposters: string[];
   word: string;
   caught: boolean;
+  /** the caught imposter's guess; '' = missed (time ran out or left) */
   guessed: string | null;
   guessCorrect: boolean | null;
   winners: 'civilians' | 'imposters';
@@ -396,8 +398,9 @@ export interface ImposterResult {
 
 export interface ImposterView {
   game: 'imposter';
-  phase: 'reveal' | 'clues' | 'vote' | 'guess' | 'result';
+  phase: 'reveal' | 'clues' | 'vote' | 'guess' | 'result' | 'final';
   round: number;
+  totalRounds: number;
   participants: string[];
   secret: ImposterSecret | null;
   ready: string[];
@@ -406,6 +409,8 @@ export interface ImposterView {
   myVote: string | null;
   guessOptions: string[] | null; // only for the caught imposter
   guesserId: string | null;
+  /** when the last-chance guess runs out */
+  guessEndsAt: number | null;
   /** clues "said" by bots (shown on screen) */
   botClues: Record<string, string>;
   result: ImposterResult | null;
@@ -481,6 +486,10 @@ export interface TabooView {
   card: { index: number; word: string; forbidden: string[] } | null;
   history: { word: string; result: TabooCardResult }[];
   teamScores: [number, number];
+  /** the last «قالها» can still be taken back (by the describer or the host) */
+  undoBuzz: { by: string } | null;
+  /** short message for everyone (an undo, or a player moved to balance the teams) */
+  notice: string | null;
 }
 
 export interface PotatoView {
@@ -498,6 +507,8 @@ export interface PotatoView {
   loserId: string | null;
   /** word said by a bot when it threw the potato */
   lastWord: { by: string; word: string } | null;
+  /** who the holder may throw to right now (only sent to the holder) */
+  targets: string[];
 }
 
 export type WolfRole = 'wolf' | 'villager' | 'seer' | 'doctor' | 'hunter' | 'witch' | 'guard' | 'tanner' | 'whitewolf' | 'bigwolf';
@@ -564,6 +575,8 @@ export interface WerewolfView {
   roleCounts: Partial<Record<WolfRole, number>>;
   /** bots accusing someone during the day */
   accusations: { by: string; target: string }[];
+  /** why the game ended early (e.g. the narrator left) */
+  endNote: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -750,6 +763,10 @@ export interface CodenamesView {
   winner: 'red' | 'blue' | null;
   reason: 'words' | 'assassin' | null;
   log: { team: 'red' | 'blue'; clue: string; n: number; picks: { word: string; color: CodeColor }[] }[];
+  /** why the last turn just ended (shown for a few seconds) */
+  turnNote: { team: 'red' | 'blue'; text: string } | null;
+  /** team screen message, e.g. after a team lost its players */
+  notice: string | null;
 }
 
 /** Board: 64 squares, row-major from the top. 1 / 2 = white man / king, -1 / -2 = black man / king. */
@@ -1007,6 +1024,8 @@ export interface WaveView {
   spectrum: [string, string];
   target: number | null; // 0..100, hidden from guessers until the reveal
   clue: string | null;
+  /** whose clue time ran out this round (the clue moved on to `psychic`) */
+  passedFrom: string | null;
   locked: string[];
   myGuess: number | null;
   guesses: Record<string, number> | null; // revealed
@@ -1027,6 +1046,8 @@ export interface WordleView {
   others: { id: string; rows: WordleMark[][]; solved: boolean; done: boolean }[];
   answer: string | null; // revealed
   endsAt: number | null;
+  /** half of the players are done, so the round time was cut to a minute */
+  hurried: boolean;
   results: { id: string; tries: number | null; points: number }[] | null;
   scores: Record<string, number>;
 }

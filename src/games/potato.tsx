@@ -102,9 +102,7 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
 
     case 'play': {
       if (iHold) {
-        const targets = view.participants.filter(
-          (id) => id !== me && player(id).connected && !(view.participants.length > 2 && id === view.fromId),
-        );
+        const targets = view.targets;
         return (
           <>
             {topic}
@@ -123,6 +121,11 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
                 <PlayerTag key={id} player={player(id)} size={64} onPress={() => act('throw', { to: id })} />
               ))}
             </Row>
+            {targets.length ? null : (
+              <Txt v="small" center color={C.dim}>
+                لا يوجد لاعب متصل الآن لترمي له — انتظر قليلاً
+              </Txt>
+            )}
           </>
         );
       }

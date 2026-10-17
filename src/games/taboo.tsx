@@ -68,6 +68,24 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
   const active = TEAM[view.activeTeam];
   const okCount = view.history.filter((h) => h.result === 'ok').length;
   const lastBuzz = view.history.filter((h) => h.result === 'buzz').length;
+  const notice = view.notice ? (
+    <Card color={alpha(C.yellow, 0.18)}>
+      <Txt v="bold" center>
+        {view.notice}
+      </Txt>
+    </Card>
+  ) : null;
+  const undo =
+    view.undoBuzz && (isDescriber || isHost) ? (
+      <Btn
+        size="md"
+        icon="refresh"
+        label={`تراجع عن «قالها» (${player(view.undoBuzz.by).name})`}
+        color={C.surfaceStrong}
+        textColor={C.text}
+        onPress={() => act(isDescriber ? 'undoBuzz' : 'hostUndo')}
+      />
+    ) : null;
 
   switch (view.phase) {
     case 'teams':
@@ -102,6 +120,7 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
       return (
         <>
           <ScoreHeader view={view} />
+          {notice}
           <PhaseTitle
             art={<Avatar player={describer} size={88} ring={active.color} />}
             title={isDescriber ? 'أنت الشارح' : `${describer.name} سيشرح`}
@@ -132,6 +151,8 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
         <>
           <ScoreHeader view={view} />
           <TimerBar endsAt={view.endsAt} total={room.settings.taboo.seconds * 1000} onTick={isDescriber} />
+          {notice}
+          {undo}
           {isDescriber && view.card ? (
             <>
               <TabooCardView card={view.card} />
@@ -171,6 +192,7 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
         <>
           <PhaseTitle icon="clock" title="انتهى الوقت" sub={`${active.name}: ${num(pts)}`} />
           <ScoreHeader view={view} />
+          {notice}
           <Card>
             <Row wrap gap={6}>
               {view.history.map((h, i) => (

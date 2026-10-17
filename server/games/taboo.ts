@@ -17,7 +17,16 @@ interface State {
   counter: number;
   history: { word: string; result: TabooCardResult }[];
   teamScores: [number, number];
+  /** the last «قالها», which the describer or host may take back for a few seconds */
+  lastBuzz: { at: number; card: NonNullable<State['card']>; by: string } | null;
+  /** a card that was buzzed and then restored: it can't be buzzed again */
+  noBuzz: number | null;
+  /** short message for everyone (e.g. a player was moved to keep the teams playable) */
+  notice: { text: string; until: number } | null;
 }
+
+export const UNDO_MS = 5000;
+const NOTICE_MS = 6000;
 
 function deck(ctx: GameCtx): Deck<TabooCard> {
   let d = ctx.memo.get('taboo') as Deck<TabooCard> | undefined;
@@ -59,6 +68,7 @@ function pickDescriber(ctx: GameCtx, s: State) {
 }
 
 function drawCard(ctx: GameCtx, s: State) {
+  s.lastBuzz = null;
   const c = deck(ctx).draw();
   s.counter += 1;
   s.card = { index: s.counter, word: c.word, forbidden: c.forbidden };
@@ -68,6 +78,7 @@ function endTurn(ctx: GameCtx, s: State) {
   s.phase = 'turnEnd';
   s.endsAt = null;
   s.card = null;
+  s.lastBuzz = null;
   ctx.fx('tick');
 }
 
@@ -77,9 +88,39 @@ function teamOf(s: State, id: string): 0 | 1 | -1 {
   return -1;
 }
 
+/** Take back the last «قالها»: the point returns and the describer keeps that card. */
+function undoBuzz(ctx: GameCtx, s: State) {
+  const b = s.lastBuzz;
+  if (s.phase !== 'play' || !b || ctx.now - b.at > UNDO_MS) return;
+  const i = s.history.map((h) => h.result).lastIndexOf('buzz');
+  if (i >= 0) s.history.splice(i, 1);
+  s.teamScores[activeTeam(s)] += 1;
+  s.card = b.card;
+  s.noBuzz = b.card.index;
+  s.lastBuzz = null;
+  s.notice = { text: `تراجع عن «قالها» (${ctx.playerName(b.by)}) — النقطة رجعت`, until: ctx.now + NOTICE_MS };
+  ctx.fx('reveal');
+}
+
+/** After someone leaves: a team needs at least 2 players, so move one over from the bigger team. */
+function balanceTeams(ctx: GameCtx, s: State) {
+  if (s.phase === 'teams' || s.phase === 'final') return;
+  for (const t of [0, 1] as const) {
+    const o = t === 0 ? 1 : 0;
+    if (s.teams[t].length >= 2 || s.teams[o].length <= 2) continue;
+    const pool = s.teams[o].filter((id) => id !== s.describerId);
+    const mover = pool.find((id) => ctx.isConnected(id)) ?? pool[0];
+    if (!mover) continue;
+    s.teams[o] = s.teams[o].filter((id) => id !== mover);
+    s.teams[t] = [...s.teams[t], mover];
+    s.notice = { text: `انتقل ${ctx.playerName(mover)} إلى ${t === 0 ? 'الفريق الأحمر' : 'الفريق الأزرق'} ليبقى في كل فريق لاعبان`, until: ctx.now + NOTICE_MS };
+    ctx.fx('reveal');
+  }
+}
+
 export const taboo: GameModule<State, TabooSettings> = {
   id: 'taboo',
-  hostOnly: ['shuffle', 'swap', 'begin', 'endTurn'],
+  hostOnly: ['shuffle', 'swap', 'begin', 'endTurn', 'hostUndo'],
 
   start(ctx, participants, settings) {
     const s: State = {
@@ -96,6 +137,9 @@ export const taboo: GameModule<State, TabooSettings> = {
       counter: 0,
       history: [],
       teamScores: [0, 0],
+      lastBuzz: null,
+      noBuzz: null,
+      notice: null,
     };
     pickDescriber(ctx, s);
     return s;
@@ -150,12 +194,21 @@ export const taboo: GameModule<State, TabooSettings> = {
         if (!fresh || !s.card) return;
         const t = teamOf(s, by);
         if (t === -1 || t === activeTeam(s)) return; // only the other team can buzz
-        s.history.push({ word: s.card.word, result: 'buzz' });
+        if (s.noBuzz === s.card.index) return; // this card was already buzzed (and taken back)
+        const card = s.card;
+        s.history.push({ word: card.word, result: 'buzz' });
         s.teamScores[activeTeam(s)] -= 1;
         ctx.fx('buzz', by);
         drawCard(ctx, s);
+        s.lastBuzz = { at: ctx.now, card, by };
         return;
       }
+      case 'undoBuzz':
+        if (by === s.describerId) undoBuzz(ctx, s);
+        return;
+      case 'hostUndo':
+        undoBuzz(ctx, s);
+        return;
       case 'endTurn':
         if (s.phase === 'play') endTurn(ctx, s);
         return;
@@ -182,7 +235,16 @@ export const taboo: GameModule<State, TabooSettings> = {
       endTurn(ctx, s);
       return true;
     }
-    return false;
+    let changed = false;
+    if (s.lastBuzz && ctx.now - s.lastBuzz.at > UNDO_MS) {
+      s.lastBuzz = null;
+      changed = true;
+    }
+    if (s.notice && ctx.now >= s.notice.until) {
+      s.notice = null;
+      changed = true;
+    }
+    return changed;
   },
 
   view(ctx, s, me): TabooView {
@@ -203,15 +265,17 @@ export const taboo: GameModule<State, TabooSettings> = {
       card: hide ? null : s.card,
       history: s.history,
       teamScores: s.teamScores,
+      undoBuzz: s.lastBuzz ? { by: s.lastBuzz.by } : null,
+      notice: s.notice?.text ?? null,
     };
   },
 
   onLeave(ctx, s, id) {
     s.participants = s.participants.filter((p) => p !== id);
     s.teams = [s.teams[0].filter((p) => p !== id), s.teams[1].filter((p) => p !== id)];
-    if (s.describerId === id) {
-      if (s.phase === 'play') endTurn(ctx, s);
-      pickDescriber(ctx, s);
-    }
+    const wasDescriber = s.describerId === id;
+    if (wasDescriber && s.phase === 'play') endTurn(ctx, s);
+    balanceTeams(ctx, s);
+    if (wasDescriber) pickDescriber(ctx, s);
   },
 };

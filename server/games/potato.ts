@@ -111,7 +111,11 @@ export const potato: GameModule<State, PotatoSettings> = {
         if (s.phase !== 'boom') return;
         if (s.round >= s.settings.rounds) {
           s.phase = 'final';
-          ctx.fx('win');
+          // fewest burns wins
+          const least = Math.min(...s.participants.map((id) => s.burns[id] ?? 0));
+          const top = s.participants.filter((id) => (s.burns[id] ?? 0) === least);
+          if (top.length === 1) ctx.fx('win', top[0]);
+          else ctx.fx('win');
           return;
         }
         newRound(ctx, s, s.loserId ?? pick(s.participants));
@@ -144,7 +148,7 @@ export const potato: GameModule<State, PotatoSettings> = {
     return false;
   },
 
-  view(ctx, s): PotatoView {
+  view(ctx, s, me): PotatoView {
     return {
       game: 'potato',
       phase: s.phase,
@@ -159,6 +163,7 @@ export const potato: GameModule<State, PotatoSettings> = {
       burns: s.burns,
       loserId: s.loserId,
       lastWord: s.lastWord,
+      targets: s.phase === 'play' && me === s.holderId ? eligibleTargets(ctx, s) : [],
     };
   },
 

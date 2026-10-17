@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
@@ -10,7 +11,7 @@ import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -83,6 +84,33 @@ function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; o
   );
 }
 
+/** Compact list of the clues given so far, newest first. */
+function ClueLog({ view }: { view: CodenamesView }) {
+  if (!view.log.length) return null;
+  return (
+    <Card>
+      <Txt v="h3">التلميحات</Txt>
+      <View style={{ gap: 4 }}>
+        {[...view.log].reverse().map((l, i) => (
+          <Row key={view.log.length - i} gap={6} wrap>
+            <View style={[styles.dot, { backgroundColor: TEAM[l.team].color }]} />
+            <Txt v="bold">
+              «{l.clue}» {l.n === 0 ? '∞' : num(l.n)}
+            </Txt>
+            {l.picks.map((p, j) => (
+              <View key={j} style={[styles.pick, { backgroundColor: CARD_BG[p.color] }]}>
+                <Txt v="tiny" color={p.color === 'neutral' ? C.ink : '#FFFFFF'}>
+                  {p.word}
+                </Txt>
+              </View>
+            ))}
+          </Row>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
 export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesView }) {
   const h = helpers(room);
   const [clue, setClue] = useState('');
@@ -93,6 +121,13 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
     return (
       <>
         <PhaseTitle icon="users" title="الفرق والقادة" sub={h.isHost ? 'اضغط على لاعب لنقله، وعلى التاج لجعله قائداً' : 'المضيف يجهّز الفرق'} />
+        {view.notice ? (
+          <Card color={alpha(C.red, 0.18)}>
+            <Txt v="bold" center>
+              {view.notice}
+            </Txt>
+          </Card>
+        ) : null}
         {(['red', 'blue'] as const).map((t) => (
           <Card key={t} outline={alpha(TEAM[t].color, 0.7)}>
             <Row gap={8}>
@@ -142,6 +177,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
   const myTurnTeam = view.myTeam === view.turn;
   const iGiveClue = view.phase === 'clue' && view.amSpymaster && myTurnTeam;
   const iGuess = view.phase === 'guess' && myTurnTeam && !view.amSpymaster;
+  const canPass = !!view.log[view.log.length - 1]?.picks.length;
   const onCard = iGuess
     ? (i: number) => {
         if (picking === i) return;
@@ -153,6 +189,13 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
   return (
     <>
       <TeamScores view={view} />
+      {view.turnNote ? (
+        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(300)} style={[styles.note, { backgroundColor: TEAM[view.turnNote.team].color }]}>
+          <Txt v="bold" center color="#FFFFFF">
+            {TEAM[view.turnNote.team].name}: {view.turnNote.text}
+          </Txt>
+        </Animated.View>
+      ) : null}
       <View style={[styles.banner, { backgroundColor: alpha(TEAM[view.turn].color, 0.22), borderColor: TEAM[view.turn].color }]}>
         {view.clue ? (
           <>
@@ -218,13 +261,15 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
               اختر كلمة وتناقشوا، ثم اكشفها · محاولات متبقية: {view.guessesLeft >= 25 ? '∞' : view.guessesLeft}
             </Txt>
           )}
-          <Btn size="sm" ghost icon="skip" label="أنهِ الدور" onPress={() => h.act('pass')} />
+          <Btn size="sm" ghost icon="skip" label={canPass ? 'أنهِ الدور' : 'اكشفوا كلمة قبل إنهاء الدور'} disabled={!canPass} onPress={() => h.act('pass')} />
         </View>
       ) : view.phase === 'guess' && !myTurnTeam ? (
         <Txt v="small" center color={C.muted}>
           {TEAM[view.turn].name} يخمّن الآن
         </Txt>
       ) : null}
+
+      <ClueLog view={view} />
     </>
   );
 }
@@ -235,6 +280,8 @@ const styles = StyleSheet.create({
   banner: { borderRadius: 18, borderWidth: 2, padding: 12, alignItems: 'center', gap: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', direction: 'rtl' },
   word: { flexBasis: '17%', flexGrow: 1, minWidth: 0, height: 58, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, overflow: 'hidden' },
+  note: { borderRadius: 14, paddingVertical: 6, paddingHorizontal: 12 },
+  pick: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   tint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   who: { position: 'absolute', bottom: 2, flexDirection: 'row', gap: -4 },
   input: {

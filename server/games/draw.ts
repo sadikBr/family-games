@@ -39,6 +39,19 @@ interface State {
 
 const drawer = (s: State) => s.order[s.turn];
 
+/** Every connected guesser has found the word (offline players don't hold the turn up). */
+function allGuessed(ctx: GameCtx, s: State) {
+  if (!s.guessed.length) return false;
+  return s.order.filter((id) => id !== drawer(s) && ctx.isConnected(id)).every((id) => s.guessed.some((g) => g.id === id));
+}
+
+/** The only top scorer, or null on a tie. */
+function topScorer(s: State): string | null {
+  const best = Math.max(...s.order.map((id) => s.scores[id] ?? 0));
+  const top = s.order.filter((id) => (s.scores[id] ?? 0) === best);
+  return top.length === 1 ? top[0] : null;
+}
+
 /** Edit distance ≤ 1 → "close". */
 function oneEdit(a: string, b: string) {
   if (Math.abs(a.length - b.length) > 1 || a === b) return false;
@@ -108,7 +121,9 @@ function advance(ctx: GameCtx, s: State) {
   if (s.round > s.settings.rounds) {
     s.phase = 'final';
     s.endsAt = 0;
-    ctx.fx('win');
+    const w = topScorer(s);
+    if (w) ctx.fx('win', w);
+    else ctx.fx('win');
     return;
   }
   startTurn(ctx, s);
@@ -194,7 +209,7 @@ export const draw: GameModule<State, DrawSettings> = {
         s.guessed.push({ id: by, pts: Math.max(20, pts) });
         s.feed.push({ id: ++s.feedN, by, text: '', ok: true });
         ctx.fx('correct', by);
-        if (s.guessed.length >= s.order.length - 1) endTurn(ctx, s);
+        if (allGuessed(ctx, s)) endTurn(ctx, s);
         return;
       }
       if (oneEdit(guess, target) || (target.includes(guess) && guess.length >= 3)) s.close.add(by);
@@ -272,6 +287,9 @@ export const draw: GameModule<State, DrawSettings> = {
     if (wasDrawer) {
       s.turn -= 1;
       advance(ctx, s);
+      return;
     }
+    s.guessed = s.guessed.filter((g) => g.id !== id);
+    if (s.phase === 'draw' && allGuessed(ctx, s)) endTurn(ctx, s);
   },
 };

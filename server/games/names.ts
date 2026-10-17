@@ -44,6 +44,16 @@ interface State {
 
 const cellKey = (player: string, cat: string) => `${player}|${cat}`;
 
+/** «ستوب» off: once every connected human said «أنهيت», end the writing. */
+function checkAllDone(ctx: GameCtx, s: State) {
+  if (s.phase !== 'write') return;
+  const waiting = s.participants.filter((id) => !s.done.includes(id) && ctx.isConnected(id) && !ctx.isBot(id));
+  if (waiting.length) return;
+  s.phase = 'stopping';
+  s.endsAt = ctx.now + GRACE_MS;
+  ctx.fx('buzz');
+}
+
 function newRound(ctx: GameCtx, s: State) {
   s.round += 1;
   s.letter = s.letters[(s.round - 1) % s.letters.length];
@@ -139,19 +149,15 @@ export const names: GameModule<State, NamesSettings> = {
       }
       case 'stop': {
         if (s.phase !== 'write' || !isPlayer) return;
-        if (isStr(a.cat) && isStr(a.text)) s.answers[by][a.cat] = a.text.slice(0, 30);
-        if (filledCount(s, by) < CATS.length) throw new GameError('املأ كل الخانات أولاً قبل «ستوب»');
+        if (isStr(a.cat) && isStr(a.text) && CATS.includes(a.cat)) (s.answers[by] ??= {})[a.cat] = a.text.slice(0, 30);
         if (!s.settings.stop) {
-          // «ستوب» is off: mark this player as done; the round ends with the timer or when all are done
+          // «ستوب» is off: mark this player as done (even with empty boxes);
+          // the round ends with the timer or when all are done
           if (!s.done.includes(by)) s.done.push(by);
-          const waiting = s.participants.filter((id) => !s.done.includes(id) && ctx.isConnected(id) && !ctx.isBot(id));
-          if (!waiting.length) {
-            s.phase = 'stopping';
-            s.endsAt = ctx.now + GRACE_MS;
-            ctx.fx('buzz');
-          }
+          checkAllDone(ctx, s);
           return;
         }
+        if (filledCount(s, by) < CATS.length) throw new GameError('املأ كل الخانات أولاً قبل «ستوب»');
         s.phase = 'stopping';
         s.stoppedBy = by;
         s.endsAt = ctx.now + GRACE_MS;
@@ -183,7 +189,10 @@ export const names: GameModule<State, NamesSettings> = {
         if (s.round >= s.settings.rounds) {
           s.phase = 'final';
           s.endsAt = null;
-          ctx.fx('win');
+          const best = Math.max(...s.participants.map((id) => s.scores[id] ?? 0));
+          const top = s.participants.filter((id) => (s.scores[id] ?? 0) === best);
+          if (top.length === 1) ctx.fx('win', top[0]);
+          else ctx.fx('win');
           return;
         }
         newRound(ctx, s);
@@ -272,5 +281,7 @@ export const names: GameModule<State, NamesSettings> = {
 
   onLeave(ctx, s, id) {
     s.participants = s.participants.filter((p) => p !== id);
+    s.done = s.done.filter((p) => p !== id);
+    if (s.done.length) checkAllDone(ctx, s);
   },
 };
