@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeInUp, FadeOut, FadeOutUp, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -167,6 +167,8 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // narrow phones: the buttons stack so their labels are never cut off
+  const narrow = useWindowDimensions().width < 360;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.backdrop}>
@@ -183,10 +185,17 @@ export function ConfirmModal({
               {message}
             </Txt>
           ) : null}
-          <Row gap={10} style={{ marginTop: 10 }}>
-            <Btn flex size="md" label={cancelLabel} ghost onPress={onCancel} />
-            <Btn flex size="md" label={confirmLabel} color={danger ? C.red : C.yellow} onPress={onConfirm} />
-          </Row>
+          {narrow ? (
+            <View style={{ marginTop: 10, gap: 8, alignSelf: 'stretch' }}>
+              <Btn size="md" label={confirmLabel} color={danger ? C.red : C.yellow} onPress={onConfirm} />
+              <Btn size="md" label={cancelLabel} ghost onPress={onCancel} />
+            </View>
+          ) : (
+            <Row gap={10} style={{ marginTop: 10 }}>
+              <Btn flex size="md" label={cancelLabel} ghost onPress={onCancel} />
+              <Btn flex size="md" label={confirmLabel} color={danger ? C.red : C.yellow} onPress={onConfirm} />
+            </Row>
+          )}
         </Animated.View>
       </View>
     </Modal>
