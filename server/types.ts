@@ -13,6 +13,13 @@ export interface GameCtx {
    * `key` de-duplicates: the same bot + key is only ever scheduled once per game.
    */
   bot(botId: string, key: string, delayMs: number, action: GameAction): void;
+  /**
+   * Tell everyone, in one short فصحى sentence, what just happened («روبو لعب ٧ ذهب وأخذ ورقتين»).
+   * Shown under the turn bar on every phone, so a fast move by someone else is never missed.
+   * `by` = who made the move (their avatar is shown). Broadcast to all: never put hidden information
+   * in it (which card was stolen, someone's role…). Optional so tests' fake contexts can skip it.
+   */
+  say?(text: string, by?: string): void;
 }
 
 export interface GameModule<S, Settings> {

@@ -1403,6 +1403,12 @@ export interface RoomView {
   categories: { imposter: CategoryInfo[]; headsup: CategoryInfo[] };
   /** true while the game is waiting for me to play (drives the your-turn alert) */
   myTurn: boolean;
+  /** who the game is waiting for right now (turn-based games; empty when everyone plays at once or unknown) */
+  turn: string[];
+  /** how fast bots play, set by the host */
+  pace: Pace;
+  /** the last move announced by the game (see GameCtx.say), for the strip under the turn bar */
+  said: Said | null;
   /** who is in the room's voice chat (connected players only) */
   voice: VoiceMember[];
 }
@@ -1445,7 +1451,23 @@ export type RoomAction =
   | { type: 'start' }
   | { type: 'lobby' }
   | { type: 'kick'; id: string }
-  | { type: 'addBot' };
+  | { type: 'addBot' }
+  | { type: 'pace'; pace: Pace };
+
+/**
+ * Bot speed. Besides scaling the bots' own thinking time, the room always leaves a pause after
+ * someone else's move before a bot plays its turn, so everyone can see what just happened.
+ */
+export type Pace = 'slow' | 'normal' | 'fast';
+
+/** A move announced by the game: «روبو لعب ٧ ذهب». */
+export interface Said {
+  id: number;
+  text: string;
+  by?: string;
+}
+export const PACES: Pace[] = ['slow', 'normal', 'fast'];
+export const PACE_LABEL: Record<Pace, string> = { slow: 'بطيئة', normal: 'عادية', fast: 'سريعة' };
 
 export type ServerMsg =
   | { t: 'welcome'; now: number }

@@ -9,11 +9,11 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { isMuted, onMuteChange, setMuted } from '@/lib/sfx';
-import type { RoomView } from '@/shared/protocol';
+import { PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { ConfirmModal } from '@/ui/controls';
+import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 import { GAMES } from './meta';
@@ -50,6 +50,16 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
               <Btn flex size="md" icon="share" label="ادعُ أحداً" onPress={() => shareRoom(room)} />
               <Btn size="md" ghost icon={muted ? 'mute' : 'sound'} label={muted ? 'الصوت مطفأ' : 'الصوت'} onPress={() => setMuted(!muted)} />
             </Row>
+
+            <Txt v="bold" color={C.muted}>
+              سرعة البوتات{isHost ? '' : ' (يغيّرها المضيف)'}
+            </Txt>
+            <ChipPicker
+              options={PACES.map((k) => ({ key: k, label: PACE_LABEL[k] }))}
+              value={room.pace ?? 'normal'}
+              editable={isHost}
+              onChange={(pace) => client.roomAction({ type: 'pace', pace })}
+            />
 
             <Txt v="bold" color={C.muted}>
               اللاعبون

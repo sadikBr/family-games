@@ -6,11 +6,11 @@ import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { BOT_GAMES, MAX_BOTS, MAX_PLAYERS, type RoomView } from '@/shared/protocol';
+import { BOT_GAMES, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
-import { ConfirmModal } from '@/ui/controls';
+import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 import { helpers } from './helpers';
@@ -158,6 +158,19 @@ export function Lobby({ room }: { room: RoomView }) {
         </Row>
         {isHost && botsAllowed ? (
           <Btn size="sm" ghost icon="bot" label="أضف بوتاً" disabled={botCount >= MAX_BOTS} onPress={() => client.roomAction({ type: 'addBot' })} />
+        ) : null}
+        {botCount > 0 && botsAllowed ? (
+          <Row gap={8} wrap style={{ justifyContent: 'center' }}>
+            <Txt v="small" color={C.muted}>
+              سرعة البوتات
+            </Txt>
+            <ChipPicker
+              options={PACES.map((k) => ({ key: k, label: PACE_LABEL[k] }))}
+              value={room.pace ?? 'normal'}
+              editable={isHost}
+              onChange={(pace) => client.roomAction({ type: 'pace', pace })}
+            />
+          </Row>
         ) : null}
         {botCount > 0 && !botsAllowed ? (
           <Txt v="small" center color={C.muted}>

@@ -6,6 +6,7 @@ import { Pressable, View, useWindowDimensions } from 'react-native';
 import { GameArt } from '@/art/game-art';
 import { GameView } from '@/games/game-view';
 import { Lobby } from '@/games/lobby';
+import { TurnBar } from '@/games/turn-bar';
 import { VoiceButton, VoiceStrip } from '@/games/voice-ui';
 import { RoomMenu, shareRoom } from '@/games/room-menu';
 import { GAMES } from '@/games/meta';
@@ -143,6 +144,7 @@ export default function RoomScreen() {
           />
           <ConnectionBanner />
           <VoiceStrip room={room} />
+          <TurnBar room={room} />
         </>
       }>
       {playing && room.view ? <GameView room={room} view={room.view} /> : <Lobby room={room} />}

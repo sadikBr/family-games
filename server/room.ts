@@ -17,6 +17,9 @@ import {
   type PlayerInfo,
   type PlayerPublic,
   type RoomAction,
+  type Pace,
+  type Said,
+  PACES,
   type RoomView,
   type ServerMsg,
 } from '../src/shared/protocol';
@@ -152,6 +155,19 @@ const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris'];
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
+/**
+ * Pacing for turn-based play, so people can follow what happens:
+ * - think: multiplies the delay a game gives its bot for its own turn;
+ * - after: the least time between someone else's move (or a new round) and a bot's move;
+ * - again: the least time between two steps of the same bot's turn (roll → move, place → follower…).
+ * Moves everyone makes at once (answers, votes) are not slowed down: they race a timer.
+ */
+const PACE: Record<Pace, { think: number; after: number; again: number }> = {
+  slow: { think: 2, after: 2600, again: 1400 },
+  normal: { think: 1.4, after: 1700, again: 950 },
+  fast: { think: 1, after: 800, again: 400 },
+};
+
 const BOT_PERSONAS = [
   { name: 'روبو', avatar: 'robot', color: '#22B8B0' },
   { name: 'بيبو', avatar: 'robot', color: '#7B61D9' },
@@ -210,6 +226,12 @@ export class Room {
   /** who took part when the current game started */
   private seated: string[] = [];
   lastActivity = Date.now();
+  pace: Pace = 'normal';
+  /** the last move the game announced (cleared when a game starts or ends) */
+  private said: Said | null = null;
+  private saidCounter = 0;
+  /** the last change to the game: when, and by whom ('' for a timer / new round) */
+  private lastChange = { at: 0, by: '' };
 
   constructor(
     public readonly code: string,
@@ -231,6 +253,9 @@ export class Room {
       fx: (kind: FxKind, target?: string) => {
         this.fx = { id: ++this.fxCounter, kind, target };
       },
+      say: (text: string, by?: string) => {
+        this.said = { id: ++this.saidCounter, text, by };
+      },
       isConnected: (id) => this.players.some((p) => p.id === id && p.connected),
       isBot: (id) => this.autopilot.has(id) || this.players.some((p) => p.id === id && p.bot),
       playerName: (id) => this.players.find((p) => p.id === id)?.name ?? '؟',
@@ -239,9 +264,37 @@ export class Room {
         const k = `${this.gameSeq}|${botId}|${key}`;
         if (this.botKeys.has(k)) return;
         this.botKeys.add(k);
-        this.botJobs.push({ at: now + delayMs * BOT_SPEED, botId, action, seq: this.gameSeq, key: k });
+        const think = this.soleTurn(botId) ? PACE[this.pace].think : 1;
+        this.botJobs.push({ at: now + delayMs * think * BOT_SPEED, botId, action, seq: this.gameSeq, key: k });
       },
     };
+  }
+
+  /** Who the game waits for now (turn-based games only). */
+  private turnNow(): string[] {
+    if (this.status !== 'playing' || !this.state || !this.module.turnOf) return [];
+    try {
+      return this.module.turnOf(this.state);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Is it this player's turn alone (a turn-based move, not something everyone does at once)? */
+  private soleTurn(id: string) {
+    const t = this.turnNow();
+    return t.length === 1 && t[0] === id;
+  }
+
+  /** The earliest a bot may make its turn move, so the previous move stays visible for a moment. */
+  private paceReady(botId: string) {
+    if (!this.soleTurn(botId)) return 0;
+    const p = PACE[this.pace];
+    return this.lastChange.at + (this.lastChange.by === botId ? p.again : p.after) * BOT_SPEED;
+  }
+
+  private markChange(by: string) {
+    this.lastChange = { at: Date.now(), by };
   }
 
   private humans() {
@@ -421,6 +474,12 @@ export class Room {
         this.patchSettings(a.game, a.patch ?? {});
         break;
       }
+      case 'pace': {
+        // the host can change it any time, also during a game
+        if (!isHost || !PACES.includes(a.pace)) return;
+        this.pace = a.pace;
+        break;
+      }
       case 'addBot': {
         if (!isHost || this.status !== 'lobby') return;
         this.addBot();
@@ -451,8 +510,10 @@ export class Room {
         this.botJobs = [];
         const ctx = this.ctx();
         this.seated = participants;
+        this.said = null;
         this.state = this.module.start(ctx, participants, settings);
         this.status = 'playing';
+        this.markChange('');
         break;
       }
       case 'lobby': {
@@ -482,6 +543,7 @@ export class Room {
       throw new GameError('هذا الزر للمضيف فقط');
     }
     this.module.act(this.ctx(), this.state, by, a);
+    this.markChange(by);
     this.afterChange();
   }
 
@@ -492,7 +554,10 @@ export class Room {
       return;
     }
     let changed = housekeeping;
-    if (this.module.tick && this.module.tick(this.ctx(), this.state)) changed = true;
+    if (this.module.tick && this.module.tick(this.ctx(), this.state)) {
+      changed = true;
+      this.markChange('');
+    }
 
     // run due bot actions
     const now = Date.now();
@@ -502,8 +567,15 @@ export class Room {
       for (const job of due) {
         if (job.seq !== this.gameSeq || !this.state) continue;
         if (!this.players.some((p) => p.id === job.botId)) continue;
+        // too soon after the last move: wait so people can see what just happened
+        const ready = this.paceReady(job.botId);
+        if (Date.now() < ready) {
+          this.botJobs.push({ ...job, at: ready });
+          continue;
+        }
         try {
           this.module.act(this.ctx(), this.state, job.botId, job.action);
+          this.markChange(job.botId);
           changed = true;
         } catch (e) {
           if (!(e instanceof GameError)) console.error('bot error', e);
@@ -713,6 +785,9 @@ export class Room {
       fx: this.fx,
       categories: categoriesInfo,
       myTurn: this.status === 'playing' && !!this.state && !!this.module.turnOf?.(this.state).includes(me),
+      turn: this.turnNow(),
+      said: this.status === 'playing' ? this.said : null,
+      pace: this.pace,
       voice: [...this.voice].map(([id, v]) => ({ id, muted: v.muted })),
     };
   }
