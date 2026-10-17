@@ -217,7 +217,8 @@ export function ThrownDice(props: DiceProps) {
 
   return (
     <Animated.View style={[{ width, height }, fade]} pointerEvents="none">
-      <GLView key={`${Math.round(width)}x${Math.round(height)}`} style={{ width, height }} onContextCreate={onContextCreate} />
+      {/* pointerEvents on the canvas itself too: on the web the parent's 'none' doesn't reach it, and it would swallow taps meant for the board */}
+      <GLView key={`${Math.round(width)}x${Math.round(height)}`} style={{ width, height, pointerEvents: 'none' }} onContextCreate={onContextCreate} />
     </Animated.View>
   );
 }
