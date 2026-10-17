@@ -10,7 +10,7 @@ import { C, F } from '@/theme';
 import { IconBubble } from '@/ui/bits';
 import { Header } from '@/ui/controls';
 import { Shake } from '@/ui/fun';
-import { Screen } from '@/ui/screen';
+import { Screen, useContentWidth } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'];
@@ -20,6 +20,9 @@ export default function JoinScreen() {
   const [waiting, setWaiting] = useState(false);
   const [seenError, setSeenError] = useState<number | null>(null);
   const { room, error } = useClient();
+  const contentWidth = useContentWidth();
+  const padW = Math.min(288, contentWidth);
+  const keyW = Math.floor((padW - 20) / 3);
 
   // entered the room → go!
   useEffect(() => {
@@ -73,7 +76,7 @@ export default function JoinScreen() {
           </View>
         </Shake>
 
-        <View style={styles.pad}>
+        <View style={[styles.pad, { width: padW }]}>
           {KEYS.map((k) => (
             <Pressable
               key={k}
@@ -81,6 +84,7 @@ export default function JoinScreen() {
               accessibilityLabel={k === 'del' ? 'مسح' : k === 'ok' ? 'دخول' : k}
               style={({ pressed }) => [
                 styles.key,
+                { width: keyW },
                 k === 'del' && { backgroundColor: 'transparent' },
                 k === 'ok' && { backgroundColor: shown.length === 4 ? C.green : 'transparent' },
                 pressed && { opacity: 0.6 },

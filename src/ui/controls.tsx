@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6, gap: 8 },
   headerSide: { minWidth: 42, flexDirection: 'row', gap: 6, alignItems: 'center' },
   headerEnd: { justifyContent: 'flex-end' },
-  headerTitle: { flex: 1, alignItems: 'center' },
+  headerTitle: { flex: 1, minWidth: 0, alignItems: 'center' },
   settingRow: { paddingVertical: 6, minHeight: 48 },
   switch: { width: 48, height: 28, borderRadius: 14, padding: 3, justifyContent: 'center' },
   knob: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF', alignSelf: 'flex-start' },

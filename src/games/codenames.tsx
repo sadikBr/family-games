@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6 },
   banner: { borderRadius: 18, borderWidth: 2, padding: 12, alignItems: 'center', gap: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', direction: 'rtl' },
-  word: { width: '18.4%', height: 58, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, overflow: 'hidden' },
+  word: { flexBasis: '17%', flexGrow: 1, minWidth: 0, height: 58, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, overflow: 'hidden' },
   tint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   who: { position: 'absolute', bottom: 2, flexDirection: 'row', gap: -4 },
   input: {

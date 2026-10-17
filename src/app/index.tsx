@@ -11,10 +11,10 @@ import { haptic, isMuted, onMuteChange, play, setMuted } from '@/lib/sfx';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
-import { Screen } from '@/ui/screen';
+import { Screen, useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-function GameTile({ game }: { game: GameMeta }) {
+function GameTile({ game, width }: { game: GameMeta; width: number }) {
   return (
     <Pressable
       onPress={() => {
@@ -25,8 +25,8 @@ function GameTile({ game }: { game: GameMeta }) {
       }}
       accessibilityRole="button"
       accessibilityLabel={game.title}
-      style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}>
-      <GameArt id={game.id} size={104} />
+      style={({ pressed }) => [styles.tile, { width }, pressed && styles.tilePressed]}>
+      <GameArt id={game.id} size={Math.min(104, width - 40)} />
       <Txt v="h3" center numberOfLines={1}>
         {game.title}
       </Txt>
@@ -47,6 +47,10 @@ export default function Home() {
   const { profile, isNew, loaded } = useProfile();
   const { lastCode } = useClient();
   const [muted, setMutedState] = useState(isMuted());
+  const contentWidth = useContentWidth();
+  // two tiles per row on phones (three on wide screens), sized to always fit side by side
+  const cols = contentWidth >= 500 ? 3 : 2;
+  const tileWidth = Math.floor((contentWidth - GAP * (cols - 1)) / cols);
   useEffect(() => onMuteChange(setMutedState), []);
 
   if (loaded && isNew) return <Redirect href="/profile?first=1" />;
@@ -67,7 +71,7 @@ export default function Home() {
         </Row>
       }>
       <View style={styles.hero}>
-        <HeroArt width={250} />
+        <HeroArt width={Math.min(250, contentWidth - 20)} />
         <Txt center color={C.muted}>
           كل واحد يلعب من هاتفه
         </Txt>
@@ -98,7 +102,7 @@ export default function Home() {
           <Txt v="h2">{g.title}</Txt>
           <View style={styles.grid}>
             {g.games.map((id) => (
-              <GameTile key={id} game={GAMES[id]} />
+              <GameTile key={id} game={GAMES[id]} width={tileWidth} />
             ))}
           </View>
         </View>
@@ -106,6 +110,8 @@ export default function Home() {
     </Screen>
   );
 }
+
+const GAP = 10;
 
 const styles = StyleSheet.create({
   top: { paddingHorizontal: 16, paddingTop: 8 },
@@ -120,11 +126,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   hero: { alignItems: 'center', gap: 2, marginTop: 4, marginBottom: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   tile: {
-    width: '48.5%',
-    flexGrow: 1,
-    maxWidth: '50%',
     alignItems: 'center',
     gap: 2,
     paddingTop: 12,

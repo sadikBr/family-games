@@ -1,6 +1,6 @@
 /** «كلمة السر» — race to find the hidden 5-letter word. Arabic on-screen keyboard, no system keyboard needed. */
 import { useState } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
@@ -10,6 +10,7 @@ import { KEY_ROWS } from '@/shared/wordle';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { TimerBar } from '@/ui/fun';
+import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { Spectator } from './common';
@@ -29,7 +30,7 @@ function Tile({ ch, mark, size, active }: { ch: string; mark?: WordleMark; size:
 
 export function WordleGame({ room, view }: { room: RoomView; view: WordleView }) {
   const h = helpers(room);
-  const { width } = useWindowDimensions();
+  const contentWidth = useContentWidth();
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="wordle" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
@@ -40,8 +41,11 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
   const solved = view.myRows.some((r) => r.marks.every((m) => m === 'g'));
   const out = solved || view.myRows.length >= view.maxTries;
   const playing = view.phase === 'play' && !out;
-  const tile = Math.min(56, (Math.min(width, 520) - 80) / view.length);
-  const keyW = Math.min(36, (Math.min(width, 520) - 40) / 11 - 4);
+  const tile = Math.min(56, (contentWidth - 30) / view.length);
+  // the keyboard has 6px padding and 4px gaps: 11 keys on the top rows, 8 keys + enter + delete on the last
+  const keysW = contentWidth - 12;
+  const keyW = Math.floor(Math.min(36, (keysW - 10 * 4) / 11));
+  const wideW = Math.floor(Math.min(64, (keysW - 9 * 4 - 8 * keyW) / 2));
 
   // best colour seen for each letter, for the keyboard
   const best: Record<string, WordleMark> = {};
@@ -120,10 +124,14 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
           {KEY_ROWS.map((row, ri) => (
             <Row key={ri} gap={4} center>
               {ri === 2 ? (
-                <Pressable onPress={() => press('enter')} style={[styles.key, styles.wide, letters.length === view.length && { backgroundColor: C.green }]} accessibilityLabel="إدخال">
-                  <Txt v="bold" size={13}>
-                    إدخال
-                  </Txt>
+                <Pressable onPress={() => press('enter')} style={[styles.key, { width: wideW }, letters.length === view.length && { backgroundColor: C.green }]} accessibilityLabel="إدخال">
+                  {wideW >= 50 ? (
+                    <Txt v="bold" size={13}>
+                      إدخال
+                    </Txt>
+                  ) : (
+                    <Icon name="check" size={18} color={C.text} />
+                  )}
                 </Pressable>
               ) : null}
               {row.map((k) => (
@@ -132,7 +140,7 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
                 </Pressable>
               ))}
               {ri === 2 ? (
-                <Pressable onPress={() => press('del')} style={[styles.key, styles.wide]} accessibilityLabel="مسح">
+                <Pressable onPress={() => press('del')} style={[styles.key, { width: wideW }]} accessibilityLabel="مسح">
                   <Icon name="back" size={18} color={C.text} />
                 </Pressable>
               ) : null}
@@ -169,7 +177,6 @@ const styles = StyleSheet.create({
   tileActive: { borderColor: C.yellow },
   keyboard: { gap: 5, backgroundColor: C.bg3, borderRadius: 16, padding: 6 },
   key: { height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
-  wide: { paddingHorizontal: 10, minWidth: 54 },
   other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 12, padding: 6 },
   result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
   mini: { width: 9, height: 9, borderRadius: 2, backgroundColor: C.surfaceStrong },

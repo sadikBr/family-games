@@ -15,7 +15,7 @@ export const KeyboardScrollContext = createContext<ScrollCtx | null>(null);
 /** Space kept above the field (room for its label / the card it sits in). */
 const ABOVE = 110;
 
-export function Field({ onFocus, ...props }: TextInputProps) {
+export function Field({ onFocus, style, ...props }: TextInputProps) {
   const ctx = useContext(KeyboardScrollContext);
   const ref = useRef<TextInput>(null);
 
@@ -35,6 +35,9 @@ export function Field({ onFocus, ...props }: TextInputProps) {
     <TextInput
       ref={ref}
       {...props}
+      maxFontSizeMultiplier={props.maxFontSizeMultiplier ?? 1.3}
+      // minWidth 0 lets the field shrink next to a button on narrow phones
+      style={[{ minWidth: 0 }, style]}
       onFocus={(e) => {
         onFocus?.(e);
         if (!ctx) return;

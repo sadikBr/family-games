@@ -8,12 +8,22 @@ import { SUIT_INFO, type Card } from '@/shared/cards';
 import type { CardSide, FeedItem } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
+import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from '../helpers';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 const WIDTH: Record<Size, number> = { xs: 30, sm: 46, md: 58, lg: 68 };
+const SMALLER: Record<Size, Size> = { lg: 'md', md: 'sm', sm: 'xs', xs: 'xs' };
+
+/** A short hand should sit on one line: step the card size down until it fits the screen. */
+function fitSize(size: Size, n: number, gap: number, room: number): Size {
+  if (n > 6) return size; // long hands wrap onto several lines anyway
+  let s = size;
+  while (s !== 'xs' && n * (WIDTH[s] + 4) + (n - 1) * gap > room) s = SMALLER[s];
+  return s;
+}
 
 export function PlayingCard({
   card,
@@ -77,6 +87,8 @@ export function CardRow({
   empty?: string;
   gap?: number;
 }) {
+  const room = useContentWidth() - 16;
+  const fitted = fitSize(size, cards.length, gap, room);
   if (!cards.length && empty) {
     return (
       <Txt v="small" center color="rgba(255,255,255,0.6)">
@@ -90,7 +102,7 @@ export function CardRow({
         <PlayingCard
           key={c.id}
           card={c}
-          size={size}
+          size={fitted}
           selected={selected.includes(c.id)}
           glow={glow.includes(c.id)}
           dim={dim.includes(c.id)}

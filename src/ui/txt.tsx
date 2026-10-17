@@ -27,6 +27,7 @@ export function Txt({ v = 'body', color, center, size, style, ...rest }: TxtProp
   const base = VARIANTS[v];
   return (
     <Text
+      maxFontSizeMultiplier={1.3}
       {...rest}
       style={[
         styles.base,

@@ -7,11 +7,11 @@ import { haptic } from '@/lib/sfx';
 import { COLS, ROWS } from '@/shared/connect4';
 import type { Connect4View, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
+import { DuelBar } from './duel';
 import { helpers, type Helpers } from './helpers';
 
 const DISC = { 1: '#E2475F', 2: '#F2C23D' } as const;
@@ -19,26 +19,14 @@ const NAME = { 1: 'الأحمر', 2: 'الأصفر' } as const;
 
 function Players({ view, h }: { view: Connect4View; h: Helpers }) {
   return (
-    <Row gap={10} style={{ justifyContent: 'center' }}>
-      {([1, 2] as const).map((d) => {
+    <DuelBar
+      h={h}
+      active={view.phase === 'play' ? (view.turn === 1 ? view.red : view.yellow) : null}
+      slots={([1, 2] as const).map((d) => {
         const id = d === 1 ? view.red : view.yellow;
-        const active = view.phase === 'play' && view.turn === d;
-        return (
-          <View key={d} style={[styles.player, active && { borderColor: DISC[d], backgroundColor: alpha(DISC[d], 0.18) }]}>
-            <View style={[styles.dot, { backgroundColor: DISC[d] }]} />
-            <Avatar player={h.player(id)} size={30} />
-            <View>
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 90 }}>
-                {h.player(id).name}
-              </Txt>
-              <Txt v="tiny" color={C.dim}>
-                الفوز: {num(view.score[id] ?? 0)}
-              </Txt>
-            </View>
-          </View>
-        );
+        return { id, color: DISC[d], sub: `الفوز: ${num(view.score[id] ?? 0)}` };
       })}
-    </Row>
+    />
   );
 }
 
@@ -121,8 +109,6 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
 }
 
 const styles = StyleSheet.create({
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#151726' },
   board: { alignSelf: 'center', direction: 'ltr', backgroundColor: '#2F5BD0', borderRadius: 18, borderWidth: 3, borderColor: '#151726' },
   hole: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   holeIn: { position: 'absolute', backgroundColor: '#14295E', borderWidth: 2, borderColor: '#151726' },

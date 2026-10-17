@@ -1,7 +1,7 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { GameView } from '@/games/game-view';
@@ -53,6 +53,7 @@ function Connecting() {
 
 export default function RoomScreen() {
   useKeepAwake();
+  const { width } = useWindowDimensions();
   const { room, error } = useClient();
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmLobby, setConfirmLobby] = useState(false);
@@ -101,11 +102,10 @@ export default function RoomScreen() {
           <Header
             onBack={() => setConfirmLeave(true)}
             title={
-              <Row gap={8}>
-                {playing ? (
-                  <GameArt id={room.game} size={34} />
-                ) : null}
-                <Txt v="h2" numberOfLines={1}>
+              <Row gap={8} style={{ maxWidth: '100%' }}>
+                {/* on narrow phones the title needs the room more than the emblem does */}
+                {playing && width >= 360 ? <GameArt id={room.game} size={34} /> : null}
+                <Txt v="h2" numberOfLines={1} style={{ flexShrink: 1 }} size={width < 360 ? 17 : undefined}>
                   {playing ? meta.title : 'غرفة الانتظار'}
                 </Txt>
               </Row>

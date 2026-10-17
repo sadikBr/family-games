@@ -18,6 +18,12 @@ export interface ScreenProps {
   pattern?: boolean;
 }
 
+/** Usable width inside <Screen> (16px gutters, 560px max), for grids that must fit any phone. */
+export function useContentWidth() {
+  const { width } = useWindowDimensions();
+  return Math.min(width - 32, 560);
+}
+
 export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true }: ScreenProps) {
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);

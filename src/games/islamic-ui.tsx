@@ -149,7 +149,7 @@ export function McqFinal({ room, scores, game, h }: { room: RoomView; scores: Re
 const styles = StyleSheet.create({
   chip: { backgroundColor: alpha(C.yellow, 0.14), borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  half: { width: '48.5%' },
+  half: { flexBasis: '40%', flexGrow: 1, minWidth: 0 },
   full: { width: '100%' },
   option: {
     minHeight: 58,

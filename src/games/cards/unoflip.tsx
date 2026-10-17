@@ -286,5 +286,5 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(8,9,24,0.72)', alignItems: 'center', justifyContent: 'center', padding: 24, direction: 'rtl' },
   picker: { backgroundColor: C.bg2, borderRadius: 24, padding: 20, gap: 14, width: '100%', maxWidth: 360 },
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
-  colorBtn: { width: '46%', height: 74, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#151726', borderBottomWidth: 6 },
+  colorBtn: { flexBasis: '40%', flexGrow: 1, height: 74, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#151726', borderBottomWidth: 6 },
 });

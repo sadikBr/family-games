@@ -17,20 +17,20 @@ export interface DuelSlot {
 
 export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: string | null; h: Helpers }) {
   return (
-    <Row gap={10} style={{ justifyContent: 'center' }}>
+    <Row gap={8} style={{ justifyContent: 'center', width: '100%' }}>
       {slots.map((s) => {
         const on = active === s.id;
         return (
           <View key={s.id} style={[styles.player, on && { borderColor: s.color, backgroundColor: alpha(s.color, 0.18) }]}>
             {s.mark ?? <View style={[styles.dot, { backgroundColor: s.color }]} />}
             <Avatar player={h.player(s.id)} size={30} />
-            <View>
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 92 }}>
+            <View style={{ flexShrink: 1, minWidth: 0 }}>
+              <Txt v="tiny" numberOfLines={1}>
                 {h.player(s.id).name}
                 {s.id === h.me ? ' (أنت)' : ''}
               </Txt>
               {s.sub ? (
-                <Txt v="tiny" color={C.dim}>
+                <Txt v="tiny" color={C.dim} numberOfLines={1}>
                   {s.sub}
                 </Txt>
               ) : null}
@@ -43,6 +43,6 @@ export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: strin
 }
 
 const styles = StyleSheet.create({
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
+  player: { flexShrink: 1, minWidth: 0, maxWidth: '50%', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#151726' },
 });
