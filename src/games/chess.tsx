@@ -9,7 +9,7 @@ import { haptic } from '@/lib/sfx';
 import { sqName } from '@/shared/chess';
 import type { ChessView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
+import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
@@ -17,7 +17,8 @@ import { Txt } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { helpers, type Helpers } from './helpers';
+import { DuelBar } from './duel';
+import { helpers } from './helpers';
 
 const LIGHT = '#F3E6C8';
 const DARK = '#5E8C6A';
@@ -32,28 +33,13 @@ const REASON: Record<string, string> = {
 };
 const img = (pc: string) => BOARD_IMG[`chess-${pc === pc.toUpperCase() ? 'w' : 'b'}${pc.toLowerCase()}`];
 
-function Side({ view, color, h }: { view: ChessView; color: 'w' | 'b'; h: Helpers }) {
-  const id = color === 'w' ? view.white : view.black;
-  const active = view.phase === 'play' && view.turn === color;
-  const taken = view.captured[color];
+/** The pieces one side has taken, shown next to the board on that player's side. */
+function Taken({ pieces }: { pieces: string[] }) {
   return (
-    <Row gap={8} style={[styles.side, active && styles.sideActive]}>
-      <Avatar player={h.player(id)} size={30} />
-      <View style={{ flex: 1 }}>
-        <Txt v="tiny" numberOfLines={1}>
-          {h.player(id).name} {color === 'w' ? '(الأبيض)' : '(الأسود)'}
-        </Txt>
-        <Row gap={0} wrap>
-          {taken.map((pc, i) => (
-            <Image key={i} source={img(pc)} style={{ width: 18, height: 18 }} contentFit="contain" />
-          ))}
-        </Row>
-      </View>
-      {active && view.check ? (
-        <Txt v="tiny" color={C.red}>
-          كش!
-        </Txt>
-      ) : null}
+    <Row gap={0} wrap style={{ minHeight: 18, direction: 'ltr', justifyContent: 'center' }}>
+      {pieces.map((pc, i) => (
+        <Image key={i} source={img(pc)} style={{ width: 18, height: 18 }} contentFit="contain" />
+      ))}
     </Row>
   );
 }
@@ -98,6 +84,17 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   return (
     <>
       {won ? <Confetti /> : null}
+      <DuelBar
+        h={h}
+        active={view.phase === 'play' ? (view.turn === 'w' ? view.white : view.black) : null}
+        slots={(['w', 'b'] as const).map((c) => ({
+          id: c === 'w' ? view.white : view.black,
+          color: C.yellow,
+          mark: <Image source={img(c === 'w' ? 'K' : 'k')} style={{ width: 20, height: 20 }} contentFit="contain" />,
+          sub: view.phase === 'play' && view.check && view.turn === c ? 'كش!' : c === 'w' ? 'الأبيض' : 'الأسود',
+          score: view.score[c === 'w' ? view.white : view.black] ?? 0,
+        }))}
+      />
       {view.phase === 'final' ? (
         <ResultBanner
           tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
@@ -106,7 +103,7 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
           sub={REASON[view.reason ?? ''] ?? ''}
         />
       ) : null}
-      <Side view={view} color={them} h={h} />
+      <Taken pieces={view.captured[them]} />
 
       <View style={[styles.board, { width: W, height: W }]}>
         {Array.from({ length: 64 }, (_, k) => {
@@ -133,7 +130,7 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
         })}
       </View>
 
-      <Side view={view} color={me} h={h} />
+      <Taken pieces={view.captured[me]} />
 
       {view.phase === 'play' ? (
         <Row gap={10}>
@@ -193,8 +190,6 @@ const styles = StyleSheet.create({
   dot: { position: 'absolute', backgroundColor: alpha('#151726', 0.35) },
   ring: { position: 'absolute', borderWidth: 4, borderColor: alpha('#151726', 0.4) },
   coord: { position: 'absolute', fontSize: 9, lineHeight: 12, fontWeight: '700' },
-  side: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 2, borderColor: 'transparent' },
-  sideActive: { borderColor: C.yellow },
   backdrop: { flex: 1, backgroundColor: 'rgba(8,9,24,0.7)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   promo: { backgroundColor: C.bg2, borderRadius: 22, padding: 18, gap: 14, borderWidth: 1, borderColor: C.borderStrong },
   promoBtn: { backgroundColor: LIGHT, borderRadius: 14, padding: 4, borderWidth: 2, borderColor: '#151726' },

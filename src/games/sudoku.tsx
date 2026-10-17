@@ -1,4 +1,4 @@
-/** «سودوكو» — everyone races through the same puzzle on their own phone. */
+/** «سودوكو» — everyone races through the same puzzle on their own phone. Notes (pencil marks) stay on this phone. */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -39,6 +39,9 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
   const [sel, setSel] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(0);
   const [giveUp, setGiveUp] = useState(false);
+  const [noteMode, setNoteMode] = useState(false);
+  // pencil marks per cell, tied to the game they were written in (startedAt) so a new game starts clean
+  const [notesState, setNotes] = useState<{ game: number; cells: Record<number, number[]> }>({ game: 0, cells: {} });
   const elapsed = useElapsed(view.phase === 'play' ? view.startedAt : null, 1000);
   const wrongId = view.wrong?.id ?? 0;
   useEffect(() => {
@@ -57,10 +60,17 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
   const wrong = view.wrong && view.wrong.id !== dismissed ? view.wrong : null;
   const counts = Array(10).fill(0);
   for (const v of grid) counts[v] += 1;
+  const notes = notesState.game === view.startedAt ? notesState.cells : {};
 
   const press = (n: number) => {
     if (!playing || sel === null || grid[sel]) return;
     haptic.tap();
+    if (noteMode) {
+      const cur = notes[sel] ?? [];
+      const next = cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n];
+      setNotes({ game: view.startedAt, cells: { ...notes, [sel]: next } });
+      return;
+    }
     h.act('set', { cell: sel, value: n });
   };
 
@@ -106,6 +116,16 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
                 <Animated.View entering={FadeIn.duration(80)} exiting={FadeOut.duration(300)}>
                   <Txt style={[styles.num, { fontSize: cell * 0.56, lineHeight: cell * 0.86, color: C.red }]}>{String(wrong!.value)}</Txt>
                 </Animated.View>
+              ) : notes[i]?.length ? (
+                <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                  {notes[i].map((n) => (
+                    <Txt
+                      key={n}
+                      style={[styles.note, { left: ((n - 1) % 3) * (cell / 3), top: Math.floor((n - 1) / 3) * (cell / 3), width: cell / 3, height: cell / 3, fontSize: cell * 0.24, lineHeight: cell / 3 }]}>
+                      {String(n)}
+                    </Txt>
+                  ))}
+                </View>
               ) : null}
             </Pressable>
           );
@@ -125,6 +145,11 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
       </View>
 
       {playing ? (
+        <Row center>
+          <Btn size="sm" ghost={!noteMode} icon="edit" label={noteMode ? 'ملاحظات (مفعّلة)' : 'ملاحظات'} onPress={() => setNoteMode(!noteMode)} />
+        </Row>
+      ) : null}
+      {playing ? (
         <Row gap={5} center style={{ direction: 'ltr' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
             const done = counts[n] >= 9;
@@ -134,7 +159,7 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
                 disabled={done}
                 onPress={() => press(n)}
                 accessibilityLabel={`الرقم ${n}`}
-                style={({ pressed }) => [styles.key, { width: Math.min(44, (W - 40) / 9) }, done && { opacity: 0.25 }, pressed && { backgroundColor: C.yellow }]}>
+                style={({ pressed }) => [styles.key, { width: Math.min(44, (W - 40) / 9) }, noteMode && styles.keyNote, done && { opacity: 0.25 }, pressed && { backgroundColor: C.yellow }]}>
                 <Txt style={styles.keyNum}>{String(n)}</Txt>
                 <Txt v="tiny" color={C.dim} style={{ fontSize: 10, lineHeight: 13 }}>
                   {done ? '✓' : String(9 - counts[n])}
@@ -198,9 +223,11 @@ const styles = StyleSheet.create({
   grid: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 12, borderWidth: 3, borderColor: INK, overflow: 'hidden' },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   num: { fontFamily: F.black, textAlign: 'center' },
+  note: { position: 'absolute', fontFamily: F.black, textAlign: 'center', color: '#6B7390' },
   thin: { position: 'absolute', backgroundColor: '#C9CEDF' },
   thick: { position: 'absolute', backgroundColor: INK },
   key: { height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.surfaceStrong },
+  keyNote: { borderWidth: 2, borderColor: C.yellow, borderStyle: 'dashed' },
   keyNum: { fontFamily: F.black, fontSize: 22, lineHeight: 28, color: C.text },
   racer: { backgroundColor: C.surface, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 8 },
   track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: C.bg3, overflow: 'hidden' },

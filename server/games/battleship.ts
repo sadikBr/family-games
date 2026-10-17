@@ -1,9 +1,10 @@
-/** «معركة السفن» — each phone hides its own fleet; take turns firing. A hit lets you fire again. */
+/** «معركة السفن» — each phone hides its own fleet; take turns firing. A hit lets you fire again. Who shoots first alternates. */
 import { BN, botShot, randomFleet } from '../../src/shared/battleship';
 import type { BattleshipSettings, BattleshipView, ShotResult } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
-import { GameError, type GameModule } from '../types';
-import { isNum, shuffle } from '../util';
+import { duelWin, startDuel } from '../duel';
+import { GameError, type GameCtx, type GameModule } from '../types';
+import { isNum } from '../util';
 
 interface State {
   settings: BattleshipSettings;
@@ -18,16 +19,25 @@ interface State {
   winner: string | null;
   moves: number;
   botAt: number;
+  score: Record<string, number>;
+  resigned: boolean; // the game ended by resigning or leaving, not by sinking the fleet
 }
 
 const enemyOf = (s: State, id: string) => (s.players[0] === id ? s.players[1] : s.players[0]);
 const sunkShips = (fleet: number[][], shots: Record<number, ShotResult>) => fleet.filter((ship) => ship.every((c) => shots[c] === 'hit'));
 
+function win(ctx: GameCtx, s: State, winner: string) {
+  s.phase = 'final';
+  s.winner = winner;
+  duelWin(ctx, s.score, winner);
+}
+
 export const battleship: GameModule<State, BattleshipSettings> = {
   id: 'battleship',
 
   start(ctx, participants, settings) {
-    const players = shuffle(participants.slice(0, 2)) as [string, string];
+    const { first, second, score } = startDuel(ctx, 'battleship', participants);
+    const players: [string, string] = [first, second]; // players[0] shoots first
     ctx.fx('start');
     return {
       settings,
@@ -42,11 +52,17 @@ export const battleship: GameModule<State, BattleshipSettings> = {
       winner: null,
       moves: 0,
       botAt: -1,
+      score,
+      resigned: false,
     };
   },
 
   act(ctx, s, by, a) {
     if (!s.players.includes(by) || s.phase === 'final') return;
+    if (a.type === 'resign') {
+      s.resigned = true;
+      return win(ctx, s, enemyOf(s, by));
+    }
     if (s.phase === 'setup') {
       if (s.ready.includes(by)) return;
       if (a.type === 'shuffle') s.fleets[by] = randomFleet();
@@ -71,9 +87,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
     s.last = { by, cell: a.cell, result: sunk ? 'sunk' : hit ? 'hit' : 'miss', id: ++s.lastN };
     ctx.fx(sunk ? 'boom' : hit ? 'throw' : 'skip', by);
     if (sunkShips(s.fleets[enemy], s.shots[by]).length === s.fleets[enemy].length) {
-      s.phase = 'final';
-      s.winner = by;
-      ctx.fx('win', by);
+      win(ctx, s, by);
       return;
     }
     if (!hit) s.turnIdx = 1 - s.turnIdx;
@@ -111,12 +125,14 @@ export const battleship: GameModule<State, BattleshipSettings> = {
       last: s.last,
       winner: s.winner,
       enemyFleet: s.phase === 'final' ? s.fleets[enemy] : null,
+      score: s.score,
+      resigned: s.phase === 'final' && s.resigned,
     };
   },
 
   onLeave(ctx, s, id) {
     if (!s.players.includes(id) || s.phase === 'final') return;
-    s.phase = 'final';
-    s.winner = enemyOf(s, id);
+    s.resigned = true;
+    win(ctx, s, enemyOf(s, id));
   },
 };

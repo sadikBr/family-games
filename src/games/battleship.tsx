@@ -1,4 +1,5 @@
 /** «معركة السفن» — your fleet stays on your phone; fire at the other sea until every ship sinks. */
+import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
@@ -9,6 +10,7 @@ import type { BattleshipView, RoomView, ShotResult } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
+import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
@@ -89,12 +91,28 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
   const h = helpers(room);
   const { width } = useWindowDimensions();
   const big = Math.min(width - 30, 420);
+  const [resign, setResign] = useState(false);
   if (!view.players.includes(h.me)) return <Spectator room={room} />;
   const enemy = view.players[0] === h.me ? view.players[1] : view.players[0];
   const myTurn = view.phase === 'play' && view.turn === h.me;
   const myFleet = view.myFleet.map((s) => ({ cells: s.cells, color: s.sunk ? '#5B6080' : '#9AA4C2' }));
   const myLeft = view.myFleet.filter((s) => !s.sunk).length;
   const won = view.phase === 'final' && view.winner === h.me;
+  const resignModal = (
+    <ConfirmModal
+      visible={resign}
+      danger
+      icon="door"
+      title="الانسحاب من الدور؟"
+      message="سيفوز خصمك بهذا الدور"
+      confirmLabel="انسحب"
+      onCancel={() => setResign(false)}
+      onConfirm={() => {
+        setResign(false);
+        h.act('resign');
+      }}
+    />
+  );
 
   if (view.phase === 'setup') {
     const ready = view.ready.includes(h.me);
@@ -136,6 +154,8 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
             />
           </Row>
         )}
+        <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
+        {resignModal}
       </>
     );
   }
@@ -151,12 +171,12 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
         h={h}
         active={view.phase === 'play' ? view.turn : null}
         slots={[
-          { id: h.me, color: '#9AA4C2', sub: `بقيت ${num(myLeft)} سفن` },
-          { id: enemy, color: C.red, sub: `بقيت ${num(view.enemyFleetLeft)} سفن` },
+          { id: h.me, color: '#9AA4C2', sub: `بقيت ${num(myLeft)} سفن`, score: view.score[h.me] ?? 0 },
+          { id: enemy, color: C.red, sub: `بقيت ${num(view.enemyFleetLeft)} سفن`, score: view.score[enemy] ?? 0 },
         ]}
       />
       {view.phase === 'final' ? (
-        <ResultBanner tone={won ? 'good' : 'bad'} art={<GameArt id="battleship" size={72} />} title={`فاز ${h.player(view.winner!).name}`} sub="أغرق كل السفن!" />
+        <ResultBanner tone={won ? 'good' : 'bad'} art={<GameArt id="battleship" size={72} />} title={`فاز ${h.player(view.winner!).name}`} sub={view.resigned ? (won ? 'انسحب الخصم' : 'انسحبت') : 'أغرق كل السفن!'} />
       ) : (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
           {myTurn ? 'دورك — اضغط على خانة في بحر الخصم' : `${h.player(enemy).name} يصوّب…`}
@@ -198,7 +218,8 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
         </Txt>
         <Sea size={Math.min(big * 0.62, 260)} ships={myFleet} shots={view.enemyShots} last={view.last && view.last.by !== h.me ? view.last.cell : null} />
       </View>
-      {view.phase === 'final' ? <PlayAgain room={room} /> : null}
+      {view.phase === 'final' ? <PlayAgain room={room} /> : <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />}
+      {resignModal}
     </>
   );
 }

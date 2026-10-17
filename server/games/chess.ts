@@ -2,8 +2,9 @@
 import { START_FEN, botMove, fromFen, inCheck, legalMoves, makeMove, repKey, resultOf, sqName, type Color, type Pos } from '../../src/shared/chess';
 import type { ChessSettings, ChessView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
+import { duelWin, startDuel } from '../duel';
 import { GameError, type GameCtx, type GameModule } from '../types';
-import { isNum, isStr, shuffle } from '../util';
+import { isNum, isStr } from '../util';
 
 const NAME: Record<string, string> = { p: 'الجندي', n: 'الحصان', b: 'الفيل', r: 'الرخ', q: 'الوزير', k: 'الملك' };
 
@@ -21,6 +22,7 @@ interface State {
   ply: number;
   botPly: number;
   feed: Feed;
+  score: Record<string, number>;
 }
 
 const colorFor = (s: State, id: string): Color | null => (id === s.white ? 'w' : id === s.black ? 'b' : null);
@@ -53,7 +55,8 @@ function play(ctx: GameCtx, s: State, by: string, from: number, to: number, prom
     s.phase = 'final';
     s.winner = res.winner;
     s.reason = res.reason;
-    ctx.fx('win', res.winner === 'w' ? s.white : res.winner === 'b' ? s.black : undefined);
+    if (res.winner === 'draw') ctx.fx('win');
+    else duelWin(ctx, s.score, res.winner === 'w' ? s.white : s.black);
   } else if (inCheck(s.pos)) ctx.fx('buzz', s.pos.turn === 'w' ? s.white : s.black);
 }
 
@@ -61,7 +64,7 @@ export const chess: GameModule<State, ChessSettings> = {
   id: 'chess',
 
   start(ctx, participants, settings) {
-    const [white, black] = shuffle(participants.slice(0, 2));
+    const { first: white, second: black, score } = startDuel(ctx, 'chess', participants); // white alternates
     const pos = fromFen(START_FEN);
     ctx.fx('start');
     return {
@@ -78,6 +81,7 @@ export const chess: GameModule<State, ChessSettings> = {
       ply: 0,
       botPly: -1,
       feed: new Feed(),
+      score,
     };
   },
 
@@ -89,7 +93,7 @@ export const chess: GameModule<State, ChessSettings> = {
       s.phase = 'final';
       s.winner = me === 'w' ? 'b' : 'w';
       s.reason = 'resign';
-      ctx.fx('win', me === 'w' ? s.black : s.white);
+      duelWin(ctx, s.score, me === 'w' ? s.black : s.white);
       return;
     }
     if (a.type !== 'move') return;
@@ -124,6 +128,7 @@ export const chess: GameModule<State, ChessSettings> = {
       winner: s.winner,
       reason: s.reason,
       feed: s.feed.list(),
+      score: s.score,
     };
   },
 
@@ -133,6 +138,7 @@ export const chess: GameModule<State, ChessSettings> = {
     s.phase = 'final';
     s.winner = c === 'w' ? 'b' : 'w';
     s.reason = 'left';
+    duelWin(ctx, s.score, c === 'w' ? s.black : s.white);
   },
 };
 

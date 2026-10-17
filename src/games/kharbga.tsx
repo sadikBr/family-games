@@ -8,6 +8,7 @@ import { haptic } from '@/lib/sfx';
 import { CENTER, N } from '@/shared/kharbga';
 import type { KharbgaView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
@@ -85,6 +86,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
           id: idOf(s),
           color: PIECE[s],
           sub: view.phase === 'place' ? `${SIDE_NAME[s]} — يضع ${num(view.toPlace[s])}` : `${SIDE_NAME[s]} — ${num(view.counts[s])} قطعة`,
+          score: view.score[idOf(s)] ?? 0,
         }))}
       />
 
@@ -145,6 +147,21 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
         })}
       </View>
 
+      {view.phase === 'place' && myTurn ? (
+        <Row gap={8}>
+          <Btn flex size="md" ghost icon="back" label="تراجع" disabled={!view.canUndo} onPress={() => h.act('undo')} />
+          <Btn
+            flex
+            size="md"
+            icon="shuffle"
+            label="وزّع الباقي عشوائياً"
+            onPress={() => {
+              haptic.medium();
+              h.act('placeRandom');
+            }}
+          />
+        </Row>
+      ) : null}
       {view.phase === 'final' ? (
         <PlayAgain room={room} />
       ) : (

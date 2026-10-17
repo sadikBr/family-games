@@ -1,10 +1,10 @@
-/** The two-player header used by the 1-vs-1 board games: avatar, name, a colour swatch and a short line. */
+/** The two-player header used by the 1-vs-1 board games: avatar, name, a colour swatch, a short line and the series score. */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from './helpers';
 
@@ -13,6 +13,8 @@ export interface DuelSlot {
   color: string;
   mark?: ReactNode;
   sub?: string;
+  /** Games won in this series (shown as «الفوز: n»). */
+  score?: number;
 }
 
 export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: string | null; h: Helpers }) {
@@ -32,6 +34,11 @@ export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: strin
               {s.sub ? (
                 <Txt v="tiny" color={C.dim} numberOfLines={1}>
                   {s.sub}
+                </Txt>
+              ) : null}
+              {s.score !== undefined ? (
+                <Txt v="tiny" color={C.yellow} numberOfLines={1}>
+                  الفوز: {num(s.score)}
                 </Txt>
               ) : null}
             </View>

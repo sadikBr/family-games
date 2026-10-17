@@ -1,16 +1,20 @@
 /**
  * الضامة — checkers on an 8×8 board (dark squares only).
  * Men move one step diagonally forward; captures are compulsory and chain.
- * Options: flying kings (move/capture along a whole diagonal) and men capturing backwards.
+ * Options: flying kings (move/capture along a whole diagonal), men capturing backwards, and the
+ * maximum-capture rule (you must take the sequence that captures the most pieces).
  * A man that ends its move on the far row becomes a king.
  * You win when the other side has no pieces or no legal move. 50 moves without a capture = draw.
  */
 import type { DamaSettings, DamaView } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
-import { GameError, type GameModule } from '../types';
+import { duelWin, startDuel } from '../duel';
+import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 export type Move = { from: number; path: number[]; captures: number[] };
+/** Rule options; the maximum-capture rule is on unless `maxCapture` is false. */
+export type DamaOpts = Omit<DamaSettings, 'maxCapture'> & { maxCapture?: boolean };
 
 const DIRS = [
   [-1, -1],
@@ -35,7 +39,7 @@ export function initialBoard(): number[] {
 }
 
 /** All capture sequences for the piece on `from`. */
-function captures(b: number[], from: number, opts: DamaSettings): Move[] {
+function captures(b: number[], from: number, opts: DamaOpts): Move[] {
   const piece = b[from];
   const me = sideOf(piece);
   const king = Math.abs(piece) === 2;
@@ -78,7 +82,7 @@ function captures(b: number[], from: number, opts: DamaSettings): Move[] {
   return out;
 }
 
-function steps(b: number[], from: number, opts: DamaSettings): Move[] {
+function steps(b: number[], from: number, opts: DamaOpts): Move[] {
   const piece = b[from];
   const me = sideOf(piece);
   const king = Math.abs(piece) === 2;
@@ -97,12 +101,32 @@ function steps(b: number[], from: number, opts: DamaSettings): Move[] {
   return out;
 }
 
-/** Legal moves for a side (1 = white, -1 = black). Captures are compulsory. */
-export function legalMoves(b: number[], side: 1 | -1, opts: DamaSettings): Move[] {
-  const mine = b.map((v, i) => (sideOf(v) === side ? i : -1)).filter((i) => i >= 0);
-  const caps = mine.flatMap((i) => captures(b, i, opts));
-  if (caps.length) return caps;
-  return mine.flatMap((i) => steps(b, i, opts));
+/** Every capture sequence for a side, ignoring the maximum-capture rule. */
+export function allCaptures(b: number[], side: 1 | -1, opts: DamaOpts): Move[] {
+  return b.flatMap((v, i) => (sideOf(v) === side ? captures(b, i, opts) : []));
+}
+
+/**
+ * Legal moves for a side (1 = white, -1 = black). Captures are compulsory; with `maxCapture`
+ * only the sequences that take the most pieces are allowed.
+ */
+export function legalMoves(b: number[], side: 1 | -1, opts: DamaOpts): Move[] {
+  const caps = allCaptures(b, side, opts);
+  if (caps.length) {
+    if (opts.maxCapture === false) return caps;
+    const most = Math.max(...caps.map((m) => m.captures.length));
+    return caps.filter((m) => m.captures.length === most);
+  }
+  return b.flatMap((v, i) => (sideOf(v) === side ? steps(b, i, opts) : []));
+}
+
+/**
+ * The move to play when a player picks `from` → `to`: several sequences can end on the same square,
+ * so take the one that captures the most pieces (then the most kings).
+ */
+export function pickMove(b: number[], options: Move[]): Move {
+  const kings = (m: Move) => m.captures.filter((c) => Math.abs(b[c]) === 2).length;
+  return options.slice().sort((x, y) => y.captures.length - x.captures.length || kings(y) - kings(x))[0];
 }
 
 export function applyMove(b: number[], m: Move): number[] {
@@ -128,24 +152,30 @@ interface State {
   winner: DamaView['winner'];
   reason: DamaView['reason'];
   moves: number;
+  score: Record<string, number>;
 }
 
-function finishIfOver(s: State) {
+function finish(ctx: GameCtx, s: State, winner: 'white' | 'black', reason: DamaView['reason']) {
+  s.phase = 'final';
+  s.winner = winner;
+  s.reason = reason;
+  duelWin(ctx, s.score, s[winner]);
+}
+
+function finishIfOver(ctx: GameCtx, s: State) {
   const side = s.turn;
   const left = s.board.filter((v) => sideOf(v) === side).length;
-  if (!left || !legalMoves(s.board, side, s.settings).length) {
-    s.phase = 'final';
-    s.winner = side === 1 ? 'black' : 'white';
-    s.reason = left ? 'blocked' : 'pieces';
-  } else if (s.quiet >= 50) {
+  if (!left || !legalMoves(s.board, side, s.settings).length) finish(ctx, s, side === 1 ? 'black' : 'white', left ? 'blocked' : 'pieces');
+  else if (s.quiet >= 50) {
     s.phase = 'final';
     s.winner = 'draw';
     s.reason = 'draw';
+    ctx.fx('win');
   }
 }
 
 /** Bot: biggest capture, else a move that doesn't hang a piece, preferring promotion. */
-export function botMove(b: number[], side: 1 | -1, opts: DamaSettings): Move | null {
+export function botMove(b: number[], side: 1 | -1, opts: DamaOpts): Move | null {
   const moves = legalMoves(b, side, opts);
   if (!moves.length) return null;
   let best: Move | null = null;
@@ -171,8 +201,7 @@ export const dama: GameModule<State, DamaSettings> = {
 
   start(ctx, participants, settings) {
     if (participants.length !== 2) throw new GameError('الضامة لاعبان فقط — أضيفوا بوتاً إذا كنت وحدك');
-    const white = Math.random() < 0.5 ? participants[0] : participants[1];
-    const black = white === participants[0] ? participants[1] : participants[0];
+    const { first: white, second: black, score } = startDuel(ctx, 'dama', participants); // white moves first
     ctx.fx('start');
     return {
       settings,
@@ -186,6 +215,7 @@ export const dama: GameModule<State, DamaSettings> = {
       winner: null,
       reason: null,
       moves: 0,
+      score,
     };
   },
 
@@ -193,22 +223,18 @@ export const dama: GameModule<State, DamaSettings> = {
     if (s.phase !== 'play') return;
     const side = by === s.white ? 1 : by === s.black ? -1 : 0;
     if (!side) return;
-    if (a.type === 'resign') {
-      s.phase = 'final';
-      s.winner = side === 1 ? 'black' : 'white';
-      s.reason = 'resign';
-      ctx.fx('win');
-      return;
-    }
+    if (a.type === 'resign') return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
     if (a.type !== 'move') return;
     if (side !== s.turn) throw new GameError('ماشي دورك');
     if (!isNum(a.from) || !isNum(a.to)) return;
-    const options = legalMoves(s.board, s.turn, s.settings).filter((m) => m.from === a.from && m.path[m.path.length - 1] === a.to);
+    const legal = legalMoves(s.board, s.turn, s.settings);
+    const ends = (m: Move) => m.from === a.from && m.path[m.path.length - 1] === a.to;
+    const options = legal.filter(ends);
     if (!options.length) {
-      const anyCapture = legalMoves(s.board, s.turn, s.settings).some((m) => m.captures.length);
-      throw new GameError(anyCapture ? 'الأكل إجباري — كُل قطعة' : 'حركة غير مسموحة');
+      if (allCaptures(s.board, s.turn, s.settings).some(ends)) throw new GameError('يجب أن تأكل أكبر عدد من القطع');
+      throw new GameError(legal.some((m) => m.captures.length) ? 'الأكل إجباري — كُل قطعة' : 'حركة غير مسموحة');
     }
-    const m = options.sort((x, y) => y.captures.length - x.captures.length)[0];
+    const m = pickMove(s.board, options);
     const wasMan = Math.abs(s.board[m.from]) === 1;
     s.board = applyMove(s.board, m);
     s.lastMove = m;
@@ -216,8 +242,7 @@ export const dama: GameModule<State, DamaSettings> = {
     s.moves += 1;
     ctx.fx(m.captures.length ? 'correct' : 'card', by);
     s.turn = s.turn === 1 ? -1 : 1;
-    finishIfOver(s);
-    if ((s.phase as DamaView['phase']) === 'final') ctx.fx('win');
+    finishIfOver(ctx, s);
   },
 
   botPlan(ctx, s) {
@@ -244,13 +269,12 @@ export const dama: GameModule<State, DamaSettings> = {
       counts: { white: s.board.filter((v) => v > 0).length, black: s.board.filter((v) => v < 0).length },
       winner: s.winner,
       reason: s.reason,
+      score: s.score,
     };
   },
 
   onLeave(ctx, s, id) {
     if (s.phase === 'final' || (id !== s.white && id !== s.black)) return;
-    s.phase = 'final';
-    s.winner = id === s.white ? 'black' : 'white';
-    s.reason = 'left';
+    finish(ctx, s, id === s.white ? 'black' : 'white', 'left');
   },
 };

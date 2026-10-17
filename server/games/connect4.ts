@@ -2,8 +2,9 @@
 import { COLS, bestColumn, dropRow, winLine, type Disc } from '../../src/shared/connect4';
 import type { Connect4Settings, Connect4View } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
-import { GameError, type GameModule } from '../types';
-import { isNum, shuffle } from '../util';
+import { duelWin, startDuel } from '../duel';
+import { GameError, type GameCtx, type GameModule } from '../types';
+import { isNum } from '../util';
 
 interface State {
   settings: Connect4Settings;
@@ -20,13 +21,19 @@ interface State {
   score: Record<string, number>;
 }
 
+/** `id` resigned or left: the other player wins the game (and it counts in the series). */
+function forfeit(ctx: GameCtx, s: State, id: string) {
+  if (id !== s.red && id !== s.yellow) return;
+  s.winner = id === s.red ? 2 : 1;
+  s.phase = 'final';
+  duelWin(ctx, s.score, id === s.red ? s.yellow : s.red);
+}
+
 export const connect4: GameModule<State, Connect4Settings> = {
   id: 'connect4',
 
   start(ctx, participants, settings) {
-    const [red, yellow] = shuffle(participants.slice(0, 2));
-    const score = (ctx.memo.get('c4score') as Record<string, number> | undefined) ?? {};
-    ctx.memo.set('c4score', score);
+    const { first: red, second: yellow, score } = startDuel(ctx, 'connect4', participants); // red always drops first
     ctx.fx('start');
     return {
       settings,
@@ -45,9 +52,11 @@ export const connect4: GameModule<State, Connect4Settings> = {
   },
 
   act(ctx, s, by, a) {
-    if (s.phase !== 'play' || a.type !== 'drop') return;
+    if (s.phase !== 'play') return;
     const me = by === s.red ? 1 : by === s.yellow ? 2 : 0;
     if (!me) return;
+    if (a.type === 'resign') return forfeit(ctx, s, by);
+    if (a.type !== 'drop') return;
     if (me !== s.turn) throw new GameError('ماشي دورك');
     if (!isNum(a.col) || a.col < 0 || a.col >= COLS) return;
     const r = dropRow(s.board, a.col);
@@ -62,8 +71,7 @@ export const connect4: GameModule<State, Connect4Settings> = {
       s.line = line;
       s.winner = me;
       s.phase = 'final';
-      s.score[by] = (s.score[by] ?? 0) + 1;
-      ctx.fx('win', by);
+      duelWin(ctx, s.score, by);
     } else if (s.board.every((x) => x)) {
       s.winner = 'draw';
       s.phase = 'final';
@@ -95,8 +103,6 @@ export const connect4: GameModule<State, Connect4Settings> = {
   },
 
   onLeave(ctx, s, id) {
-    if (s.phase !== 'play' || (id !== s.red && id !== s.yellow)) return;
-    s.winner = id === s.red ? 2 : 1;
-    s.phase = 'final';
+    if (s.phase === 'play') forfeit(ctx, s, id);
   },
 };
