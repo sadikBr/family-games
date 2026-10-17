@@ -18,9 +18,9 @@ const DIALECT: Record<string, string> = {
 /** Dialect phrases. */
 const PHRASES = ['تعال نلعب', 'بدون ما', 'الطريق السيار', 'إذا عندك', 'كل واحد يلعب'];
 
-/** Word lists and other content (checked by their own owners), and games still being written elsewhere. */
-const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|scrabble-dict|dictionary)\.ts$|^server\/data\//;
-const IN_PROGRESS = /^(src\/games|src\/shared\/games|server\/games)\/(codebreak|boggle|qquote|qword|tajweed|asma|steps|mapquiz|prophets|mosque)[^/]*$|^server\/(codebreak|boggle|qquote|qword|tajweed|asma|steps|mapquiz|prophets|mosque)-/;
+/** Word lists and other content (checked by their own tests). */
+const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|scrabble-dict|dictionary|boggle-grid)\.ts$|^server\/data\//; // boggle-grid holds the dialect blocklist itself
+const IN_PROGRESS = /^$/; // every game is checked now
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -53,7 +53,7 @@ test('fusha: no dialect words or phrases in player-facing strings', () => {
       if (!/[\u0621-\u064A]/.test(line)) return;
       const t = line.trim();
       if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return; // comments
-      for (const [w, re] of WORDS) if (re.test(line)) hits.push(`${f}:${i + 1}: «${w}» → «${DIALECT[w]}»`);
+      for (const [w, re] of WORDS) if (re.test(line) && !(w === 'لازم' && /مدّ? لازم|المد اللازم|اللازم/.test(line))) hits.push(`${f}:${i + 1}: «${w}» → «${DIALECT[w]}»`);
       for (const p of PHRASES) if (line.includes(p)) hits.push(`${f}:${i + 1}: «${p}»`);
     });
   }
