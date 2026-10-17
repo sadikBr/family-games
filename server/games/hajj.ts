@@ -13,6 +13,7 @@ import { HAJJ_EVENTS, HAJJ_LEN, HAJJ_STATIONS, ZAD_DECK, ZAD_HAND, ZAD_INFO, haj
 import type { BoardCard, HajjSettings, HajjView, HajjZad } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS } from '../content-islamic';
+import { qdeck } from '../qdeck';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { mcqOptions } from './mcq';
@@ -20,13 +21,17 @@ import { mcqOptions } from './mcq';
 const LAST = HAJJ_LEN - 1;
 const Q_MS = 20000;
 const QUIZ_MS = 15000;
-const REVEAL_MS = 3500;
+const REVEAL_MS = 5000; // time to read the station quiz's answer
+const BOTS_REVEAL_MS = 3500; // nobody to read it: bots only
 const BOT_SKILL = 0.7;
 
 interface Pilgrim {
   id: string;
   pos: number;
   hand: HajjZad[];
+  /** when the pilgrim got to `pos` (orders ties on the final scoreboard), see stamp() */
+  since: number;
+  seen: number;
 }
 
 interface Quiz {
@@ -53,7 +58,6 @@ interface State {
   question: { text: string; options: string[]; correct: number; endsAt: number; for: string } | null;
   quiz: Quiz | null;
   reached: number[]; // stations someone has already reached (their question was asked)
-  qDeck: typeof QUESTIONS;
   events: typeof HAJJ_EVENTS;
   zadDeck: ZadKind[];
   zadN: number;
@@ -63,6 +67,7 @@ interface State {
   winner: string | null;
   feed: Feed;
   moves: number;
+  clock: number;
   botAt: number;
   botCard: number | null; // the card a bot decided to play this turn
 }
@@ -89,9 +94,37 @@ function draw(s: State, p: Pilgrim): ZadKind | null {
   return kind;
 }
 
-function drawQuestion(s: State) {
-  if (!s.qDeck.length) s.qDeck = shuffle(QUESTIONS.filter((q) => q.cat === 'hajj' || q.cat === 'worship'));
-  return s.qDeck.shift()!;
+const HAJJ_POOL = QUESTIONS.filter((q) => q.cat === 'hajj' || q.cat === 'worship');
+
+/** The room's own deck (not shared with «مسابقة إسلامية» or «حروف»), so questions don't repeat between games. */
+function drawQuestion(ctx: GameCtx) {
+  return qdeck(ctx, 'hajj:q', HAJJ_POOL).draw();
+}
+
+/**
+ * Remember when each pilgrim's square last changed. Called before every action / tick (and on a win),
+ * so moves made by one action are stamped before the next action moves anyone.
+ */
+function stamp(s: State) {
+  if (s.players.every((p) => p.pos === p.seen)) return;
+  s.clock += 1;
+  for (const p of s.players)
+    if (p.pos !== p.seen) {
+      p.seen = p.pos;
+      p.since = s.clock;
+    }
+}
+
+/** Finishing order: furthest along first; on the same square, whoever got there first. */
+export function hajjOrder(s: State): string[] {
+  return [...s.players].sort((a, b) => b.pos - a.pos || a.since - b.since).map((p) => p.id);
+}
+
+function win(ctx: GameCtx, s: State, id: string) {
+  stamp(s);
+  s.winner = id;
+  s.phase = 'final';
+  ctx.fx('win', id);
 }
 
 /** Steps forward, never past the next station; `onto: false` also stops just before it. */
@@ -114,17 +147,12 @@ function stationArrival(ctx: GameCtx, s: State, p: Pilgrim) {
   const station = HAJJ_STATIONS[k];
   card(s, p.id, { kind: 'station', title: station.title, text: station.text, day: station.day });
   s.feed.push(`${ctx.playerName(p.id)} وصل إلى ${station.title}`, { by: p.id });
-  if (p.pos === LAST) {
-    s.winner = p.id;
-    s.phase = 'final';
-    ctx.fx('win', p.id);
-    return;
-  }
+  if (p.pos === LAST) return win(ctx, s, p.id);
   ctx.fx('reveal', p.id);
   if (s.settings.questions && !s.reached.includes(k) && s.players.length > 1) {
     // the first pilgrim here opens the station's question for everyone
     s.reached.push(k);
-    const q = drawQuestion(s);
+    const q = drawQuestion(ctx);
     s.quiz = { station: station.title, text: q.q, ...mcqOptions(q.a, q.w), endsAt: ctx.now + QUIZ_MS, answers: {}, revealed: false, results: null };
     s.phase = 'quiz';
     return;
@@ -150,7 +178,7 @@ function arrive(ctx: GameCtx, s: State, p: Pilgrim) {
       if (hajjSquare(p.pos) === 'station') return stationArrival(ctx, s, p);
     }
   } else if (kind === 'question' && s.settings.questions) {
-    const q = drawQuestion(s);
+    const q = drawQuestion(ctx);
     s.question = { text: q.q, ...mcqOptions(q.a, q.w), endsAt: ctx.now + Q_MS, for: p.id };
     s.phase = 'question';
     return;
@@ -167,7 +195,7 @@ function revealQuiz(ctx: GameCtx, s: State) {
     .map(([id]) => id);
   q.revealed = true;
   q.results = s.players.map((p) => ({ id: p.id, correct: right.includes(p.id), first: right[0] === p.id }));
-  q.endsAt = ctx.now + REVEAL_MS;
+  q.endsAt = ctx.now + (s.players.some((p) => !ctx.isBot(p.id)) ? REVEAL_MS : BOTS_REVEAL_MS);
   for (const id of right) {
     const p = s.players.find((x) => x.id === id);
     if (p) draw(s, p);
@@ -177,7 +205,7 @@ function revealQuiz(ctx: GameCtx, s: State) {
     step(first, 1, false); // a bonus step never lands on a station (arriving there needs a roll)
     s.feed.push(`${ctx.playerName(first.id)} أسرع إجابة صحيحة — خطوة إلى الأمام وبطاقة زاد`, { by: first.id });
   } else s.feed.push('لم يُجب أحد صحيحاً');
-  ctx.fx(right.length ? 'correct' : 'buzz');
+  // no shared sound: each phone plays «correct» or «wrong» for its own player (see hajj.tsx)
 }
 
 export const hajj: GameModule<State, HajjSettings> = {
@@ -187,7 +215,7 @@ export const hajj: GameModule<State, HajjSettings> = {
     ctx.fx('start');
     const s: State = {
       settings,
-      players: shuffle(participants).map((id) => ({ id, pos: 0, hand: [] })),
+      players: shuffle(participants).map((id) => ({ id, pos: 0, hand: [], since: 0, seen: 0 })),
       turnIdx: 0,
       phase: 'roll',
       dice: null,
@@ -198,7 +226,6 @@ export const hajj: GameModule<State, HajjSettings> = {
       question: null,
       quiz: null,
       reached: [],
-      qDeck: shuffle(QUESTIONS.filter((q) => q.cat === 'hajj' || q.cat === 'worship')),
       events: shuffle(HAJJ_EVENTS),
       zadDeck: deck(),
       zadN: 0,
@@ -208,6 +235,7 @@ export const hajj: GameModule<State, HajjSettings> = {
       winner: null,
       feed: new Feed(),
       moves: 0,
+      clock: 0,
       botAt: -1,
       botCard: null,
     };
@@ -217,6 +245,7 @@ export const hajj: GameModule<State, HajjSettings> = {
 
   act(ctx, s, by, a) {
     if (s.phase === 'final') return;
+    stamp(s);
     if (a.type === 'quiz') {
       const q = s.quiz;
       if (s.phase !== 'quiz' || !q || q.revealed || q.answers[by] || !s.players.some((p) => p.id === by)) return;
@@ -298,6 +327,7 @@ export const hajj: GameModule<State, HajjSettings> = {
   },
 
   tick(ctx, s) {
+    stamp(s);
     if (s.phase === 'quiz' && s.quiz && ctx.now >= s.quiz.endsAt) {
       if (!s.quiz.revealed) revealQuiz(ctx, s);
       else endTurn(s);
@@ -388,6 +418,7 @@ export const hajj: GameModule<State, HajjSettings> = {
       played: s.played,
       mods: s.mods,
       winner: s.winner,
+      order: s.phase === 'final' ? hajjOrder(s) : null,
       feed: s.feed.list(),
     };
   },
@@ -399,11 +430,7 @@ export const hajj: GameModule<State, HajjSettings> = {
     s.players.splice(i, 1);
     if (!s.players.length) return;
     if (i < s.turnIdx) s.turnIdx -= 1;
-    if (s.players.length === 1) {
-      s.winner = s.players[0].id;
-      s.phase = 'final';
-      return;
-    }
+    if (s.players.length === 1) return win(ctx, s, s.players[0].id);
     if (s.phase === 'quiz' && s.quiz && !s.quiz.revealed) {
       const q = s.quiz;
       if (!s.players.some((p) => !q.answers[p.id] && (ctx.isConnected(p.id) || ctx.isBot(p.id)))) revealQuiz(ctx, s);

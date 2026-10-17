@@ -17,7 +17,7 @@ import { Txt, num } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { EventCard, RaceStrip, RaceToken, stackOffsets } from './dice-race';
+import { EventCard, FinishOrder, RaceStrip, RaceToken, stackOffsets } from './dice-race';
 import { helpers } from './helpers';
 
 export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView }) {
@@ -28,17 +28,8 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
   const me = view.players.find((p) => p.id === h.me);
   if (!me && view.phase !== 'final') return <Spectator room={room} />;
 
-  if (view.phase === 'final') {
-    const won = view.winner === h.me;
-    return (
-      <>
-        {won ? <Confetti /> : null}
-        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="ladders" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="الحسنات ترفع صاحبها" />
-        <PlayAgain room={room} />
-      </>
-    );
-  }
-
+  const final = view.phase === 'final';
+  const won = final && view.winner === h.me;
   const exact = room.settings.ladders.exact;
   const myTurn = view.turn === h.me;
   const rolling = view.rollId !== landed;
@@ -50,10 +41,19 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
   };
   const size = cell * 0.62;
   const offsets = stackOffsets(view.players, size * 0.3);
+  const square = (pos: number) => (pos ? `الخانة ${num(pos)}` : 'لم يبدأ');
 
   return (
     <>
-      <RaceStrip players={view.players} turn={view.turn} h={h} label={(pos) => (pos ? `الخانة ${num(pos)}` : 'لم يبدأ')} />
+      {final && !rolling ? (
+        <>
+          {won ? <Confetti /> : null}
+          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="ladders" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="الحسنات ترفع صاحبها" />
+          {view.order ? <FinishOrder order={view.order} players={view.players} h={h} label={square} /> : null}
+        </>
+      ) : (
+        <RaceStrip players={view.players} turn={view.turn} h={h} label={square} />
+      )}
       <View style={{ width: W, height: W, alignSelf: 'center', direction: 'ltr', borderRadius: 12, overflow: 'visible' }}>
         <Image source={BOARD_IMG['ladders-board']} style={[StyleSheet.absoluteFill, { borderRadius: 12 }]} contentFit="fill" />
         {[...LADDERS, ...SNAKES].map((d) => {
@@ -83,28 +83,34 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
         </View>
       </View>
 
-      <View style={styles.panel}>
-        {myTurn && !rolling ? (
-          <Btn
-            size="xl"
-            icon="shuffle"
-            label="ارمِ النرد"
-            onPress={() => {
-              haptic.medium();
-              h.act('roll');
-            }}
-          />
-        ) : (
-          <Txt v="bold" center color={C.muted}>
-            {rolling ? 'النرد يتدحرج…' : `دور ${h.player(view.turn).name}…`}
-          </Txt>
-        )}
-        <Txt v="tiny" center color={C.dim}>
-          السلالم أعمال صالحة ترفعك، والأفاعي عادات سيئة تُنزلك{exact ? ' — تحتاج الرقم المضبوط للوصول إلى 100' : ''}
-        </Txt>
-      </View>
-      {view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
-      <LastEvent feed={view.feed} h={h} />
+      {final ? (
+        <PlayAgain room={room} />
+      ) : (
+        <>
+          <View style={styles.panel}>
+            {myTurn && !rolling ? (
+              <Btn
+                size="xl"
+                icon="shuffle"
+                label="ارمِ النرد"
+                onPress={() => {
+                  haptic.medium();
+                  h.act('roll');
+                }}
+              />
+            ) : (
+              <Txt v="bold" center color={C.muted}>
+                {rolling ? 'النرد يتدحرج…' : `دور ${h.player(view.turn).name}…`}
+              </Txt>
+            )}
+            <Txt v="tiny" center color={C.dim}>
+              السلالم أعمال صالحة ترفعك، والأفاعي عادات سيئة تُنزلك{exact ? ' — تحتاج الرقم المضبوط للوصول إلى 100' : ''}
+            </Txt>
+          </View>
+          {view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
+          <LastEvent feed={view.feed} h={h} />
+        </>
+      )}
     </>
   );
 }

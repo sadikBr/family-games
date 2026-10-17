@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 
 import type { SurahSettings } from '../../src/shared/protocol';
+import { qdeck } from '../qdeck';
 import { shuffle } from '../util';
 import { makeMcq, mcqOptions } from './mcq';
 
@@ -23,30 +24,37 @@ export function quranData(): QuranData {
 export const LEVEL_FROM: Record<SurahSettings['level'], number> = { easy: 78, medium: 50, hard: 1 };
 const LEVEL_LABEL: Record<SurahSettings['level'], string> = { easy: 'جزء عمّ', medium: 'من «ق» إلى «الناس»', hard: 'القرآن كاملاً' };
 
-export const surah = makeMcq<SurahSettings>('surah', (settings) => {
-  const { surahs, verses } = quranData();
-  const from = LEVEL_FROM[settings.level];
-  const pool = verses.filter((v) => v[0] >= from);
-  // at most one verse per surah per game when possible, so the same surah doesn't keep coming back
-  const bySurah = new Map<number, [number, number, string][]>();
-  for (const v of shuffle(pool)) {
-    if (!bySurah.has(v[0])) bySurah.set(v[0], []);
-    bySurah.get(v[0])!.push(v);
-  }
-  const order = shuffle([...bySurah.keys()]);
-  const picks: [number, number, string][] = [];
-  for (let k = 0; picks.length < settings.rounds && k < 50; k++) for (const n of order) if (picks.length < settings.rounds && bySurah.get(n)![k]) picks.push(bySurah.get(n)![k]);
-  const inLevel = surahs.filter((x) => x.n >= from);
-  return picks.map(([n, ayah, text]) => {
-    // distractors: mostly neighbouring surahs (harder), sometimes random ones
-    const near = inLevel.filter((x) => x.n !== n && Math.abs(x.n - n) <= 6);
-    const others = shuffle(near.length >= 3 ? near : inLevel.filter((x) => x.n !== n)).slice(0, 3);
-    const s = surahs[n - 1];
-    return {
-      text,
-      ...mcqOptions(s.name, others.map((o) => o.name)),
-      label: LEVEL_LABEL[settings.level],
-      ref: `سورة ${s.name} — الآية ${ayah}`,
-    };
-  });
-});
+/** Bots know Juz' Amma well, the longer surahs less, the whole Quran much less. */
+export const SURAH_BOT_SKILL: Record<SurahSettings['level'], number> = { easy: 0.7, medium: 0.55, hard: 0.4 };
+
+export const surah = makeMcq<SurahSettings>(
+  'surah',
+  (ctx, settings, rounds) => {
+    const { surahs, verses } = quranData();
+    const from = LEVEL_FROM[settings.level];
+    const bySurah = new Map<number, [number, number, string][]>();
+    for (const v of verses) {
+      if (v[0] < from) continue;
+      if (!bySurah.has(v[0])) bySurah.set(v[0], []);
+      bySurah.get(v[0])!.push(v);
+    }
+    // one verse per surah per game, and the room's decks keep surahs and verses from coming back too soon
+    const picks = qdeck(ctx, `surah:${settings.level}`, [...bySurah.keys()])
+      .deal(rounds)
+      .map((n) => qdeck(ctx, `surah:v:${n}`, bySurah.get(n)!).draw());
+    const inLevel = surahs.filter((x) => x.n >= from);
+    return picks.map(([n, ayah, text]) => {
+      // distractors: mostly neighbouring surahs (harder), sometimes random ones
+      const near = inLevel.filter((x) => x.n !== n && Math.abs(x.n - n) <= 6);
+      const others = shuffle(near.length >= 3 ? near : inLevel.filter((x) => x.n !== n)).slice(0, 3);
+      const s = surahs[n - 1];
+      return {
+        text,
+        ...mcqOptions(s.name, others.map((o) => o.name)),
+        label: LEVEL_LABEL[settings.level],
+        ref: `سورة ${s.name} — الآية ${ayah}`,
+      };
+    });
+  },
+  (settings) => SURAH_BOT_SKILL[settings.level],
+);

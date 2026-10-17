@@ -5,11 +5,12 @@
  * are forgiven, see answerMatches). Right: the hexagon is theirs. Wrong or too slow: that team is
  * locked out and the other team can buzz. Red joins right ↔ left, green joins top ↔ bottom.
  */
-import { answerMatches, firstLetter } from '../../src/shared/arabic';
+import { answerMatches, displayLetter, firstLetter } from '../../src/shared/arabic';
 import { HEX_N, hexWinPath } from '../../src/shared/islamic';
 import type { HuroofSettings, HuroofTeam, HuroofView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS, type Question } from '../content-islamic';
+import { qdeck } from '../qdeck';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
@@ -33,7 +34,7 @@ interface State {
   settings: HuroofSettings;
   teams: Record<HuroofTeam, string[]>;
   cells: { letter: string; owner: HuroofTeam | null }[];
-  decks: Record<string, Question[]>;
+  used: Set<Question>; // questions already asked in this game
   phase: HuroofView['phase'];
   turn: HuroofTeam;
   cell: number | null;
@@ -54,10 +55,33 @@ interface State {
 const teamOf = (s: State, id: string): HuroofTeam | null => (s.teams.red.includes(id) ? 'red' : s.teams.green.includes(id) ? 'green' : null);
 const TEAM_NAME: Record<HuroofTeam, string> = { red: 'الفريق الأحمر', green: 'الفريق الأخضر' };
 
-function drawQuestion(s: State, letter: string) {
-  if (!s.decks[letter]?.length) s.decks[letter] = shuffle(BY_LETTER.get(letter) ?? []);
-  const q = s.decks[letter].shift()!;
+/** Questions for `letter` not asked yet in this game. */
+const fresh = (s: State, letter: string) => (BY_LETTER.get(letter) ?? []).filter((q) => !s.used.has(q)).length;
+
+/**
+ * The room's deck for the letter (huroof's own, not shared with the other quiz games), skipping questions
+ * already asked in this game whenever possible.
+ */
+function drawQuestion(ctx: GameCtx, s: State, letter: string) {
+  const q = qdeck(ctx, `huroof:${letter}`, BY_LETTER.get(letter) ?? []).draw((x) => s.used.has(x));
+  s.used.add(q);
   return { text: q.q, answer: q.a, wrong: q.w };
+}
+
+/**
+ * A free hexagon whose letter has no unasked question left would bring back a question whose answer
+ * everyone just saw: give it a letter that isn't on the board and still has questions.
+ */
+export function refreshLetter(s: State, i: number): boolean {
+  const cell = s.cells[i];
+  if (cell.owner || fresh(s, cell.letter)) return false;
+  const onBoard = new Set(s.cells.map((c) => c.letter));
+  const spare = shuffle([...BY_LETTER.keys()].filter((l) => !onBoard.has(l) && fresh(s, l)));
+  if (!spare.length) return false;
+  const old = cell.letter;
+  cell.letter = spare[0];
+  s.feed.push(`نفدت أسئلة «${displayLetter(old)}» — صارت الخانة «${displayLetter(cell.letter)}»`);
+  return true;
 }
 
 /** Open (or reopen) the buzzers for the teams that may still answer. */
@@ -93,7 +117,10 @@ function settle(s: State, team: HuroofTeam | null, by: string | null) {
       s.winner = red * 2 > s.cells.length ? 'red' : 'green';
       s.phase = 'final';
     }
-  } else s.turn = other(s.turn);
+  } else {
+    s.turn = other(s.turn);
+    refreshLetter(s, i); // swap the letter now, so players see the new one before picking again
+  }
   if (s.phase !== 'final') s.phase = 'pick';
   s.cell = null;
   s.question = null;
@@ -115,7 +142,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       settings,
       teams,
       cells: letters.map((letter) => ({ letter, owner: null })),
-      decks: {},
+      used: new Set(),
       phase: 'pick',
       turn: Math.random() < 0.5 ? 'red' : 'green',
       cell: null,
@@ -143,7 +170,8 @@ export const huroof: GameModule<State, HuroofSettings> = {
       if (team !== s.turn) throw new GameError('ليس دور فريقك في الاختيار');
       if (!isNum(a.cell) || !s.cells[a.cell] || s.cells[a.cell].owner) return;
       s.cell = a.cell;
-      s.question = drawQuestion(s, s.cells[a.cell].letter);
+      refreshLetter(s, a.cell);
+      s.question = drawQuestion(ctx, s, s.cells[a.cell].letter);
       s.canAnswer = ['red', 'green'];
       s.attempt += 1;
       s.wrong = null;

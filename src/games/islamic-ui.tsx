@@ -1,11 +1,11 @@
 /** Pieces shared by the Islamic quiz games: round header, answer buttons, results, final scores. */
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
-import { haptic } from '@/lib/sfx';
+import { haptic, play } from '@/lib/sfx';
 import type { GameId, McqResult, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
@@ -14,6 +14,25 @@ import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner } from './common';
 import type { Helpers } from './helpers';
+
+/**
+ * When a round's answer is revealed, MY sound and vibration: «correct» if I got it right, «wrong» otherwise.
+ * `key` identifies the reveal (null while asking); `correct` is my result (null if I'm not playing).
+ */
+export function useMyResultFx(key: string | null, correct: boolean | null) {
+  const last = useRef(key); // a screen opened during a reveal stays quiet
+  useEffect(() => {
+    if (key === null || correct === null || last.current === key) return;
+    last.current = key;
+    if (correct) {
+      play('correct');
+      haptic.success();
+    } else {
+      play('buzz');
+      haptic.error();
+    }
+  }, [key, correct]);
+}
 
 export const OPTION_COLORS = [C.red, C.blue, C.yellow, C.green, C.purple, C.cyan];
 
