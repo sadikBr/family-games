@@ -61,6 +61,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
   act(ctx, s, by, a) {
     if (!s.players.includes(by) || s.phase === 'final') return;
     if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
       s.resigned = true;
       return win(ctx, s, enemyOf(s, by));
     }
@@ -69,6 +70,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
       if (a.type === 'shuffle') s.fleets[by] = randomFleet();
       if (a.type === 'ready') {
         s.ready.push(by);
+        ctx.say?.(`${ctx.playerName(by)} رتّب أسطوله وهو جاهز`, by);
         if (s.ready.length === 2) {
           s.phase = 'play';
           ctx.fx('start');
@@ -87,6 +89,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
     const sunk = !!ship && ship.every((c) => s.shots[by][c] === 'hit');
     s.last = { by, cell: a.cell, result: sunk ? 'sunk' : hit ? 'hit' : 'miss', id: ++s.lastN };
     ctx.fx(sunk ? 'boom' : hit ? 'throw' : 'skip', by);
+    ctx.say?.(`${ctx.playerName(by)} أطلق: ${sunk ? 'أغرق سفينة!' : hit ? 'إصابة! ويطلق مرة أخرى' : 'في الماء'}`, by);
     if (sunkShips(s.fleets[enemy], s.shots[by]).length === s.fleets[enemy].length) {
       win(ctx, s, by);
       return;

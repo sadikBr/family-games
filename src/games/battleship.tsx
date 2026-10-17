@@ -1,5 +1,5 @@
 /** «معركة السفن» — your fleet stays on your phone; fire at the other sea until every ship sinks. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
@@ -92,6 +92,15 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
   const { width } = useWindowDimensions();
   const big = Math.min(width - 30, 420);
   const [resign, setResign] = useState(false);
+  // the sea being fired at is the big one: mine while the other player shoots. The switch waits a
+  // moment so the result of the last shot stays in view before the seas swap.
+  const want = view.phase === 'play' && view.turn !== h.me ? 'mine' : 'enemy';
+  const [focus, setFocus] = useState(want);
+  useEffect(() => {
+    if (want === focus) return;
+    const id = setTimeout(() => setFocus(want), 1300);
+    return () => clearTimeout(id);
+  }, [want, focus]);
   if (!view.players.includes(h.me)) return <Spectator room={room} />;
   const enemy = view.players[0] === h.me ? view.players[1] : view.players[0];
   const myTurn = view.phase === 'play' && view.turn === h.me;
@@ -160,6 +169,41 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
     );
   }
 
+  const small = Math.min(big * 0.62, 260);
+  // keyed so that swapping the two seas moves them instead of drawing every shot again
+  const enemySea = (size: number) => (
+    <View key="enemy" style={{ gap: 4 }}>
+      <Txt v="tiny" center color={C.muted}>
+        بحر {h.player(enemy).name}
+      </Txt>
+      <Sea
+        size={size}
+        ships={[
+          ...(view.enemyFleet ?? []).filter((s) => !view.enemySunk.some((x) => x[0] === s[0])).map((cells) => ({ cells, color: '#E58A9A', dim: true })),
+          ...view.enemySunk.map((cells) => ({ cells, color: '#5B6080' })),
+        ]}
+        shots={view.myShots}
+        last={view.last && view.last.by === h.me ? view.last.cell : null}
+        onFire={
+          myTurn
+            ? (cell) => {
+                haptic.medium();
+                h.act('fire', { cell });
+              }
+            : undefined
+        }
+      />
+    </View>
+  );
+  const mySea = (size: number) => (
+    <View key="mine" style={{ gap: 4 }}>
+      <Txt v="tiny" center color={C.muted}>
+        أسطولك
+      </Txt>
+      <Sea size={size} ships={myFleet} shots={view.enemyShots} last={view.last && view.last.by !== h.me ? view.last.cell : null} />
+    </View>
+  );
+
   const lastLine = view.last
     ? `${view.last.by === h.me ? 'قذيفتك' : `قذيفة ${h.player(view.last.by).name}`}: ${view.last.result === 'sunk' ? 'أغرقت سفينة!' : view.last.result === 'hit' ? 'إصابة!' : 'في الماء'}`
     : null;
@@ -177,11 +221,11 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
       />
       {view.phase === 'final' ? (
         <ResultBanner tone={won ? 'good' : 'bad'} art={<GameArt id="battleship" size={72} />} title={`فاز ${h.player(view.winner!).name}`} sub={view.resigned ? (won ? 'انسحب الخصم' : 'انسحبت') : 'أغرق كل السفن!'} />
-      ) : (
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? 'دورك — اضغط على خانة في بحر الخصم' : `${h.player(enemy).name} يصوّب…`}
+      ) : myTurn ? (
+        <Txt v="bold" center color={C.yellow}>
+          اضغط على خانة في بحر {h.player(enemy).name}
         </Txt>
-      )}
+      ) : null}
       {lastLine && view.phase === 'play' ? (
         <Animated.View key={view.last!.id} entering={FadeIn.duration(180)}>
           <Txt v="small" center color={view.last!.result === 'miss' ? C.muted : C.orange}>
@@ -190,34 +234,7 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
         </Animated.View>
       ) : null}
 
-      <View style={{ gap: 4 }}>
-        <Txt v="tiny" center color={C.muted}>
-          بحر {h.player(enemy).name}
-        </Txt>
-        <Sea
-          size={big}
-          ships={[
-            ...(view.enemyFleet ?? []).filter((s) => !view.enemySunk.some((x) => x[0] === s[0])).map((cells) => ({ cells, color: '#E58A9A', dim: true })),
-            ...view.enemySunk.map((cells) => ({ cells, color: '#5B6080' })),
-          ]}
-          shots={view.myShots}
-          last={view.last && view.last.by === h.me ? view.last.cell : null}
-          onFire={
-            myTurn
-              ? (cell) => {
-                  haptic.medium();
-                  h.act('fire', { cell });
-                }
-              : undefined
-          }
-        />
-      </View>
-      <View style={{ gap: 4 }}>
-        <Txt v="tiny" center color={C.muted}>
-          أسطولك
-        </Txt>
-        <Sea size={Math.min(big * 0.62, 260)} ships={myFleet} shots={view.enemyShots} last={view.last && view.last.by !== h.me ? view.last.cell : null} />
-      </View>
+      {focus === 'enemy' ? [enemySea(big), mySea(small)] : [mySea(big), enemySea(small)]}
       {view.phase === 'final' ? <PlayAgain room={room} /> : <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />}
       {resignModal}
     </>

@@ -73,6 +73,10 @@ export const ladders: GameModule<State, LaddersSettings> = {
       ctx.fx(jump.kind === 'ladder' ? 'correct' : 'buzz', by);
     }
     if (p.pos !== from) p.since = s.rollId;
+    const name = ctx.playerName(by);
+    if (jump) ctx.say?.(`${name} رمى ${d} — ${jump.deed.title}: ${jump.kind === 'ladder' ? 'صعد' : 'نزل'} إلى ${p.pos}`, by);
+    else if (p.pos === from) ctx.say?.(`${name} رمى ${d} — يحتاج ${100 - from} بالضبط`, by);
+    else ctx.say?.(`${name} رمى ${d} ووصل إلى الخانة ${p.pos}`, by);
     if (p.pos === 100) {
       s.winner = by;
       s.phase = 'final';

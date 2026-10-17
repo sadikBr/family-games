@@ -75,9 +75,11 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
         />
       ) : (
         <View style={{ gap: 2 }}>
-          <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-            {myTurn ? 'دورك — اختر خانة' : `دور ${h.player(idOf(view.turn)).name}…`}
-          </Txt>
+          {myTurn ? (
+            <Txt v="bold" center color={C.yellow}>
+              اختر خانة
+            </Txt>
+          ) : null}
           {n > 3 ? (
             <Txt v="tiny" center color={C.dim}>
               صفّ {ROW_WORD[view.inRow] ?? view.inRow} في خط لتفوز
@@ -101,7 +103,7 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
               style={({ pressed }) => [
                 styles.cell,
                 { left: c * cell, top: r * cell, width: cell, height: cell, borderRadius: n > 3 ? cell * 0.22 : 18 },
-                n > 3 && view.last === i && !line.has(i) && { backgroundColor: alpha('#7B4BD0', 0.14) },
+                view.last === i && !line.has(i) && { backgroundColor: alpha('#7B4BD0', 0.14) },
                 line.has(i) && { backgroundColor: alpha(C.yellow, 0.35) },
                 pressed && { backgroundColor: alpha('#7B4BD0', 0.18) },
               ]}>

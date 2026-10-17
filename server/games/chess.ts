@@ -50,7 +50,11 @@ function play(ctx: GameCtx, s: State, by: string, from: number, to: number, prom
     { by },
   );
   ctx.fx(target || enPassant ? 'throw' : 'card', by);
+  const taken = target || (enPassant ? 'p' : '');
+  const moved = castled ? 'قام بالتبييت' : `${NAME[piece.toLowerCase()]} إلى ${sqName(to)}${taken ? ` وأكل ${NAME[taken.toLowerCase()]}` : ''}${m.promo ? ' (ترقية)' : ''}`;
   const res = resultOf(s.pos, s.reps);
+  const check = !res && inCheck(s.pos) ? ' — كش!' : res?.reason === 'mate' ? ' — كش مات!' : '';
+  ctx.say?.(`${ctx.playerName(by)}: ${moved}${check}`, by);
   if (res) {
     s.phase = 'final';
     s.winner = res.winner;
@@ -91,6 +95,7 @@ export const chess: GameModule<State, ChessSettings> = {
     const me = colorFor(s, by);
     if (!me) return;
     if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
       s.phase = 'final';
       s.winner = me === 'w' ? 'b' : 'w';
       s.reason = 'resign';

@@ -45,6 +45,7 @@ export const xo: GameModule<State, XoSettings> = {
     s.moves += 1;
     ctx.fx('card', by);
     const w = xoWinner(s.board, s.size, inRow(s.size));
+    ctx.say?.(`${ctx.playerName(by)} وضع ${me === 'x' ? 'X' : 'O'}${w ? ' وصفّ خطاً كاملاً!' : ''}`, by);
     if (w) {
       s.line = w.line;
       s.winner = w.mark;

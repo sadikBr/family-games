@@ -7,6 +7,7 @@ import { Icon, type IconName } from '@/art/icons';
 import type { BoardCard, PlayerPublic } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar } from '@/ui/bits';
+import { DICE_THROW_MS } from '@/ui/dice3d';
 import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from './helpers';
@@ -67,7 +68,8 @@ export function RaceToken({
       xs.push(withDelay(xs.length ? 250 : 0, withTiming(tx, { duration: 650 })));
       ys.push(withDelay(xs.length > 1 ? 250 : 0, withTiming(ty, { duration: 650 })));
     }
-    const delay = rolled ? 1050 : 0;
+    // the dice land first; the number stays readable for a moment before the token sets off
+    const delay = rolled ? DICE_THROW_MS + 400 : 0;
     x.set(withDelay(delay, withSequence(...xs)));
     y.set(withDelay(delay, withSequence(...ys)));
     if (ls.length) lift.set(withDelay(delay, withSequence(...ls)));

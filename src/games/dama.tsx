@@ -15,7 +15,7 @@ import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { DuelBar, SlideIn } from './duel';
 import { helpers } from './helpers';
 
 // the board image has a frame: squares span 9/98 … 89/98 of its width
@@ -52,6 +52,13 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
   const lm = view.lastMove;
   const last = lm ? [lm.from, ...lm.path] : [];
   const moveKey = lm ? `${lm.from}-${lm.path.join('-')}` : '';
+  const lastTo = lm ? lm.path[lm.path.length - 1] : -1;
+  // the moved piece slides in from its square, through every square of a capture chain
+  const slideFrom = (i: number) => {
+    if (!lm || i !== lastTo) return null;
+    const d = pos(i);
+    return [lm.from, ...lm.path.slice(0, -1)].map((k) => ({ x: pos(k).left - d.left, y: pos(k).top - d.top }));
+  };
 
   const tap = (i: number) => {
     if (!myTurn) return;
@@ -68,8 +75,6 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
     } else setSel(null);
   };
 
-  const me = view.myColor ?? 'white';
-  const opp = me === 'white' ? 'black' : 'white';
   const won = final && view.winner === view.myColor;
   const reason = { pieces: 'أكل كل القطع', blocked: 'لم تبق له حركة', resign: 'استسلم الخصم', draw: '50 حركة بدون أكل', left: 'غادر الخصم' }[view.reason ?? 'pieces'];
 
@@ -94,11 +99,11 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
           title={view.winner === 'draw' ? 'تعادل' : `فاز ${h.player(view[view.winner as 'white' | 'black']).name}`}
           sub={reason}
         />
-      ) : (
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? (mustCapture ? 'دورك — الأكل إجباري!' : sel === null ? 'دورك — اختر قطعة' : 'اختر أين تذهب') : `دور ${h.player(view[opp]).name}…`}
+      ) : myTurn ? (
+        <Txt v="bold" center color={C.yellow}>
+          {mustCapture ? 'الأكل إجباري — كُل قطعة!' : sel === null ? 'اختر قطعة لتحريكها' : 'اختر أين تذهب'}
         </Txt>
-      )}
+      ) : null}
       <View style={{ width: boardW, height: boardW, alignSelf: 'center', direction: 'ltr' }}>
         <Image source={BOARD_IMG['dama-board']} style={StyleSheet.absoluteFill} contentFit="contain" />
         {last.map((i, k) => (
@@ -111,14 +116,22 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
           const can = myTurn && from.has(i);
           const isTarget = targets.some((m) => m.path[m.path.length - 1] === i);
           const taken = !v && !!lm?.captures.includes(i);
+          const slide = v ? slideFrom(i) : null;
+          const piece = v ? (
+            <Animated.View key={`${i}:${v}`} entering={slide ? undefined : FadeIn.duration(140)} style={[styles.piece, sel === i && styles.pieceSel, can && sel !== i && styles.pieceCan]}>
+              <Image source={pieceImg(v)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" />
+            </Animated.View>
+          ) : null;
           return (
-            <Pressable key={i} disabled={final} onPress={() => tap(i)} style={[styles.cell, p, { width: sq, height: sq }]} accessibilityLabel={`مربع ${i}${taken ? ' — أُكلت هنا قطعة' : ''}`}>
+            <Pressable key={i} disabled={final} onPress={() => tap(i)} style={[styles.cell, p, { width: sq, height: sq }, i === lastTo && { zIndex: 2 }]} accessibilityLabel={`مربع ${i}${taken ? ' — أُكلت هنا قطعة' : ''}`}>
               {taken ? <Animated.View key={`cap${moveKey}`} exiting={FadeOut} style={[styles.ghost, { width: sq * 0.62, height: sq * 0.62, borderRadius: sq }]} /> : null}
-              {v ? (
-                <Animated.View key={`${i}:${v}`} entering={FadeIn.duration(140)} style={[styles.piece, sel === i && styles.pieceSel, can && sel !== i && styles.pieceCan]}>
-                  <Image source={pieceImg(v)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" />
-                </Animated.View>
-              ) : null}
+              {slide ? (
+                <SlideIn key={`${moveKey}:${v}`} steps={slide} ms={slide.length > 1 ? 230 : 200}>
+                  {piece}
+                </SlideIn>
+              ) : (
+                piece
+              )}
               {isTarget ? <View style={[styles.dot, { width: sq * 0.34, height: sq * 0.34, borderRadius: sq }]} /> : null}
             </Pressable>
           );

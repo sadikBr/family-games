@@ -318,7 +318,7 @@ export function BlocksGame({ room, view }: { room: RoomView; view: BlocksView })
       status = 'مكان مسموح — اضغط «ضع»';
       statusColor = OK_GREEN;
     }
-  } else status = `دور ${nameOf(h, view, view.turn ?? '')}… ${sel ? 'جهّز قطعتك' : ''}`;
+  } else status = sel ? 'جهّز قطعتك، وتضعها حين يأتي دورك' : 'يمكنك اختيار قطعة وتجهيزها حتى يأتي دورك';
 
   const piecesShown = trayOrder(left);
   const trayBox = 54;

@@ -17,7 +17,7 @@ import { Txt } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { DuelBar, SlideIn } from './duel';
 import { helpers } from './helpers';
 
 const LIGHT = '#F3E6C8';
@@ -61,6 +61,13 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   const kingSq = view.check ? view.board.indexOf(view.turn === 'w' ? 'K' : 'k') : -1;
   const me = view.myColor ?? 'w';
   const them = me === 'w' ? 'b' : 'w';
+  const lm = view.lastMove;
+  // the last move took a piece (the server writes «(أكل)» in its log line)
+  const tookLast = !!lm && !!view.feed[view.feed.length - 1]?.text.includes('(أكل)');
+  const at = (i: number) => {
+    const k = flip ? 63 - i : i;
+    return { x: (k % 8) * sq, y: Math.floor(k / 8) * sq };
+  };
 
   const tap = (i: number) => {
     if (!myTurn) return;
@@ -111,17 +118,26 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
           const r = Math.floor(k / 8), c = k % 8;
           const dark = (Math.floor(i / 8) + (i % 8)) % 2 === 1;
           const pc = view.board[i];
-          const isLast = view.lastMove && (view.lastMove.from === i || view.lastMove.to === i);
+          const isLast = lm && (lm.from === i || lm.to === i);
+          const landed = !!lm && lm.to === i && !!pc;
+          const pieceImg = pc ? <Image source={img(pc)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" transition={0} /> : null;
           return (
             <Pressable
               key={i}
               onPress={() => tap(i)}
               accessibilityLabel={`${sqName(i)}${pc ? ' — قطعة' : ''}`}
-              style={[styles.sq, { left: c * sq, top: r * sq, width: sq, height: sq, backgroundColor: dark ? DARK : LIGHT }]}>
+              style={[styles.sq, { left: c * sq, top: r * sq, width: sq, height: sq, backgroundColor: dark ? DARK : LIGHT }, landed && { zIndex: 2 }]}>
               {isLast ? <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.38) }]} /> : null}
+              {landed && tookLast ? <View style={[StyleSheet.absoluteFill, styles.took]} /> : null}
               {sel === i ? <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.65) }]} /> : null}
               {kingSq === i ? <View style={[StyleSheet.absoluteFill, styles.check]} /> : null}
-              {pc ? <Image source={img(pc)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" transition={0} /> : null}
+              {landed && lm ? (
+                <SlideIn key={`${lm.from}-${lm.to}:${pc}`} steps={[{ x: at(lm.from).x - at(i).x, y: at(lm.from).y - at(i).y }]} ms={260}>
+                  {pieceImg}
+                </SlideIn>
+              ) : (
+                pieceImg
+              )}
               {targets.has(i) ? <View style={[pc ? styles.ring : styles.dot, pc ? { width: sq * 0.9, height: sq * 0.9, borderRadius: sq } : { width: sq * 0.28, height: sq * 0.28, borderRadius: sq }]} /> : null}
               {c === 0 ? <Txt style={[styles.coord, { top: 1, left: 3, color: dark ? LIGHT : DARK }]}>{String(8 - Math.floor(i / 8))}</Txt> : null}
               {r === 7 ? <Txt style={[styles.coord, { bottom: 0, right: 3, color: dark ? LIGHT : DARK }]}>{'abcdefgh'[i % 8]}</Txt> : null}
@@ -134,8 +150,8 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
 
       {view.phase === 'play' ? (
         <Row gap={10}>
-          <Txt v="bold" style={{ flex: 1 }} color={myTurn ? C.yellow : C.muted}>
-            {myTurn ? (view.check ? 'كش! احمِ ملكك' : 'دورك — اختر قطعة') : `دور ${h.player(view.turn === 'w' ? view.white : view.black).name}…`}
+          <Txt v="bold" style={{ flex: 1 }} color={C.yellow}>
+            {myTurn ? (view.check ? 'كش! احمِ ملكك' : sel === null ? 'اختر قطعة لتحريكها' : 'اختر المربع المضيء') : ''}
           </Txt>
           <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
         </Row>
@@ -186,6 +202,7 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
 const styles = StyleSheet.create({
   board: { alignSelf: 'center', direction: 'ltr', borderRadius: 8, overflow: 'hidden', borderWidth: 3, borderColor: '#151726' },
   sq: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  took: { borderWidth: 3, borderColor: alpha('#E2263F', 0.7) },
   check: { backgroundColor: alpha('#E2263F', 0.55), borderRadius: 999 },
   dot: { position: 'absolute', backgroundColor: alpha('#151726', 0.35) },
   ring: { position: 'absolute', borderWidth: 4, borderColor: alpha('#151726', 0.4) },

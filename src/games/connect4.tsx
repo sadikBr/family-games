@@ -56,7 +56,7 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
         />
       ) : (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? `دورك — اختر عموداً (أنت ${NAME[view.myDisc!]})` : `دور ${h.player(view.turn === 1 ? view.red : view.yellow).name}…`}
+          {myTurn ? `اختر عموداً (أنت ${NAME[view.myDisc!]})` : `أنت ${NAME[view.myDisc!]}`}
         </Txt>
       )}
 
@@ -82,7 +82,7 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
                     { width: cell * 0.8, height: cell * 0.8, borderRadius: cell, backgroundColor: DISC[v as 1 | 2] },
                     line.has(i) && styles.win,
                   ]}>
-                  <View style={[styles.discIn, { width: cell * 0.5, height: cell * 0.5, borderRadius: cell }]} />
+                  <View style={[styles.discIn, { width: cell * 0.5, height: cell * 0.5, borderRadius: cell }, isLast && !line.size && styles.lastIn]} />
                 </Animated.View>
               ) : null}
             </View>
@@ -132,5 +132,6 @@ const styles = StyleSheet.create({
   disc: { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#151726' },
   discIn: { borderWidth: 2, borderColor: 'rgba(0,0,0,0.18)' },
   win: { borderColor: '#FFFFFF', borderWidth: 4 },
+  lastIn: { borderColor: 'rgba(255,255,255,0.85)', borderWidth: 2.5 },
   col: { position: 'absolute', top: 0, bottom: 0, borderRadius: 10 },
 });

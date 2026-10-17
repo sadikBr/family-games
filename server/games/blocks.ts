@@ -7,7 +7,7 @@
  * Two players use a 14×14 board with starts near the middle (a 20×20 board would need two colours each,
  * which is too much for one phone screen); three or four play on 20×20 from the corners.
  */
-import { PIECE_COUNT, PLACE_ERRORS, boardSize, checkPlacement, hasMove, placementCells, scoreOf, startCells, type SeatCtx } from '../../src/shared/blocks-rules';
+import { PIECE_COUNT, PIECE_SIZES, PLACE_ERRORS, boardSize, checkPlacement, hasMove, placementCells, scoreOf, startCells, type SeatCtx } from '../../src/shared/blocks-rules';
 import type { BlocksLevel, BlocksSettings, BlocksView } from '../../src/shared/games/blocks';
 import { blocksBotMove } from '../blocks-bot';
 import { randDelay } from '../cardkit';
@@ -188,6 +188,10 @@ export const blocks: GameModule<State, BlocksSettings> = {
       ctx.fx('correct', by);
     }
     advance(ctx, s, seat);
+    const k = PIECE_SIZES[piece];
+    const size = k === 1 ? 'مربع واحد' : k === 2 ? 'مربعين' : `${k} مربعات`;
+    const skipped = s.passed.map((i) => ctx.playerName(s.seats[i]));
+    ctx.say?.(`${ctx.playerName(by)} وضع قطعة من ${size}${skipped.length ? ` — لا مكان لقطع ${skipped.join(' و')}` : ''}`, by);
   },
 
   botPlan(ctx, s, bots) {

@@ -93,6 +93,8 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
   const canPlay = myTurn && view.phase === 'roll' && !rolling && !view.mods.played;
   const choosing = sadaqa && sadaqa.turn === `${view.rollId}` && view.myHand.some((c) => c.id === sadaqa.card) ? sadaqa : null;
   const mods = [view.mods.bonus ? `+${view.mods.bonus} على الرمية` : '', view.mods.pass ? 'تعبر المحطة القادمة' : '', view.mods.again ? 'رمية إضافية بعدها' : ''].filter(Boolean);
+  // while someone else plays: the dice in the air, or the provision card they played for this turn
+  const waitLine = rolling ? 'النرد يتدحرج…' : !myTurn && view.phase === 'roll' && mods.length ? `${h.player(view.turn).name}: ${mods.join(' · ')}` : '';
 
   return (
     <>
@@ -167,7 +169,7 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
           <TimerBar endsAt={q.endsAt} total={20000} onTick={q.for === h.me} />
           <OptionGrid options={q.options} mine={null} correct={null} disabled={q.for !== h.me} onPick={(choice) => h.act('answer', { choice })} columns={1} />
         </View>
-      ) : (
+      ) : (canPlay && choosing) || (myTurn && view.phase === 'roll' && !rolling) || waitLine ? (
         <View style={styles.panel}>
           {canPlay && choosing ? (
             <View style={{ gap: 8 }}>
@@ -205,12 +207,12 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
               />
             </View>
           ) : (
-            <Txt v="bold" center color={C.muted}>
-              {rolling ? 'النرد يتدحرج…' : `دور ${h.player(view.turn).name}…`}
+            <Txt v="bold" center color={rolling ? C.muted : C.yellow}>
+              {waitLine}
             </Txt>
           )}
         </View>
-      )}
+      ) : null}
 
       {!final && me && view.myHand.length ? (
         <View style={{ gap: 6 }}>

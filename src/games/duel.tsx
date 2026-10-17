@@ -1,6 +1,7 @@
 /** The two-player header used by the 1-vs-1 board games: avatar, name, a colour swatch, a short line and the series score. */
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
@@ -47,6 +48,27 @@ export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: strin
       })}
     </Row>
   );
+}
+
+/**
+ * A piece that just arrived on its square: it slides in from where it came from (and through the squares
+ * of a capture chain), so a quick move by the other player can be followed. `steps` are the earlier
+ * positions, oldest first, as offsets in px from where the piece now sits. Remount it (key) per move.
+ */
+export function SlideIn({ steps, ms = 190, children }: { steps: { x: number; y: number }[]; ms?: number; children: ReactNode }) {
+  const x = useSharedValue(steps[0]?.x ?? 0);
+  const y = useSharedValue(steps[0]?.y ?? 0);
+  useEffect(() => {
+    if (!steps.length) return;
+    const path = [...steps.slice(1), { x: 0, y: 0 }];
+    const ease = { duration: ms, easing: Easing.inOut(Easing.quad) };
+    x.set(withSequence(...path.map((p) => withTiming(p.x, ease))));
+    y.set(withSequence(...path.map((p) => withTiming(p.y, ease))));
+    // a new move remounts the piece: animate once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { translateY: y.get() }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({

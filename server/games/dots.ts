@@ -121,7 +121,10 @@ export const dots: GameModule<State, DotsSettings> = {
 
   act(ctx, s, by, a) {
     if (s.phase !== 'play' || !s.active.includes(by)) return;
-    if (a.type === 'resign') return dropOut(ctx, s, by);
+    if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      return dropOut(ctx, s, by);
+    }
     if (a.type !== 'line') return;
     if (turnOf(s) !== by) throw new GameError('ليس دورك');
     const e = a.line;
@@ -133,6 +136,8 @@ export const dots: GameModule<State, DotsSettings> = {
     s.moves += 1;
     s.lastBoxes = dotsLineBoxes(s.n, e).filter((b) => s.boxes[b] < 0 && dotsBoxLines(s.n, b).every((x) => s.lines[x] >= 0));
     for (const b of s.lastBoxes) s.boxes[b] = seat;
+    const k = s.lastBoxes.length;
+    ctx.say?.(`${ctx.playerName(by)} ${k ? `أغلق ${k === 1 ? 'مربعاً' : 'مربعين'} ويلعب مرة أخرى` : 'رسم خطاً'}`, by);
     if (s.lastBoxes.length) {
       s.points[by] += s.lastBoxes.length;
       ctx.fx('correct', by);

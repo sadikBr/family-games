@@ -32,8 +32,8 @@ interface State {
 
 /** Tests set BOT_SPEED to speed bots up; the auto-move wait follows so test games stay short. */
 const SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
-/** The dice land after ~1.5 s; then a single legal move is played for the player. */
-export const AUTO_MOVE_MS = 1500 * SPEED;
+/** The dice land after ~1.2 s; a moment later a single legal move is played for the player. */
+export const AUTO_MOVE_MS = 2000 * SPEED;
 
 const colorOf = (s: State, id: string) => s.seats.find((x) => x.id === id)!.color;
 const current = (s: State) => s.seats[s.turnIdx].id;
@@ -108,7 +108,22 @@ function moveToken(s: State, id: string, t: number): { captured: string[]; finis
   return { captured, finished: to === FINISH };
 }
 
+/** One short line for the turn bar: what the move did. */
+function sayMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }) {
+  const name = ctx.playerName(id);
+  const lm = s.lastMove!;
+  let text: string;
+  if (res.captured.length) text = `${name} رمى ${s.dice} وأكل قطعة ${res.captured.map((c) => ctx.playerName(c)).join(' و')}`;
+  else if (res.finished) text = `${name} أدخل قطعة إلى البيت`;
+  else if (lm.from < 0) text = `${name} رمى ${s.dice} وأخرج قطعة`;
+  else text = `${name} رمى ${s.dice} وحرّك قطعة`;
+  const again = s.dice === 6 || res.captured.length > 0 || res.finished;
+  if (again && s.tokens[id].some((p) => p < FINISH)) text += ' ويلعب مرة أخرى';
+  ctx.say?.(text, id);
+}
+
 function afterMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }) {
+  sayMove(ctx, s, id, res);
   if (res.captured.length) {
     s.feed.push(`${ctx.playerName(id)} أكل ${res.captured.map((c) => ctx.playerName(c)).join(' و ')}`, { by: id });
     ctx.fx('boom', res.captured[0]);
@@ -174,6 +189,7 @@ export const ludo: GameModule<State, LudoSettings> = {
         s.sixes += 1;
         if (s.sixes === 3) {
           s.feed.push(`${ctx.playerName(by)}: ثلاث رميات من 6 متتالية! ضاع الدور`, { by });
+          ctx.say?.(`${ctx.playerName(by)} رمى 6 ثلاث مرات — ضاع الدور`, by);
           nextTurn(s);
           s.dice = d;
           return;
@@ -182,10 +198,12 @@ export const ludo: GameModule<State, LudoSettings> = {
       const can = movableTokens(s.tokens[by], d, s.settings.exitOnOne);
       if (!can.length) {
         s.feed.push(`${ctx.playerName(by)} رمى ${d} — لا توجد حركة`, { by });
+        ctx.say?.(`${ctx.playerName(by)} رمى ${d} — لا توجد حركة`, by);
         nextTurn(s);
         s.dice = d; // keep showing the roll
         return;
       }
+      ctx.say?.(`${ctx.playerName(by)} رمى ${d}`, by);
       s.phase = 'move';
       s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + AUTO_MOVE_MS : null;
       return;
@@ -207,7 +225,8 @@ export const ludo: GameModule<State, LudoSettings> = {
     const bot = current(s);
     if (!ctx.isBot(bot)) return;
     if (s.phase === 'roll') {
-      ctx.bot(bot, `roll:${s.moves}`, randDelay(1000, 1400), { type: 'roll' });
+      // a roll still on the table (nothing could move) stays readable a little longer
+      ctx.bot(bot, `roll:${s.moves}`, s.dice ? randDelay(1500, 1900) : randDelay(1000, 1400), { type: 'roll' });
       return;
     }
     const color = colorOf(s, bot);
@@ -226,7 +245,8 @@ export const ludo: GameModule<State, LudoSettings> = {
       return v + Math.random();
     };
     const best = can.sort((x, y) => score(y) - score(x))[0];
-    ctx.bot(bot, `move:${s.moves}`, randDelay(800, 1200), { type: 'move', token: best });
+    // the dice land after ~1.2 s on the phones: the piece moves once the number has been seen
+    ctx.bot(bot, `move:${s.moves}`, randDelay(1500, 1900), { type: 'move', token: best });
   },
 
   tick(ctx, s) {

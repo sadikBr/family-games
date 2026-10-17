@@ -157,7 +157,7 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
             key={`b${b}`}
             pointerEvents="none"
             entering={lastBoxes.has(b) ? ZoomIn.duration(240) : undefined}
-            style={[styles.box, { left: pad + c * s + t / 2, top: pad + r * s + t / 2, width: s - t, height: s - t, backgroundColor: alpha(DOTS_COLORS[o], 0.82) }]}>
+            style={[styles.box, { left: pad + c * s + t / 2, top: pad + r * s + t / 2, width: s - t, height: s - t, backgroundColor: alpha(DOTS_COLORS[o], 0.82) }, lastBoxes.has(b) && styles.boxNew]}>
             <Txt style={{ fontSize: s * 0.42, lineHeight: s * 0.6, color: '#FFFFFF' }}>{nameOf(h, view, owner).trim().charAt(0)}</Txt>
           </Animated.View>
         );
@@ -212,19 +212,17 @@ export function DotsGame({ room, view }: { room: RoomView; view: DotsView }) {
       <Players view={view} h={h} />
       {view.phase === 'final' ? (
         <ResultBanner tone={won ? 'good' : view.winners?.includes(meId) ? 'neutral' : 'bad'} art={<DotsArt size={64} />} title={title} sub={sub} />
-      ) : (
+      ) : myTurn || !playing || justScored ? (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
           {myTurn
             ? justScored
               ? 'أغلقت مربعاً! العب مرة أخرى'
-              : 'دورك — المس بين نقطتين لترسم خطاً'
+              : 'المس بين نقطتين لترسم خطاً'
             : !playing
               ? 'خرجت من هذه اللعبة… تابع الآخرين'
-              : justScored
-                ? `${nameOf(h, view, view.turn!)} أغلق مربعاً ويلعب مرة أخرى…`
-                : `دور ${nameOf(h, view, view.turn!)}…`}
+              : `${nameOf(h, view, view.turn!)} أغلق مربعاً ويلعب مرة أخرى…`}
         </Txt>
-      )}
+      ) : null}
 
       <Board view={view} h={h} myTurn={myTurn} />
 
@@ -282,6 +280,7 @@ export function DotsSettings({ room, editable }: { room: RoomView; editable: boo
 const styles = StyleSheet.create({
   board: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 22, borderWidth: 3, borderColor: INK },
   box: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  boxNew: { borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.9)' },
   ghost: { position: 'absolute', backgroundColor: 'rgba(21,23,38,0.14)', borderRadius: 1 },
   line: { position: 'absolute', borderRadius: 6, borderWidth: 1.5, borderColor: INK },
   halo: { position: 'absolute', backgroundColor: 'rgba(242,179,61,0.75)' },

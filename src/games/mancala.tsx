@@ -54,12 +54,15 @@ function Seeds({ count, w, h = w, hole, max }: { count: number; w: number; h?: n
   );
 }
 
-/** The board as it looks `step` seeds into the last move (the server board once every seed has landed). */
+/**
+ * The board as it looks `step` seeds into the last move. With a capture, one more step shows every seed
+ * landed before the captured seeds go to the store; after that, the server board.
+ */
 function shownBoard(board: number[], last: MancalaMove | null, step: number) {
-  if (!last || step >= last.path.length) return board;
+  if (!last || step >= last.path.length + (last.capture ? 1 : 0)) return board;
   const b = last.before.slice();
   b[last.from] = 0;
-  for (let i = 0; i < step; i++) b[last.path[i]] += 1;
+  for (let i = 0; i < Math.min(step, last.path.length); i++) b[last.path[i]] += 1;
   return b;
 }
 
@@ -67,22 +70,27 @@ function Board({ view, h, myTurn }: { view: MancalaView; h: Helpers; myTurn: boo
   const { width } = useWindowDimensions();
   const last = view.last;
   const total = last?.path.length ?? 0;
+  const pause = last?.capture ? 1 : 0;
   const [step, setStep] = useState(0);
-  // seeds land one after another: about 1 s in all, never slower than 130 ms a seed
+  // seeds land one after another (80–170 ms a seed, about 1.4 s in all); a capture waits a moment
+  // on the full pits before the seeds go to the store (the server's bot waits for this: sowingMs)
   useEffect(() => {
     if (!total) return;
-    const per = Math.max(55, Math.min(130, 1000 / total));
+    const per = Math.max(80, Math.min(170, 1400 / total));
     let k = 0;
-    const id = setInterval(() => {
+    let id: ReturnType<typeof setTimeout>;
+    const next = () => {
       k += 1;
       setStep(k);
-      if (k >= total) clearInterval(id);
-    }, per);
-    return () => clearInterval(id);
-  }, [total]);
-  const moving = !!last && step < total;
+      if (k < total + pause) id = setTimeout(next, k === total ? 750 : per);
+    };
+    id = setTimeout(next, per);
+    return () => clearTimeout(id);
+  }, [total, pause]);
+  const moving = !!last && step < total + pause;
   const board = shownBoard(view.board, last, step);
-  const landing = moving && step > 0 ? last!.path[step - 1] : -1;
+  const landing = moving && step > 0 ? last!.path[Math.min(step, total) - 1] : -1;
+  const sown = new Set(!moving && last ? last.path : []);
 
   const bottom = view.mySide ?? 0;
   const top = bottom === 0 ? 1 : 0;
@@ -101,7 +109,7 @@ function Board({ view, h, myTurn }: { view: MancalaView; h: Helpers; myTurn: boo
     const mine = row === 1 && view.mySide !== null;
     const playable = myTurn && mine && !moving && view.board[idx] > 0;
     const isFrom = last?.from === idx;
-    const captured = !moving && last?.capture && (last.capture.pit === idx || last.capture.opposite === idx);
+    const captured = step >= total && last?.capture && (last.capture.pit === idx || last.capture.opposite === idx);
     const x = padX + storeW + 4 + col * cw;
     const y = row === 0 ? 6 + label : 12 + label + rowH;
     return (
@@ -120,6 +128,7 @@ function Board({ view, h, myTurn }: { view: MancalaView; h: Helpers; myTurn: boo
             { width: pitD, height: pitD, borderRadius: pitD },
             playable && styles.playable,
             landing === idx && styles.landing,
+            sown.has(idx) && styles.sown,
             isFrom && !moving && styles.from,
             captured && styles.captured,
           ]}>
@@ -185,8 +194,8 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
   if (view.phase === 'play') {
     const byMe = last?.side === me;
     if (last?.capture) line = byMe ? `أكلت ${num(last.capture.seeds)} حبات! ` : `${name(last.side)} أكل ${num(last.capture.seeds)} حبات. `;
-    if (myTurn) line += last?.extra && byMe ? 'آخر حبة في خزانتك: العب مرة أخرى!' : 'دورك — اختر حفرة من صفّك';
-    else line += last?.extra && !byMe ? `آخر حبة في خزانة ${name(view.turn)}: يلعب مرة أخرى…` : `دور ${name(view.turn)}…`;
+    if (myTurn) line += last?.extra && byMe ? 'آخر حبة في خزانتك: العب مرة أخرى!' : 'اختر حفرة من صفّك';
+    else if (last?.extra && !byMe) line += `آخر حبة في خزانة ${name(view.turn)}: يلعب مرة أخرى…`;
   }
 
   return (
@@ -209,11 +218,11 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
           title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : `فاز ${h.player(view.seats[view.winner as 0 | 1]).name}`}
           sub={view.reason === 'forfeit' ? 'انسحب الخصم' : `${num(Math.max(s0, s1))} مقابل ${num(Math.min(s0, s1))}`}
         />
-      ) : (
+      ) : line ? (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
           {line}
         </Txt>
-      )}
+      ) : null}
 
       <Board key={last?.seq ?? 0} view={view} h={h} myTurn={myTurn} />
 
@@ -269,6 +278,7 @@ const styles = StyleSheet.create({
   pit: { backgroundColor: PIT, borderWidth: 3, borderColor: '#3A1F0C', alignItems: 'center', justifyContent: 'center' },
   playable: { borderColor: C.yellow, borderWidth: 3 },
   landing: { borderColor: '#FFFFFF', borderWidth: 3, backgroundColor: '#5E3719' },
+  sown: { borderColor: 'rgba(255,255,255,0.28)' },
   from: { borderColor: 'rgba(255,255,255,0.55)', borderStyle: 'dashed' },
   captured: { borderColor: C.green, borderWidth: 3 },
   countTag: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 6, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.25)' },

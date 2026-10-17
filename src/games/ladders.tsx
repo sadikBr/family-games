@@ -98,11 +98,11 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
                   h.act('roll');
                 }}
               />
-            ) : (
+            ) : rolling ? (
               <Txt v="bold" center color={C.muted}>
-                {rolling ? 'النرد يتدحرج…' : `دور ${h.player(view.turn).name}…`}
+                النرد يتدحرج…
               </Txt>
-            )}
+            ) : null}
             <Txt v="tiny" center color={C.dim}>
               السلالم أعمال صالحة ترفعك، والأفاعي عادات سيئة تُنزلك{exact ? ' — تحتاج الرقم المضبوط للوصول إلى 100' : ''}
             </Txt>

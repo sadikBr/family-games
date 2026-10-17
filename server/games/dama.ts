@@ -155,6 +155,9 @@ interface State {
   score: Record<string, number>;
 }
 
+/** «قطعة», «قطعتين», «3 قطع»… */
+const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتين' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
+
 function finish(ctx: GameCtx, s: State, winner: 'white' | 'black', reason: DamaView['reason']) {
   s.phase = 'final';
   s.winner = winner;
@@ -224,7 +227,10 @@ export const dama: GameModule<State, DamaSettings> = {
     if (s.phase !== 'play') return;
     const side = by === s.white ? 1 : by === s.black ? -1 : 0;
     if (!side) return;
-    if (a.type === 'resign') return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
+    if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} استسلم`, by);
+      return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
+    }
     if (a.type !== 'move') return;
     if (side !== s.turn) throw new GameError('ليس دورك');
     if (!isNum(a.from) || !isNum(a.to)) return;
@@ -241,6 +247,8 @@ export const dama: GameModule<State, DamaSettings> = {
     s.lastMove = m;
     s.quiet = m.captures.length || wasMan ? 0 : s.quiet + 1;
     s.moves += 1;
+    const crowned = wasMan && Math.abs(s.board[m.path[m.path.length - 1]]) === 2;
+    ctx.say?.(`${ctx.playerName(by)} ${m.captures.length ? `أكل ${pieces(m.captures.length)}` : 'حرّك قطعة'}${crowned ? ' وصارت قطعته ملكاً' : ''}`, by);
     ctx.fx(m.captures.length ? 'correct' : 'card', by);
     s.turn = s.turn === 1 ? -1 : 1;
     finishIfOver(ctx, s);

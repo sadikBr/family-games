@@ -16,7 +16,7 @@ import { Txt, num } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { DuelBar, SlideIn } from './duel';
 import { helpers } from './helpers';
 
 const INK = '#151726';
@@ -69,7 +69,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
 
   const hint = (() => {
     if (view.phase === 'final') return '';
-    if (!myTurn) return `دور ${h.player(idOf(view.turn)).name}…`;
+    if (!myTurn) return '';
     if (view.phase === 'place') return `ضع قطعتين على خانات فارغة (بقي لك ${num(view.toPlace[view.mySide!])})`;
     if (view.chainFrom !== null) return 'أكلت! واصل الأكل بنفس القطعة';
     if (!view.moves.length) return 'لا حركة لديك…';
@@ -97,11 +97,11 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
           title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(idOf(view.winner as 1 | 2)).name}`}
           sub={view.reason ? REASON[view.reason] : undefined}
         />
-      ) : (
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
+      ) : hint ? (
+        <Txt v="bold" center color={C.yellow}>
           {hint}
         </Txt>
-      )}
+      ) : null}
 
       <View style={[styles.board, { width: W + 6, height: W + 6 }]}>
         {/* grid lines through the centres of the squares */}
@@ -116,32 +116,44 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
           const isTarget = targets.has(i);
           const isChosen = chosen === i;
           const canPick = myTurn && view.phase === 'move' && view.chainFrom === null && movable.has(i);
-          const lastTo = view.last?.to === i;
+          const last = view.last;
+          // the last move's square — or, while placing (or just after), the pieces put down in the latest turn
+          const lastTo = !!last && (last.to === i || (last.from === i && !!v));
+          const lastFrom = !!last && last.from === i && last.from !== last.to && !v;
+          const slide = !!v && !!last && last.to === i && last.from !== last.to && !view.board[last.from];
+          const piece = v ? (
+            <Animated.View
+              key={`${i}:${v}`}
+              entering={slide ? undefined : ZoomIn.duration(160)}
+              style={[
+                styles.piece,
+                { width: cell * 0.72, height: cell * 0.72, borderRadius: cell, backgroundColor: PIECE[v as 1 | 2] },
+                canPick && styles.pickable,
+                isChosen && styles.chosen,
+                lastTo && !isChosen && !canPick && styles.lastTo,
+              ]}>
+              <View style={[styles.pieceIn, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell }]} />
+            </Animated.View>
+          ) : null;
           return (
             <Pressable
               key={i}
               onPress={() => tap(i)}
               accessibilityLabel={`الخانة ${r + 1}-${c + 1}`}
-              style={[styles.cell, { left: c * cell, top: r * cell, width: cell, height: cell }]}>
+              style={[styles.cell, { left: c * cell, top: r * cell, width: cell, height: cell }, slide && { zIndex: 2 }]}>
+              {lastFrom ? <View style={[styles.fromDot, { width: cell * 0.24, height: cell * 0.24, borderRadius: cell }]} /> : null}
               {i === CENTER ? <View style={[styles.center, { width: cell * 0.5, height: cell * 0.5 }]} /> : null}
               {isTarget ? <View style={[styles.target, { width: cell * 0.42, height: cell * 0.42, borderRadius: cell }]} /> : null}
               {view.last?.captured.includes(i) && !v ? (
                 <Animated.View key={`cap${view.last.from}-${view.last.to}`} exiting={FadeOut} style={[styles.ghost, { width: cell * 0.6, height: cell * 0.6, borderRadius: cell }]} />
               ) : null}
-              {v ? (
-                <Animated.View
-                  key={`${i}:${v}`}
-                  entering={ZoomIn.duration(160)}
-                  style={[
-                    styles.piece,
-                    { width: cell * 0.72, height: cell * 0.72, borderRadius: cell, backgroundColor: PIECE[v as 1 | 2] },
-                    canPick && styles.pickable,
-                    isChosen && styles.chosen,
-                    lastTo && !isChosen && styles.lastTo,
-                  ]}>
-                  <View style={[styles.pieceIn, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell }]} />
-                </Animated.View>
-              ) : null}
+              {slide && last ? (
+                <SlideIn key={`${last.from}-${last.to}:${v}`} steps={[{ x: ((last.from % N) - c) * cell, y: (Math.floor(last.from / N) - r) * cell }]} ms={240}>
+                  {piece}
+                </SlideIn>
+              ) : (
+                piece
+              )}
             </Pressable>
           );
         })}
@@ -198,4 +210,5 @@ const styles = StyleSheet.create({
   pickable: { borderColor: '#2E8B57', borderWidth: 3.5 },
   chosen: { borderColor: C.yellow, borderWidth: 4, transform: [{ scale: 1.1 }] },
   lastTo: { borderColor: '#3D7BE0', borderWidth: 3.5 },
+  fromDot: { position: 'absolute', backgroundColor: alpha('#3D7BE0', 0.45), borderWidth: 1.5, borderColor: alpha('#3D7BE0', 0.9) },
 });

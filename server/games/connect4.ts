@@ -24,6 +24,7 @@ interface State {
 /** `id` resigned or left: the other player wins the game (and it counts in the series). */
 function forfeit(ctx: GameCtx, s: State, id: string) {
   if (id !== s.red && id !== s.yellow) return;
+  ctx.say?.(`${ctx.playerName(id)} انسحب`, id);
   s.winner = id === s.red ? 2 : 1;
   s.phase = 'final';
   duelWin(ctx, s.score, id === s.red ? s.yellow : s.red);
@@ -68,6 +69,7 @@ export const connect4: GameModule<State, Connect4Settings> = {
     s.moves += 1;
     ctx.fx('card', by);
     const line = winLine(s.board, i);
+    ctx.say?.(`${ctx.playerName(by)} أسقط قرصاً${line ? ' — أربعة في صف!' : ''}`, by);
     if (line) {
       s.line = line;
       s.winner = me;

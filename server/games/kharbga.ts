@@ -34,6 +34,13 @@ interface State {
 }
 
 const idOf = (s: State, side: Side) => (side === 1 ? s.attacker : s.defender);
+/** «قطعة», «قطعتين», «3 قطع»… */
+const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتين' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
+/** While placing, `last` marks the pieces put down in the latest turn (from = first, to = last). */
+const markPlaced = (s: State) => {
+  const p = s.placedThisTurn;
+  s.last = p.length ? { from: p[0], to: p[p.length - 1], captured: [] } : null;
+};
 const count = (s: State, side: Side) => s.board.filter((v) => v === side).length;
 
 function end(ctx: GameCtx, s: State, winner: KharbgaView['winner'], reason: KharbgaView['reason']) {
@@ -72,6 +79,7 @@ function passTurn(ctx: GameCtx, s: State) {
     return end(ctx, s, a === d ? 'draw' : a > d ? 1 : 2, 'blocked');
   }
   s.feed.push(`${ctx.playerName(idOf(s, next))} محاصر — ${ctx.playerName(idOf(s, s.turn))} يلعب مرة أخرى`);
+  ctx.say?.(`${ctx.playerName(idOf(s, next))} محاصر — ${ctx.playerName(idOf(s, s.turn))} يلعب مرة أخرى`);
 }
 
 export const kharbga: GameModule<State, KharbgaSettings> = {
@@ -107,7 +115,10 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     if (s.phase === 'final') return;
     const side: Side | null = by === s.attacker ? 1 : by === s.defender ? 2 : null;
     if (!side) return;
-    if (a.type === 'resign') return end(ctx, s, other(side), 'resign');
+    if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      return end(ctx, s, other(side), 'resign');
+    }
     if (side !== s.turn) throw new GameError('ليس دورك');
 
     if (s.phase === 'place') {
@@ -117,6 +128,8 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
         s.board[cell] = 0;
         s.toPlace[side] += 1;
         s.moves += 1;
+        markPlaced(s);
+        ctx.say?.(`${ctx.playerName(by)} رفع قطعة وضعها`, by);
         ctx.fx('card', by);
         return;
       }
@@ -127,6 +140,9 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
         s.toPlace[side] = 0;
         s.moves += 1;
         s.feed.push(`${ctx.playerName(by)} وزّع قطعه الباقية عشوائياً`, { by });
+        ctx.say?.(`${ctx.playerName(by)} وزّع قطعه الباقية عشوائياً`, by);
+        s.placedThisTurn = [];
+        s.last = null;
         ctx.fx('card', by);
         afterPlace(s, side);
         return;
@@ -136,6 +152,8 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       s.toPlace[side] -= 1;
       s.placedThisTurn.push(a.cell);
       s.moves += 1;
+      markPlaced(s);
+      ctx.say?.(`${ctx.playerName(by)} وضع قطعة (بقي ${s.toPlace[side]})`, by);
       ctx.fx('card', by);
       afterPlace(s, side);
       return;
@@ -152,15 +170,21 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     s.last = { from: m.from, to: m.to, captured };
     if (captured.length) {
       s.quiet = 0;
-      s.feed.push(`${ctx.playerName(by)} أكل ${captured.length === 1 ? 'قطعة' : `${captured.length} قطع`}`, { by });
+      s.feed.push(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, { by });
       ctx.fx('throw', by);
-      if (!count(s, other(side))) return end(ctx, s, side, 'captured');
+      if (!count(s, other(side))) {
+        ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, by);
+        return end(ctx, s, side, 'captured');
+      }
       if (movesFor(s.board, side, m.to).length) {
+        ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)} ويواصل الأكل`, by);
         s.chainFrom = m.to; // keep capturing with the same piece
         return;
       }
+      ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, by);
     } else {
       s.quiet += 1;
+      ctx.say?.(`${ctx.playerName(by)} حرّك قطعة`, by);
       ctx.fx('card', by);
       if (s.quiet >= QUIET_LIMIT) {
         const a1 = count(s, 1), d = count(s, 2);

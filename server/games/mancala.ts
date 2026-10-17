@@ -33,6 +33,16 @@ function finishByBoard(ctx: GameCtx, s: State) {
   if (s.winner !== 'draw') duelWin(ctx, s.score, s.seats[s.winner]);
 }
 
+/** «حبة واحدة», «حبتين», «5 حبات», «12 حبة» */
+const seedsText = (n: number) => (n === 1 ? 'حبة واحدة' : n === 2 ? 'حبتين' : n <= 10 ? `${n} حبات` : `${n} حبة`);
+
+/** How long the phones take to show a move (seeds land one by one, then a capture pauses): see mancala.tsx. */
+export function sowingMs(m: MancalaMove | null) {
+  if (!m) return 0;
+  const per = Math.max(80, Math.min(170, 1400 / m.path.length));
+  return m.path.length * per + (m.capture ? 750 : 0);
+}
+
 /** `id` resigned or left: the other player wins (and it counts in the series). */
 function forfeit(ctx: GameCtx, s: State, id: string) {
   const side = s.seats.indexOf(id);
@@ -61,7 +71,10 @@ export const mancala: GameModule<State, MancalaSettings> = {
     if (s.phase !== 'play') return;
     const side = s.seats.indexOf(by);
     if (side < 0) return;
-    if (a.type === 'resign') return forfeit(ctx, s, by);
+    if (a.type === 'resign') {
+      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      return forfeit(ctx, s, by);
+    }
     if (a.type !== 'sow') return;
     if (side !== s.turn) throw new GameError('ليس دورك');
     const pit = a.pit;
@@ -72,6 +85,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     s.board = r.board;
     s.moves += 1;
     s.last = { seq: s.moves, side: s.turn, from: pit, path: r.path, before, capture: r.capture, extra: r.extra };
+    ctx.say?.(`${ctx.playerName(by)} وزّع ${seedsText(before[pit])}${r.capture ? ` وأكل ${seedsText(r.capture.seeds)}` : ''}${r.extra && !r.over ? ' ويلعب مرة أخرى' : ''}`, by);
     if (r.capture) ctx.fx('correct', by);
     else if (r.extra) ctx.fx('reveal', by);
     else ctx.fx('card', by);
@@ -85,7 +99,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     if (!bots.includes(id)) return;
     if (s.botCache?.moves !== s.moves) s.botCache = { moves: s.moves, pit: mancalaBotPit(s.board, s.turn, s.settings.level) };
     // wait for the seeds of the last move to finish moving on the phones
-    const anim = Math.min(s.last?.path.length ?? 0, 14) * 75;
+    const anim = sowingMs(s.last);
     ctx.bot(id, `m:${s.moves}`, anim + randDelay(650, 1100), { type: 'sow', pit: s.botCache.pit });
   },
 
