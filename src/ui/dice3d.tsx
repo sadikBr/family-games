@@ -204,6 +204,10 @@ export function ThrownDice(props: DiceProps) {
       setFailed(true);
       return;
     }
+    scene.current.onError = (e) => {
+      console.warn('3D dice failed to draw, using the sprite dice', e);
+      setFailed(true);
+    };
     if (animate && thrown.current !== rollId) {
       // a roll arrived before the 3D view was ready
       thrown.current = rollId;

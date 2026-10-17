@@ -53,6 +53,9 @@ export class DiceScene {
   private start = 0;
   private frame: number | null = null;
   private onDone: (() => void) | null = null;
+  /** Called once if drawing fails on this phone (the caller then shows the sprite dice). */
+  onError: ((e: unknown) => void) | null = null;
+  private broken = false;
 
   constructor(
     private gl: WebGLRenderingContext & { endFrameEXP?: () => void },
@@ -71,7 +74,7 @@ export class DiceScene {
       removeEventListener: () => {},
       getContext: () => gl,
     } as unknown as HTMLCanvasElement;
-    this.renderer = new THREE.WebGLRenderer({ canvas, context: gl, antialias: true, alpha: true });
+    this.renderer = createRenderer(gl, canvas);
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(w, h, false);
     this.renderer.setClearColor(0x000000, 0);
@@ -166,7 +169,7 @@ export class DiceScene {
     this.start = Date.now();
     const loop = () => {
       const done = this.step(Date.now() - this.start);
-      this.render();
+      if (!this.render()) return;
       if (done) {
         this.frame = null;
         const cb = this.onDone;
@@ -194,9 +197,19 @@ export class DiceScene {
     return done;
   }
 
-  private render() {
-    this.renderer.render(this.scene, this.camera);
-    this.gl.endFrameEXP?.();
+  /** Draws a frame; false (and onError) if the phone can't. */
+  private render(): boolean {
+    if (this.broken) return false;
+    try {
+      this.renderer.render(this.scene, this.camera);
+      this.gl.endFrameEXP?.();
+      return true;
+    } catch (e) {
+      this.broken = true;
+      this.stop();
+      this.onError?.(e);
+      return false;
+    }
   }
 
   stop() {
@@ -207,6 +220,36 @@ export class DiceScene {
   dispose() {
     this.stop();
     this.renderer.dispose();
+  }
+}
+
+type ExpoGL = WebGLRenderingContext & { supportsWebGL2?: boolean };
+
+/**
+ * three.js on expo-gl. On phones, expo-gl's WebGL 2 context also passes `instanceof
+ * WebGLRenderingContext` (expo-gl makes WebGL2RenderingContext extend it), and three.js (r163+)
+ * rejects anything that does as "WebGL 1". So the global is hidden while the renderer checks it.
+ * A phone that only has WebGL 1 can't run three.js: that throws, and the sprite dice take over.
+ */
+function createRenderer(gl: ExpoGL, canvas: HTMLCanvasElement) {
+  const g = globalThis as { WebGLRenderingContext?: unknown };
+  const isWebGL2 = gl.supportsWebGL2 ?? (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext);
+  if (!isWebGL2) throw new Error('3D dice need WebGL 2');
+  const native = gl.supportsWebGL2 !== undefined; // expo-gl on a phone (on the web it's the browser's own context)
+  if (native) {
+    // expo-gl only knows two pixelStorei settings and logs a warning for every other one three.js resets
+    const pixelStorei = gl.pixelStorei.bind(gl);
+    gl.pixelStorei = (pname: number, param: number | boolean) => {
+      if (pname === gl.UNPACK_FLIP_Y_WEBGL || pname === gl.UNPACK_ALIGNMENT) pixelStorei(pname, param as number);
+    };
+  }
+  const saved = g.WebGLRenderingContext;
+  const hide = native && saved !== undefined && gl instanceof (saved as typeof WebGLRenderingContext);
+  if (hide) g.WebGLRenderingContext = undefined;
+  try {
+    return new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true, alpha: true });
+  } finally {
+    if (hide) g.WebGLRenderingContext = saved;
   }
 }
 
