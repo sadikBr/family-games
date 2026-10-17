@@ -114,3 +114,60 @@ export function mancala() {
     <circle cx="19.5" cy="47" r="1.7" fill="#F2C23D" data-noshade data-lw="0.5"/><circle cx="19.5" cy="53" r="1.7" fill="#E2475F" data-noshade data-lw="0.5"/><circle cx="19.5" cy="59" r="1.7" fill="#3D7BE0" data-noshade data-lw="0.5"/>
     <circle cx="80.5" cy="50" r="1.7" fill="#2FB67C" data-noshade data-lw="0.5"/><circle cx="80.5" cy="56" r="1.7" fill="#F2C23D" data-noshade data-lw="0.5"/>`);
 }
+
+export function life() {
+  // a winding road with a car, a little house and coins
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#0F5A3A', '#2FB67C', ['#F2C23D', '#FFE89A'])}
+    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="${INK}" stroke-width="13" fill="none" stroke-linecap="round" data-flat/>
+    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="#E9D9B4" stroke-width="9" fill="none" stroke-linecap="round" data-flat/>
+    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="#C9A35A" stroke-width="1.4" stroke-dasharray="3 3" fill="none" data-flat/>
+    <path d="M60 52 L72 42 L84 52 V66 H60Z" fill="#FFF4DA"/>
+    <path d="M57 54 L72 40 L87 54" stroke="#E2475F" stroke-width="4" fill="none" stroke-linecap="round" data-flat/>
+    <rect x="68" y="56" width="8" height="10" rx="1.5" fill="#B5652B"/>
+    <rect x="40" y="46" width="14" height="9" rx="3" fill="#3D7BE0"/>
+    <circle cx="43" cy="56" r="2.2" fill="${INK}" data-noshade data-lw="0.5"/><circle cx="51" cy="56" r="2.2" fill="${INK}" data-noshade data-lw="0.5"/>
+    <circle cx="70" cy="76" r="6" fill="#F2C23D"/><circle cx="58" cy="78" r="5" fill="#F2C23D"/>`);
+}
+
+export function blocks() {
+  const sq = (x, y, c) => `<rect x="${x}" y="${y}" width="10" height="10" rx="2" fill="${c}" data-lw="0.9"/>`;
+  const piece = (cells, c, ox, oy) => cells.map(([i, j]) => sq(ox + i * 10, oy + j * 10, c)).join('');
+  return svg100(`
+    ${base(HEX, HEX_IN, '#163C7A', '#3D7BE0', ['#F2C23D', '#FFE89A'])}
+    <rect x="22" y="22" width="56" height="56" rx="5" fill="#E8EEF8" data-shade="0.85"/>
+    ${piece([[0, 0], [1, 0], [1, 1], [2, 1]], '#E2475F', 25, 25)}
+    ${piece([[0, 0], [0, 1], [0, 2], [1, 2]], '#2FB67C', 55, 25)}
+    ${piece([[0, 0], [1, 0], [2, 0], [1, 1]], '#F2C23D', 25, 55)}
+    ${piece([[0, 0], [1, 0], [1, 1]], '#7B61D9', 55, 58)}`);
+}
+
+export function codebreak() {
+  const peg = (x, y, c) => `<circle cx="${x}" cy="${y}" r="5.2" fill="${c}" data-lw="0.9"/>`;
+  const row = (y, cols) => cols.map((c, i) => peg(32 + i * 12, y, c)).join('');
+  const key = (x, y, c) => `<circle cx="${x}" cy="${y}" r="1.9" fill="${c}" data-noshade data-lw="0.5"/>`;
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#3A2470', '#7B61D9', ['#2FB67C', '#A8E6C8'])}
+    <rect x="22" y="20" width="56" height="60" rx="8" fill="#3B2A1C" data-shade="0.85"/>
+    ${row(32, ['#E2475F', '#F2C23D', '#3D7BE0', '#2FB67C'])}
+    ${row(48, ['#F2C23D', '#E2475F', '#2FB67C', '#F08A3E'])}
+    <rect x="26" y="58" width="48" height="14" rx="4" fill="#5A4030" data-noshade/>
+    <text x="50" y="69.5" font-size="12" font-family="Lilita" fill="#FFF4DA" text-anchor="middle" data-flat>? ? ? ?</text>
+    ${key(76, 29, '#151726')}${key(76, 35, '#FFFFFF')}${key(76, 45, '#151726')}${key(76, 51, '#151726')}`);
+}
+
+export function boggle() {
+  const L = ['ك', 'ت', 'ا', 'ب', 'م', 'ل', 'و', 'ر', 'س', 'ن', 'ي', 'ج', 'ح', 'ع', 'د', 'ف'];
+  let tiles = '';
+  L.forEach((ch, i) => {
+    const x = 25 + (i % 4) * 13, y = 25 + Math.floor(i / 4) * 13;
+    const hot = [0, 1, 2, 3].includes(i);
+    tiles += `<rect x="${x}" y="${y}" width="11.5" height="11.5" rx="2.5" fill="${hot ? '#FFE08A' : '#FFF4DA'}" data-lw="0.8"/>`;
+    tiles += `<text x="${x + 5.75}" y="${y + 10}" font-size="11.5" font-family="Lalezar" fill="#2A160A" text-anchor="middle" data-flat>${ch}</text>`;
+  });
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#7A4E08', '#E8A417', ['#3D7BE0', '#A9C8FF'])}
+    <rect x="21" y="21" width="58" height="58" rx="7" fill="#B5652B" data-shade="0.8"/>
+    ${tiles}
+    <path d="M28 31 H72" stroke="#E2475F" stroke-width="2.4" stroke-linecap="round" opacity="0.8" data-flat/>`);
+}

@@ -22,8 +22,11 @@ export const AVATAR_IMG: Record<string, number> = {
 
 export const GAME_IMG: Record<string, number> = {
   'battleship': require('../../assets/art/games/battleship.webp'),
+  'blocks': require('../../assets/art/games/blocks.webp'),
+  'boggle': require('../../assets/art/games/boggle.webp'),
   'charades': require('../../assets/art/games/charades.webp'),
   'chess': require('../../assets/art/games/chess.webp'),
+  'codebreak': require('../../assets/art/games/codebreak.webp'),
   'codenames': require('../../assets/art/games/codenames.webp'),
   'connect4': require('../../assets/art/games/connect4.webp'),
   'dama': require('../../assets/art/games/dama.webp'),
@@ -39,6 +42,7 @@ export const GAME_IMG: Record<string, number> = {
   'kharbga': require('../../assets/art/games/kharbga.webp'),
   'konkan': require('../../assets/art/games/konkan.webp'),
   'ladders': require('../../assets/art/games/ladders.webp'),
+  'life': require('../../assets/art/games/life.webp'),
   'ludo': require('../../assets/art/games/ludo.webp'),
   'mancala': require('../../assets/art/games/mancala.webp'),
   'memory': require('../../assets/art/games/memory.webp'),
