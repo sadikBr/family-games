@@ -1,16 +1,17 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { GameView } from '@/games/game-view';
 import { Lobby } from '@/games/lobby';
+import { RoomMenu, shareRoom } from '@/games/room-menu';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
 import { isRemoteServer } from '@/lib/server-url';
-import { playFx } from '@/lib/sfx';
+import { alertTurn, playFx } from '@/lib/sfx';
 import { C } from '@/theme';
 import { Card, IconBubble, Pill, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
@@ -57,6 +58,7 @@ export default function RoomScreen() {
   const { room, error } = useClient();
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmLobby, setConfirmLobby] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [staleError] = useState(() => client.snap.error?.id);
   const lastFx = useRef<number | null>(null);
   const fx = room?.fx;
@@ -75,9 +77,17 @@ export default function RoomScreen() {
     }
   }, [fx, me]);
 
+  // «دورك!»: chime + buzz when the game starts waiting for me
+  const myTurn = !!room?.myTurn;
+  const wasMyTurn = useRef(false);
+  useEffect(() => {
+    if (myTurn && !wasMyTurn.current) alertTurn();
+    wasMyTurn.current = myTurn;
+  }, [myTurn]);
+
   // room vanished (wrong code, kicked…) → back home
   useEffect(() => {
-    if (!room && error?.code === 'no_room' && error.id !== staleError) router.replace('/');
+    if (!room && (error?.code === 'no_room' || error?.code === 'kicked') && error.id !== staleError) router.replace('/');
   }, [room, error, staleError]);
 
   // kicked: we had a room and lost it without leaving
@@ -90,7 +100,6 @@ export default function RoomScreen() {
   if (!room) return <Connecting />;
 
   const meta = GAMES[room.game];
-  const isHost = room.hostId === room.me;
   const playing = room.status === 'playing';
   const night = room.game === 'werewolf' && playing;
 
@@ -112,8 +121,10 @@ export default function RoomScreen() {
             }
             right={
               <Row gap={6}>
-                <Pill label={room.code} icon="key" />
-                {isHost && playing ? <IconBtn icon="home" size={38} onPress={() => setConfirmLobby(true)} label="العودة للانتظار" /> : null}
+                <Pressable onPress={() => shareRoom(room)} accessibilityLabel={`رمز الغرفة ${room.code} — شارك`} hitSlop={6}>
+                  <Pill label={room.code} icon="key" />
+                </Pressable>
+                <IconBtn icon="users" size={38} onPress={() => setMenu(true)} label="قائمة الغرفة" />
               </Row>
             }
           />
@@ -121,6 +132,8 @@ export default function RoomScreen() {
         </>
       }>
       {playing && room.view ? <GameView room={room} view={room.view} /> : <Lobby room={room} />}
+
+      <RoomMenu room={room} visible={menu} onClose={() => setMenu(false)} onLobby={() => setConfirmLobby(true)} />
 
       <ConfirmModal
         visible={confirmLeave}

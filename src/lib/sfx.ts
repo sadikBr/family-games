@@ -18,6 +18,8 @@ const SOURCES = {
   reveal: require('@/assets/sounds/reveal.wav'),
   death: require('@/assets/sounds/death.wav'),
   card: require('@/assets/sounds/card.wav'),
+  turn: require('@/assets/sounds/turn.wav'),
+  lose: require('@/assets/sounds/lose.wav'),
 } as const;
 
 export type SoundName = keyof typeof SOURCES;
@@ -94,6 +96,13 @@ export const haptic = {
   },
 };
 
+/** «دورك!» — a chime and a double buzz, so a phone lying on the table gets noticed. */
+export function alertTurn() {
+  play('turn');
+  haptic.heavy();
+  if (canBuzz) setTimeout(() => haptic.heavy(), 180);
+}
+
 /** Sound + vibration for a server-side game event. */
 export function playFx(kind: FxKind, me: string, target?: string) {
   switch (kind) {
@@ -138,8 +147,14 @@ export function playFx(kind: FxKind, me: string, target?: string) {
       haptic.error();
       break;
     case 'win':
-      play('win');
-      haptic.success();
+      // a win aimed at someone else is a loss for me
+      if (target && target !== me) {
+        play('lose');
+        haptic.light();
+      } else {
+        play('win');
+        haptic.success();
+      }
       break;
     case 'tick':
       play('tick');

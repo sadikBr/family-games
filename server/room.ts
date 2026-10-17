@@ -102,6 +102,12 @@ const MODULES: Record<GameId, AnyModule> = {
   memory,
 };
 const MAX_PLAYERS = 20;
+/** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
+const AUTOPILOT_MS = Number(process.env.AUTOPILOT_MS ?? 20_000);
+/** A host offline this long hands the room to a connected player. */
+const HOST_HANDOVER_MS = Number(process.env.HOST_HANDOVER_MS ?? 15_000);
+/** Card games where a seat can't disappear mid-hand: someone who leaves is replaced by a bot. */
+const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris'];
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
@@ -152,6 +158,14 @@ export class Room {
   private botJobs: BotJob[] = [];
   private botKeys = new Set<string>();
   private botCounter = 0;
+  /** when each person went offline (removed when they come back) */
+  private offlineSince = new Map<string, number>();
+  /** people a bot is currently playing for (see AUTOPILOT_MS) */
+  private autopilot = new Set<string>();
+  /** players the host removed: they can't come back into this room */
+  private kicked = new Set<string>();
+  /** who took part when the current game started */
+  private seated: string[] = [];
   lastActivity = Date.now();
 
   constructor(
@@ -175,7 +189,7 @@ export class Room {
         this.fx = { id: ++this.fxCounter, kind, target };
       },
       isConnected: (id) => this.players.some((p) => p.id === id && p.connected),
-      isBot: (id) => this.players.some((p) => p.id === id && p.bot),
+      isBot: (id) => this.autopilot.has(id) || this.players.some((p) => p.id === id && p.bot),
       playerName: (id) => this.players.find((p) => p.id === id)?.name ?? '؟',
       memo: this.memo,
       bot: (botId, key, delayMs, action) => {
@@ -196,6 +210,7 @@ export class Room {
   }
 
   join(info: PlayerInfo, ws: Sock) {
+    if (this.kicked.has(info.id)) throw new GameError('أخرجك المضيف من هذه الغرفة');
     const existing = this.players.find((p) => p.id === info.id);
     if (!existing && this.players.length >= MAX_PLAYERS) {
       throw new GameError('الغرفة ممتلئة');
@@ -208,7 +223,10 @@ export class Room {
       } catch {}
     }
     if (existing) {
-      Object.assign(existing, info, { connected: true });
+      // a person coming back takes their seat over from the bot that played for them
+      Object.assign(existing, info, { connected: true, bot: false });
+      this.offlineSince.delete(info.id);
+      if (this.autopilot.delete(info.id)) this.cancelBotJobs(info.id);
     } else {
       this.players.push({ ...info, connected: true });
       this.fx = { id: ++this.fxCounter, kind: 'join', target: info.id };
@@ -224,26 +242,78 @@ export class Room {
     this.sockets.delete(id);
     const p = this.players.find((x) => x.id === id);
     if (p) p.connected = false;
+    if (p && !p.bot) this.offlineSince.set(id, Date.now());
     this.broadcast();
   }
 
-  leave(id: string) {
+  private isSeated(id: string) {
+    return this.seated.includes(id);
+  }
+
+  /** Forget the bot moves planned for someone (they're back, or gone). */
+  private cancelBotJobs(id: string) {
+    this.botJobs = this.botJobs.filter((j) => j.botId !== id);
+    for (const k of [...this.botKeys]) if (k.startsWith(`${this.gameSeq}|${id}|`)) this.botKeys.delete(k);
+  }
+
+  /**
+   * Housekeeping, a few times a second: hand the room to a connected player when the host has been
+   * offline for a while, and let a bot play for people who have been offline on a bot-capable game.
+   * Returns true if anything changed.
+   */
+  private maintain(now: number): boolean {
+    let changed = false;
+    const host = this.players.find((p) => p.id === this.hostId);
+    const hostAway = !host || (!host.connected && now - (this.offlineSince.get(this.hostId) ?? now) >= HOST_HANDOVER_MS);
+    if (hostAway) {
+      const next = this.humans().find((p) => p.connected && p.id !== this.hostId);
+      if (next) {
+        this.hostId = next.id;
+        changed = true;
+      }
+    }
+    const want = new Set<string>();
+    if (this.status === 'playing' && BOT_GAMES.includes(this.game)) {
+      for (const [id, since] of this.offlineSince) if (now - since >= AUTOPILOT_MS && this.players.some((p) => p.id === id)) want.add(id);
+    }
+    if (want.size !== this.autopilot.size || [...want].some((id) => !this.autopilot.has(id))) {
+      this.autopilot = want;
+      changed = true;
+    }
+    return changed;
+  }
+
+  leave(id: string, kicked = false) {
     const ws = this.sockets.get(id);
     if (ws) {
       ws.data.code = null;
-      send(ws, { t: 'left' });
+      send(ws, { t: 'left', kicked });
     }
     this.sockets.delete(id);
+    this.offlineSince.delete(id);
+    this.autopilot.delete(id);
+    const p = this.players.find((x) => x.id === id);
+    if (p && !p.bot && this.status === 'playing' && this.state && KEEP_SEATS.includes(this.game) && this.isSeated(id)) {
+      // the hand can't lose a seat: a bot takes it over for the rest of the game
+      p.bot = true;
+      p.connected = true;
+      p.name = `${p.name} 🤖`;
+      if (this.hostId === id) this.passHost();
+      this.afterChange();
+      return;
+    }
     this.players = this.players.filter((p) => p.id !== id);
     if (this.status === 'playing' && this.state) {
       this.module.onLeave?.(this.ctx(), this.state, id);
     }
-    if (this.hostId === id) {
-      const humans = this.humans();
-      const next = humans.find((p) => p.connected) ?? humans[0];
-      if (next) this.hostId = next.id;
-    }
+    if (this.hostId === id) this.passHost();
     this.afterChange();
+  }
+
+  private passHost() {
+    const humans = this.humans().filter((p) => p.id !== this.hostId);
+    const next = humans.find((p) => p.connected) ?? humans[0];
+    if (next) this.hostId = next.id;
   }
 
   touch() {
@@ -310,6 +380,7 @@ export class Room {
         this.gameSeq += 1;
         this.botJobs = [];
         const ctx = this.ctx();
+        this.seated = participants;
         this.state = this.module.start(ctx, participants, settings);
         this.status = 'playing';
         break;
@@ -323,7 +394,9 @@ export class Room {
       }
       case 'kick': {
         if (!isHost || a.id === by) return;
-        this.leave(a.id);
+        const target = this.players.find((p) => p.id === a.id);
+        if (target && !target.bot) this.kicked.add(a.id);
+        this.leave(a.id, true);
         return;
       }
       default:
@@ -343,8 +416,12 @@ export class Room {
   }
 
   tick() {
-    if (this.status !== 'playing' || !this.state) return;
-    let changed = false;
+    const housekeeping = this.maintain(Date.now());
+    if (this.status !== 'playing' || !this.state) {
+      if (housekeeping) this.broadcast();
+      return;
+    }
+    let changed = housekeeping;
     if (this.module.tick && this.module.tick(this.ctx(), this.state)) changed = true;
 
     // run due bot actions
@@ -372,7 +449,7 @@ export class Room {
   /** Let bots react, then send everyone the new state. */
   private afterChange() {
     if (this.status === 'playing' && this.state && this.module.botPlan) {
-      const bots = this.players.filter((p) => p.bot).map((p) => p.id);
+      const bots = this.players.filter((p) => p.bot || this.autopilot.has(p.id)).map((p) => p.id);
       if (bots.length) {
         try {
           this.module.botPlan(this.ctx(), this.state, bots);
@@ -547,11 +624,12 @@ export class Room {
       me,
       game: this.game,
       status: this.status,
-      players: this.players,
+      players: this.players.map((p) => (this.autopilot.has(p.id) ? { ...p, auto: true } : p)),
       settings: this.settings,
       view: this.status === 'playing' && this.state ? this.module.view(ctx, this.state, me) : null,
       fx: this.fx,
       categories: categoriesInfo,
+      myTurn: this.status === 'playing' && !!this.state && !!this.module.turnOf?.(this.state).includes(me),
     };
   }
 

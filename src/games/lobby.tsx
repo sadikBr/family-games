@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
@@ -15,6 +15,7 @@ import { Txt } from '@/ui/txt';
 
 import { helpers } from './helpers';
 import { GAMES, GAME_ORDER } from './meta';
+import { shareRoom } from './room-menu';
 import { GameSettings } from './settings';
 
 function LinkBtn({ label, icon, onPress }: { label: string; icon: 'book' | 'shuffle'; onPress: () => void }) {
@@ -56,7 +57,7 @@ export function Lobby({ room }: { room: RoomView }) {
           icon="share"
           size={46}
           label="شارك الرمز"
-          onPress={() => Share.share({ message: `تعال نلعب «${meta.title}». رمز الغرفة: ${room.code}` }).catch(() => {})}
+          onPress={() => shareRoom(room)}
         />
       </Card>
 

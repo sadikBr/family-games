@@ -134,6 +134,8 @@ export interface PlayerInfo {
 export interface PlayerPublic extends PlayerInfo {
   connected: boolean;
   bot?: boolean;
+  /** a person who has been offline for a while: a bot is playing their turns until they're back */
+  auto?: boolean;
 }
 
 export type FxKind =
@@ -1156,6 +1158,8 @@ export interface RoomView {
   view: GameView | null;
   fx: Fx | null;
   categories: { imposter: CategoryInfo[]; headsup: CategoryInfo[] };
+  /** true while the game is waiting for me to play (drives the your-turn alert) */
+  myTurn: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1185,5 +1189,5 @@ export type ServerMsg =
   | { t: 'welcome'; now: number }
   | { t: 'state'; room: RoomView; now: number }
   | { t: 'error'; message: string; code?: 'no_room' | 'generic' }
-  | { t: 'left' }
+  | { t: 'left'; kicked?: boolean }
   | { t: 'pong'; now: number };

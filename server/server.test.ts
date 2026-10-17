@@ -49,7 +49,7 @@ let proc: Subprocess;
 
 beforeAll(async () => {
   proc = Bun.spawn(['bun', 'run', `${import.meta.dir}/index.ts`], {
-    env: { ...process.env, PORT: String(PORT), BOT_SPEED: process.env.BOT_SPEED ?? '1' },
+    env: { ...process.env, PORT: String(PORT), BOT_SPEED: process.env.BOT_SPEED ?? '1', AUTOPILOT_MS: '1500', HOST_HANDOVER_MS: '1200' },
     stdout: 'ignore',
     stderr: 'inherit',
   });
@@ -1225,3 +1225,54 @@ test('trivia with a bot', async () => {
   );
   expect(v.rounds).toBe(5);
 }, 130000);
+
+test('an offline player is played by a bot, the host role moves on, kicked players stay out', async () => {
+  const { phones, host } = await makeRoom(2, 'xo');
+  const [, guest] = phones;
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  // the guest's phone goes to sleep: after a moment a bot plays their turns
+  guest.ws.close();
+  await Bun.sleep(1900);
+  expect(host.room!.players.find((p) => p.id === guest.id)?.auto).toBe(true);
+  const v = await autoplay(
+    host,
+    (x: XoView) => (x.phase === 'play' && x.turn === x.mine ? { type: 'mark', cell: x.board.findIndex((c) => !c) } : null),
+    (x: XoView) => x.phase === 'final',
+    20000,
+  );
+  expect(v.winner).not.toBeNull();
+  // the guest comes back and plays again themselves
+  await guest.connect();
+  guest.send({ t: 'join', code: host.room!.code });
+  await settle(150);
+  expect(host.room!.players.find((p) => p.id === guest.id)?.auto).toBeFalsy();
+  // now the host's phone sleeps: the guest becomes host
+  host.ws.close();
+  await Bun.sleep(1800);
+  expect(guest.room!.hostId).toBe(guest.id);
+  await host.connect();
+  host.send({ t: 'join', code: guest.room!.code });
+  await settle(150);
+  // the new host removes the old one, who can't come back
+  guest.send({ t: 'room', action: { type: 'kick', id: host.id } });
+  await settle(150);
+  expect(host.room).toBeNull();
+  host.send({ t: 'join', code: guest.room!.code });
+  await settle(150);
+  expect(host.room).toBeNull();
+  expect(host.errors.at(-1)).toContain('أخرجك');
+}, 40000);
+
+test('ronda: a player who leaves is replaced by a bot and the hand goes on', async () => {
+  const { phones, host } = await makeRoom(2, 'ronda');
+  host.send({ t: 'room', action: { type: 'start' } });
+  await settle();
+  const guest = phones[1];
+  guest.send({ t: 'leave' } as ClientMsg);
+  await settle(200);
+  const seat = host.room!.players.find((p) => p.id === guest.id);
+  expect(seat?.bot).toBe(true);
+  expect(host.view<RondaView>().phase).not.toBe('final');
+  host.ws.close();
+}, 20000);

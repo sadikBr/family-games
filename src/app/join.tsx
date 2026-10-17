@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -16,9 +16,14 @@ import { Txt } from '@/ui/txt';
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'];
 
 export default function JoinScreen() {
-  const [code, setCode] = useState('');
-  const [waiting, setWaiting] = useState(false);
-  const [seenError, setSeenError] = useState<number | null>(null);
+  // opened from an invite link (familygames://join?code=1234): the code is filled in and sent at once
+  const params = useLocalSearchParams<{ code?: string }>();
+  const linked = typeof params.code === 'string' && /^\d{4}$/.test(params.code) ? params.code : null;
+  const [code, setCode] = useState(linked ?? '');
+  const [waiting, setWaiting] = useState(!!linked);
+  const [seenError, setSeenError] = useState<number | null>(() => client.snap.error?.id ?? null);
+  const [slow, setSlow] = useState<number | null>(null);
+  const [tries, setTries] = useState(linked ? 1 : 0);
   const { room, error } = useClient();
   const contentWidth = useContentWidth();
   const padW = Math.min(288, contentWidth);
@@ -31,22 +36,35 @@ export default function JoinScreen() {
     }
   }, [waiting, room, code]);
 
+  useEffect(() => {
+    if (linked) client.joinRoom(linked);
+  }, [linked]);
+
+  // no answer after a few seconds (server asleep, no network): say so and unlock the keypad
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setSlow(tries), 6000);
+    return () => clearTimeout(t);
+  }, [waiting, tries]);
+
   // wrong code → shake, and the next key press starts over
   const failed = waiting && !!error && error.id !== seenError;
-  const busy = waiting && !failed;
+  const stuck = waiting && !failed && slow === tries;
+  const busy = waiting && !failed && !stuck;
   const shown = failed ? '' : code;
 
   const submit = (c: string) => {
     if (c.length !== 4) return;
     setSeenError(error?.id ?? null);
     setWaiting(true);
+    setTries((n) => n + 1);
     client.joinRoom(c);
   };
 
   const press = (k: string) => {
     if (busy) return;
     haptic.tap();
-    if (failed) setWaiting(false);
+    if (failed || stuck) setWaiting(false);
     if (k === 'del') return setCode(shown.slice(0, -1));
     if (k === 'ok') return submit(shown);
     play('tick');
@@ -62,6 +80,11 @@ export default function JoinScreen() {
         <Txt v="h2" center>
           {busy ? 'جاري الدخول…' : 'اكتب رمز الغرفة'}
         </Txt>
+        {stuck ? (
+          <Txt center v="small" color={C.orange}>
+            لا جواب من الخادم بعد — تأكّد من الإنترنت ثم اضغط ✓ لإعادة المحاولة
+          </Txt>
+        ) : null}
         <Txt center color={C.muted} v="small">
           الرمز يظهر عند من أنشأ الغرفة
         </Txt>

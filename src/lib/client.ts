@@ -183,6 +183,7 @@ class GameClient {
       case 'left':
         this.code = null;
         this.forgetRoom();
+        if (msg.kicked) this.update({ error: { id: ++this.errorId, message: 'أخرجك المضيف من الغرفة', code: 'kicked' } });
         return;
     }
   }

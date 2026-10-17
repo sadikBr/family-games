@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -8,6 +8,7 @@ import type { PlayerPublic, RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Card, IconBubble, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
+import { ConfirmModal } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 /** Screen headline: optional illustration, a title and one line of help. */
@@ -44,6 +45,7 @@ export function WaitingFor({ players, label = 'في انتظار' }: { players: 
 }
 
 export function Spectator({ room }: { room: RoomView }) {
+  const [confirm, setConfirm] = useState(false);
   return (
     <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
       <IconBubble icon="eye" size={60} iconColor={C.yellow} />
@@ -54,8 +56,20 @@ export function Spectator({ room }: { room: RoomView }) {
         دخلت أثناء اللعب. ستشارك في الجولة القادمة.
       </Txt>
       {room.hostId === room.me ? (
-        <Btn size="md" icon="refresh" label="ابدأ من جديد مع الجميع" color={C.cyan} onPress={() => client.roomAction({ type: 'start' })} />
+        <Btn size="md" icon="refresh" label="ابدأ من جديد مع الجميع" color={C.cyan} onPress={() => setConfirm(true)} />
       ) : null}
+      <ConfirmModal
+        visible={confirm}
+        icon="refresh"
+        title="إعادة اللعبة من البداية؟"
+        message="ستضيع نتيجة اللعبة الحالية، ويدخل الجميع في لعبة جديدة."
+        confirmLabel="ابدأ من جديد"
+        onCancel={() => setConfirm(false)}
+        onConfirm={() => {
+          setConfirm(false);
+          client.roomAction({ type: 'start' });
+        }}
+      />
     </Card>
   );
 }

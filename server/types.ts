@@ -26,6 +26,8 @@ export interface GameModule<S, Settings> {
   tick?(ctx: GameCtx, s: S): boolean;
   /** A player left the room for good. */
   onLeave?(ctx: GameCtx, s: S, id: string): void;
+  /** Who the game is waiting for right now (their phone gets the your-turn alert). */
+  turnOf?(s: S): string[];
   /**
    * Called after every change when bots are seated. Schedule bot actions with
    * ctx.bot(), or change state directly (return true if you did).
