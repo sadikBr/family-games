@@ -171,7 +171,7 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
               />
               {unknown ? (
                 <Txt v="tiny" color={C.orange}>
-                  {view.dict === 'strict' ? 'ليست في القاموس — تأكد من الإملاء، وإلا تُحسب خطأ إلا إذا قبلها الآخرون' : 'ليست في القاموس — تأكد من الإملاء'}
+                  {view.dict === 'strict' ? 'ليست في القاموس: تأكد من الإملاء أو قد تُحسب خطأ' : 'ليست في القاموس — تأكد من الإملاء'}
                 </Txt>
               ) : null}
             </View>
