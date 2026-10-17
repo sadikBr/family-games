@@ -4,7 +4,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 
 | Game | | How it works on several phones |
 |---|---|---|
-| **الدخيل** (Imposter) | 3+ | Each phone shows the secret word, except the imposter's. Voting happens on the phones, and a caught imposter gets one last guess. |
+| **الدخيل** (Imposter) | 3+ | Each phone shows the secret word, except the imposter's. Voting happens on the phones, and a caught imposter gets 25 s for one last guess. Play several rounds (set in the lobby) for a podium at the end. |
 | **اسم ولد اسم بنت** | 2+ | A random letter is drawn and everyone fills 7 boxes on their own phone (boy, girl, animal, plant, thing, country, profession). Answers must start with the letter itself — «الرباط» doesn't count for ر. The first to finish hits «ستوب» (or, with «ستوب» off in the settings, everyone writes until the timer ends). The family then reviews the answers together and votes on wrong ones. A unique answer = 10, a shared one = 5 — also when spelled slightly differently («زيمبابوي» / «زمبابوي»). |
 | **روندا** | 2–4 | Family rules: 4 cards each, no cards dealt to the table. Take matching cards plus the sequence that follows. إسطي +1, مسّة +1, روندا 1 / تريلا 5 (announced automatically), cards over 20 count. First to 41. |
 | **الكانزة** | 2–4 | Play a card and take 1–2 table cards so the three add up to exactly 15. Scoring: every card = 1, gold = its number, 1 of gold = 20. |
@@ -28,15 +28,24 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **من أي سورة؟** (which surah?) | 2–12 | A verse is shown (Uthmani text) — pick its surah. Levels: Juz' Amma, Qaf–an-Nas, the whole Quran. |
 | **رحلة الحج** (Hajj journey) | 2–6 | Dice race along the Hajj rites; you stop at every station, where a card explains the ritual. The first pilgrim at a station opens its question for everyone (right answers earn a provision card, the fastest steps forward). Provision cards (التلبية +2, الدليل pass a station, ماء زمزم roll again, الصدقة help a friend, الصبر cancels a delay) are played before rolling. |
 | **سلّم الحسنات** (snakes & ladders) | 2–6 | Ladders are good deeds, snakes are bad habits; each one shows a short card. |
-| **ملك العقار** (property trading) | 2–6 | An original Monopoly-style game on a board of Moroccan cities and train stations. Buy, collect rent, build houses and hotels evenly on full colour sets, mortgage, trade with other players, draw «حظ» and «صندوق العائلة» cards. No auctions. Ends when one player is left, or after the round limit (richest net worth wins). Start cash and rounds are set in the lobby. |
-| **لودو** (Ludo) | 2–4 | Each phone moves its own pieces on the shared board. A 6 brings a piece out and rolls again; landing on others sends them home (stars and start squares are safe); exact roll to finish. |
-| **الضامة** (Checkers) | 2 | 8×8 board, compulsory and chained captures. Flying kings and backward captures can be switched off in the lobby. Play a friend or a bot. |
-| **الكلمات السرية** (Codenames) | 4+ | Two teams. Only each team's spymaster sees on their phone which of the 25 Arabic words are theirs; they give a one-word clue and a number, the team points and reveals. Avoid the black word. |
+| **ملك العقار** (property trading) | 2–6 | An original Monopoly-style game on a board of Moroccan cities and train stations. Buy, collect rent, build houses and hotels evenly on full colour sets, mortgage, trade with other players, draw «حظ» and «صندوق العائلة» cards. A property nobody buys goes to a 7-second auction for everyone. Ends when one player is left, or after the round limit (15 by default; richest net worth wins). Start cash and rounds are set in the lobby. |
+| **لودو** (Ludo) | 2–4 | Each phone moves its own pieces on the shared board. A 6 brings a piece out and rolls again; landing on others sends them home (stars and start squares are safe); exact roll to finish. A single possible move is played for you. Options: keep playing for 2nd and 3rd place, and a quick game with two pieces each. |
+| **الضامة** (Checkers) | 2 | 8×8 board, compulsory and chained captures (the longest capture is compulsory; can be switched off). Flying kings and backward captures can be switched off in the lobby. Play a friend or a bot. |
+| **الكلمات السرية** (Codenames) | 4+ | Two teams. Only each team's spymaster sees on their phone which of the 25 Arabic words are theirs; they give a one-word clue and a number, the team points and reveals. Avoid the black word. Past clues stay listed. |
 | **ارسم وخمّن** (Draw & Guess) | 2–12 | The drawer picks one of three words and draws on their phone; the drawing appears live on every phone and everyone types guesses. Faster = more points; letters are revealed near the end. |
 | **على راسك** (Heads Up) | 2+ | The guesser holds the phone to their forehead (tilt down = correct, tilt up = skip). Everyone else sees the word on their own phone and can tap / . |
 | **ممنوع تقول** (Taboo) | 4+ | Red vs Blue. The describer and the **other** team see the card. Team-mates see only "guess!" and the other team has a buzzer. |
 | **البطاطا الحارة** (Hot Potato) | 3+ | A virtual potato jumps from phone to phone. Say a word from the topic, then throw it before it explodes at a random moment. |
 | **الذئب** (Werewolf) | 5+ | The narrator's phone shows every role plus a step-by-step night/day script. Each player sees only their own role (wolves also see their pack). Roles (chosen in the lobby): wolf, big bad wolf (a second victim while no wolf has died), white wolf (kills a wolf every other night, wins alone), villager, seer, doctor, guard (not the same player twice in a row), witch (one heal, one poison), hunter, tanner (wins if voted out), plus an elected mayor whose vote counts double. |
+
+## Playing together
+
+- **Invite:** tap the room code (or «ادعُ أحداً» in the room menu) to share a link that opens the app on the join screen with the code filled in.
+- **Room menu** (the people icon at the top of every room): who is connected, mute, and for the host: remove a player or go back to the waiting room.
+- **Your turn:** your phone plays a sound and vibrates when it becomes your move, in every turn-based game.
+- **Someone's phone drops:** after 20 s a bot plays for them until they come back (marked «البوت يلعب عنه»). If the host drops, the host role passes to someone else after 15 s. In روندا، الكانزة and التريس, a player who leaves is replaced by a bot so the table stays full.
+- **Two-player games** alternate who starts and keep a running score for the room; you can resign.
+- **Questions don't repeat** between games in the same room (quiz, who is it, which surah, Hajj, Huroof) until the pool runs out.
 
 ## Bots
 
@@ -91,6 +100,8 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   bot-content.ts     What bots know: imposter clues, names dictionary, potato answers
   server.test.ts     End-to-end tests with fake phones (bun run test:server)
   rules.test.ts      Unit tests for the card rules
+  fix-*.test.ts, turn.test.ts  Tests for freezes, fairness and turn alerts
+  duel.ts, qdeck.ts  Rematch series for 2-player games; per-room question decks
 src/
   shared/protocol.ts Types shared by the app and the server
   app/               Screens: home, profile, join, room
