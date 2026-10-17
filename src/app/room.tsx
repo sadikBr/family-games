@@ -11,6 +11,7 @@ import { RoomMenu, shareRoom } from '@/games/room-menu';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
+import { notePlayed } from '@/lib/prefs';
 import { isRemoteServer } from '@/lib/server-url';
 import { alertTurn, playFx } from '@/lib/sfx';
 import { C } from '@/theme';
@@ -85,6 +86,12 @@ export default function RoomScreen() {
     if (myTurn && !wasMyTurn.current) alertTurn();
     wasMyTurn.current = myTurn;
   }, [myTurn]);
+
+  // a game that really started goes to «لعبتم مؤخراً» on the home screen
+  const startedGame = room?.status === 'playing' ? room.game : null;
+  useEffect(() => {
+    if (startedGame) notePlayed(startedGame);
+  }, [startedGame]);
 
   // room vanished (wrong code, kicked…) → back home
   useEffect(() => {

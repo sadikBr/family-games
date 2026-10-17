@@ -47,6 +47,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 
 ## Playing together
 
+- **Home screen:** join a room or go back to the last one, «لعبة اليوم» (a different game each day), «لعبتم مؤخراً», and every game with search, a «كم عددكم؟» player-count filter (bot games count as playable with fewer people) and category chips. Tap the star on a game to keep it in «المفضلة» (saved on the phone).
 - **Invite:** tap the room code (or «ادعُ أحداً» in the room menu) to share a link that opens the app on the join screen with the code filled in.
 - **Room menu** (the people icon at the top of every room): who is connected, mute, and for the host: remove a player or go back to the waiting room.
 - **Your turn:** your phone plays a sound and vibrates when it becomes your move, in every turn-based game.

@@ -41,6 +41,7 @@ export type IconName =
   | 'vote'
   | 'mic'
   | 'micOff'
+  | 'starFull'
   | 'phoneOff'
   | 'moon'
   | 'sun'
@@ -177,6 +178,8 @@ function shapes(name: IconName, c: string) {
       );
     case 'star':
       return <Path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.6L12 16.7l-5.1 2.7 1-5.6-4.1-4 5.7-.8z" {...s} />;
+    case 'starFull':
+      return <Path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.6L12 16.7l-5.1 2.7 1-5.6-4.1-4 5.7-.8z" fill={c} stroke={c} strokeWidth={1.6} strokeLinejoin="round" />;
     case 'trophy':
       return (
         <>

@@ -5,6 +5,7 @@ import { SPY_INFO } from '@/shared/games/spy';
 import { SURVEY_INFO } from '@/shared/games/survey';
 import { DOTS_INFO } from '@/shared/games/dots';
 import { MANCALA_INFO } from '@/shared/games/mancala';
+import type { IconName } from '@/art/icons';
 import type { GameId } from '@/shared/protocol';
 import { MIN_PLAYERS } from '@/shared/protocol';
 
@@ -494,11 +495,11 @@ export const GAMES: Record<GameId, GameMeta> = {
 
 export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala'];
 
-/** Grouping for the home screen. */
-export const GAME_GROUPS: { title: string; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble'] },
-  { title: 'ألعاب إسلامية', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
-  { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
-  { title: 'ذكاء وذاكرة', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala'] },
-  { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip', 'phase10'] },
+/** Grouping for the home screen (`short`: the filter chip). */
+export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
+  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble'] },
+  { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
+  { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['estate', 'ludo', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
+  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala'] },
+  { title: 'الكارطة', short: 'الكارطة', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip', 'phase10'] },
 ];
