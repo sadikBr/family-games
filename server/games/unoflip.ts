@@ -235,6 +235,7 @@ function closeCatch(s: State, by: string) {
 }
 
 export const unoflip: GameModule<State, UnoSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'unoflip',
   hostOnly: ['next'],
 

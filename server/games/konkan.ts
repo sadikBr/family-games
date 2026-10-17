@@ -167,6 +167,7 @@ function usefulness(card: Card, hand: Card[]): number {
 /* ------------------------------------------------------------------ */
 
 export const konkan: GameModule<State, KonkanSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.turn] : [],
   id: 'konkan',
   hostOnly: ['next'],
 

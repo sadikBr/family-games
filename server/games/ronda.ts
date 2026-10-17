@@ -191,6 +191,7 @@ function findCapture(table: Card[], card: Card): Card[] {
 }
 
 export const ronda: GameModule<State, RondaSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'ronda',
   hostOnly: ['next'],
 

@@ -61,6 +61,7 @@ function play(ctx: GameCtx, s: State, by: string, from: number, to: number, prom
 }
 
 export const chess: GameModule<State, ChessSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.pos.turn === 'w' ? s.white : s.black] : [],
   id: 'chess',
 
   start(ctx, participants, settings) {

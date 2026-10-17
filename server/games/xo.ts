@@ -21,6 +21,7 @@ interface State {
 }
 
 export const xo: GameModule<State, XoSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.turn === 'x' ? s.x : s.o] : [],
   id: 'xo',
   start(ctx, participants, settings) {
     const { first: x, second: o, score } = startDuel(ctx, 'xo', participants);

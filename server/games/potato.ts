@@ -53,6 +53,7 @@ function newRound(ctx: GameCtx, s: State, starter: string) {
 }
 
 export const potato: GameModule<State, PotatoSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.holderId] : [],
   id: 'potato',
   hostOnly: ['next'],
 

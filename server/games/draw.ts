@@ -130,6 +130,7 @@ function advance(ctx: GameCtx, s: State) {
 }
 
 export const draw: GameModule<State, DrawSettings> = {
+  turnOf: (s) => s.phase === 'choose' ? [s.order[s.turn]] : [],
   id: 'draw',
 
   start(ctx, participants, settings) {

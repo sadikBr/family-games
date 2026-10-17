@@ -130,6 +130,7 @@ function settle(s: State, team: HuroofTeam | null, by: string | null) {
 }
 
 export const huroof: GameModule<State, HuroofSettings> = {
+  turnOf: (s) => s.phase === 'pick' ? s.teams[s.turn] : s.phase === 'answer' && s.buzzer ? [s.buzzer] : [],
   id: 'huroof',
 
   start(ctx, participants, settings) {

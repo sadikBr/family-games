@@ -135,6 +135,7 @@ function afterMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]
 }
 
 export const ludo: GameModule<State, LudoSettings> = {
+  turnOf: (s) => s.phase === 'roll' || s.phase === 'move' ? [current(s)] : [],
   id: 'ludo',
 
   start(ctx, participants, settings) {

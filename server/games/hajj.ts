@@ -209,6 +209,7 @@ function revealQuiz(ctx: GameCtx, s: State) {
 }
 
 export const hajj: GameModule<State, HajjSettings> = {
+  turnOf: (s) => s.phase === 'roll' ? [cur(s).id] : s.phase === 'question' && s.question ? [s.question.for] : [],
   id: 'hajj',
 
   start(ctx, participants, settings) {

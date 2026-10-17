@@ -81,6 +81,7 @@ function reveal(ctx: GameCtx, s: State) {
 }
 
 export const wave: GameModule<State, WaveSettings> = {
+  turnOf: (s) => s.phase === 'clue' ? [s.giver] : [],
   id: 'wave',
 
   start(ctx, participants, settings) {

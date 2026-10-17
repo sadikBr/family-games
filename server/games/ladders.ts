@@ -29,6 +29,7 @@ export function laddersOrder(s: State): string[] {
 }
 
 export const ladders: GameModule<State, LaddersSettings> = {
+  turnOf: (s) => s.phase === 'roll' ? [cur(s).id] : [],
   id: 'ladders',
 
   start(ctx, participants, settings) {

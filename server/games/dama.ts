@@ -197,6 +197,7 @@ export function botMove(b: number[], side: 1 | -1, opts: DamaOpts): Move | null 
 }
 
 export const dama: GameModule<State, DamaSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.turn === 1 ? s.white : s.black] : [],
   id: 'dama',
 
   start(ctx, participants, settings) {

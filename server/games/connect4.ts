@@ -30,6 +30,7 @@ function forfeit(ctx: GameCtx, s: State, id: string) {
 }
 
 export const connect4: GameModule<State, Connect4Settings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.turn === 1 ? s.red : s.yellow] : [],
   id: 'connect4',
 
   start(ctx, participants, settings) {

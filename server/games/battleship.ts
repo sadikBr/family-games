@@ -33,6 +33,7 @@ function win(ctx: GameCtx, s: State, winner: string) {
 }
 
 export const battleship: GameModule<State, BattleshipSettings> = {
+  turnOf: (s) => s.phase === 'setup' ? s.players.filter((id) => !s.ready.includes(id)) : s.phase === 'play' ? [s.players[s.turnIdx]] : [],
   id: 'battleship',
 
   start(ctx, participants, settings) {

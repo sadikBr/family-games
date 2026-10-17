@@ -715,7 +715,7 @@ test('wave: points by distance and a full round', () => {
   wave.act(ctx, s, p, { type: 'clue', text: 'شاي بالنعناع' });
   const gs = s.players.filter((x: string) => x !== p);
   wave.act(ctx, s, gs[0], { type: 'guess', value: s.target });
-  wave.act(ctx, s, gs[1], { type: 'guess', value: Math.min(100, s.target + 30) });
+  wave.act(ctx, s, gs[1], { type: 'guess', value: s.target > 50 ? s.target - 30 : s.target + 30 });
   expect(s.phase).toBe('reveal');
   expect(s.scores[gs[0]]).toBe(4);
   expect(s.scores[p]).toBe(2);

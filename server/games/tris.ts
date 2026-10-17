@@ -85,6 +85,7 @@ function endHand(ctx: GameCtx, s: State) {
 }
 
 export const tris: GameModule<State, TrisSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'tris',
   hostOnly: ['next'],
 

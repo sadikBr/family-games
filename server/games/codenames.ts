@@ -101,6 +101,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
 }
 
 export const codenames: GameModule<State, CodenamesSettings> = {
+  turnOf: (s) => s.phase === 'clue' ? [s.spymasters[s.turn] ?? ''] : s.phase === 'guess' ? s.teams[s.turn].filter((id) => id !== s.spymasters[s.turn]) : [],
   id: 'codenames',
   hostOnly: ['shuffle', 'swap', 'spymaster', 'begin'],
 

@@ -100,6 +100,7 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
 }
 
 export const kdab: GameModule<State, KdabSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [cur(s)] : [],
   id: 'kdab',
 
   start(ctx, participants, settings) {

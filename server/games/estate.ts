@@ -493,6 +493,7 @@ function botOffer(s: State, id: string): { to: string; give: { props: number[]; 
 /* ---------------- module ---------------- */
 
 export const estate: GameModule<State, EstateSettings> = {
+  turnOf: (s) => ['roll', 'buy', 'manage', 'debt'].includes(s.phase) ? [cur(s).id] : [],
   id: 'estate',
 
   start(ctx, participants, settings) {

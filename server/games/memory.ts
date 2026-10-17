@@ -22,6 +22,7 @@ interface State {
 }
 
 export const memory: GameModule<State, MemorySettings> = {
+  turnOf: (s) => s.phase === 'play' && s.peekUntil === null ? [s.order[s.turnIdx]] : [],
   id: 'memory',
 
   start(ctx, participants, settings) {

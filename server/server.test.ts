@@ -419,9 +419,11 @@ test('werewolf with bots: bot roles act automatically, bots accuse in the day', 
   v = host.view<WerewolfView>();
   if (v.phase === 'day') {
     const aliveBots = v.participants.filter((id) => v.alive[id]);
-    expect(v.accusations.length).toBe(aliveBots.length);
+    // bots speak up one after another, a few seconds apart
+    for (let t = 0; t < 120 && host.view<WerewolfView>().accusations.length < aliveBots.length; t++) await Bun.sleep(250);
+    expect(host.view<WerewolfView>().accusations.length).toBe(aliveBots.length);
   }
-});
+}, 45000);
 
 test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', async () => {
   const { phones, host } = await makeRoom(3, 'names');

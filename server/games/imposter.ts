@@ -156,6 +156,7 @@ function resolveVotes(ctx: GameCtx, s: State) {
 }
 
 export const imposter: GameModule<State, ImposterSettings> = {
+  turnOf: (s) => s.phase === 'guess' && s.guesserId ? [s.guesserId] : [],
   id: 'imposter',
   hostOnly: ['skipReady', 'toVote', 'forceResolve', 'next'],
 

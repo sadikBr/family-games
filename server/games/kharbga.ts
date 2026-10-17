@@ -75,6 +75,7 @@ function passTurn(ctx: GameCtx, s: State) {
 }
 
 export const kharbga: GameModule<State, KharbgaSettings> = {
+  turnOf: (s) => s.phase === 'final' ? [] : [idOf(s, s.turn)],
   id: 'kharbga',
 
   start(ctx, participants, settings) {

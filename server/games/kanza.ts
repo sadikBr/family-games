@@ -115,6 +115,7 @@ export function kanzaCaptures(table: Card[], card: Card): Card[][] {
 }
 
 export const kanza: GameModule<State, KanzaSettings> = {
+  turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'kanza',
   hostOnly: ['next'],
 
