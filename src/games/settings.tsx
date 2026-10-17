@@ -54,6 +54,7 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
         <View style={{ gap: 10 }}>
           <Stepper label="عدد الجولات" value={settings.rounds} min={1} max={15} editable={editable} onChange={(rounds) => change({ rounds })} />
           <Stepper label="الوقت لكل جولة" value={settings.seconds} min={30} max={240} step={15} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />
+          <Toggle label="أول من يُكمل يقول «ستوب» للجميع (أطفئه لننتظر نهاية الوقت)" value={settings.stop} editable={editable} onChange={(stop) => change({ stop })} />
         </View>
       );
     }

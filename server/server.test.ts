@@ -435,30 +435,30 @@ test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', a
   expect(v.phase).toBe('write');
   expect(v.board).toBeNull();
   const L = v.letter;
-  const cats = ['boy', 'girl', 'animal', 'plant', 'thing', 'country'];
+  const cats = ['boy', 'girl', 'animal', 'plant', 'thing', 'country', 'job'];
   const [A, B, C] = phones;
   // A: all unique; B: same as A for "boy", wrong letter for "girl"; C: only one answer
   for (const cat of cats) A.act({ type: 'answer', cat, text: `${L}${cat}A` });
   B.act({ type: 'answer', cat: 'boy', text: `${L}boyA` });
   B.act({ type: 'answer', cat: 'girl', text: 'zzz' });
-  C.act({ type: 'answer', cat: 'animal', text: `${L}animalC` });
+  C.act({ type: 'answer', cat: 'animal', text: `${L}zebra` });
   // C cannot stop with empty boxes
   C.act({ type: 'stop' });
   await settle();
   expect(C.errors.at(-1)).toContain('املأ');
-  expect(host.view<NamesView>().progress[A.id]).toBe(6);
+  expect(host.view<NamesView>().progress[A.id]).toBe(7);
   A.act({ type: 'stop' });
   await settle();
   v = host.view<NamesView>();
   expect(v.phase).toBe('stopping');
   expect(v.stoppedBy).toBe(A.id);
   // late answer during the grace period still counts
-  C.act({ type: 'answer', cat: 'plant', text: `${L}plantC` });
+  C.act({ type: 'answer', cat: 'plant', text: `${L}rose` });
   await Bun.sleep(3300);
   v = host.view<NamesView>();
   expect(v.phase).toBe('review');
   expect(v.board![B.id].girl.verdict).toBe('letter');
-  expect(v.board![C.id].plant.text).toBe(`${L}plantC`);
+  expect(v.board![C.id].plant.text).toBe(`${L}rose`);
   // B and C vote out A's "thing"
   B.act({ type: 'reject', player: A.id, cat: 'thing' });
   C.act({ type: 'reject', player: A.id, cat: 'thing' });
@@ -473,13 +473,38 @@ test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', a
   expect(v.board![A.id].girl.points).toBe(10);
   expect(v.board![A.id].thing.points).toBe(0); // rejected
   expect(v.board![B.id].girl.points).toBe(0); // wrong letter
-  expect(v.roundPoints![A.id]).toBe(5 + 10 + 10 + 10 + 0 + 10);
+  expect(v.roundPoints![A.id]).toBe(5 + 10 + 10 + 10 + 0 + 10 + 10);
   expect(v.roundPoints![C.id]).toBe(20);
   host.act({ type: 'next' });
   await settle();
   v = host.view<NamesView>();
   expect(v.round).toBe(2);
   expect(v.letter).not.toBe(L);
+}, 15000);
+
+test('اسم ولد اسم بنت with «ستوب» off: finishing early waits for the others', async () => {
+  const { phones, host } = await makeRoom(2, 'names');
+  host.send({ t: 'room', action: { type: 'settings', game: 'names', patch: { seconds: 60, stop: false } } });
+  await settle();
+  expect(host.room!.settings.names.stop).toBe(false);
+  host.send({ t: 'room', action: { type: 'start' } });
+  await Bun.sleep(3500);
+  const L = host.view<NamesView>().letter;
+  const cats = ['boy', 'girl', 'animal', 'plant', 'thing', 'country', 'job'];
+  const [A, B] = phones;
+  for (const cat of cats) A.act({ type: 'answer', cat, text: `${L}${cat}x` });
+  await settle();
+  A.act({ type: 'stop' });
+  await settle();
+  let v = host.view<NamesView>();
+  expect(v.phase).toBe('write'); // nobody is stopped
+  expect(v.done).toEqual([A.id]);
+  for (const cat of cats) B.act({ type: 'answer', cat, text: `${L}${cat}yy` });
+  await settle();
+  B.act({ type: 'stop' });
+  await settle();
+  v = host.view<NamesView>();
+  expect(v.phase).toBe('stopping'); // everyone is done
 }, 15000);
 
 test('اسم ولد اسم بنت with bots: bots fill answers from the dictionary', async () => {

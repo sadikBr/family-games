@@ -1,8 +1,11 @@
 /**
  * اسم ولد، اسم بنت — the Moroccan classic.
  * A letter is drawn; everyone fills the categories on their own phone; the first to finish
- * shouts "STOP!". Then the family reviews answers together and votes out the dodgy ones.
- * Unique answer = 10, shared answer = 5, empty / wrong = 0.
+ * shouts "STOP!" (or, with «ستوب» off in the settings, everyone writes until the timer ends — or until
+ * everyone has said they're done). Then the family reviews answers together and votes out the dodgy ones.
+ * Answers must really start with the letter: «الرباط» doesn't count for ر (see startsWithLetter).
+ * Unique answer = 10, shared answer = 5 (also for the same word spelled a bit differently, like
+ * «زيمبابوي» / «زمبابوي» — see similarAnswers), empty / wrong = 0.
  */
 import {
   NAMES_CATEGORIES,
@@ -11,7 +14,7 @@ import {
   type NamesVerdict,
   type NamesView,
 } from '../../src/shared/protocol';
-import { GAME_LETTERS, answerKey, displayLetter, firstLetter } from '../../src/shared/arabic';
+import { GAME_LETTERS, displayLetter, similarAnswers, startsWithLetter } from '../../src/shared/arabic';
 import { NAMES_DICT } from '../bot-content';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
@@ -30,6 +33,7 @@ interface State {
   letter: string;
   endsAt: number | null;
   stoppedBy: string | null;
+  done: string[];
   answers: Record<string, Record<string, string>>;
   rejects: Record<string, Set<string>>; // `${player}|${cat}` -> voters
   roundPoints: Record<string, number> | null;
@@ -46,6 +50,7 @@ function newRound(ctx: GameCtx, s: State) {
   s.phase = 'spin';
   s.endsAt = ctx.now + SPIN_MS;
   s.stoppedBy = null;
+  s.done = [];
   s.answers = Object.fromEntries(s.participants.map((id) => [id, {}]));
   s.rejects = {};
   s.roundPoints = null;
@@ -66,7 +71,7 @@ function voters(ctx: GameCtx, s: State, owner: string) {
 function verdict(ctx: GameCtx, s: State, owner: string, cat: string): NamesVerdict {
   const text = (s.answers[owner]?.[cat] ?? '').trim();
   if (!text) return 'empty';
-  if (firstLetter(text) !== s.letter) return 'letter';
+  if (!startsWithLetter(text, s.letter)) return 'letter';
   const votes = s.rejects[cellKey(owner, cat)]?.size ?? 0;
   const eligible = voters(ctx, s, owner).length;
   if (eligible > 0 && votes * 2 > eligible) return 'rejected';
@@ -78,14 +83,13 @@ function score(ctx: GameCtx, s: State) {
   const roundPoints: Record<string, number> = {};
   for (const cat of CATS) {
     const valid = s.participants.filter((id) => verdict(ctx, s, id, cat) === 'ok');
-    const counts = new Map<string, number>();
-    for (const id of valid) {
-      const k = answerKey(s.answers[id][cat]);
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
+    // an answer is shared if anyone else wrote the same word (spelling slips included)
+    const shared = new Set<string>();
+    for (const a of valid)
+      for (const b of valid) if (a !== b && similarAnswers(s.answers[a][cat], s.answers[b][cat])) shared.add(a);
     for (const id of s.participants) {
       let pts = 0;
-      if (valid.includes(id)) pts = (counts.get(answerKey(s.answers[id][cat])) ?? 0) > 1 ? 5 : 10;
+      if (valid.includes(id)) pts = shared.has(id) ? 5 : 10;
       cellPoints[cellKey(id, cat)] = pts;
       roundPoints[id] = (roundPoints[id] ?? 0) + pts;
     }
@@ -111,6 +115,7 @@ export const names: GameModule<State, NamesSettings> = {
       letter: '',
       endsAt: null,
       stoppedBy: null,
+      done: [],
       answers: {},
       rejects: {},
       roundPoints: null,
@@ -136,6 +141,17 @@ export const names: GameModule<State, NamesSettings> = {
         if (s.phase !== 'write' || !isPlayer) return;
         if (isStr(a.cat) && isStr(a.text)) s.answers[by][a.cat] = a.text.slice(0, 30);
         if (filledCount(s, by) < CATS.length) throw new GameError('املأ كل الخانات أولاً قبل «ستوب»');
+        if (!s.settings.stop) {
+          // «ستوب» is off: mark this player as done; the round ends with the timer or when all are done
+          if (!s.done.includes(by)) s.done.push(by);
+          const waiting = s.participants.filter((id) => !s.done.includes(id) && ctx.isConnected(id) && !ctx.isBot(id));
+          if (!waiting.length) {
+            s.phase = 'stopping';
+            s.endsAt = ctx.now + GRACE_MS;
+            ctx.fx('buzz');
+          }
+          return;
+        }
         s.phase = 'stopping';
         s.stoppedBy = by;
         s.endsAt = ctx.now + GRACE_MS;
@@ -245,6 +261,7 @@ export const names: GameModule<State, NamesSettings> = {
       letter: displayLetter(s.letter),
       endsAt: s.endsAt,
       stoppedBy: s.stoppedBy,
+      done: s.done,
       progress: Object.fromEntries(s.participants.map((id) => [id, filledCount(s, id)])),
       myAnswers: s.answers[me] ?? {},
       board,

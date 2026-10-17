@@ -6,7 +6,7 @@ import { Icon, type IconName } from '@/art/icons';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { useCountdown } from '@/lib/time';
-import { GAME_LETTERS, displayLetter, firstLetter } from '@/shared/arabic';
+import { GAME_LETTERS, displayLetter, firstLetter, startsWithLetter } from '@/shared/arabic';
 import { NAMES_CATEGORIES, type NamesCell, type NamesView, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Card, Row } from '@/ui/bits';
@@ -26,6 +26,7 @@ const CAT_ICON: Record<string, { icon: IconName; color: string }> = {
   plant: { icon: 'leaf', color: C.green },
   thing: { icon: 'box', color: C.purple },
   country: { icon: 'globe', color: C.cyan },
+  job: { icon: 'hand', color: C.yellow },
 };
 
 function CatMark({ k }: { k: string }) {
@@ -101,6 +102,8 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
   const allFilled = filled === CATS.length;
   const others = view.participants.filter((id) => id !== h.me);
   const stopper = view.stoppedBy ? h.player(view.stoppedBy) : null;
+  const stopMode = room.settings.names.stop;
+  const iAmDone = view.done.includes(h.me);
 
   return (
     <>
@@ -118,7 +121,7 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
       <Row wrap gap={10} center>
         {others.map((id) => (
           <View key={id} style={{ alignItems: 'center' }}>
-            <Avatar player={h.player(id)} size={36} />
+            <Avatar player={h.player(id)} size={36} badge={view.done.includes(id) ? 'check' : undefined} />
             <Txt v="tiny" color={view.progress[id] === CATS.length ? C.green : C.muted}>
               {view.progress[id]}/{CATS.length}
             </Txt>
@@ -132,8 +135,9 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
 
       {CATS.map((c) => {
         const val = answers[c.key] ?? '';
-        const good = val.trim().length > 0 && firstLetter(val) === target;
+        const good = val.trim().length > 0 && startsWithLetter(val, target);
         const bad = val.trim().length > 0 && !good;
+        const article = bad && /^\s*ال/.test(val);
         return (
           <View key={c.key}>
             <View style={[styles.field, good && { borderColor: C.green }, bad && { borderColor: C.red }]}>
@@ -142,7 +146,13 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
                 <Txt v="bold" style={{ flex: 1 }}>
                   {c.label}
                 </Txt>
-                {good ? <Icon name="check" size={18} color={C.green} /> : bad ? <Txt v="tiny" color={C.red}>لا يبدأ بـ «{view.letter}»</Txt> : null}
+                {good ? (
+                  <Icon name="check" size={18} color={C.green} />
+                ) : bad ? (
+                  <Txt v="tiny" color={C.red}>
+                    {article ? 'بدون «ال»' : `لا يبدأ بـ «${view.letter}»`}
+                  </Txt>
+                ) : null}
               </Row>
               <Field
                 value={val}
@@ -160,12 +170,17 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
         );
       })}
 
-      {!locked ? (
+      {!locked && iAmDone ? (
+        <Txt v="bold" center color={C.green}>
+          أنهيت — في انتظار نهاية الوقت أو انتهاء الجميع (يمكنك التعديل حتى ذلك الحين)
+        </Txt>
+      ) : null}
+      {!locked && !iAmDone ? (
         <Btn
           size="xl"
-          icon="hand"
-          label={allFilled ? 'ستوب' : `ستوب (${filled}/${CATS.length})`}
-          color={C.red}
+          icon={stopMode ? 'hand' : 'check'}
+          label={stopMode ? (allFilled ? 'ستوب' : `ستوب (${filled}/${CATS.length})`) : allFilled ? 'أنهيت' : `أنهيت (${filled}/${CATS.length})`}
+          color={stopMode ? C.red : C.green}
           disabled={!allFilled}
           onPress={() => {
             haptic.heavy();

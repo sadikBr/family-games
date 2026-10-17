@@ -301,7 +301,8 @@ test('estate: bot-only games always finish with sane state', () => {
 import { HAJJ_LEN, HAJJ_STATIONS, HEX_N, JUMPS, hajjSquare, hexNeighbors, hexWinPath } from '../src/shared/islamic';
 import { QUESTIONS, WHO } from './content-islamic';
 import { hajj } from './games/hajj';
-import { answerMatches } from '../src/shared/arabic';
+import { answerMatches, similarAnswers, startsWithLetter } from '../src/shared/arabic';
+import { NAMES_DICT } from './bot-content';
 import { BY_LETTER, huroof } from './games/huroof';
 import { ladders } from './games/ladders';
 import { quiz } from './games/quiz';
@@ -348,6 +349,24 @@ test('huroof: hex neighbours and winning chains', () => {
     const b = Array.from({ length: 25 }, () => (Math.random() < 0.5 ? 'red' : 'green'));
     expect(!!hexWinPath(b, 'red') !== !!hexWinPath(b, 'green')).toBe(true);
   }
+});
+
+test('names: answers must start with the letter itself; similar spellings share the points', () => {
+  expect(startsWithLetter('الرباط', 'ر')).toBe(false);
+  expect(startsWithLetter('الرباط', 'ا')).toBe(false);
+  expect(startsWithLetter('رباط', 'ر')).toBe(true);
+  expect(startsWithLetter('ألمانيا', 'ا')).toBe(true);
+  expect(startsWithLetter('إلياس', 'ا')).toBe(true);
+  expect(startsWithLetter('أحمد', 'ا')).toBe(true);
+  expect(similarAnswers('زيمبابوي', 'زمبابوي')).toBe(true);
+  expect(similarAnswers('فرنسا', 'فرانسا')).toBe(true);
+  expect(similarAnswers('سعد', 'سعيد')).toBe(false);
+  expect(similarAnswers('سلمى', 'سلوى')).toBe(false);
+  expect(similarAnswers('محمد', 'محمود')).toBe(false);
+  // the bots' dictionary has no «ال» words, and every word fits its letter
+  for (const [cat, byLetter] of Object.entries(NAMES_DICT))
+    for (const [l, words] of Object.entries(byLetter)) for (const w of words) expect([cat, w, startsWithLetter(w, l)]).toEqual([cat, w, true]);
+  expect(Object.keys(NAMES_DICT.job).length).toBeGreaterThan(18);
 });
 
 test('huroof: typed answers forgive spelling; buzz, wrong answer and timeout pass the turn', () => {

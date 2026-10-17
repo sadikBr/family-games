@@ -175,6 +175,8 @@ export interface ImposterSettings {
 export interface NamesSettings {
   rounds: number;
   seconds: number;
+  /** true: the first to fill everything can call «ستوب» for everyone; false: play until the timer ends */
+  stop: boolean;
 }
 
 export interface HeadsUpSettings {
@@ -339,7 +341,7 @@ export interface AllSettings {
 
 export const DEFAULT_SETTINGS: AllSettings = {
   imposter: { category: 'random', imposters: 0, hintForImposter: true },
-  names: { rounds: 5, seconds: 90 },
+  names: { rounds: 5, seconds: 90, stop: true },
   headsup: { category: 'random', seconds: 60, turnsEach: 1 },
   taboo: { seconds: 60, turnsEach: 3 },
   potato: { rounds: 5, minFuse: 15, maxFuse: 45 },
@@ -417,6 +419,7 @@ export const NAMES_CATEGORIES: CategoryInfo[] = [
   { key: 'plant', label: 'نبات / فاكهة / خضرة', emoji: '🌿' },
   { key: 'thing', label: 'جماد', emoji: '🪑' },
   { key: 'country', label: 'بلاد / مدينة', emoji: '🌍' },
+  { key: 'job', label: 'مهنة', emoji: '👷' },
 ];
 
 export type NamesVerdict = 'ok' | 'empty' | 'letter' | 'rejected';
@@ -437,6 +440,8 @@ export interface NamesView {
   letter: string;
   endsAt: number | null;
   stoppedBy: string | null;
+  /** players who finished and are waiting for the timer (when «ستوب» is off) */
+  done: string[];
   /** how many categories each player has filled (live progress) */
   progress: Record<string, number>;
   myAnswers: Record<string, string>;

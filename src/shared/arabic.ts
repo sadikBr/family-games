@@ -81,3 +81,31 @@ export function answerMatches(typed: string, answer: string): boolean {
     return slack > 0 && editDistance(t, f) <= slack;
   });
 }
+
+/** The word without its long vowels (ا و ي): «زيمبابوي» and «زمبابوي» share «زمبب». */
+const skeleton = (k: string) => k.replace(/[اوي]/g, '');
+
+/**
+ * «اسم ولد اسم بنت»: two answers count as the same word spelled differently (and share the points)
+ * when they match after normalising, or — for words of 5+ letters — differ only by long vowels or by
+ * one letter (two from 8 letters). Short names stay strict, so «سعد» ≠ «سعيد» and «سلمى» ≠ «سلوى».
+ */
+export function similarAnswers(a: string, b: string): boolean {
+  const x = answerKey(a), y = answerKey(b);
+  if (x === y) return true;
+  const n = Math.min([...x].length, [...y].length);
+  if (n < 5) return false;
+  if (skeleton(x) === skeleton(y)) return true;
+  return editDistance(x, y) <= (n >= 8 ? 2 : 1);
+}
+
+/**
+ * «اسم ولد اسم بنت»: does the answer really start with this letter? The article «ال» is not skipped,
+ * so «الرباط» does not count for ر — and, being just the article, not for ا either. A hamza on the
+ * alif means it is part of the word: «ألمانيا» and «إلياس» count for ا.
+ */
+export function startsWithLetter(word: string, letter: string): boolean {
+  const raw = word.trim().replace(DIACRITICS, '');
+  if (raw.startsWith('ال') && raw.length > 3) return false;
+  return norm(raw)[0] === letter;
+}

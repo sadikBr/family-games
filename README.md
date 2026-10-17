@@ -5,7 +5,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | Game | | How it works on several phones |
 |---|---|---|
 | **الدخيل** (Imposter) | 3+ | Each phone shows the secret word, except the imposter's. Voting happens on the phones, and a caught imposter gets one last guess. |
-| **اسم ولد اسم بنت** | 2+ | A random letter is drawn and everyone fills 6 boxes on their own phone (boy, girl, animal, plant, thing, country). The first to finish hits «ستوب ». The family then reviews the answers together and votes on wrong ones. A unique answer = 10, a shared one = 5. |
+| **اسم ولد اسم بنت** | 2+ | A random letter is drawn and everyone fills 7 boxes on their own phone (boy, girl, animal, plant, thing, country, profession). Answers must start with the letter itself — «الرباط» doesn't count for ر. The first to finish hits «ستوب» (or, with «ستوب» off in the settings, everyone writes until the timer ends). The family then reviews the answers together and votes on wrong ones. A unique answer = 10, a shared one = 5 — also when spelled slightly differently («زيمبابوي» / «زمبابوي»). |
 | **روندا** | 2–4 | Family rules: 4 cards each, no cards dealt to the table. Take matching cards plus the sequence that follows. إسطي +1, مسّة +1, روندا 1 / تريلا 5 (announced automatically), cards over 20 count. First to 41. |
 | **الكانزة** | 2–4 | Play a card and take 1–2 table cards so the three add up to exactly 15. Scoring: every card = 1, gold = its number, 1 of gold = 20. |
 | **التريس** | 4 | Two teams with partners sitting opposite, 10 cards each, follow suit, no trumps. 3 > 2 > 1 > 12 > 11 > 10 > 7…4. 1 = 1 pt, 3/2/figures = ⅓, last trick = 1. First to 31. |

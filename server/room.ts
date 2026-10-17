@@ -402,6 +402,7 @@ export class Room {
         const s = this.settings.names;
         s.rounds = int(patch.rounds, s.rounds, 1, 15);
         s.seconds = int(patch.seconds, s.seconds, 30, 240);
+        s.stop = bool(patch.stop, s.stop);
         break;
       }
       case 'headsup': {
