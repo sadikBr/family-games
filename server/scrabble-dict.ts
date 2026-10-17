@@ -142,3 +142,11 @@ export function dictSize(): number {
   load();
   return starts!.length;
 }
+
+/**
+ * «حروف مبعثرة»: an exact lookup of an already normalised word in the list (or the grammar words),
+ * WITHOUT the «ال» rule of isWord — there, «ال» + a word must not count as a second word.
+ */
+export function listWord(w: string): boolean {
+  return baseWord(w);
+}
