@@ -1,7 +1,12 @@
-/** «الخربقة» — see src/shared/kharbga.ts for the rules. Simplified: no exchanges; a blocked player passes. */
+/**
+ * «الخربقة» — see src/shared/kharbga.ts for the rules. Simplified: no exchanges; a blocked player passes.
+ * Setting: a player may undo a piece placed this turn, or drop all their remaining pieces at random
+ * (the turn then passes and the other player places the rest of theirs).
+ */
 import { CENTER, PIECES, applyMove, botMove, botPlace, movesFor, other, type Side } from '../../src/shared/kharbga';
 import type { KharbgaSettings, KharbgaView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
+import { duelWin, startDuel } from '../duel';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
@@ -15,7 +20,7 @@ interface State {
   phase: KharbgaView['phase'];
   turn: Side;
   toPlace: Record<Side, number>;
-  placedThisTurn: number;
+  placedThisTurn: number[]; // cells placed this turn (can be undone)
   chainFrom: number | null;
   firstMove: boolean;
   last: KharbgaView['last'];
@@ -25,6 +30,7 @@ interface State {
   moves: number;
   botAt: number;
   feed: Feed;
+  score: Record<string, number>;
 }
 
 const idOf = (s: State, side: Side) => (side === 1 ? s.attacker : s.defender);
@@ -35,7 +41,22 @@ function end(ctx: GameCtx, s: State, winner: KharbgaView['winner'], reason: Khar
   s.winner = winner;
   s.reason = reason;
   s.chainFrom = null;
-  ctx.fx('win', winner === 1 ? s.attacker : winner === 2 ? s.defender : undefined);
+  if (winner === 'draw') ctx.fx('win');
+  else if (winner) duelWin(ctx, s.score, idOf(s, winner));
+}
+
+/** After a placement: start the moving phase, or hand the turn over (two pieces per turn). */
+function afterPlace(s: State, side: Side) {
+  if (s.toPlace[1] === 0 && s.toPlace[2] === 0) {
+    s.phase = 'move';
+    s.placedThisTurn = [];
+    // the attacker opens by entering the centre; if none of its pieces touch it, the defender opens
+    s.turn = movesFor(s.board, 1, null, true).length ? 1 : 2;
+    s.feed.push(s.turn === 1 ? 'اكتمل الوضع — المهاجم يبدأ بالدخول إلى الوسط' : 'لا قطعة للمهاجم بجانب الوسط — المدافع يبدأ');
+  } else if (s.placedThisTurn.length >= 2 || s.toPlace[side] === 0) {
+    s.placedThisTurn = [];
+    if (s.toPlace[other(side)] > 0) s.turn = other(side); // otherwise the other side is done: keep placing
+  }
 }
 
 /** Hand the turn over, handling blocked players. */
@@ -57,7 +78,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
   id: 'kharbga',
 
   start(ctx, participants, settings) {
-    const [attacker, defender] = shuffle(participants.slice(0, 2));
+    const { first: attacker, second: defender, score } = startDuel(ctx, 'kharbga', participants); // the attacker alternates
     ctx.fx('start');
     return {
       settings,
@@ -67,7 +88,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       phase: 'place',
       turn: 1,
       toPlace: { 1: PIECES, 2: PIECES },
-      placedThisTurn: 0,
+      placedThisTurn: [],
       chainFrom: null,
       firstMove: true,
       last: null,
@@ -77,6 +98,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       moves: 0,
       botAt: -1,
       feed: new Feed(),
+      score,
     };
   },
 
@@ -88,22 +110,33 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     if (side !== s.turn) throw new GameError('ماشي دورك');
 
     if (s.phase === 'place') {
+      if (a.type === 'undo') {
+        const cell = s.placedThisTurn.pop();
+        if (cell === undefined) throw new GameError('لا شيء للتراجع عنه');
+        s.board[cell] = 0;
+        s.toPlace[side] += 1;
+        s.moves += 1;
+        ctx.fx('card', by);
+        return;
+      }
+      if (a.type === 'placeRandom') {
+        if (!s.toPlace[side]) return;
+        const free = shuffle(s.board.map((v, i) => (v === 0 && i !== CENTER ? i : -1)).filter((i) => i >= 0));
+        for (const cell of free.slice(0, s.toPlace[side])) s.board[cell] = side;
+        s.toPlace[side] = 0;
+        s.moves += 1;
+        s.feed.push(`${ctx.playerName(by)} وزّع قطعه الباقية عشوائياً`, { by });
+        ctx.fx('card', by);
+        afterPlace(s, side);
+        return;
+      }
       if (a.type !== 'place' || !isNum(a.cell) || a.cell === CENTER || s.board[a.cell] !== 0) return;
       s.board[a.cell] = side;
       s.toPlace[side] -= 1;
-      s.placedThisTurn += 1;
+      s.placedThisTurn.push(a.cell);
       s.moves += 1;
       ctx.fx('card', by);
-      if (s.toPlace[1] === 0 && s.toPlace[2] === 0) {
-        s.phase = 'move';
-        s.placedThisTurn = 0;
-        // the attacker opens by entering the centre; if none of its pieces touch it, the defender opens
-        s.turn = movesFor(s.board, 1, null, true).length ? 1 : 2;
-        s.feed.push(s.turn === 1 ? 'اكتمل الوضع — المهاجم يبدأ بالدخول إلى الوسط' : 'لا قطعة للمهاجم بجانب الوسط — المدافع يبدأ');
-      } else if (s.placedThisTurn >= 2 || s.toPlace[side] === 0) {
-        s.placedThisTurn = 0;
-        s.turn = other(side);
-      }
+      afterPlace(s, side);
       return;
     }
 
@@ -160,6 +193,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       turn: s.turn,
       mySide,
       toPlace: s.toPlace,
+      canUndo: s.phase === 'place' && mySide === s.turn && s.placedThisTurn.length > 0,
       chainFrom: s.chainFrom,
       moves: s.phase === 'move' && mySide === s.turn ? movesFor(s.board, s.turn, s.chainFrom, s.firstMove) : [],
       last: s.last,
@@ -167,6 +201,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       winner: s.winner,
       reason: s.reason,
       feed: s.feed.list(),
+      score: s.score,
     };
   },
 

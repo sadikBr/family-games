@@ -7,7 +7,7 @@ import { haptic } from '@/lib/sfx';
 import type { RoomView, XoView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Confetti } from '@/ui/fun';
-import { Txt, num } from '@/ui/txt';
+import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -55,7 +55,7 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
       <DuelBar
         h={h}
         active={view.phase === 'play' ? idOf(view.turn) : null}
-        slots={(['x', 'o'] as const).map((m) => ({ id: idOf(m), color: COLOR[m], mark: <Mark m={m} size={14} />, sub: `الفوز: ${num(view.score[idOf(m)] ?? 0)}` }))}
+        slots={(['x', 'o'] as const).map((m) => ({ id: idOf(m), color: COLOR[m], mark: <Mark m={m} size={14} />, score: view.score[idOf(m)] ?? 0 }))}
       />
       {view.phase === 'final' ? (
         <ResultBanner

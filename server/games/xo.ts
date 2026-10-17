@@ -2,8 +2,9 @@
 import type { XoSettings, XoView } from '../../src/shared/protocol';
 import { xoBest, xoWinner, type Mark } from '../../src/shared/xo';
 import { randDelay } from '../cardkit';
+import { duelWin, startDuel } from '../duel';
 import { GameError, type GameModule } from '../types';
-import { isNum, shuffle } from '../util';
+import { isNum } from '../util';
 
 interface State {
   settings: XoSettings;
@@ -22,12 +23,7 @@ interface State {
 export const xo: GameModule<State, XoSettings> = {
   id: 'xo',
   start(ctx, participants, settings) {
-    const prev = ctx.memo.get('xoLastX') as string | undefined;
-    let [x, o] = shuffle(participants.slice(0, 2));
-    if (prev && participants.includes(prev)) [x, o] = prev === participants[0] ? [participants[1], participants[0]] : [participants[0], participants[1]];
-    ctx.memo.set('xoLastX', x);
-    const score = (ctx.memo.get('xoScore') as Record<string, number> | undefined) ?? {};
-    ctx.memo.set('xoScore', score);
+    const { first: x, second: o, score } = startDuel(ctx, 'xo', participants);
     ctx.fx('start');
     return { settings, x, o, board: Array(9).fill(''), turn: 'x', line: null, winner: null, phase: 'play', moves: 0, botMove: -1, score };
   },
@@ -45,8 +41,7 @@ export const xo: GameModule<State, XoSettings> = {
       s.line = w.line;
       s.winner = w.mark;
       s.phase = 'final';
-      s.score[by] = (s.score[by] ?? 0) + 1;
-      ctx.fx('win', by);
+      duelWin(ctx, s.score, by);
     } else if (s.board.every(Boolean)) {
       s.winner = 'draw';
       s.phase = 'final';
@@ -66,5 +61,6 @@ export const xo: GameModule<State, XoSettings> = {
     if (s.phase !== 'play' || (id !== s.x && id !== s.o)) return;
     s.winner = id === s.x ? 'o' : 'x';
     s.phase = 'final';
+    duelWin(ctx, s.score, id === s.x ? s.o : s.x);
   },
 };

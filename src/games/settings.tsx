@@ -128,6 +128,7 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
         <View style={{ gap: 6 }}>
           <Toggle label="الملك يطير على القطر كله" value={settings.flyingKings} editable={editable} onChange={(flyingKings) => change({ flyingKings })} />
           <Toggle label="القطع تأكل إلى الخلف" value={settings.backCapture} editable={editable} onChange={(backCapture) => change({ backCapture })} />
+          <Toggle label="الأكل الأكبر إجباري (خذ أكثر عدد من القطع)" value={settings.maxCapture} editable={editable} onChange={(maxCapture) => change({ maxCapture })} />
         </View>
       );
     }

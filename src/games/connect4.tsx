@@ -1,4 +1,5 @@
 /** «أربعة في صف» — tap a column to drop a disc; four in a row wins. */
+import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 
@@ -7,8 +8,10 @@ import { haptic } from '@/lib/sfx';
 import { COLS, ROWS } from '@/shared/connect4';
 import type { Connect4View, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { Btn } from '@/ui/btn';
+import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
-import { Txt, num } from '@/ui/txt';
+import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -24,7 +27,7 @@ function Players({ view, h }: { view: Connect4View; h: Helpers }) {
       active={view.phase === 'play' ? (view.turn === 1 ? view.red : view.yellow) : null}
       slots={([1, 2] as const).map((d) => {
         const id = d === 1 ? view.red : view.yellow;
-        return { id, color: DISC[d], sub: `الفوز: ${num(view.score[id] ?? 0)}` };
+        return { id, color: DISC[d], sub: NAME[d], score: view.score[id] ?? 0 };
       })}
     />
   );
@@ -35,6 +38,7 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
   const { width } = useWindowDimensions();
   const W = Math.min(width - 24, 430);
   const cell = W / COLS;
+  const [resign, setResign] = useState(false);
   if (view.myDisc === null && view.phase === 'play') return <Spectator room={room} />;
   const myTurn = view.phase === 'play' && view.turn === view.myDisc;
   const line = new Set(view.line ?? []);
@@ -48,7 +52,7 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
           tone={view.winner === view.myDisc ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="connect4" size={72} />}
           title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(view.winner === 1 ? view.red : view.yellow).name}`}
-          sub={view.winner === 'draw' ? 'امتلأت اللوحة' : 'أربعة في صف!'}
+          sub={view.winner === 'draw' ? 'امتلأت اللوحة' : view.line ? 'أربعة في صف!' : 'انسحب الخصم'}
         />
       ) : (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
@@ -103,7 +107,20 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
           : null}
       </View>
 
-      {view.phase === 'final' ? <PlayAgain room={room} /> : null}
+      {view.phase === 'final' ? <PlayAgain room={room} /> : <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />}
+      <ConfirmModal
+        visible={resign}
+        danger
+        icon="door"
+        title="الانسحاب من الدور؟"
+        message="سيفوز خصمك بهذا الدور"
+        confirmLabel="انسحب"
+        onCancel={() => setResign(false)}
+        onConfirm={() => {
+          setResign(false);
+          h.act('resign');
+        }}
+      />
     </>
   );
 }

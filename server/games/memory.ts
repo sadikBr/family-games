@@ -59,7 +59,9 @@ export const memory: GameModule<State, MemorySettings> = {
       ctx.fx('correct', by);
       if (s.owners.every(Boolean)) {
         s.phase = 'final';
-        ctx.fx('win');
+        const best = Math.max(...Object.values(s.pairs));
+        const top = Object.keys(s.pairs).filter((p) => s.pairs[p] === best);
+        ctx.fx('win', top.length === 1 ? top[0] : undefined);
       }
     } else s.peekUntil = ctx.now + PEEK_MS;
   },
@@ -113,8 +115,12 @@ export const memory: GameModule<State, MemorySettings> = {
     const i = s.order.indexOf(id);
     if (i < 0 || s.phase !== 'play') return;
     s.order.splice(i, 1);
+    if (i === s.turnIdx) {
+      // it was the leaver's turn: turn their cards back and cancel the flip-back, so the next player starts clean
+      s.flipped = [];
+      s.peekUntil = null;
+    } else if (i < s.turnIdx) s.turnIdx -= 1;
     if (!s.order.length) return;
-    if (i < s.turnIdx) s.turnIdx -= 1;
     s.turnIdx %= s.order.length;
   },
 };

@@ -234,6 +234,7 @@ export interface CodenamesSettings {
 export interface DamaSettings {
   flyingKings: boolean;
   backCapture: boolean; // men may capture backwards
+  maxCapture: boolean; // you must take the sequence that captures the most pieces
 }
 export interface DrawSettings {
   rounds: number;
@@ -356,7 +357,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   unoflip: { target: 250 },
   ludo: { exitOnOne: false },
   codenames: { assassin: true },
-  dama: { flyingKings: true, backCapture: true },
+  dama: { flyingKings: true, backCapture: true, maxCapture: true },
   draw: { rounds: 2, seconds: 80 },
   estate: { startCash: 1500, rounds: 30 },
   huroof: { seconds: 20 },
@@ -365,13 +366,13 @@ export const DEFAULT_SETTINGS: AllSettings = {
   surah: { rounds: 10, seconds: 20, level: 'easy' },
   hajj: { questions: true },
   ladders: { exact: true },
-  connect4: { level: 2 },
+  connect4: { level: 1 },
   chess: { level: 1 },
   kdab: { maxPlay: 4 },
   wave: { rounds: 1 },
   wordle: { rounds: 3 },
   kharbga: { level: 1 },
-  battleship: { level: 2 },
+  battleship: { level: 1 },
   xo: { level: 1 },
   sudoku: { level: 'easy' },
   trivia: { rounds: 10, seconds: 15, category: 'all' },
@@ -786,6 +787,7 @@ export interface DamaView {
   counts: { white: number; black: number };
   winner: 'white' | 'black' | 'draw' | null;
   reason: 'pieces' | 'blocked' | 'resign' | 'draw' | 'left' | null;
+  score: Record<string, number>; // games won in this series
 }
 
 export interface DrawStroke {
@@ -972,7 +974,7 @@ export interface LaddersView {
 export interface Connect4View {
   game: 'connect4';
   phase: 'play' | 'final';
-  red: string; // disc 1, plays first
+  red: string; // disc 1, plays first (alternates between games)
   yellow: string; // disc 2
   board: number[]; // 42 cells, row 0 on top
   turn: 1 | 2;
@@ -998,6 +1000,7 @@ export interface ChessView {
   winner: 'w' | 'b' | 'draw' | null;
   reason: 'mate' | 'stalemate' | 'fifty' | 'repetition' | 'material' | 'resign' | 'left' | null;
   feed: FeedItem[];
+  score: Record<string, number>; // games won in this series
 }
 
 export interface KdabView {
@@ -1063,6 +1066,7 @@ export interface KharbgaView {
   turn: 1 | 2;
   mySide: 1 | 2 | null;
   toPlace: Record<1 | 2, number>;
+  canUndo: boolean; // I placed a piece this turn and may take it back
   chainFrom: number | null; // the piece that must keep capturing
   moves: { from: number; to: number }[]; // my legal moves (movement phase)
   last: { from: number; to: number; captured: number[] } | null;
@@ -1070,6 +1074,7 @@ export interface KharbgaView {
   winner: 1 | 2 | 'draw' | null;
   reason: 'captured' | 'blocked' | 'limit' | 'resign' | 'left' | null;
   feed: FeedItem[];
+  score: Record<string, number>; // games won in this series
 }
 
 export type ShotResult = 'hit' | 'miss';
@@ -1087,6 +1092,8 @@ export interface BattleshipView {
   last: { by: string; cell: number; result: ShotResult | 'sunk'; id: number } | null;
   winner: string | null;
   enemyFleet: number[][] | null; // revealed at the end
+  score: Record<string, number>; // games won in this series
+  resigned: boolean; // the loser resigned or left
 }
 
 export interface XoView {

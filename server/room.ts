@@ -528,6 +528,7 @@ export class Room {
       case 'dama':
         this.settings.dama.flyingKings = bool(patch.flyingKings, this.settings.dama.flyingKings);
         this.settings.dama.backCapture = bool(patch.backCapture, this.settings.dama.backCapture);
+        this.settings.dama.maxCapture = bool(patch.maxCapture, this.settings.dama.maxCapture);
         break;
       case 'kharbga':
       case 'battleship':
