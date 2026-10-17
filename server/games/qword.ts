@@ -11,6 +11,7 @@ import type { QwordSettings, QwordView } from '../../src/shared/games/qword';
 import { QWORD_ANSWERS, QWORD_CAT_LABEL, type QwordEntry } from '../qword-content';
 import { quranJoinedIndex, quranWordIndex, verseFor } from '../qword-words';
 import { verseRef, verseText } from '../qquote-quran';
+import { forFont } from './tajweed';
 import { qdeck } from '../qdeck';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, randInt } from '../util';
@@ -108,7 +109,8 @@ function endIfAllDone(ctx: GameCtx, s: State): boolean {
 /** The verse shown with a word: the entry's own, or the first short verse where it appears. */
 export function qwordVerse(e: QwordEntry): { text: string; ref: string } | null {
   const r = e.ref ?? verseFor(normWord(e.word));
-  const text = r && verseText(r[0], r[1]);
+  const found = r && verseText(r[0], r[1]);
+  const text = found ? forFont(found) : found; // open tanween as the Quran font draws it
   return r && text ? { text, ref: verseRef(r[0], r[1]) } : null;
 }
 

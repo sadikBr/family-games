@@ -8,6 +8,7 @@ import type { McqResult } from '../../src/shared/protocol';
 import { QQUOTE_LEVELS, QQUOTE_ROUNDS, QQUOTE_SECONDS, type QquoteLevel, type QquoteSettings, type QquoteView } from '../../src/shared/games/qquote';
 import { QQUOTES, type QquoteEntry } from '../qquote-content';
 import { verseRef, verseSlice } from '../qquote-quran';
+import { forFont } from './tajweed';
 import { qdeck } from '../qdeck';
 import { type GameCtx, type GameModule } from '../types';
 import { isNum, randInt, shuffle } from '../util';
@@ -45,7 +46,8 @@ interface State {
 
 /** One question: the quoted words, the speaker among 3 of the wrong names, and the reference. */
 export function qquoteItem(q: QquoteEntry): QquoteItem {
-  const text = verseSlice(q.surah, q.ayah, q.from, q.to);
+  const raw = verseSlice(q.surah, q.ayah, q.from, q.to);
+  const text = raw === null ? null : forFont(raw); // open tanween as the Quran font draws it
   if (!text) throw new Error(`qquote: no verse ${q.surah}:${q.ayah}`);
   const wrong = shuffle(q.wrong.filter((w) => w !== q.speaker)).slice(0, 3);
   return { text, ...mcqOptions(q.speaker, wrong), ref: verseRef(q.surah, q.ayah) };

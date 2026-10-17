@@ -21,6 +21,7 @@ import { type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 import { quranData } from './surah';
+import { forFont } from './tajweed';
 
 /** How long the answer stays on screen unless everyone presses «تابع» first. */
 export const PROPHETS_REVEAL_MS = 16_000;
@@ -72,7 +73,7 @@ export function ayahFor(ref: Chapter['ayah']): ProphetsAyah | null {
   for (let n = from; n <= to; n++) {
     const v = verses.find((x) => x[0] === s && x[1] === n);
     if (!v) return null;
-    out.push({ n, text: v[2] });
+    out.push({ n, text: forFont(v[2]) }); // open tanween as the Quran font draws it
   }
   const surah = SURAH_NAME[s] ?? surahs.find((x) => x.n === s)?.name;
   return surah ? { verses: out, surah } : null;

@@ -1,6 +1,8 @@
 /** «قصص الأنبياء» — content integrity, majority vote, lanterns, bots and leaving. */
 import { expect, test } from 'bun:test';
 
+import { forFont } from './games/tajweed';
+
 import { PROPHETS_DEFAULTS, PROPHETS_STORIES, type ProphetsSettings, type ProphetsStoryId, type ProphetsView } from '../src/shared/games/prophets';
 import { PROPHETS_REVEAL_MS, ayahFor, majority, prophets, type ProphetsState } from './games/prophets';
 import { quranData } from './games/surah';
@@ -126,7 +128,7 @@ test('content: no Latin letters or emoji in the player-facing text', () => {
 test('the quote text is taken from the Quran data, not typed', () => {
   const a = ayahFor([12, 4])!;
   const v = quranData().verses.find((x) => x[0] === 12 && x[1] === 4)!;
-  expect(a.verses[0].text).toBe(v[2]);
+  expect(a.verses[0].text).toBe(forFont(v[2])); // same text; open tanween drawn with the font's marks
   expect(a.surah).toBe('يوسف');
   expect(ayahFor([14, 37])!.surah).toBe('إبراهيم');
   expect(ayahFor([12, 100])).toBeNull(); // not in the filtered copy
