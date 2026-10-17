@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { client } from '@/lib/client';
 import { MEMORY_SIZES } from '@/shared/memory';
+import { XO_SIZES, inRow } from '@/shared/xo';
 import type { GameId, RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
@@ -205,8 +206,23 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
     case 'battleship':
     case 'xo': {
       const { settings, change } = settingsFor(room, room.game);
+      const size = room.game === 'xo' ? (room.settings.xo.size ?? 3) : 0;
       return (
         <View style={{ gap: 8 }}>
+          {room.game === 'xo' ? (
+            <>
+              <Txt v="bold">حجم اللوحة</Txt>
+              <ChipPicker
+                options={XO_SIZES.map((n) => ({ key: String(n), label: `${n}×${n}` }))}
+                value={String(size)}
+                editable={editable}
+                onChange={(v) => client.roomAction({ type: 'settings', game: 'xo', patch: { size: Number(v) } })}
+              />
+              <Txt v="tiny" color={C.muted}>
+                {['', '', '', 'ثلاثة', 'أربعة', 'خمسة'][inRow(size)]} في خط للفوز
+              </Txt>
+            </>
+          ) : null}
           <Txt v="bold">قوة البوت</Txt>
           <ChipPicker
             options={[

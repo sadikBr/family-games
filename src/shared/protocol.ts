@@ -354,6 +354,8 @@ export interface BattleshipSettings {
 }
 export interface XoSettings {
   level: 1 | 2;
+  /** board size n×n (3, 4, 5, 6, 7 or 9); win with inRow(n) in a row */
+  size?: number;
 }
 export interface SudokuSettings {
   level: 'easy' | 'medium' | 'hard';
@@ -448,7 +450,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   wordle: { rounds: 3 },
   kharbga: { level: 1 },
   battleship: { level: 1 },
-  xo: { level: 1 },
+  xo: { level: 1, size: 3 },
   sudoku: { level: 'easy' },
   trivia: { rounds: 10, seconds: 15, category: 'all' },
   memory: { pairs: 10 },
@@ -1227,6 +1229,11 @@ export interface XoView {
   x: string;
   o: string;
   board: ('' | 'x' | 'o')[];
+  /** board size (n×n) and how many in a row win */
+  size: number;
+  inRow: number;
+  /** the last cell played (highlighted on big boards) */
+  last: number | null;
   turn: 'x' | 'o';
   mine: 'x' | 'o' | null;
   line: number[] | null;

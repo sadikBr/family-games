@@ -50,6 +50,7 @@ import { sudoku } from './games/sudoku';
 import { trivia } from './games/trivia';
 import { wave } from './games/wave';
 import { wordle } from './games/wordle';
+import { XO_SIZES, type XoSize } from '../src/shared/xo';
 import { xo } from './games/xo';
 import { hajj } from './games/hajj';
 import { huroof } from './games/huroof';
@@ -594,6 +595,7 @@ export class Room {
       case 'battleship':
       case 'xo':
         if (patch.level === 1 || patch.level === 2) this.settings[game].level = patch.level;
+        if (XO_SIZES.includes(patch.size as XoSize)) this.settings.xo.size = patch.size as XoSize;
         break;
       case 'sudoku':
         if (patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') this.settings.sudoku.level = patch.level;

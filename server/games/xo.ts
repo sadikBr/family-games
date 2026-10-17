@@ -1,6 +1,9 @@
-/** «إكس أو» — tic-tac-toe; X starts, players swap X/O each game. Wins are counted across games. */
+/**
+ * «إكس أو» — tic-tac-toe on a 3×3 to 9×9 board (k in a row wins, see src/shared/xo.ts); X starts,
+ * players swap X/O each game. Wins are counted across games.
+ */
 import type { XoSettings, XoView } from '../../src/shared/protocol';
-import { xoBest, xoWinner, type Mark } from '../../src/shared/xo';
+import { XO_SIZES, inRow, xoBest, xoWinner, type Mark, type XoSize } from '../../src/shared/xo';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
 import { GameError, type GameModule } from '../types';
@@ -11,6 +14,8 @@ interface State {
   x: string;
   o: string;
   board: Mark[];
+  size: number;
+  last: number | null;
   turn: 'x' | 'o';
   line: number[] | null;
   winner: XoView['winner'];
@@ -26,18 +31,20 @@ export const xo: GameModule<State, XoSettings> = {
   start(ctx, participants, settings) {
     const { first: x, second: o, score } = startDuel(ctx, 'xo', participants);
     ctx.fx('start');
-    return { settings, x, o, board: Array(9).fill(''), turn: 'x', line: null, winner: null, phase: 'play', moves: 0, botMove: -1, score };
+    const size = XO_SIZES.includes(settings.size as XoSize) ? (settings.size as number) : 3;
+    return { settings, x, o, board: Array(size * size).fill(''), size, last: null, turn: 'x', line: null, winner: null, phase: 'play', moves: 0, botMove: -1, score };
   },
   act(ctx, s, by, a) {
     if (s.phase !== 'play' || a.type !== 'mark') return;
     const me = by === s.x ? 'x' : by === s.o ? 'o' : null;
     if (!me) return;
     if (me !== s.turn) throw new GameError('ماشي دورك');
-    if (!isNum(a.cell) || a.cell < 0 || a.cell > 8 || s.board[a.cell]) return;
+    if (!isNum(a.cell) || a.cell < 0 || a.cell >= s.board.length || s.board[a.cell]) return;
     s.board[a.cell] = me;
+    s.last = a.cell;
     s.moves += 1;
     ctx.fx('card', by);
-    const w = xoWinner(s.board);
+    const w = xoWinner(s.board, s.size, inRow(s.size));
     if (w) {
       s.line = w.line;
       s.winner = w.mark;
@@ -56,7 +63,7 @@ export const xo: GameModule<State, XoSettings> = {
     ctx.bot(id, `xo:${s.moves}`, randDelay(600, 1100), { type: 'mark', cell: xoBest(s.board, s.turn, s.settings.level) });
   },
   view(ctx, s, me): XoView {
-    return { game: 'xo', phase: s.phase, x: s.x, o: s.o, board: s.board, turn: s.turn, mine: me === s.x ? 'x' : me === s.o ? 'o' : null, line: s.line, winner: s.winner, score: s.score };
+    return { game: 'xo', phase: s.phase, x: s.x, o: s.o, board: s.board, size: s.size, inRow: inRow(s.size), last: s.last, turn: s.turn, mine: me === s.x ? 'x' : me === s.o ? 'o' : null, line: s.line, winner: s.winner, score: s.score };
   },
   onLeave(ctx, s, id) {
     if (s.phase !== 'play' || (id !== s.x && id !== s.o)) return;

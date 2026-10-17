@@ -47,8 +47,11 @@ const MARK_IN = new Keyframe({
 export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 40, 360);
-  const cell = W / 3;
+  const n = view.size ?? 3;
+  // big boards use all the width they can get
+  const W = Math.min(width - (n > 3 ? 28 : 40), n > 5 ? 440 : 360);
+  const cell = W / n;
+  const ROW_WORD: Record<number, string> = { 3: 'ثلاثة', 4: 'أربعة', 5: 'خمسة' };
   if (view.mine === null && view.phase === 'play') return <Spectator room={room} />;
   const myTurn = view.phase === 'play' && view.turn === view.mine;
   const line = new Set(view.line ?? []);
@@ -68,17 +71,24 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
           tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="xo" size={72} />}
           title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(idOf(view.winner as 'x' | 'o')).name}`}
-          sub={view.winner === 'draw' ? 'لا أحد صفّ ثلاثة' : 'ثلاثة في خط!'}
+          sub={view.winner === 'draw' ? `لا أحد صفّ ${ROW_WORD[view.inRow] ?? view.inRow}` : `${ROW_WORD[view.inRow] ?? view.inRow} في خط!`}
         />
       ) : (
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? 'دورك — اختر خانة' : `دور ${h.player(idOf(view.turn)).name}…`}
-        </Txt>
+        <View style={{ gap: 2 }}>
+          <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
+            {myTurn ? 'دورك — اختر خانة' : `دور ${h.player(idOf(view.turn)).name}…`}
+          </Txt>
+          {n > 3 ? (
+            <Txt v="tiny" center color={C.dim}>
+              صفّ {ROW_WORD[view.inRow] ?? view.inRow} في خط لتفوز
+            </Txt>
+          ) : null}
+        </View>
       )}
 
       <View style={[styles.board, { width: W + 6, height: W + 6 }]}>
         {view.board.map((m, i) => {
-          const r = Math.floor(i / 3), c = i % 3;
+          const r = Math.floor(i / n), c = i % n;
           return (
             <Pressable
               key={i}
@@ -90,22 +100,29 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
               accessibilityLabel={`الخانة ${i + 1}`}
               style={({ pressed }) => [
                 styles.cell,
-                { left: c * cell, top: r * cell, width: cell, height: cell },
+                { left: c * cell, top: r * cell, width: cell, height: cell, borderRadius: n > 3 ? cell * 0.22 : 18 },
+                n > 3 && view.last === i && !line.has(i) && { backgroundColor: alpha('#7B4BD0', 0.14) },
                 line.has(i) && { backgroundColor: alpha(C.yellow, 0.35) },
                 pressed && { backgroundColor: alpha('#7B4BD0', 0.18) },
               ]}>
               {m ? (
                 <Animated.View key={m} entering={MARK_IN}>
-                  <Mark m={m} size={cell * 0.52} />
+                  <Mark m={m} size={cell * (n > 3 ? 0.6 : 0.52)} />
                 </Animated.View>
               ) : null}
             </Pressable>
           );
         })}
-        <View pointerEvents="none" style={[styles.rule, { left: cell - 2, top: 10, bottom: 10, width: 4 }]} />
-        <View pointerEvents="none" style={[styles.rule, { left: cell * 2 - 2, top: 10, bottom: 10, width: 4 }]} />
-        <View pointerEvents="none" style={[styles.rule, { top: cell - 2, left: 10, right: 10, height: 4 }]} />
-        <View pointerEvents="none" style={[styles.rule, { top: cell * 2 - 2, left: 10, right: 10, height: 4 }]} />
+        {Array.from({ length: n - 1 }, (_, k) => {
+          const t = n > 5 ? 2 : n > 3 ? 3 : 4; // thinner rules on big boards
+          const inset = n > 3 ? 6 : 10;
+          return (
+            <View key={k} pointerEvents="none">
+              <View style={[styles.rule, { left: cell * (k + 1) - t / 2, top: inset, height: W - 2 * inset, width: t }]} />
+              <View style={[styles.rule, { top: cell * (k + 1) - t / 2, left: inset, width: W - 2 * inset, height: t }]} />
+            </View>
+          );
+        })}
       </View>
 
       {view.phase === 'final' ? <PlayAgain room={room} /> : null}
