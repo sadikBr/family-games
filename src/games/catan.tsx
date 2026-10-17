@@ -313,7 +313,7 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
                 size="sm"
                 ghost
                 icon="users"
-                label="عرض على اللاعبين"
+                label="تبادل مع لاعب"
                 onPress={() => {
                   setMode(null);
                   setSheet('offer');
