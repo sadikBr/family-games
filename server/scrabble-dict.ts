@@ -101,10 +101,28 @@ export function isWord(word: string): boolean {
   return w.startsWith('ال') && w.length > 3 && baseWord(w.slice(2));
 }
 
-/** The stricter check bots use: two-letter words (alone or after «ال») only from SHORT. */
+/** Everyday words (server/data/common-words.txt, see tools/common-words.mjs): the only ones bots play. */
+let common: Set<string> | null = null;
+function isCommon(w: string): boolean {
+  if (!common) {
+    try {
+      common = new Set(fs.readFileSync(path.join(import.meta.dir, 'data', 'common-words.txt'), 'utf8').split('\n').filter(Boolean));
+    } catch {
+      common = new Set();
+    }
+  }
+  if (!common.size) return true; // no list: fall back to the dictionary alone
+  return common.has(w) || EXTRA.has(w) || (w.startsWith('ال') && w.length > 3 && (common.has(w.slice(2)) || EXTRA.has(w.slice(2))));
+}
+
+/**
+ * The stricter check bots use: two-letter words (alone or after «ال») only from SHORT, longer ones only
+ * when they're everyday words — so bots don't play obscure stems or typos the big list contains.
+ */
 export function botWord(w: string): boolean {
   if (w.length < 2) return false;
   if (w.length === 2) return SHORT.has(w);
+  if (!isCommon(w)) return false;
   if (w.startsWith('ال') && w.length > 3) {
     const rest = w.slice(2);
     if (baseWord(w)) return true;
