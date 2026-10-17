@@ -70,7 +70,12 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
   return (
     <>
       <RoundHeader label={`الكلمة ${num(view.round)} من ${num(view.rounds)}`} round={0} rounds={0} />
-      {view.phase === 'play' ? <TimerBar endsAt={view.endsAt} total={240000} /> : null}
+      {view.phase === 'play' ? <TimerBar endsAt={view.endsAt} total={view.hurried ? 60000 : 240000} /> : null}
+      {view.hurried ? (
+        <Txt v="small" center color={C.yellow}>
+          نصف اللاعبين أنهوا — بقيت دقيقة على الأكثر
+        </Txt>
+      ) : null}
 
       <View style={{ gap: 6, alignItems: 'center' }}>
         {Array.from({ length: view.maxTries }, (_, r) => {

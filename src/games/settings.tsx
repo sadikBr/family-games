@@ -39,6 +39,7 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
             onChange={(imposters) => change({ imposters })}
             format={(v) => (v === 0 ? 'تلقائي' : String(v))}
           />
+          <Stepper label="عدد الجولات" value={settings.rounds ?? 5} min={1} max={15} editable={editable} onChange={(rounds) => change({ rounds })} />
           <Toggle
             label="الدخيل يعرف الموضوع"
             value={settings.hintForImposter}

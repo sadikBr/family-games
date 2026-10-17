@@ -9,6 +9,7 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const GUESS_MS = 90_000;
+export const CLUE_MS = 60_000;
 const REVEAL_MS = 8000;
 
 export const wavePoints = (d: number) => (d <= 4 ? 4 : d <= 10 ? 3 : d <= 17 ? 2 : 0);
@@ -16,6 +17,12 @@ export const wavePoints = (d: number) => (d <= 4 ? 4 : d <= 10 ? 3 : d <= 17 ? 2
 interface State {
   settings: WaveSettings;
   order: string[]; // clue-givers, in turn
+  /** index in `order` of this round's clue-giver */
+  giverIdx: number;
+  /** this round's clue-giver (stored, so it never changes when someone else leaves) */
+  giver: string;
+  /** the player whose clue time ran out this round */
+  passedFrom: string | null;
   players: string[];
   cards: [string, string][];
   round: number;
@@ -28,8 +35,14 @@ interface State {
   scores: Record<string, number>;
 }
 
-const psychic = (s: State) => s.order[(s.round - 1) % s.order.length];
+const psychic = (s: State) => s.giver;
 const rounds = (s: State) => s.order.length * s.settings.rounds;
+
+function nextGiver(ctx: GameCtx, s: State) {
+  s.giverIdx = (s.giverIdx + 1) % s.order.length;
+  s.giver = s.order[s.giverIdx];
+  s.endsAt = ctx.now + CLUE_MS;
+}
 
 function newRound(ctx: GameCtx, s: State) {
   s.round += 1;
@@ -38,8 +51,16 @@ function newRound(ctx: GameCtx, s: State) {
   s.clue = null;
   s.guesses = {};
   s.results = null;
-  s.endsAt = null;
+  s.passedFrom = null;
+  nextGiver(ctx, s);
   ctx.fx('reveal');
+}
+
+/** The top scorer, or null on a tie. */
+function topScorer(s: State): string | null {
+  const best = Math.max(...s.players.map((id) => s.scores[id] ?? 0));
+  const top = s.players.filter((id) => (s.scores[id] ?? 0) === best);
+  return top.length === 1 ? top[0] : null;
 }
 
 function reveal(ctx: GameCtx, s: State) {
@@ -67,6 +88,9 @@ export const wave: GameModule<State, WaveSettings> = {
     const s: State = {
       settings,
       order,
+      giverIdx: -1,
+      giver: order[0],
+      passedFrom: null,
       players: participants,
       cards: shuffle(WAVE_SPECTRUMS),
       round: 0,
@@ -105,12 +129,19 @@ export const wave: GameModule<State, WaveSettings> = {
 
   tick(ctx, s) {
     if (s.endsAt === null || ctx.now < s.endsAt) return false;
-    if (s.phase === 'guess') reveal(ctx, s);
+    if (s.phase === 'clue') {
+      // no clue in time: the next player gives it instead
+      s.passedFrom = s.giver;
+      nextGiver(ctx, s);
+      ctx.fx('tick');
+    } else if (s.phase === 'guess') reveal(ctx, s);
     else if (s.phase === 'reveal') {
       if (s.round >= rounds(s)) {
         s.phase = 'final';
         s.endsAt = null;
-        ctx.fx('win');
+        const w = topScorer(s);
+        if (w) ctx.fx('win', w);
+        else ctx.fx('win');
       } else newRound(ctx, s);
     }
     return true;
@@ -128,6 +159,7 @@ export const wave: GameModule<State, WaveSettings> = {
       spectrum: s.cards[(s.round - 1) % s.cards.length],
       target: shown || me === p ? s.target : null,
       clue: s.clue,
+      passedFrom: s.phase === 'clue' ? s.passedFrom : null,
       locked: Object.keys(s.guesses),
       myGuess: s.guesses[me] ?? null,
       guesses: shown ? s.guesses : null,
@@ -141,7 +173,10 @@ export const wave: GameModule<State, WaveSettings> = {
     if (!s.players.includes(id)) return;
     s.players = s.players.filter((p) => p !== id);
     const wasPsychic = psychic(s) === id;
+    const i = s.order.indexOf(id);
     s.order = s.order.filter((p) => p !== id);
+    // keep the pointer on the same clue-giver (or, if they left, just before the next one)
+    if (i >= 0 && (i < s.giverIdx || (i === s.giverIdx && wasPsychic))) s.giverIdx -= 1;
     if (s.players.length < 2) {
       s.phase = 'final';
       s.endsAt = null;
@@ -150,6 +185,8 @@ export const wave: GameModule<State, WaveSettings> = {
     if (wasPsychic && (s.phase === 'clue' || s.phase === 'guess')) {
       s.round -= 1;
       newRound(ctx, s);
+      return;
     }
+    if (s.phase === 'guess' && !s.players.some((p) => p !== psychic(s) && s.guesses[p] === undefined && ctx.isConnected(p))) reveal(ctx, s);
   },
 };

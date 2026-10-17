@@ -408,12 +408,14 @@ function Accusations({ room, view }: { room: RoomView; view: WerewolfView }) {
     <Card>
       <Txt v="h3">البوتات تتكلم</Txt>
       {view.accusations.map((a) => (
-        <Row key={a.by} gap={8}>
-          <Avatar player={h.player(a.by)} size={30} />
-          <Txt v="small" style={{ flex: 1 }}>
-            {h.player(a.by).name}: «أنا أشك في {h.player(a.target).name}»
-          </Txt>
-        </Row>
+        <Animated.View key={a.by} entering={FadeIn.duration(300)}>
+          <Row gap={8}>
+            <Avatar player={h.player(a.by)} size={30} />
+            <Txt v="small" style={{ flex: 1 }}>
+              {h.player(a.by).name}: «أنا أشك في {h.player(a.target).name}»
+            </Txt>
+          </Row>
+        </Animated.View>
       ))}
     </Card>
   );
@@ -451,7 +453,7 @@ function Over({ room, view }: { room: RoomView; view: WerewolfView }) {
   return (
     <>
       {won ? <Confetti /> : null}
-      <ResultBanner tone={w?.tone ?? 'neutral'} art={w ? <RoleBadge role={w.art} size={72} /> : undefined} title={w?.title ?? 'انتهت اللعبة'} />
+      <ResultBanner tone={w?.tone ?? 'neutral'} art={w ? <RoleBadge role={w.art} size={72} /> : undefined} title={w?.title ?? 'انتهت اللعبة'} sub={view.endNote ?? undefined} />
       <Card>
         <Txt v="h3">الأدوار</Txt>
         <View style={{ gap: 6 }}>

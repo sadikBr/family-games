@@ -17,6 +17,7 @@ interface State {
   votes: Map<string, string>;
   guesserId: string | null;
   guessOptions: string[] | null;
+  guessEndsAt: number | null;
   result: ImposterResult | null;
   scores: Record<string, number>;
   botClues: Record<string, string>;
@@ -49,6 +50,7 @@ function newRound(ctx: GameCtx, s: State) {
   s.votes = new Map();
   s.guesserId = null;
   s.guessOptions = null;
+  s.guessEndsAt = null;
   s.result = null;
   s.phase = 'reveal';
   s.round += 1;
@@ -58,15 +60,18 @@ function newRound(ctx: GameCtx, s: State) {
   ctx.fx('start');
 }
 
-/** A one-word clue for a bot. Imposter bots bluff with a clue for a similar word. */
+/** Seconds the caught imposter has for the last-chance guess. */
+export const GUESS_MS = 25_000;
+
+/** A one-word clue for a bot. Imposter bots bluff with a clue for another word of the same category. */
 function botClue(s: State, id: string, used: Set<string>): string {
   let pool: string[];
   if (!s.imposters.includes(id)) {
     pool = IMPOSTER_HINTS[s.word] ?? [];
   } else {
-    const cat = s.settings.hintForImposter ? s.category : pick(IMPOSTER_CATEGORIES);
-    const other = pick(cat.words.filter((w) => w !== s.word));
-    pool = IMPOSTER_HINTS[other] ?? [];
+    // a clue from a random other category would give the bot away at once
+    const others = s.category.words.filter((w) => w !== s.word && IMPOSTER_HINTS[w]?.length);
+    pool = others.length ? IMPOSTER_HINTS[pick(others)] : [];
   }
   const fresh = pool.filter((h) => !used.has(h));
   const clue = fresh.length ? pick(fresh) : pool.length ? pick(pool) : 'ممم';
@@ -80,9 +85,11 @@ function activeIds(ctx: GameCtx, s: State) {
   return s.participants.filter((id) => ctx.isConnected(id));
 }
 
+/** `guessed`: the caught imposter's word, '' when the guess was missed (time out / left), null when there was no guess. */
 function finish(ctx: GameCtx, s: State, accused: string | null, guessed: string | null) {
   const caught = accused !== null && s.imposters.includes(accused);
   const guessCorrect = guessed === null ? null : guessed === s.word;
+  s.guessEndsAt = null;
   const imposterWins = !caught || guessCorrect === true;
   if (imposterWins) {
     for (const id of s.imposters) s.scores[id] = (s.scores[id] ?? 0) + 2;
@@ -105,6 +112,24 @@ function finish(ctx: GameCtx, s: State, accused: string | null, guessed: string 
   ctx.fx('reveal');
 }
 
+function checkAllIn(ctx: GameCtx, s: State) {
+  const active = activeIds(ctx, s);
+  if (s.phase === 'reveal' && active.every((id) => s.ready.has(id))) {
+    s.phase = 'clues';
+    ctx.fx('start');
+  } else if (s.phase === 'vote' && active.every((id) => s.votes.has(id))) {
+    resolveVotes(ctx, s);
+  }
+}
+
+const totalRounds = (s: State) => s.settings.rounds || 5;
+
+function finalWinner(s: State): string | null {
+  const best = Math.max(...s.participants.map((id) => s.scores[id] ?? 0));
+  const top = s.participants.filter((id) => (s.scores[id] ?? 0) === best);
+  return top.length === 1 ? top[0] : null;
+}
+
 function resolveVotes(ctx: GameCtx, s: State) {
   const tally = new Map<string, number>();
   for (const t of s.votes.values()) tally.set(t, (tally.get(t) ?? 0) + 1);
@@ -122,6 +147,7 @@ function resolveVotes(ctx: GameCtx, s: State) {
     const others = shuffle(s.category.words.filter((w) => w !== s.word)).slice(0, 5);
     s.guessOptions = shuffle([s.word, ...others]);
     s.guesserId = accused;
+    s.guessEndsAt = ctx.now + GUESS_MS;
     s.phase = 'guess';
     ctx.fx('buzz', accused);
     return;
@@ -132,6 +158,14 @@ function resolveVotes(ctx: GameCtx, s: State) {
 export const imposter: GameModule<State, ImposterSettings> = {
   id: 'imposter',
   hostOnly: ['skipReady', 'toVote', 'forceResolve', 'next'],
+
+  tick(ctx, s) {
+    if (s.phase === 'guess' && s.guessEndsAt !== null && ctx.now >= s.guessEndsAt) {
+      finish(ctx, s, s.guesserId, ''); // time is up: a missed guess
+      return true;
+    }
+    return false;
+  },
 
   start(ctx, participants, settings) {
     const s: State = {
@@ -147,6 +181,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
       votes: new Map(),
       guesserId: null,
       guessOptions: null,
+      guessEndsAt: null,
       result: null,
       scores: Object.fromEntries(participants.map((id) => [id, 0])),
       botClues: {},
@@ -161,10 +196,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
       case 'ready': {
         if (s.phase !== 'reveal' || !isPlayer) return;
         s.ready.add(by);
-        if (activeIds(ctx, s).every((id) => s.ready.has(id))) {
-          s.phase = 'clues';
-          ctx.fx('start');
-        }
+        checkAllIn(ctx, s);
         return;
       }
       case 'skipReady': {
@@ -185,7 +217,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
           throw new GameError('لا يمكنك التصويت على نفسك');
         }
         s.votes.set(by, target);
-        if (activeIds(ctx, s).every((id) => s.votes.has(id))) resolveVotes(ctx, s);
+        checkAllIn(ctx, s);
         return;
       }
       case 'forceResolve': {
@@ -198,7 +230,15 @@ export const imposter: GameModule<State, ImposterSettings> = {
         return;
       }
       case 'next': {
-        if (s.phase === 'result') newRound(ctx, s);
+        if (s.phase !== 'result') return;
+        if (s.round >= totalRounds(s)) {
+          s.phase = 'final';
+          const w = finalWinner(s);
+          if (w) ctx.fx('win', w);
+          else ctx.fx('win');
+          return;
+        }
+        newRound(ctx, s);
         return;
       }
     }
@@ -211,6 +251,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
       game: 'imposter',
       phase: s.phase,
       round: s.round,
+      totalRounds: totalRounds(s),
       participants: s.participants,
       secret: !inGame
         ? null
@@ -227,6 +268,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
       myVote: s.votes.get(me) ?? null,
       guessOptions: me === s.guesserId ? s.guessOptions : null,
       guesserId: s.guesserId,
+      guessEndsAt: s.phase === 'guess' ? s.guessEndsAt : null,
       botClues: s.phase === 'reveal' ? {} : s.botClues,
       result: s.result,
       scores: s.scores,
@@ -262,6 +304,14 @@ export const imposter: GameModule<State, ImposterSettings> = {
   onLeave(ctx, s, id) {
     s.participants = s.participants.filter((p) => p !== id);
     s.order = s.order.filter((p) => p !== id);
+    s.ready.delete(id);
     s.votes.delete(id);
+    // votes for someone who is gone no longer count: those players vote again
+    for (const [from, to] of [...s.votes]) if (to === id) s.votes.delete(from);
+    if (s.phase === 'guess' && s.guesserId === id) {
+      finish(ctx, s, id, ''); // the caught imposter walked away: a missed guess
+      return;
+    }
+    checkAllIn(ctx, s);
   },
 };

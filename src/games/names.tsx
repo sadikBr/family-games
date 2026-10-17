@@ -181,7 +181,7 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
           icon={stopMode ? 'hand' : 'check'}
           label={stopMode ? (allFilled ? 'ستوب' : `ستوب (${filled}/${CATS.length})`) : allFilled ? 'أنهيت' : `أنهيت (${filled}/${CATS.length})`}
           color={stopMode ? C.red : C.green}
-          disabled={!allFilled}
+          disabled={stopMode && !allFilled}
           onPress={() => {
             haptic.heavy();
             for (const t of Object.values(timers.current)) clearTimeout(t);

@@ -14,6 +14,8 @@ import { isStr, randInt, shuffle } from '../util';
 
 const ROUND_MS = 4 * 60_000;
 const REVEAL_MS = 7000;
+/** Once half of the players are done, the others get at most this long. */
+export const HURRY_MS = 60_000;
 const ANSWERS = WORDLE_WORDS.map(normWord);
 
 /** Every accepted guess (already normalised), plus the answers themselves. */
@@ -39,6 +41,14 @@ interface State {
   results: WordleView['results'];
   scores: Record<string, number>;
   botNext: Record<string, number>; // bot → number of rows already planned
+  hurried: boolean; // the round time was cut because half of the players are done
+}
+
+/** The top scorer, or null on a tie. */
+function topScorer(s: State): string | null {
+  const best = Math.max(...s.players.map((id) => s.scores[id] ?? 0));
+  const top = s.players.filter((id) => (s.scores[id] ?? 0) === best);
+  return top.length === 1 ? top[0] : null;
 }
 
 const answer = (s: State) => s.words[s.round - 1];
@@ -51,6 +61,7 @@ function newRound(ctx: GameCtx, s: State) {
   s.solvedAt = {};
   s.results = null;
   s.botNext = {};
+  s.hurried = false;
   s.endsAt = ctx.now + ROUND_MS;
   ctx.fx('start');
 }
@@ -65,6 +76,7 @@ function finishRound(ctx: GameCtx, s: State) {
   });
   s.phase = 'reveal';
   s.endsAt = ctx.now + REVEAL_MS;
+  ctx.fx('reveal');
 }
 
 export const wordle: GameModule<State, WordleSettings> = {
@@ -83,6 +95,7 @@ export const wordle: GameModule<State, WordleSettings> = {
       results: null,
       scores: Object.fromEntries(participants.map((p) => [p, 0])),
       botNext: {},
+      hurried: false,
     };
     newRound(ctx, s);
     return s;
@@ -100,7 +113,17 @@ export const wordle: GameModule<State, WordleSettings> = {
       s.solvedAt[by] = Object.keys(s.solvedAt).length;
       ctx.fx('correct', by);
     } else if (s.rows[by].length >= MAX_TRIES) ctx.fx('buzz', by);
-    if (s.players.every((id) => done(s, id) || !(ctx.isConnected(id) || ctx.isBot(id)))) finishRound(ctx, s);
+    if (s.players.every((id) => done(s, id) || !(ctx.isConnected(id) || ctx.isBot(id)))) {
+      finishRound(ctx, s);
+      return;
+    }
+    // half of the players are done: the rest hurry up
+    const finished = s.players.filter((id) => done(s, id)).length;
+    if (finished * 2 >= s.players.length && s.endsAt !== null && s.endsAt > ctx.now + HURRY_MS) {
+      s.endsAt = ctx.now + HURRY_MS;
+      s.hurried = true;
+      ctx.fx('tick');
+    }
   },
 
   tick(ctx, s) {
@@ -110,7 +133,9 @@ export const wordle: GameModule<State, WordleSettings> = {
       if (s.round >= s.words.length) {
         s.phase = 'final';
         s.endsAt = null;
-        ctx.fx('win');
+        const w = topScorer(s);
+        if (w) ctx.fx('win', w);
+        else ctx.fx('win');
       } else newRound(ctx, s);
     }
     return true;
@@ -143,6 +168,7 @@ export const wordle: GameModule<State, WordleSettings> = {
       others: s.players.filter((id) => id !== me).map((id) => ({ id, rows: (s.rows[id] ?? []).map((r) => r.marks), solved: s.solvedAt[id] !== undefined, done: done(s, id) })),
       answer: shown || done(s, me) ? answer(s) : null,
       endsAt: s.endsAt,
+      hurried: s.phase === 'play' && s.hurried,
       results: s.results,
       scores: s.scores,
     };

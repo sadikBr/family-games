@@ -473,6 +473,7 @@ export class Room {
         s.category = cat(patch.category, s.category, IMPOSTER_CATEGORIES.map((c) => c.key));
         s.imposters = int(patch.imposters, s.imposters, 0, 3);
         s.hintForImposter = bool(patch.hintForImposter, s.hintForImposter);
+        s.rounds = int(patch.rounds, s.rounds ?? 5, 1, 15);
         break;
       }
       case 'names': {

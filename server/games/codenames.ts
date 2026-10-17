@@ -27,7 +27,13 @@ interface State {
   winner: Team | null;
   reason: CodenamesView['reason'];
   log: CodenamesView['log'];
+  /** why the last turn ended, shown for a few seconds */
+  turnNote: { team: Team; text: string; until: number } | null;
+  /** shown on the team screen (e.g. a team lost its last players) */
+  notice: string | null;
 }
+
+const NOTE_MS = 4000;
 
 const other = (t: Team): Team => (t === 'red' ? 'blue' : 'red');
 const teamOf = (s: State, id: string): Team | null => (s.teams.red.includes(id) ? 'red' : s.teams.blue.includes(id) ? 'blue' : null);
@@ -51,9 +57,11 @@ function deal(s: State) {
   s.winner = null;
   s.reason = null;
   s.log = [];
+  s.turnNote = null;
 }
 
-function endTurn(s: State) {
+function endTurn(ctx: GameCtx, s: State, why: string) {
+  s.turnNote = { team: s.turn, text: why, until: ctx.now + NOTE_MS };
   s.turn = other(s.turn);
   s.clue = null;
   s.guessesLeft = 0;
@@ -85,10 +93,10 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
   if (color === s.turn) {
     ctx.fx('correct', by);
     s.guessesLeft -= 1;
-    if (s.guessesLeft <= 0) endTurn(s);
+    if (s.guessesLeft <= 0) endTurn(ctx, s, 'انتهت التخمينات');
   } else {
     ctx.fx('buzz', by);
-    endTurn(s);
+    endTurn(ctx, s, color === 'neutral' ? 'كلمة محايدة — انتهى دوركم' : 'كلمة للفريق الآخر');
   }
 }
 
@@ -117,6 +125,8 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       winner: null,
       reason: null,
       log: [],
+      turnNote: null,
+      notice: null,
     };
     ctx.fx('start');
     return s;
@@ -141,6 +151,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
         if (t) s.spymasters[t] = a.id;
       } else if (a.type === 'begin') {
         if (s.teams.red.length < 2 || s.teams.blue.length < 2) throw new GameError('كل فريق يحتاج لاعبين على الأقل');
+        s.notice = null;
         deal(s);
         s.phase = 'clue';
         ctx.fx('start');
@@ -186,7 +197,18 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       reveal(ctx, s, by, a.index);
       return;
     }
-    if (a.type === 'pass') endTurn(s);
+    if (a.type === 'pass') {
+      if (!s.log[s.log.length - 1]?.picks.length) throw new GameError('اكشفوا كلمة واحدة على الأقل قبل إنهاء الدور');
+      endTurn(ctx, s, 'أنهى الفريق دوره');
+    }
+  },
+
+  tick(ctx, s) {
+    if (s.turnNote && ctx.now >= s.turnNote.until) {
+      s.turnNote = null;
+      return true;
+    }
+    return false;
   },
 
   view(ctx, s, me): CodenamesView {
@@ -212,6 +234,8 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       winner: s.winner,
       reason: s.reason,
       log: s.log,
+      turnNote: s.turnNote ? { team: s.turnNote.team, text: s.turnNote.text } : null,
+      notice: s.phase === 'teams' ? s.notice : null,
     };
   },
 
@@ -222,5 +246,17 @@ export const codenames: GameModule<State, CodenamesSettings> = {
     }
     s.participants = s.participants.filter((x) => x !== id);
     delete s.proposals[id];
+    if (s.phase !== 'clue' && s.phase !== 'guess') return;
+    // a team without a spymaster and at least one guesser can't play on
+    const broken = (['red', 'blue'] as Team[]).find((t) => s.teams[t].length < 2 || !s.spymasters[t]);
+    if (broken) {
+      s.phase = 'teams';
+      s.clue = null;
+      s.guessesLeft = 0;
+      s.proposals = {};
+      s.turnNote = null;
+      s.notice = `${broken === 'red' ? 'الفريق الأحمر' : 'الفريق الأزرق'} لم يعد فيه قائد ولاعب يخمّن — رتّبوا الفرق من جديد`;
+      ctx.fx('reveal');
+    }
   },
 };

@@ -140,6 +140,12 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
       ) : null}
 
       {view.phase === 'guess' ? <TimerBar endsAt={view.endsAt} total={90000} /> : null}
+      {view.phase === 'clue' ? <TimerBar endsAt={view.endsAt} total={60000} onTick={iAmPsychic} /> : null}
+      {view.passedFrom ? (
+        <Txt v="small" center color={C.yellow}>
+          انتهى وقت {h.player(view.passedFrom).name} — التلميح الآن عند {psychic.name}
+        </Txt>
+      ) : null}
 
       <Dial
         size={size}
