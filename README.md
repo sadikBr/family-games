@@ -44,6 +44,18 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **ماذا قال الناس؟** (Family survey) | 2–12 | Two teams. Guess the most common answers to questions for Moroccan families (216 questions; the answers are the game's own estimates, not a poll). Buzzer face-off, the team in control answers in turn, 3 ✗ and the other team can steal. The last rounds count ×2 and ×3. Bots play. |
 | **المربعات** (Dots and boxes) | 2–4 | Grids from 3×3 to 6×6; touch between two dots to draw a line, and closing a box scores it and gives another turn. Bots: easy, medium, hard (plays the chain endgame). |
 | **المنقلة** (Mancala, Kalah rules) | 2 | 6 pits and a store each, 3–6 seeds per pit. A last seed in your store means play again; a last seed in an empty pit on your side captures the opposite pit. Bots up to a 9-move search. |
+| **مشوار الحياة** (Game-of-Life-style) | 2–6 | Roll and walk a life path from school to retirement: university or work, careers and pay days, family, a house, insurance, loans, and a calm or adventurous road. Richest at retirement wins. Bots play. |
+| **القطع الملونة** (Blokus-style) | 2–4 | 21 polyomino pieces each; every new piece must touch your colour corner-to-corner only, never side-to-side. Rotate, flip, preview (green = allowed), place. 14×14 for two, 20×20 for 3–4. Bots play. |
+| **فك الشيفرة** (Mastermind-style) | 1–6 | Everyone races to crack the same hidden code (4–5 slots, 6 or 8 colours, each with its own shape). ● right colour and place, ○ right colour elsewhere. You see others' clues but not their colours. |
+| **حروف مبعثرة** (Boggle-style) | 1–12 | Everyone gets the same letter grid; swipe adjacent letters to make words (3+ letters, no «ال»), checked against the dictionary. Longer words score more; words found by two players cancel (can be switched off). |
+| **من القائل؟** | 1–12 | Words the Quran quotes from someone — a prophet, an angel, a righteous woman, even the ant or the hoopoe. Pick who said it; the surah and verse are shown after. |
+| **مسابقة التجويد** | 1–12 | A verse in Uthmani script with one word coloured: pick its tajweed rule (Hafs ʿan ʿAsim). Topics: nun sakinah and tanween, mim sakinah, madd, qalqalah, the lam of Allah, sun/moon letters, or all. |
+| **كلمة قرآنية** | 1–12 | Wordle with five-letter words from the Quran (prophets, surahs, places, names of Allah, well-known Quranic words). After each round, a verse containing the word. |
+| **أسماء الله الحسنى** | 1–6 | The 99 names (the well-known list narrated by at-Tirmidhi) with short meanings: match a name to its meaning, or play memory with name/meaning cards. |
+| **رتّب الخطوات** | 1–12 | Put steps in order: wudu, salah, umrah, the Hijri months, the battles of the Prophet ﷺ… Points for each step in the right place, plus speed for a perfect order. |
+| **أين المكان؟** | 1–12 | Place cities and sites of the Muslim world on a map; points by real distance. Whole map, or zoomed rounds on the Maghreb and al-Andalus or the Mashriq. |
+| **قصص الأنبياء** | 1–8 | Cooperative: a prophet's story told chapter by chapter as in the Quran, with the surah. After each chapter the family votes on a question; every wrong answer puts out a lantern. |
+| **ابنِ المسجد** | 1–8 | Cooperative: answer Islamic questions together to build a Moroccan mosque piece by piece, from the foundation to the minaret, before the rounds run out. |
 
 ## Playing together
 
@@ -152,6 +164,8 @@ The UI is RTL everywhere. The root view uses `direction: 'rtl'`, `app.json` forc
 Fonts are **Lalezar** (titles) and **Baloo Bhaijaan 2** (text).
 Text never uses `textAlign: 'left' | 'right'`, because React Native swaps those under RTL. Use natural alignment or `center` instead.
 
+All player-facing text and word lists are Modern Standard Arabic (الفصحى), with no dialect words. `server/fusha-ui.test.ts` scans the app and server strings for common dialect words, and the word games use dialect blocklists. Dialect spellings may appear only as hidden accepted aliases (e.g. a typed answer in «ماذا قال الناس؟»), never as displayed text.
+
 ## Checks
 
 ```bash
@@ -169,6 +183,11 @@ bun run test:server
   [quran-json](https://github.com/risan/quran-json) 3.1.2 — Uthmani text from
   [quranenc.com](https://quranenc.com), licensed CC BY-SA 4.0. Very short verses and verses that appear
   word-for-word in more than one surah are left out, so every question has exactly one right answer.
+- «من القائل؟», «مسابقة التجويد» and «كلمة قرآنية» use the complete text in `server/data/quran-full.json`
+  (all 6236 verses, same source and licence, built by `tools/quran-full.mjs`). Every quote, tajweed example and
+  story chapter of «قصص الأنبياء» cites its surah and verse, and tests check the citations against the Quran data.
+- Tajweed rules follow Hafs ʿan ʿAsim. The 99 names follow the list narrated by at-Tirmidhi, with short
+  meanings. Prophets' stories stay with what the Quran itself says.
 - Verses are shown with the Amiri Quran font. The art never depicts prophets, companions or angels.
 
 ## Putting it online and making an APK

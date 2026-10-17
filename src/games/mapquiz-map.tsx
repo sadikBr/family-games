@@ -106,7 +106,7 @@ export function MapquizMap({
       </Svg>
       {seas.map((s) => (
         <View key={s.name} pointerEvents="none" style={[styles.sea, { width: s.w, left: s.left - s.w / 2, top: s.top - 9 }]}>
-          <Txt v="tiny" center color={alpha('#FFFFFF', 0.55)} style={styles.seaText} numberOfLines={2}>
+          <Txt v="tiny" center color={alpha('#FFFFFF', 0.85)} style={styles.seaText} numberOfLines={2}>
             {s.name}
           </Txt>
         </View>
@@ -132,5 +132,5 @@ const styles = StyleSheet.create({
   frame: { borderRadius: 14, overflow: 'hidden', direction: 'ltr' },
   edge: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, borderWidth: 2, borderColor: alpha('#FFFFFF', 0.14) },
   sea: { position: 'absolute' },
-  seaText: { fontSize: 10, lineHeight: 14 },
+  seaText: { fontSize: 10, lineHeight: 14, textShadowColor: 'rgba(14,30,52,0.95)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }, // readable over land too
 });

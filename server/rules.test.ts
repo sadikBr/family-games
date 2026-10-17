@@ -441,7 +441,7 @@ test('quiz and surah: the marked answer is the right one; verses really come fro
     for (const it of t.items) {
       const { surahs } = quranData();
       // (a verse can repeat inside the same surah, e.g. al-Kafirun 3 and 5)
-      const v = verses.find((x) => x[2] === it.text && it.ref === `سورة ${surahs[x[0] - 1].name} — الآية ${x[1]}`)!;
+      const v = verses.find((x) => forFont(x[2]) === it.text && it.ref === `سورة ${surahs[x[0] - 1].name} — الآية ${x[1]}`)!;
       expect(v).toBeDefined();
       expect(it.options[it.correct]).toBe(surahs[v[0] - 1].name);
       expect(new Set(it.options).size).toBe(4);
@@ -756,6 +756,7 @@ import { memory } from './games/memory';
 import { sudoku } from './games/sudoku';
 import { trivia } from './games/trivia';
 import { xo } from './games/xo';
+import { forFont } from './games/tajweed';
 
 /** Run a module with bots only until it ends (bots act instantly; ticks advance the clock). */
 function botRun(mod: any, players: string[], settings: any, steps = 5000) {
