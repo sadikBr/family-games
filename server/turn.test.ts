@@ -54,7 +54,7 @@ const cases: [string, GameModule<any, any>, string[]][] = [
 
 for (const [id, mod, players] of cases) {
   test(`${id}: turnOf names a player at the start`, () => {
-    const s = mod.start(ctx, players, (DEFAULT_SETTINGS as Record<string, unknown>)[id]);
+    const s = mod.start(ctx, players, (DEFAULT_SETTINGS as unknown as Record<string, unknown>)[id]);
     const up = mod.turnOf!(s);
     expect(up.length).toBeGreaterThan(0);
     for (const p of up) expect(players).toContain(p);
