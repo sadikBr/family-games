@@ -5,9 +5,9 @@
  * Scoring at the end of a hand: every card = 1 point, except gold (ذهب) cards which
  * count their number, and the 1 of gold which is worth 20.
  */
-import { sortHand, type Card } from '../../src/shared/cards';
+import { cardName, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, KanzaSettings, KanzaView } from '../../src/shared/protocol';
-import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
+import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 
@@ -94,7 +94,7 @@ function endHand(ctx: GameCtx, s: State) {
     const leaders = s.sides.filter((x) => s.scores[x.key] === best);
     s.winner = leaders.length === 1 ? leaders[0].key : null;
     s.phase = 'final';
-    ctx.fx('win');
+    ctx.fx('win', soloOf(s.sides, s.winner));
   } else {
     s.phase = 'handEnd';
     ctx.fx('reveal');
@@ -176,6 +176,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
       ctx.fx(take.some((c) => c.suit === 'coins' && c.rank === 1) || (card.suit === 'coins' && card.rank === 1) ? 'reveal' : 'correct', by);
     } else {
       s.table.push(card);
+      s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
       ctx.fx('card');
     }
     s.lastPlay = { by, card, took: take };
@@ -184,7 +185,8 @@ export const kanza: GameModule<State, KanzaSettings> = {
     if (s.seats.every((id) => s.hands[id].length === 0)) {
       if (s.deck.length) {
         dealRound(s);
-        ctx.fx('card');
+        // keep the capture sound of this action audible: only a drop is followed by the deal sound
+        if (!take.length) ctx.fx('card');
       }
       if (s.seats.every((id) => s.hands[id].length === 0)) endHand(ctx, s);
     }

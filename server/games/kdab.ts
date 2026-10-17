@@ -8,7 +8,7 @@
  * If everybody passes, the pile is put aside and the last player to play starts a new one.
  * Empty your hand (and survive the last challenge) to win.
  */
-import { RANKS, type Card } from '../../src/shared/cards';
+import { RANKS, sortHand, type Card } from '../../src/shared/cards';
 import type { KdabSettings, KdabView } from '../../src/shared/protocol';
 import { Feed, freshDeck, randDelay } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
@@ -134,6 +134,8 @@ export const kdab: GameModule<State, KdabSettings> = {
     if (s.phase !== 'play' || !s.order.includes(by)) return;
 
     if (a.type === 'call') {
+      // a call names the play it judges: if another play came in meanwhile, it is stale
+      if (isNum(a.play) && s.last && a.play !== s.last.id) return;
       if (!s.last || s.called || s.last.by === by) throw new GameError('لا يوجد ما تكشفه الآن');
       s.moves += 1;
       challenge(ctx, s, by);
@@ -210,14 +212,14 @@ export const kdab: GameModule<State, KdabSettings> = {
         const impossible = mine + play.cards.length > 4;
         const lastCards = s.finishing?.id === play.by;
         const p = impossible ? 1 : lastCards ? 0.55 : play.cards.length >= 3 ? 0.3 : 0.1;
-        if (Math.random() < p) ctx.bot(b, `call:${play.id}`, randDelay(1200, 2600), { type: 'call' });
+        if (Math.random() < p) ctx.bot(b, `call:${play.id}`, randDelay(1200, 2600), { type: 'call', play: play.id });
       }
     }
     const me = cur(s);
     if (!bots.includes(me) || s.hands[me].length === 0) return;
     const hand = s.hands[me];
     const key = `t:${s.moves}`;
-    const wait = randDelay(3000, 4200); // give people time to shout «كذّاب»
+    const wait = randDelay(1500, 2500); // give people a moment to shout «كذّاب»
     if (s.rank === null) {
       // start a pile with the rank we hold most of (truthfully), sometimes slipping in one extra card
       const counts = new Map<number, Card[]>();
@@ -247,7 +249,7 @@ export const kdab: GameModule<State, KdabSettings> = {
       phase: s.phase,
       order: s.order,
       turn: cur(s),
-      myHand: s.hands[me] ?? [],
+      myHand: sortHand(s.hands[me] ?? []),
       handCounts: Object.fromEntries(s.order.map((id) => [id, s.hands[id].length])),
       pileCount: s.pile.length,
       rank: s.rank,

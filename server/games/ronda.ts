@@ -4,11 +4,11 @@
  * it in sequence (… 6, 7, 10, 11, 12). إسطي = taking the card just played by the
  * previous player (+1). مسّة = clearing the table (+1). روندا (pair) = 1, تريلا
  * (three of a kind) = 5, four of a kind = two rondas. At the end of a hand the side
- * with more than 20 cards scores one point per extra card. First to the target wins.
+ * with more than 20 cards (13 with three players) scores one point per extra card. First to the target wins.
  */
-import { RANKS, rankIndex, sortHand, type Card } from '../../src/shared/cards';
+import { RANKS, cardName, rankIndex, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, RondaSettings, RondaView } from '../../src/shared/protocol';
-import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
+import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick } from '../util';
 
@@ -32,12 +32,20 @@ interface State {
   /** card left on the table by the previous turn (for إسطي) */
   lastPlayed: { by: string; cardId: string } | null;
   lastPlay: RondaView['lastPlay'];
+  announce: RondaView['announce'];
+  announceN: number;
   feed: Feed;
   handSummary: RondaView['handSummary'];
   winner: string | null;
 }
 
 const n = (s: State) => s.seats.length;
+/** Cards a side must pass to score: 20 of the 40 with two sides, 13 with three. */
+export const rondaBase = (sides: number) => (sides === 2 ? 20 : 13);
+
+function setAnnounce(s: State, by: string | null, text: string) {
+  s.announce = { by, text, id: ++s.announceN };
+}
 
 function addPoints(ctx: GameCtx, s: State, side: string, pts: number): boolean {
   if (pts <= 0 || s.phase === 'final') return s.phase === 'final';
@@ -45,7 +53,7 @@ function addPoints(ctx: GameCtx, s: State, side: string, pts: number): boolean {
   if (s.scores[side] >= s.settings.target) {
     s.phase = 'final';
     s.winner = side;
-    ctx.fx('win');
+    ctx.fx('win', soloOf(s.sides, side));
     return true;
   }
   return false;
@@ -77,9 +85,11 @@ function announcement(cards: Card[]) {
 
 function announce(ctx: GameCtx, s: State): boolean {
   const bySide = new Map<string, { value: number; best: number }>();
+  const calls: { id: string; label: string; best: number }[] = [];
   for (const id of s.seats) {
     const a = announcement(s.hands[id]);
     if (!a.value) continue;
+    calls.push({ id, label: a.label, best: a.best });
     s.feed.push(`${ctx.playerName(id)}: ${a.label}`, { by: id });
     const side = sideOf(s.sides, id);
     const cur = bySide.get(side) ?? { value: 0, best: -1 };
@@ -87,10 +97,16 @@ function announce(ctx: GameCtx, s: State): boolean {
   }
   if (bySide.size === 0) return false;
   ctx.fx('reveal');
+  const named = calls.map((c) => `${ctx.playerName(c.id)}: ${c.label}`).join(' · ');
+  // the strongest announcer of a side speaks for it on the banner
+  const voice = (side: string) =>
+    calls.filter((c) => sideOf(s.sides, c.id) === side).sort((x, y) => y.best - x.best)[0]?.id ?? null;
   const entries = [...bySide.entries()];
   if (entries.length === 1) {
     const [side, { value }] = entries[0];
-    s.feed.push(`+${value}`, { points: value, by: s.sides.find((x) => x.key === side)?.members[0] });
+    const by = voice(side);
+    s.feed.push(`+${value}`, { points: value, by: by ?? undefined });
+    setAnnounce(s, by, calls.length === 1 ? `${calls[0].label} +${value}` : `${named} — +${value}`);
     return addPoints(ctx, s, side, value);
   }
   const top = Math.max(...entries.map(([, v]) => v.best));
@@ -98,16 +114,20 @@ function announce(ctx: GameCtx, s: State): boolean {
   if (leaders.length === 1) {
     const total = entries.reduce((t, [, v]) => t + v.value, 0);
     const side = leaders[0][0];
-    s.feed.push(`الأقوى يأخذ الكل: +${total}`, { points: total, by: s.sides.find((x) => x.key === side)?.members[0] });
+    const by = voice(side);
+    s.feed.push(`الأقوى يأخذ الكل: +${total}`, { points: total, by: by ?? undefined });
+    setAnnounce(s, by, `${named}\nالأقوى يأخذ الكل: +${total}`);
     return addPoints(ctx, s, side, total);
   }
   // equal announcements: everyone keeps their own
+  setAnnounce(s, null, `${named}\nتعادل — كل واحد يأخذ نقاطه`);
   for (const [side, v] of leaders) if (addPoints(ctx, s, side, v.value)) return true;
   s.feed.push('تعادل في الروندا');
   return false;
 }
 
-function dealRound(ctx: GameCtx, s: State): boolean {
+/** `quiet`: a capture sound was already played in this action, don't cover it with the deal sound. */
+function dealRound(ctx: GameCtx, s: State, quiet = false): boolean {
   const players = n(s);
   let per = HAND_SIZE;
   if (s.deck.length < HAND_SIZE * players) per = Math.floor(s.deck.length / players);
@@ -119,7 +139,7 @@ function dealRound(ctx: GameCtx, s: State): boolean {
   s.deal += 1;
   s.lastPlayed = null;
   if (per === 0) return false;
-  ctx.fx('card');
+  if (!quiet) ctx.fx('card');
   return announce(ctx, s);
 }
 
@@ -133,6 +153,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.captured = Object.fromEntries(s.sides.map((x) => [x.key, []]));
   s.lastCapturer = null;
   s.lastPlay = null;
+  s.announce = null;
   s.handSummary = null;
   s.dealerIdx = (s.dealerIdx + 1) % n(s);
   s.turnIdx = (s.dealerIdx + 1) % n(s);
@@ -147,8 +168,7 @@ function endHand(ctx: GameCtx, s: State) {
     s.feed.push(`${ctx.playerName(s.lastCapturer)} يأخذ ما بقي على الطاولة`);
     s.table = [];
   }
-  const twoSided = s.sides.length === 2;
-  const base = twoSided ? 20 : 13;
+  const base = rondaBase(s.sides.length);
   s.handSummary = s.sides.map((x) => {
     const cards = s.captured[x.key].length;
     return { side: x.key, cards, points: cards > base ? cards - base : 0 };
@@ -193,6 +213,8 @@ export const ronda: GameModule<State, RondaSettings> = {
       lastCapturer: null,
       lastPlayed: null,
       lastPlay: null,
+      announce: null,
+      announceN: 0,
       feed: new Feed(),
       handSummary: null,
       winner: null,
@@ -235,12 +257,14 @@ export const ronda: GameModule<State, RondaSettings> = {
         pts += 1;
         s.feed.push('مسّة! +1', { by, points: 1 });
       }
+      if (pts) setAnnounce(s, by, wasEsti && missa ? 'إسطي ومسّة! +2' : wasEsti ? 'إسطي! +1' : 'مسّة! +1');
       ctx.fx(pts ? 'reveal' : 'correct', by);
       s.lastPlayed = null;
       ended = addPoints(ctx, s, side, pts);
     } else {
       s.table.push(card);
       s.lastPlayed = { by, cardId: card.id };
+      s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
       ctx.fx('card');
     }
     s.lastPlay = { by, card, took };
@@ -249,7 +273,7 @@ export const ronda: GameModule<State, RondaSettings> = {
     s.turnIdx = (s.turnIdx + 1) % n(s);
     if (s.seats.every((id) => s.hands[id].length === 0)) {
       if (s.deck.length) {
-        if (dealRound(ctx, s)) return;
+        if (dealRound(ctx, s, took.length > 0)) return;
         if (s.seats.every((id) => s.hands[id].length === 0)) endHand(ctx, s);
       } else endHand(ctx, s);
     }
@@ -301,6 +325,8 @@ export const ronda: GameModule<State, RondaSettings> = {
       scores: s.scores,
       target: s.settings.target,
       lastPlay: s.lastPlay,
+      announce: s.announce,
+      base: rondaBase(s.sides.length),
       feed: s.feed.list(),
       handSummary: s.handSummary,
       winner: s.winner,

@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
 import { SpanishCard } from '@/art/spanish-card';
 import { haptic } from '@/lib/sfx';
@@ -233,6 +233,68 @@ export function LastEvent({ feed, h }: { feed: FeedItem[]; h: Helpers }) {
   );
 }
 
+/** What the previous player did: their avatar, the card, and what it took (or «رمى ورقة»). */
+export function LastPlay({ play, h }: { play: { by: string; card: Card; took: Card[] } | null; h: Helpers }) {
+  if (!play) return null;
+  return (
+    <Animated.View key={`${play.by}-${play.card.id}`} entering={FadeIn.duration(200)} style={styles.lastPlay}>
+      <Avatar player={h.player(play.by)} size={24} />
+      <PlayingCard card={play.card} size="xs" />
+      {play.took.length ? (
+        <>
+          <Txt v="tiny" color="rgba(255,255,255,0.8)">
+            أخذ
+          </Txt>
+          <Row wrap gap={2} style={{ flexShrink: 1 }}>
+            {play.took.map((c) => (
+              <PlayingCard key={c.id} card={c} size="xs" />
+            ))}
+          </Row>
+        </>
+      ) : (
+        <Txt v="tiny" color="rgba(255,255,255,0.8)">
+          رمى ورقة
+        </Txt>
+      )}
+    </Animated.View>
+  );
+}
+
+/**
+ * Tap again on the selected card to play it — but a second tap this soon after selecting
+ * is an accidental double tap and is ignored.
+ */
+export const DOUBLE_TAP_MS = 400;
+/** Clock for tap handlers only (never call it during render). */
+export const tapClock = () => Date.now();
+
+const ANNOUNCE_MS = 2500;
+
+/**
+ * A big call-out over the felt (روندا، مسّة، إسطي…). Each new id pops in and hides itself
+ * after ~2.5 s. Place it inside <Felt>.
+ */
+export function AnnounceBanner({ announce, h }: { announce: { by: string | null; text: string; id: number } | null; h: Helpers }) {
+  const [hiddenId, setHiddenId] = useState<number | null>(null);
+  const id = announce?.id ?? null;
+  useEffect(() => {
+    if (id === null) return;
+    const t = setTimeout(() => setHiddenId(id), ANNOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [id]);
+  if (!announce || hiddenId === announce.id) return null;
+  return (
+    <View pointerEvents="none" style={styles.announceWrap}>
+      <Animated.View key={announce.id} entering={ZoomIn.springify().damping(12)} exiting={FadeOut.duration(250)} style={styles.announce}>
+        {announce.by ? <Avatar player={h.player(announce.by)} size={34} /> : null}
+        <Txt center style={[styles.announceText, announce.text.length > 22 && { fontSize: 18, lineHeight: 28 }]}>
+          {announce.text}
+        </Txt>
+      </Animated.View>
+    </View>
+  );
+}
+
 export function FeedList({ feed, h, max = 4 }: { feed: FeedItem[]; h: Helpers; max?: number }) {
   return (
     <View style={{ gap: 4 }}>
@@ -294,6 +356,37 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   seatActive: { backgroundColor: C.yellow },
+  lastPlay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    maxWidth: '100%',
+  },
+  announceWrap: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', padding: 10, zIndex: 20 },
+  announce: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: '100%',
+    backgroundColor: C.yellow,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderWidth: 3,
+    borderColor: C.ink,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  announceText: { fontFamily: F.display, fontSize: 26, lineHeight: 38, color: C.ink, flexShrink: 1 },
   event: {
     flexDirection: 'row',
     alignItems: 'center',

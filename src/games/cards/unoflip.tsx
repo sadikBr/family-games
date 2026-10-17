@@ -14,7 +14,7 @@ import { Txt } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers, type Helpers } from '../helpers';
-import { LastEvent, TurnLine } from './card-ui';
+import { DOUBLE_TAP_MS, LastEvent, TurnLine, tapClock } from './card-ui';
 import { UnoCard } from './uno-card';
 
 const FELT = { light: ['#1E6B4A', '#155238'], dark: ['#3A2466', '#24163F'] } as const;
@@ -87,6 +87,7 @@ function ColorPicker({ view, onPick }: { view: UnoView; onPick: (c: string) => v
 export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
   const h = helpers(room);
   const [sel, setSel] = useState<string | null>(null);
+  const [selAt, setSelAt] = useState(0);
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
 
   const myTurn = view.phase === 'play' && view.turn === h.me && !view.choosing;
@@ -97,6 +98,13 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
   const play = (id: string) => {
     h.act('play', { card: id });
     setSel(null);
+  };
+  const tap = (id: string) => {
+    const now = tapClock();
+    if (sel !== id) {
+      setSel(id);
+      setSelAt(now);
+    } else if (now - selAt >= DOUBLE_TAP_MS) play(id);
   };
 
   if (view.phase === 'roundEnd' || view.phase === 'final') {
@@ -228,7 +236,7 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
                 width={66}
                 selected={c.id === sel}
                 dim={myTurn && !ok}
-                onPress={myTurn && ok ? () => (sel === c.id ? play(c.id) : setSel(c.id)) : undefined}
+                onPress={myTurn && ok ? () => tap(c.id) : undefined}
               />
             </View>
           );

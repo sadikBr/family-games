@@ -74,31 +74,36 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
         </View>
       </Felt>
 
-      {view.canCall ? (
-        <Animated.View entering={ZoomIn.duration(180)}>
-          <Btn
-            size="xl"
-            color={C.red}
-            icon="siren"
-            label="كذّاب!"
-            onPress={() => {
-              haptic.heavy();
-              h.act('call');
-            }}
-          />
-        </Animated.View>
-      ) : null}
-
-      {view.reveal ? (
-        <Animated.View key={view.reveal.id} entering={FadeIn.duration(220)} style={[styles.reveal, { borderColor: view.reveal.truthful ? C.green : C.red }]}>
-          <Txt v="bold" center>
-            {view.reveal.truthful
-              ? `${h.player(view.reveal.player).name} كان صادقاً — ${h.player(view.reveal.taker).name} يأخذ الكومة`
-              : `${h.player(view.reveal.player).name} كذب! يأخذ الكومة`}
-          </Txt>
-          <CardRow cards={view.reveal.cards} size="sm" />
-        </Animated.View>
-      ) : null}
+      {/* fixed-height slot: the «كذّاب!» button or the reveal, so the hand below never jumps */}
+      <View style={styles.slot}>
+        {view.canCall && view.last ? (
+          <Animated.View key={view.last.id} entering={ZoomIn.duration(180)}>
+            <Btn
+              size="xl"
+              color={C.red}
+              icon="siren"
+              label="كذّاب!"
+              onPress={() => {
+                haptic.heavy();
+                h.act('call', { play: view.last!.id });
+              }}
+            />
+          </Animated.View>
+        ) : view.reveal ? (
+          <Animated.View key={view.reveal.id} entering={FadeIn.duration(220)} style={[styles.reveal, { borderColor: view.reveal.truthful ? C.green : C.red }]}>
+            <Txt v="bold" numberOfLines={2} style={{ flex: 1 }}>
+              {view.reveal.truthful
+                ? `${h.player(view.reveal.player).name} كان صادقاً — ${h.player(view.reveal.taker).name} يأخذ الكومة`
+                : `${h.player(view.reveal.player).name} كذب! يأخذ الكومة`}
+            </Txt>
+            <Row gap={3}>
+              {view.reveal.cards.map((c) => (
+                <PlayingCard key={c.id} card={c} size="xs" />
+              ))}
+            </Row>
+          </Animated.View>
+        ) : null}
+      </View>
 
       <View style={{ gap: 8 }}>
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
@@ -153,7 +158,8 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
 
 const styles = StyleSheet.create({
   emptyPile: { width: 58, height: 87, borderRadius: 8, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.35)' },
-  reveal: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 2, padding: 10, gap: 8 },
+  slot: { height: 78, justifyContent: 'center' },
+  reveal: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 18, borderWidth: 2, paddingVertical: 6, paddingHorizontal: 10, gap: 8 },
   rank: { minWidth: 44, alignItems: 'center', backgroundColor: C.surface, borderRadius: 12, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 2, borderColor: C.border },
   rankOn: { backgroundColor: C.yellow, borderColor: C.yellow },
 });

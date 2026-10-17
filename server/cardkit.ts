@@ -25,6 +25,12 @@ export function sideOf(sides: CardSide[], player: string): string {
   return sides.find((s) => s.members.includes(player))?.key ?? player;
 }
 
+/** The single player behind a winning side (for `ctx.fx('win', id)`); teams get no target. */
+export function soloOf(sides: CardSide[], key: string | null): string | undefined {
+  const side = sides.find((s) => s.key === key);
+  return side && side.members.length === 1 ? side.members[0] : undefined;
+}
+
 export class Feed {
   private items: FeedItem[] = [];
   private n = 0;

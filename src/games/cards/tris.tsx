@@ -12,13 +12,14 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, Felt, PlayingCard, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
+import { CardRow, DOUBLE_TAP_MS, Felt, PlayingCard, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
 
 const thirdsText = (t: number) => num(`${Math.floor(t / 3) || (t % 3 ? '' : '0')}${['', '⅓', '⅔'][t % 3]}`);
 
 export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
   const h = helpers(room);
   const [sel, setSel] = useState<string | null>(null);
+  const [selAt, setSelAt] = useState(0);
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
 
   const mySide = view.sides.find((x) => x.members.includes(h.me))!.key;
@@ -83,9 +84,26 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
       />
       <Felt active={myTurn} minHeight={150}>
         {view.trick.length === 0 ? (
-          <Txt v="small" center color="rgba(255,255,255,0.65)">
-            {view.turn === h.me ? 'ابدأ اللمّة بأي ورقة' : `${h.player(view.turn).name} يبدأ اللمّة`}
-          </Txt>
+          <>
+            <Txt v="small" center color="rgba(255,255,255,0.65)">
+              {view.turn === h.me ? 'ابدأ اللمّة بأي ورقة' : `${h.player(view.turn).name} يبدأ اللمّة`}
+            </Txt>
+            {view.lastTrick ? (
+              <Animated.View entering={FadeIn.duration(200)} style={{ alignItems: 'center', gap: 4 }}>
+                <Txt v="tiny" color="rgba(255,255,255,0.7)">
+                  آخر أكلة — لـ {h.player(view.lastTrick.winner).name}
+                </Txt>
+                <Row center gap={6}>
+                  {view.lastTrick.cards.map((t) => (
+                    <View key={t.card.id} style={{ alignItems: 'center', gap: 2 }}>
+                      <PlayingCard card={t.card} size="xs" glow={t.by === view.lastTrick!.winner} />
+                      <Avatar player={h.player(t.by)} size={16} />
+                    </View>
+                  ))}
+                </Row>
+              </Animated.View>
+            ) : null}
+          </>
         ) : (
           <Row center gap={10} wrap>
             {view.trick.map((t) => (
@@ -117,8 +135,11 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
             myTurn
               ? (c) => {
                   if (!view.playable.includes(c.id)) return;
-                  if (sel === c.id) play(c.id);
-                  else setSel(c.id);
+                  const now = tapClock();
+                  if (sel !== c.id) {
+                    setSel(c.id);
+                    setSelAt(now);
+                  } else if (now - selAt >= DOUBLE_TAP_MS) play(c.id);
                 }
               : undefined
           }

@@ -616,6 +616,10 @@ export interface RondaView {
   scores: Record<string, number>; // side -> points
   target: number;
   lastPlay: { by: string; card: Card; took: Card[] } | null;
+  /** big banner on the felt (روندا، تريلا، مسّة، إسطي…); a new id = a new announcement */
+  announce: { by: string | null; text: string; id: number } | null;
+  /** a side scores one point per captured card above this (20 with two sides, 13 with three) */
+  base: number;
   feed: FeedItem[];
   handSummary: { side: string; cards: number; points: number }[] | null;
   winner: string | null; // side key
@@ -655,6 +659,8 @@ export interface TrisView {
   handCounts: Record<string, number>;
   trick: { by: string; card: Card }[];
   trickWinner: string | null;
+  /** the previous, already collected trick (shown until the next trick starts) */
+  lastTrick: { cards: { by: string; card: Card }[]; winner: string } | null;
   trickNo: number; // 1..10
   tricksWon: Record<string, number>; // side -> tricks
   handThirds: Record<string, number>; // side -> points in thirds (hand so far)
@@ -681,6 +687,8 @@ export interface KonkanView {
   myHand: Card[];
   handCounts: Record<string, number>;
   discardTop: Card | null;
+  /** the card the current player took from the discard pile this turn (it can't go straight back) */
+  takenDiscard: string | null;
   stockLeft: number;
   melds: KonkanMeld[];
   scores: Record<string, number>; // penalty points (lower is better)

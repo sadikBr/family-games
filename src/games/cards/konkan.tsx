@@ -26,6 +26,8 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
   const playing = myTurn && view.step === 'play';
   const selected: Card[] = view.myHand.filter((c) => sel.includes(c.id));
   const validMeld = isKonkanMeld(selected);
+  // the card just taken from the discard pile can't be thrown straight back (unless it's the last one)
+  const justTaken = selected.length === 1 && selected[0].id === view.takenDiscard && view.myHand.length > 1;
   const toggle = (c: Card) => setSel((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]));
   const clear = () => setSel([]);
   const amOut = !view.active.includes(h.me);
@@ -168,7 +170,7 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
                 icon="trash"
                 label="ارمِ"
                 ghost
-                disabled={selected.length !== 1}
+                disabled={selected.length !== 1 || justTaken}
                 onPress={() => {
                   h.act('discard', { card: sel[0] });
                   clear();
@@ -178,9 +180,11 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
             <Txt v="tiny" center color={C.dim}>
               {selected.length === 0
                 ? 'اختر 3 أوراق أو أكثر لتنزيل مجموعة، أو ورقة واحدة لرميها'
-                : validMeld
-                  ? 'مجموعة صحيحة'
-                  : 'أو اضغط على مجموعة فوق الطاولة لإضافة الأوراق إليها'}
+                : justTaken
+                  ? 'لا يمكنك رمي الورقة التي أخذتها للتو'
+                  : validMeld
+                    ? 'مجموعة صحيحة'
+                    : 'أو اضغط على مجموعة فوق الطاولة لإضافة الأوراق إليها'}
             </Txt>
           </>
         ) : null}

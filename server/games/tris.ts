@@ -29,6 +29,7 @@ interface State {
   trick: { by: string; card: Card }[];
   trickNo: number;
   trickWinner: string | null;
+  lastTrick: TrisView['lastTrick'];
   pauseUntil: number | null;
   tricksWon: Record<string, number>;
   handThirds: Record<string, number>;
@@ -46,6 +47,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.trick = [];
   s.trickNo = 1;
   s.trickWinner = null;
+  s.lastTrick = null;
   s.pauseUntil = null;
   s.tricksWon = { A: 0, B: 0 };
   s.handThirds = { A: 0, B: 0 };
@@ -101,6 +103,7 @@ export const tris: GameModule<State, TrisSettings> = {
       trick: [],
       trickNo: 1,
       trickWinner: null,
+      lastTrick: null,
       pauseUntil: null,
       tricksWon: { A: 0, B: 0 },
       handThirds: { A: 0, B: 0 },
@@ -149,6 +152,7 @@ export const tris: GameModule<State, TrisSettings> = {
       return true;
     }
     s.turnIdx = s.seats.indexOf(s.trickWinner!);
+    s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
     s.trick = [];
     s.trickWinner = null;
     s.trickNo += 1;
@@ -211,6 +215,7 @@ export const tris: GameModule<State, TrisSettings> = {
       handCounts: Object.fromEntries(s.seats.map((id) => [id, s.hands[id]?.length ?? 0])),
       trick: s.trick,
       trickWinner: s.trickWinner,
+      lastTrick: s.lastTrick,
       trickNo: s.trickNo,
       tricksWon: s.tricksWon,
       handThirds: s.handThirds,

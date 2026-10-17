@@ -2,13 +2,13 @@
  * الكونكان — rummy with the 40-card Spanish deck.
  * Deal: 10 cards each with 2 players, 8 with 3, 7 with 4. One card starts the discard pile.
  * Your turn: draw (from the deck or the face-up discard), lay down melds and/or add cards
- * to melds on the table, then discard one card.
+ * to melds on the table, then discard one card (not the one you just took from the discard pile).
  * Melds: 3–4 cards of the same number, or 3+ consecutive cards of the same suit (… 6, 7, 10, 11, 12).
  * The first to get rid of all their cards wins the hand ("كونكان!"). Everyone else adds up
  * the cards left in their hand (1–7 = face value, figures = 10). Reach the limit and you're out;
  * the last player standing wins.
  */
-import { isKonkanMeld, rankIndex, sortHand, type Card } from '../../src/shared/cards';
+import { cardName, isKonkanMeld, rankIndex, sortHand, type Card } from '../../src/shared/cards';
 import type { KonkanMeld, KonkanSettings, KonkanView } from '../../src/shared/protocol';
 import { Feed, freshDeck, randDelay } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
@@ -34,6 +34,8 @@ interface State {
   dealerIdx: number;
   turn: string;
   step: KonkanView['step'];
+  /** card taken from the discard pile this turn: it may not be thrown straight back */
+  takenDiscard: string | null;
   stock: Card[];
   discard: Card[];
   hands: Record<string, Card[]>;
@@ -69,6 +71,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.dealerIdx = s.seats.indexOf(dealer);
   s.turn = nextActive(s, dealer);
   s.step = 'draw';
+  s.takenDiscard = null;
   s.handWinner = null;
   s.handSummary = null;
   s.feed.clear();
@@ -91,7 +94,7 @@ function endHand(ctx: GameCtx, s: State, winner: string | null) {
     s.winner =
       s.active[0] ?? s.seats.slice().sort((a, b) => s.scores[a] - s.scores[b])[0];
     s.phase = 'final';
-    ctx.fx('win');
+    ctx.fx('win', s.winner);
   } else {
     s.phase = 'handEnd';
     ctx.fx(winner ? 'reveal' : 'tick');
@@ -178,6 +181,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
       dealerIdx: Math.floor(Math.random() * participants.length),
       turn: participants[0],
       step: 'draw',
+      takenDiscard: null,
       stock: [],
       discard: [],
       hands: {},
@@ -219,7 +223,9 @@ export const konkan: GameModule<State, KonkanSettings> = {
         }
         hand.push(card);
         s.step = 'play';
+        s.takenDiscard = null;
         s.actions += 1;
+        s.feed.push(`${name} سحب من الكومة`, { by });
         ctx.fx('card');
         return;
       }
@@ -228,8 +234,9 @@ export const konkan: GameModule<State, KonkanSettings> = {
         const card = s.discard.pop()!;
         hand.push(card);
         s.step = 'play';
+        s.takenDiscard = card.id;
         s.actions += 1;
-        s.feed.push(`${name} أخذ الورقة المكشوفة`, { by });
+        s.feed.push(`${name} أخذ ${cardName(card)} من المرمية`, { by });
         ctx.fx('card');
         return;
       }
@@ -266,9 +273,13 @@ export const konkan: GameModule<State, KonkanSettings> = {
         if (s.step !== 'play' || !isStr(a.card)) return;
         const idx = hand.findIndex((c) => c.id === a.card);
         if (idx < 0) return;
+        // (only allowed when it is the very last card in hand, otherwise the turn could never end)
+        if (a.card === s.takenDiscard && hand.length > 1) throw new GameError('لا يمكنك رمي الورقة التي أخذتها للتو');
         const [card] = hand.splice(idx, 1);
         s.discard.push(card);
+        s.takenDiscard = null;
         s.actions += 1;
+        s.feed.push(`${name} رمى ${cardName(card)}`, { by });
         ctx.fx('card');
         if (hand.length === 0) {
           endHand(ctx, s, by);
@@ -307,7 +318,8 @@ export const konkan: GameModule<State, KonkanSettings> = {
         return;
       }
     }
-    const worst = hand
+    const throwable = hand.length > 1 ? hand.filter((c) => c.id !== s.takenDiscard) : hand;
+    const worst = throwable
       .slice()
       .sort((x, y) => usefulness(x, hand) - usefulness(y, hand) || cardValue(y) - cardValue(x))[0];
     if (worst) ctx.bot(bot, key, delay, { type: 'discard', card: worst.id });
@@ -325,6 +337,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
       myHand: sortHand(s.hands[me] ?? []),
       handCounts: Object.fromEntries(s.seats.map((id) => [id, s.hands[id]?.length ?? 0])),
       discardTop: s.discard[s.discard.length - 1] ?? null,
+      takenDiscard: s.takenDiscard,
       stockLeft: s.stock.length,
       melds: s.melds,
       scores: s.scores,
@@ -346,6 +359,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
     } else if (s.turn === id) {
       s.turn = nextActive(s, id);
       s.step = 'draw';
+      s.takenDiscard = null;
     }
   },
 };
