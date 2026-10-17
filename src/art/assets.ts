@@ -25,6 +25,8 @@ export const GAME_IMG: Record<string, number> = {
   'battleship': require('../../assets/art/games/battleship.webp'),
   'blocks': require('../../assets/art/games/blocks.webp'),
   'boggle': require('../../assets/art/games/boggle.webp'),
+  'carca': require('../../assets/art/games/carca.webp'),
+  'catan': require('../../assets/art/games/catan.webp'),
   'charades': require('../../assets/art/games/charades.webp'),
   'chess': require('../../assets/art/games/chess.webp'),
   'codebreak': require('../../assets/art/games/codebreak.webp'),

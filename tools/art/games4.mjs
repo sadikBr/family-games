@@ -259,3 +259,50 @@ export function mosque() {
     <rect x="20" y="72" width="60" height="5" rx="2" fill="#C98A4B"/>
     <path d="M27 77 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3" stroke="#2FA57A" stroke-width="1.1" fill="none" data-flat/>`);
 }
+
+export function catan() {
+  // a little island of seven hexes (forest, field, pasture, hills, mountains…) with a red village on top
+  const R = 10.6;
+  const hx = (cx, cy, fill) => {
+    let d = '';
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i + Math.PI / 6;
+      d += `${i ? 'L' : 'M'}${(cx + R * Math.cos(a)).toFixed(2)} ${(cy + R * Math.sin(a)).toFixed(2)} `;
+    }
+    return `<path d="${d}Z" fill="${fill}" data-lw="1"/>`;
+  };
+  const w = R * Math.sqrt(3);
+  const cells = [
+    [0, 0, '#E9C46A'], [-w, 0, '#2E8B57'], [w, 0, '#C8643B'], [-w / 2, -R * 1.5, '#9ACD5A'], [w / 2, -R * 1.5, '#8E9AA6'],
+    [-w / 2, R * 1.5, '#C8643B'], [w / 2, R * 1.5, '#2E8B57'],
+  ];
+  const tree = (x, y) => `<path d="M${x} ${y - 4.5} L${x + 3.2} ${y + 1.5} H${x - 3.2}Z" fill="#1D6B3F" data-noshade data-lw="0.6"/>`;
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#1E4F7A', '#3D9BD9', ['#F2C23D', '#FFE89A'])}
+    ${cells.map(([x, y, c]) => hx(50 + x, 54 + y, c)).join('')}
+    ${tree(50 - w, 54)}${tree(50 + w / 2, 54 + R * 1.5)}
+    <path d="M${50 + w / 2 - 4} ${54 - R * 1.5 + 2} L${50 + w / 2} ${54 - R * 1.5 - 4} L${50 + w / 2 + 4} ${54 - R * 1.5 + 2}Z" fill="#D8DEE4" data-noshade data-lw="0.6"/>
+    <circle cx="50" cy="54" r="4.6" fill="#FFF3D6" data-noshade data-lw="0.8"/>
+    <text x="50" y="56.3" font-size="6.4" font-family="Lilita" fill="#C0392B" text-anchor="middle" data-flat>8</text>
+    <g transform="translate(37 31)">
+      <path d="M-7 2 L0 -6 L7 2 V10 H-7Z" fill="#E2475F" data-lw="1.1"/>
+      <rect x="-2" y="4" width="4" height="6" fill="#7A1626" data-noline data-noshade/>
+    </g>`);
+}
+
+export function carca() {
+  // one square land tile: a walled city with its shield, a road running out, fields around, and a follower
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#2C5A2E', '#5CB85C', ['#F2C23D', '#FFE89A'])}
+    <rect x="26" y="26" width="48" height="48" rx="3" fill="#8CCB5E" data-shade="0.82"/>
+    <path d="M26 26 H74 V36 C62 46 38 46 26 36Z" fill="#D9A866" data-lw="1.1"/>
+    <path d="M28 37.5 C40 46 60 46 72 37.5" stroke="#8A5A2B" stroke-width="2.4" fill="none" stroke-linecap="round" data-flat/>
+    <path d="M44 27 h12 v9 c0 4 -6 6 -6 6 c0 0 -6 -2 -6 -6Z" fill="#3D7BE0" data-lw="0.8"/>
+    <path d="M50 29.5 v8 M46.5 33 h7" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" data-flat/>
+    <path d="M50 74 C50 62 58 56 74 56" stroke="#F3E6C8" stroke-width="5.5" fill="none" data-lw="0.9"/>
+    <path d="M50 74 C50 62 58 56 74 56" stroke="#C9B48A" stroke-width="0.8" stroke-dasharray="2 2.4" fill="none" data-flat/>
+    <g transform="translate(37 60)">
+      <circle cx="0" cy="-7" r="3.6" fill="#E2475F" data-lw="0.9"/>
+      <path d="M-6 6 L-3.5 -3 H3.5 L6 6Z" fill="#E2475F" data-lw="0.9"/>
+    </g>`);
+}
