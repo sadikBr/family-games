@@ -97,7 +97,11 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
   content-extra.ts   Words for Codenames and Draw & Guess
-  bot-content.ts     What bots know: imposter clues, names dictionary, potato answers
+  bot-content.ts     What bots know: imposter fallback hints, potato answers
+  names-words.ts     «اسم ولد اسم بنت» word lists (names, animals, plants, things, countries & cities, jobs): bots' answers, also accepted by the dictionary check
+  imposter-traits.ts Shared traits bots use as «الدخيل» clues
+  dictionary.ts      Arabic dictionary lookup for «اسم ولد اسم بنت» (data/names-dict.txt)
+  content-islamic.ts, content-trivia.ts, content-games2.ts, content-extra.ts  Questions and word lists for the other games
   server.test.ts     End-to-end tests with fake phones (bun run test:server)
   rules.test.ts      Unit tests for the card rules
   fix-*.test.ts, turn.test.ts  Tests for freezes, fairness and turn alerts
