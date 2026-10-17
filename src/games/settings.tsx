@@ -268,7 +268,12 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
     }
     case 'whois': {
       const { settings, change } = settingsFor(room, 'whois');
-      return <Stepper label="عدد الجولات" value={settings.rounds} min={4} max={20} step={2} editable={editable} onChange={(rounds) => change({ rounds })} />;
+      return (
+        <View style={{ gap: 10 }}>
+          <Toggle label="اكتب الاسم بدل الاختيار من الأجوبة" value={!!settings.typed} editable={editable} onChange={(typed) => change({ typed })} />
+          <Stepper label="عدد الجولات" value={settings.rounds} min={4} max={20} step={2} editable={editable} onChange={(rounds) => change({ rounds })} />
+        </View>
+      );
     }
     case 'surah': {
       const { settings, change } = settingsFor(room, 'surah');

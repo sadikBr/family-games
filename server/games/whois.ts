@@ -2,12 +2,16 @@
  * «من هو؟» — clues about a prophet, companion, place or historical figure appear one by one.
  * Each player gets one guess per round; the earlier you guess right, the more points:
  * after clue 1 = 400, clue 2 = 300, clue 3 = 200, clue 4 = 100.
+ *
+ * With «typed» on there are no options: you write the name (spelling slips are forgiven). A miss
+ * costs nothing but time — you may try again once the next clue appears.
  */
 import type { McqResult, WhoisSettings, WhoisView } from '../../src/shared/protocol';
-import { WHO, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
+import { answerExact, answerMatches, norm } from '../../src/shared/arabic';
+import { WHO, WHO_ALIASES, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
 import { qdeck } from '../qdeck';
 import { type GameModule } from '../types';
-import { isNum, randInt, shuffle } from '../util';
+import { isNum, isStr, randInt, shuffle } from '../util';
 import { soleWinner } from './mcq';
 
 const CLUE_MS = 7000;
@@ -29,13 +33,40 @@ interface State {
   shown: number;
   nextClueAt: number | null;
   endsAt: number | null;
-  guesses: Record<string, { choice: number; clue: number }>;
+  guesses: Record<string, { choice: number; clue: number; text?: string }>;
+  /** typed: wrong tries this round */
+  tries: Record<string, { clue: number; text: string }[]>;
   results: McqResult[] | null;
   scores: Record<string, number>;
   botAt: Record<string, { clue: number; go: boolean; right: boolean }>;
 }
 
 const answerIdx = (s: State) => s.options.indexOf(s.entries[s.round - 1].name);
+const namesOf = (name: string) => [name, ...(WHO_ALIASES[name] ?? [])];
+const HONORIFICS = new Set(['سيدنا', 'سيدتنا', 'السيدة', 'النبي', 'نبي', 'الله', 'الصحابي', 'الصحابية', 'الإمام', 'القائد', 'السلطان', 'مدينة', 'بلاد'].map(norm));
+
+/** «سيدنا يوسف» → «يوسف». */
+function stripTitles(text: string) {
+  const words = text.trim().split(/\s+/);
+  while (words.length > 1 && HONORIFICS.has(norm(words[0]))) words.shift();
+  return words.join(' ');
+}
+
+/** Does a typed name mean this entry? A slip is forgiven unless the text is exactly someone else («يونس» is not «يوسف»). */
+export function whoMatches(typed: string, name: string): boolean {
+  const text = stripTitles(typed);
+  const forms = namesOf(name);
+  if (forms.some((f) => answerExact(text, f))) return true;
+  if (!forms.some((f) => answerMatches(text, f))) return false;
+  return !WHO.some((w) => w.name !== name && namesOf(w.name).some((f) => answerExact(text, f)));
+}
+
+/** Typed: missed at this clue, so wait for the next one. */
+const lockedOut = (s: State, id: string) => s.tries[id]?.at(-1)?.clue === s.shown;
+/** Nothing more this player can do this round. */
+const done = (s: State, id: string) => !!s.guesses[id] || (s.settings.typed === true && s.shown >= s.entries[s.round - 1].clues.length && lockedOut(s, id));
+const allDone = (ctx: { isConnected(id: string): boolean; isBot(id: string): boolean }, s: State) =>
+  s.participants.every((p) => done(s, p) || !(ctx.isConnected(p) || ctx.isBot(p)));
 
 function newRound(now: number, s: State) {
   s.round += 1;
@@ -45,6 +76,7 @@ function newRound(now: number, s: State) {
   s.phase = 'ask';
   s.shown = 1;
   s.guesses = {};
+  s.tries = {};
   s.results = null;
   s.botAt = {};
   s.nextClueAt = now + CLUE_MS;
@@ -58,7 +90,8 @@ function finishRound(now: number, s: State) {
     const correct = !!g && g.choice === ans;
     const points = correct ? (5 - g.clue) * 100 : 0;
     s.scores[id] = (s.scores[id] ?? 0) + points;
-    return { id, choice: g ? g.choice : null, correct, points };
+    if (!s.settings.typed) return { id, choice: g ? g.choice : null, correct, points };
+    return { id, choice: correct ? ans : null, correct, points, text: g?.text ?? s.tries[id]?.at(-1)?.text ?? null };
   });
   s.phase = 'reveal';
   s.shown = s.entries[s.round - 1].clues.length;
@@ -81,6 +114,7 @@ export const whois: GameModule<State, WhoisSettings> = {
       nextClueAt: null,
       endsAt: null,
       guesses: {},
+      tries: {},
       results: null,
       scores: Object.fromEntries(participants.map((p) => [p, 0])),
       botAt: {},
@@ -92,9 +126,20 @@ export const whois: GameModule<State, WhoisSettings> = {
 
   act(ctx, s, by, a) {
     if (a.type !== 'guess' || s.phase !== 'ask' || !s.participants.includes(by) || s.guesses[by]) return;
-    if (!isNum(a.choice) || a.choice < 0 || a.choice >= s.options.length) return;
-    s.guesses[by] = { choice: a.choice, clue: s.shown };
-    if (s.participants.every((p) => s.guesses[p] || !(ctx.isConnected(p) || ctx.isBot(p)))) finishRound(ctx.now, s);
+    if (s.settings.typed) {
+      if (!isStr(a.text) || lockedOut(s, by)) return;
+      const text = a.text.trim().slice(0, 60);
+      if (!text) return;
+      if (whoMatches(text, s.entries[s.round - 1].name)) {
+        s.guesses[by] = { choice: answerIdx(s), clue: s.shown, text };
+      } else {
+        (s.tries[by] ??= []).push({ clue: s.shown, text });
+      }
+    } else {
+      if (!isNum(a.choice) || a.choice < 0 || a.choice >= s.options.length) return;
+      s.guesses[by] = { choice: a.choice, clue: s.shown };
+    }
+    if (allDone(ctx, s)) finishRound(ctx.now, s);
   },
 
   tick(ctx, s) {
@@ -123,7 +168,7 @@ export const whois: GameModule<State, WhoisSettings> = {
     // at each new clue a bot decides whether to guess now; early guesses are rare and less often right
     const last = s.entries[s.round - 1].clues.length;
     for (const b of bots) {
-      if (!s.participants.includes(b) || s.guesses[b]) continue;
+      if (!s.participants.includes(b) || s.guesses[b] || lockedOut(s, b)) continue;
       if (s.botAt[b]?.clue !== s.shown) {
         const k = Math.min(s.shown, BOT_GO.length) - 1;
         s.botAt[b] = { clue: s.shown, go: s.shown >= last || Math.random() < BOT_GO[k], right: Math.random() < BOT_RIGHT[k] };
@@ -132,7 +177,10 @@ export const whois: GameModule<State, WhoisSettings> = {
       if (!plan.go) continue;
       const ans = answerIdx(s);
       const wrong = [...s.options.keys()].filter((k) => k !== ans);
-      ctx.bot(b, `g:${s.round}`, randInt(1500, 4500), { type: 'guess', choice: plan.right ? ans : wrong[randInt(0, wrong.length - 1)] });
+      const choice = plan.right ? ans : wrong[randInt(0, wrong.length - 1)];
+      // typed: one try per clue
+      if (s.settings.typed) ctx.bot(b, `g:${s.round}:${s.shown}`, randInt(2500, 5000), { type: 'guess', text: s.options[choice] });
+      else ctx.bot(b, `g:${s.round}`, randInt(1500, 4500), { type: 'guess', choice });
     }
   },
 
@@ -146,7 +194,7 @@ export const whois: GameModule<State, WhoisSettings> = {
       label: WHO_CAT_LABEL[e.cat],
       clues: e.clues.slice(0, s.shown),
       totalClues: e.clues.length,
-      options: s.options,
+      options: s.settings.typed && s.phase === 'ask' ? [] : s.options,
       nextClueAt: s.nextClueAt,
       endsAt: s.endsAt,
       guessed: Object.keys(s.guesses),
@@ -154,10 +202,14 @@ export const whois: GameModule<State, WhoisSettings> = {
       answer: s.phase === 'ask' ? null : answerIdx(s),
       results: s.results,
       scores: s.scores,
+      typed: !!s.settings.typed,
+      answerName: s.phase === 'ask' ? null : e.name,
+      myTries: (s.tries[me] ?? []).map((t) => t.text),
+      locked: s.phase === 'ask' && lockedOut(s, me),
     };
   },
 
   onLeave(ctx, s) {
-    if (s.phase === 'ask' && s.participants.every((p) => s.guesses[p] || !(ctx.isConnected(p) || ctx.isBot(p)))) finishRound(ctx.now, s);
+    if (s.phase === 'ask' && allDone(ctx, s)) finishRound(ctx.now, s);
   },
 };

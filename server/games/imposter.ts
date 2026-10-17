@@ -1,6 +1,7 @@
 import type { ImposterResult, ImposterSettings, ImposterView } from '../../src/shared/protocol';
 import { IMPOSTER_HINTS } from '../bot-content';
 import { IMPOSTER_CATEGORIES, type WordCategory } from '../content';
+import { traitPool } from '../imposter-traits';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, shuffle } from '../util';
 
@@ -63,15 +64,18 @@ function newRound(ctx: GameCtx, s: State) {
 /** Seconds the caught imposter has for the last-chance guess. */
 export const GUESS_MS = 25_000;
 
-/** A one-word clue for a bot. Imposter bots bluff with a clue for another word of the same category. */
+/**
+ * A clue for a bot: a trait the secret word shares with a few other words of its category, so it
+ * proves the bot knows the word without giving it away. Imposter bots bluff with a trait common to
+ * many words of the category.
+ */
 function botClue(s: State, id: string, used: Set<string>): string {
-  let pool: string[];
-  if (!s.imposters.includes(id)) {
-    pool = IMPOSTER_HINTS[s.word] ?? [];
-  } else {
-    // a clue from a random other category would give the bot away at once
+  const imposter = s.imposters.includes(id);
+  let pool = traitPool(s.category, s.word, imposter);
+  if (!pool.length) {
+    // a word without traits: the old one-word hints (an imposter borrows another word's)
     const others = s.category.words.filter((w) => w !== s.word && IMPOSTER_HINTS[w]?.length);
-    pool = others.length ? IMPOSTER_HINTS[pick(others)] : [];
+    pool = (imposter ? (others.length ? IMPOSTER_HINTS[pick(others)] : []) : IMPOSTER_HINTS[s.word]) ?? [];
   }
   const fresh = pool.filter((h) => !used.has(h));
   const clue = fresh.length ? pick(fresh) : pool.length ? pick(pool) : 'ممم';

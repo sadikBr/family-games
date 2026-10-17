@@ -134,7 +134,7 @@ export function ResultsList({ results, h, options }: { results: McqResult[]; h: 
             {h.player(r.id).name}
           </Txt>
           <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 120 }}>
-            {r.choice === null ? 'لم يُجب' : options[r.choice]}
+            {r.text !== undefined ? (r.text ?? 'لم يُجب') : r.choice === null ? 'لم يُجب' : options[r.choice]}
           </Txt>
           <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 22, color: r.correct ? C.green : C.dim, minWidth: 48, textAlign: 'center' }}>
             {r.correct ? `+${num(r.points)}` : '0'}

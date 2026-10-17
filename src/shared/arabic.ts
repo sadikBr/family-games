@@ -82,6 +82,12 @@ export function answerMatches(typed: string, answer: string): boolean {
   });
 }
 
+/** Is the typed answer exactly the answer (or one of its short forms), with no spelling slip? */
+export function answerExact(typed: string, answer: string): boolean {
+  const t = typedKey(typed);
+  return !!t && acceptedForms(answer).includes(t);
+}
+
 /** The word without its long vowels (ا و ي): «زيمبابوي» and «زمبابوي» share «زمبب». */
 const skeleton = (k: string) => k.replace(/[اوي]/g, '');
 

@@ -257,6 +257,8 @@ export interface QuizSettings {
 }
 export interface WhoisSettings {
   rounds: number;
+  /** type the name instead of choosing from options */
+  typed?: boolean;
 }
 export interface SurahSettings {
   rounds: number;
@@ -364,7 +366,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   estate: { startCash: 1500, rounds: 15 },
   huroof: { seconds: 20 },
   quiz: { rounds: 10, seconds: 15, category: 'all' },
-  whois: { rounds: 8 },
+  whois: { rounds: 8, typed: false },
   surah: { rounds: 10, seconds: 20, level: 'easy' },
   hajj: { questions: true },
   ladders: { exact: true },
@@ -880,6 +882,8 @@ export interface McqResult {
   choice: number | null;
   correct: boolean;
   points: number;
+  /** typed answers: what the player wrote (their last try if none was right) */
+  text?: string | null;
 }
 
 /** Shared by «مسابقة إسلامية» and «من أي سورة؟». */
@@ -916,6 +920,14 @@ export interface WhoisView {
   answer: number | null; // revealed
   results: McqResult[] | null;
   scores: Record<string, number>;
+  /** typed answers instead of options (options is then empty while asking) */
+  typed: boolean;
+  /** revealed with the answer */
+  answerName: string | null;
+  /** typed: my wrong tries this round */
+  myTries: string[];
+  /** typed: I tried at this clue and missed — wait for the next one */
+  locked: boolean;
 }
 
 export type HuroofTeam = 'red' | 'green';

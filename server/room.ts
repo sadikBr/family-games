@@ -577,6 +577,7 @@ export class Room {
       }
       case 'whois':
         this.settings.whois.rounds = int(patch.rounds, this.settings.whois.rounds, 4, 20);
+        if (typeof patch.typed === 'boolean') this.settings.whois.typed = patch.typed;
         break;
       case 'surah': {
         const q = this.settings.surah;

@@ -24,7 +24,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الذاكرة** (Memory) | 2–6 | Turn over two cards; a pair is yours and you play again. 16–30 cards using the app's own illustrations. |
 | **حروف** (Huroof) | 2–12 | Two teams, a 5×5 grid of letter hexagons. Pick a letter; the first to press the buzzer types the answer to an Islamic question that starts with that letter (spelling slips are forgiven). Wrong → the other team gets the buzzer. Red joins right ↔ left, green top ↔ bottom. |
 | **مسابقة إسلامية** (quiz) | 2–12 | Timed multiple-choice questions on Quran, prophets, seerah, companions, worship, Hajj, history and places. Faster right answers score more. |
-| **من هو؟** (who is it?) | 2–12 | Clues about a prophet, companion, place or historical figure appear one by one; one guess each, earlier = more points. |
+| **من هو؟** (who is it?) | 2–12 | Clues about a prophet, companion, place or historical figure appear one by one; earlier = more points. Pick from options (one guess), or turn on «اكتب الاسم» to type the name (slips and short forms like «عمر» are accepted; a miss lets you try again at the next clue). |
 | **من أي سورة؟** (which surah?) | 2–12 | A verse is shown (Uthmani text) — pick its surah. Levels: Juz' Amma, Qaf–an-Nas, the whole Quran. |
 | **رحلة الحج** (Hajj journey) | 2–6 | Dice race along the Hajj rites; you stop at every station, where a card explains the ritual. The first pilgrim at a station opens its question for everyone (right answers earn a provision card, the fastest steps forward). Provision cards (التلبية +2, الدليل pass a station, ماء زمزم roll again, الصدقة help a friend, الصبر cancels a delay) are played before rolling. |
 | **سلّم الحسنات** (snakes & ladders) | 2–6 | Ladders are good deeds, snakes are bad habits; each one shows a short card. |
@@ -53,7 +53,7 @@ Not enough people? In the lobby, the host taps **«أضف بوت»** (up to 8). 
 
 | Game | What bots do |
 |---|---|
-| الدخيل | Get ready, show a one-word clue on screen (imposter bots bluff with a clue for a similar word), vote, and guess the word if caught |
+| الدخيل | Get ready, show a clue on screen, vote, and guess the word if caught. Clues are traits shared by several words of the category (`server/imposter-traits.ts`), so they never give the word away; imposter bots bluff with a common trait |
 | اسم ولد اسم بنت | Fill their boxes one by one from a built-in dictionary (`server/bot-content.ts`). They don't always find an answer |
 | البطاطا الحارة | Shout a word from the topic and throw the potato |
 | لودو، الضامة | Bots roll, capture when they can and keep their pieces safe |
