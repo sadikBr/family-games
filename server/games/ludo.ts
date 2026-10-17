@@ -1,8 +1,10 @@
 /**
- * لودو — roll the dice and race your 4 pieces home.
+ * لودو — roll the dice and race your 4 pieces home (2 in the quick variant).
  * A 6 (or a 1 with the setting) brings a piece out. A 6 also gives another roll (three 6s in a row lose the turn).
  * Landing on other pieces outside a safe square sends them back to base (+ another roll).
  * Pieces need the exact number to finish; finishing a piece gives another roll.
+ * When a human has only one possible move, it is played for them shortly after the roll.
+ * With «podium», play goes on after the first finisher until one player is left.
  */
 import { FINISH, SAFE, seatColors, trackIndex } from '../../src/shared/ludo';
 import type { LudoColor, LudoSettings, LudoView } from '../../src/shared/protocol';
@@ -24,7 +26,14 @@ interface State {
   winner: string | null;
   feed: Feed;
   moves: number;
+  /** Server time at which the only legal move is played automatically. */
+  autoAt: number | null;
 }
+
+/** Tests set BOT_SPEED to speed bots up; the auto-move wait follows so test games stay short. */
+const SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
+/** The dice land after ~1.5 s; then a single legal move is played for the player. */
+export const AUTO_MOVE_MS = 1500 * SPEED;
 
 const colorOf = (s: State, id: string) => s.seats.find((x) => x.id === id)!.color;
 const current = (s: State) => s.seats[s.turnIdx].id;
@@ -42,8 +51,31 @@ export function movableTokens(tokens: number[], dice: number, exitOnOne: boolean
   return out;
 }
 
+/** Movable tokens, keeping one per starting square (pieces stacked together make the same move). */
+export function distinctMoves(tokens: number[], dice: number, exitOnOne: boolean): number[] {
+  const seen = new Set<number>();
+  return movableTokens(tokens, dice, exitOnOne).filter((t) => {
+    if (seen.has(tokens[t])) return false;
+    seen.add(tokens[t]);
+    return true;
+  });
+}
+
+/** Players still racing (not finished). */
+const racing = (s: State) => s.seats.filter((x) => !s.ranking.includes(x.id));
+
+function finish(ctx: GameCtx, s: State) {
+  // podium: the last one left takes the last place; otherwise only the winner is ranked
+  if (s.settings.podium || !s.ranking.length) for (const x of racing(s)) s.ranking.push(x.id);
+  s.phase = 'final';
+  s.autoAt = null;
+  if (!s.winner) s.winner = s.ranking[0] ?? null;
+  ctx.fx('win', s.winner ?? undefined);
+}
+
 function nextTurn(s: State) {
   s.sixes = 0;
+  s.autoAt = null;
   for (let k = 0; k < s.seats.length; k++) {
     s.turnIdx = (s.turnIdx + 1) % s.seats.length;
     if (!s.ranking.includes(current(s))) break;
@@ -88,14 +120,17 @@ function afterMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]
   if (s.tokens[id].every((p) => p >= FINISH)) {
     s.ranking.push(id);
     if (!s.winner) s.winner = id;
-    s.phase = 'final';
-    ctx.fx('win', id);
+    if (!s.settings.podium || racing(s).length < 2) return finish(ctx, s);
+    s.feed.push(`${ctx.playerName(id)} أنهى في المركز ${s.ranking.length}`, { by: id });
+    ctx.fx('correct', id);
+    nextTurn(s);
     return;
   }
   const again = s.dice === 6 || res.captured.length > 0 || res.finished;
   if (again) {
     s.phase = 'roll';
     s.dice = null;
+    s.autoAt = null;
   } else nextTurn(s);
 }
 
@@ -109,7 +144,7 @@ export const ludo: GameModule<State, LudoSettings> = {
     return {
       settings,
       seats,
-      tokens: Object.fromEntries(participants.map((id) => [id, [-1, -1, -1, -1]])),
+      tokens: Object.fromEntries(participants.map((id) => [id, settings.quick ? [-1, -1] : [-1, -1, -1, -1]])),
       turnIdx: Math.floor(Math.random() * participants.length),
       phase: 'roll',
       dice: null,
@@ -120,6 +155,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       winner: null,
       feed: new Feed(),
       moves: 0,
+      autoAt: null,
     };
   },
 
@@ -150,6 +186,7 @@ export const ludo: GameModule<State, LudoSettings> = {
         return;
       }
       s.phase = 'move';
+      s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + AUTO_MOVE_MS : null;
       return;
     }
     if (a.type === 'move') {
@@ -157,6 +194,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       const can = movableTokens(s.tokens[by], s.dice!, s.settings.exitOnOne);
       if (!can.includes(a.token)) throw new GameError('لا يمكن تحريك هذه القطعة');
       s.moves += 1;
+      s.autoAt = null;
       const res = moveToken(s, by, a.token);
       ctx.fx('card', by);
       afterMove(ctx, s, by, res);
@@ -168,7 +206,7 @@ export const ludo: GameModule<State, LudoSettings> = {
     const bot = current(s);
     if (!ctx.isBot(bot)) return;
     if (s.phase === 'roll') {
-      ctx.bot(bot, `roll:${s.moves}`, randDelay(2600, 3200), { type: 'roll' });
+      ctx.bot(bot, `roll:${s.moves}`, randDelay(1000, 1400), { type: 'roll' });
       return;
     }
     const color = colorOf(s, bot);
@@ -187,7 +225,17 @@ export const ludo: GameModule<State, LudoSettings> = {
       return v + Math.random();
     };
     const best = can.sort((x, y) => score(y) - score(x))[0];
-    ctx.bot(bot, `move:${s.moves}`, randDelay(1300, 1800), { type: 'move', token: best });
+    ctx.bot(bot, `move:${s.moves}`, randDelay(800, 1200), { type: 'move', token: best });
+  },
+
+  tick(ctx, s) {
+    if (s.phase !== 'move' || s.autoAt === null || ctx.now < s.autoAt) return false;
+    s.autoAt = null;
+    const by = current(s);
+    const only = distinctMoves(s.tokens[by], s.dice!, s.settings.exitOnOne);
+    if (only.length !== 1) return true;
+    ludo.act(ctx, s, by, { type: 'move', token: only[0] });
+    return true;
   },
 
   view(ctx, s, me): LudoView {
@@ -200,6 +248,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       dice: s.dice,
       rollId: s.rollId,
       movable: s.phase === 'move' && current(s) === me ? movableTokens(s.tokens[me], s.dice!, s.settings.exitOnOne) : [],
+      autoAt: current(s) === me ? s.autoAt : null,
       lastMove: s.lastMove,
       winner: s.winner,
       ranking: s.ranking,
@@ -214,16 +263,13 @@ export const ludo: GameModule<State, LudoSettings> = {
     s.seats.splice(i, 1);
     delete s.tokens[id];
     s.feed.push(`${ctx.playerName(id)} غادر اللعبة`);
-    if (s.seats.length < 2) {
-      s.phase = 'final';
-      s.winner = s.seats[0]?.id ?? null;
-      return;
-    }
+    if (racing(s).length < 2) return finish(ctx, s);
     if (s.turnIdx > i) s.turnIdx -= 1;
     s.turnIdx %= s.seats.length;
     if (wasTurn) {
-      s.phase = 'roll';
-      s.dice = null;
+      // the seat that slid into this index may already have finished
+      s.turnIdx = (s.turnIdx - 1 + s.seats.length) % s.seats.length;
+      nextTurn(s);
     }
   },
 };

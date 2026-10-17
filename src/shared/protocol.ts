@@ -227,6 +227,8 @@ export interface UnoSettings {
 }
 export interface LudoSettings {
   exitOnOne: boolean; // a 1 can also bring a piece out
+  podium?: boolean; // keep playing for 2nd, 3rd… until one player is left
+  quick?: boolean; // 2 pieces each instead of 4
 }
 export interface CodenamesSettings {
   assassin: boolean;
@@ -355,11 +357,11 @@ export const DEFAULT_SETTINGS: AllSettings = {
   tris: { target: 31 },
   konkan: { limit: 100 },
   unoflip: { target: 250 },
-  ludo: { exitOnOne: false },
+  ludo: { exitOnOne: false, podium: false, quick: false },
   codenames: { assassin: true },
   dama: { flyingKings: true, backCapture: true, maxCapture: true },
   draw: { rounds: 2, seconds: 80 },
-  estate: { startCash: 1500, rounds: 30 },
+  estate: { startCash: 1500, rounds: 15 },
   huroof: { seconds: 20 },
   quiz: { rounds: 10, seconds: 15, category: 'all' },
   whois: { rounds: 8 },
@@ -746,6 +748,8 @@ export interface LudoView {
   dice: number | null;
   rollId: number;
   movable: number[]; // token indices I can move with this roll
+  /** When my only legal move will be played for me (server time), or null. */
+  autoAt: number | null;
   lastMove: { by: string; token: number; from: number; to: number; captured: string[] } | null;
   winner: string | null;
   ranking: string[];
@@ -840,11 +844,20 @@ export interface EstateTrade {
   to: string;
   give: { props: number[]; cash: number };
   get: { props: number[]; cash: number };
+  endsAt: number; // the offer expires (server time)
+}
+
+export interface EstateAuction {
+  sq: number;
+  price: number; // highest bid so far (0 = no bid yet)
+  leader: string | null;
+  endsAt: number; // restarts on every bid
+  out: string[]; // players who withdrew
 }
 
 export interface EstateView {
   game: 'estate';
-  phase: 'roll' | 'buy' | 'manage' | 'debt' | 'final';
+  phase: 'roll' | 'buy' | 'auction' | 'manage' | 'debt' | 'final';
   players: EstatePlayer[];
   turn: string;
   dice: number[] | null;
@@ -854,6 +867,7 @@ export interface EstateView {
   card: { id: number; deck: 'luck' | 'family'; text: string; by: string } | null;
   debt: { amount: number; to: string | null } | null;
   trade: EstateTrade | null;
+  auction: EstateAuction | null;
   round: number;
   maxRounds: number;
   worth: Record<string, number>;
