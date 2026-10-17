@@ -171,3 +171,106 @@ export function boggle() {
     ${tiles}
     <path d="M28 31 H72" stroke="#E2475F" stroke-width="2.4" stroke-linecap="round" opacity="0.8" data-flat/>`);
 }
+
+/* ---- Islamic games (objects and places only: no people) ---- */
+
+const rehal = (fill = '#8C5A2B') => `<path d="M26 74 L50 58 L74 74 M30 80 L50 66 L70 80" stroke="${INK}" stroke-width="5.6" fill="none" stroke-linecap="round" data-flat/>
+    <path d="M26 74 L50 58 L74 74 M30 80 L50 66 L70 80" stroke="${fill}" stroke-width="3" fill="none" stroke-linecap="round" data-flat/>`;
+const book = (pageText = '') => `<path d="M50 30 C42 25 30 25 22 28 V62 C30 59 42 59 50 64Z" fill="#FFF8E6"/>
+    <path d="M50 30 C58 25 70 25 78 28 V62 C70 59 58 59 50 64Z" fill="#FFF8E6"/>
+    <path d="M50 30 V64" stroke="${INK}" stroke-width="1.6" data-flat/>${pageText}`;
+const lines = (x0, x1, ys, c = '#C9B48A') => ys.map((y) => `<path d="M${x0} ${y} H${x1}" stroke="${c}" stroke-width="1.6" stroke-linecap="round" data-flat/>`).join('');
+
+export function qquote() {
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#11472E', '#2E8B57', ['#F2C23D', '#FFE89A'])}
+    ${rehal()}
+    ${book(lines(27, 45, [37, 43, 49, 55]) + lines(55, 73, [37, 43, 49, 55]))}
+    <path d="M60 12 H84 C87 12 89 14 89 17 V28 C89 31 87 33 84 33 H76 L70 39 L71 33 H60 C57 33 55 31 55 28 V17 C55 14 57 12 60 12Z" fill="#FFF4DA"/>
+    <text x="72" y="30" font-size="20" font-family="Lalezar" fill="#2E8B57" text-anchor="middle" data-flat>؟</text>`);
+}
+
+export function tajweed() {
+  const word = (x, y, c, w = 10) => `<rect x="${x}" y="${y}" width="${w}" height="3.4" rx="1.7" fill="${c}" data-noshade data-noline/>`;
+  return svg100(`
+    ${base(HEX, HEX_IN, '#0E3F37', '#1F7A6B', ['#E2475F', '#FFB3BE'])}
+    ${rehal()}
+    ${book()}
+    ${word(27, 36, '#9EA3AE', 7)}${word(36, 36, '#E2475F', 8)}${word(26, 43, '#9EA3AE', 12)}${word(40, 43, '#2FB67C', 6)}${word(28, 50, '#3D7BE0', 9)}${word(39, 50, '#9EA3AE', 7)}
+    ${word(55, 36, '#9EA3AE', 9)}${word(66, 36, '#F29A1E', 8)}${word(55, 43, '#E2475F', 6)}${word(63, 43, '#9EA3AE', 11)}${word(57, 50, '#9EA3AE', 6)}${word(65, 50, '#2FB67C', 9)}`);
+}
+
+export function qword() {
+  const tile = (x, y, ch, c) => `<rect x="${x}" y="${y}" width="12" height="12" rx="2.6" fill="${c}" data-lw="0.8"/>
+    <text x="${x + 6}" y="${y + 10}" font-size="10.5" font-family="Lalezar" fill="#FFFFFF" text-anchor="middle" data-flat>${ch}</text>`;
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#6E5310', '#C8A13A', ['#2FB67C', '#A8E6C8'])}
+    ${rehal('#5A3A1A')}
+    <rect x="22" y="26" width="56" height="42" rx="6" fill="#1F2A44" data-shade="0.85"/>
+    ${tile(67, 31, 'ر', '#2FB67C')}${tile(53, 31, 'ح', '#2FB67C')}${tile(39, 31, 'م', '#C8A13A')}${tile(25, 31, 'ة', '#5B6478')}
+    ${tile(67, 50, 'ن', '#5B6478')}${tile(53, 50, 'و', '#C8A13A')}${tile(39, 50, 'ر', '#2FB67C')}${tile(25, 50, '؟', '#3B4560')}`);
+}
+
+export function asma() {
+  const star = (r1, r2) => {
+    let d = '';
+    for (let i = 0; i < 16; i++) {
+      const r = i % 2 ? r2 : r1, a = (Math.PI / 8) * i - Math.PI / 2;
+      d += `${i ? 'L' : 'M'}${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)} `;
+    }
+    return d + 'Z';
+  };
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#5E4513', '#B5892B', ['#2FA57A', '#A8E6C8'])}
+    <path d="${star(32, 25)}" fill="#F6E3B4"/>
+    <path d="${star(25, 20)}" fill="#2FA57A" data-shade="0.82"/>
+    <circle cx="50" cy="50" r="15" fill="#FFF4DA"/>
+    <text x="50" y="57" font-size="19" font-family="Lilita" fill="#7A5A16" text-anchor="middle" data-flat>99</text>`);
+}
+
+export function steps() {
+  const step = (x, y, w, n, c) => `<rect x="${x}" y="${y}" width="${w}" height="12" rx="3" fill="${c}"/>
+    <text x="${x + 7}" y="${y + 9.5}" font-size="9" font-family="Lilita" fill="#FFFFFF" text-anchor="middle" data-flat>${n}</text>`;
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#183B7A', '#3D7BE0', ['#F2C23D', '#FFE89A'])}
+    ${step(24, 66, 52, 1, '#2FB67C')}${step(30, 53, 40, 2, '#F29A1E')}${step(36, 40, 28, 3, '#E2475F')}
+    <path d="M50 18 C56 26 59 30 59 34 A9 9 0 0 1 41 34 C41 30 44 26 50 18Z" fill="#7FD4FF"/>
+    <path d="M46 33 a4 4 0 0 0 4 4" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" data-flat/>`);
+}
+
+export function mapquiz() {
+  return svg100(`
+    ${base(HEX, HEX_IN, '#0F4A47', '#22B8B0', ['#F08A3E', '#FFD0A8'])}
+    <rect x="20" y="26" width="60" height="48" rx="6" fill="#9FD8F0" data-shade="0.85"/>
+    <path d="M22 44 C30 40 34 46 42 44 C46 43 48 38 54 40 C60 42 62 36 70 38 C74 39 77 42 78 46 V72 H22Z" fill="#E9C88E"/>
+    <path d="M24 58 C34 54 40 62 52 58 C60 55 66 60 76 56" stroke="#C9A35A" stroke-width="1.4" fill="none" data-flat/>
+    <path d="M58 22 C66 22 70 28 70 33 C70 41 58 52 58 52 C58 52 46 41 46 33 C46 28 50 22 58 22Z" fill="#E2475F"/>
+    <circle cx="58" cy="33" r="4.5" fill="#FFF4DA" data-noshade/>`);
+}
+
+export function prophets() {
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#2F1F66', '#7B61D9', ['#F2C23D', '#FFE89A'])}
+    <path d="M20 66 C30 60 40 70 50 64 C60 58 70 68 80 62 V76 H20Z" fill="#3D7BE0"/>
+    <path d="M28 58 H72 L64 68 H36Z" fill="#B5652B"/>
+    <rect x="40" y="46" width="22" height="12" rx="2" fill="#D9A066"/>
+    <path d="M51 22 V46" stroke="${INK}" stroke-width="3.4" data-flat/><path d="M51 22 V46" stroke="#8C5A2B" stroke-width="1.6" data-flat/>
+    <path d="M52 24 L66 38 H52Z" fill="#FFF4DA"/>
+    <path d="M22 72 C30 68 38 76 48 72 C58 68 66 76 78 72" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round" data-flat/>`);
+}
+
+export function mosque() {
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#0F4A33', '#2FA57A', ['#F2C23D', '#FFE89A'])}
+    <rect x="60" y="22" width="13" height="50" fill="#F1D9A8"/>
+    <rect x="58" y="18" width="17" height="6" fill="#2FA57A"/>
+    <rect x="64" y="10" width="5" height="9" fill="#F1D9A8"/>
+    <circle cx="66.5" cy="9" r="2.2" fill="#F2C23D" data-noshade data-lw="0.6"/>
+    <rect x="63.5" y="30" width="6" height="8" rx="3" fill="#2FA57A" data-noshade/>
+    <rect x="24" y="46" width="38" height="26" fill="#FFF4DA"/>
+    <path d="M30 46 C30 36 50 36 50 46Z" fill="#2FA57A"/>
+    <path d="M34 72 V60 C34 54 44 54 44 60 V72Z" fill="#B5652B"/>
+    <path d="M24 46 H62" stroke="${INK}" stroke-width="1.4" data-flat/>
+    <rect x="20" y="72" width="60" height="5" rx="2" fill="#C98A4B"/>
+    <path d="M27 77 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3 l3 -3 l3 3" stroke="#2FA57A" stroke-width="1.1" fill="none" data-flat/>`);
+}
