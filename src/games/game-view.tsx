@@ -24,7 +24,6 @@ import { SpyGame } from './spy';
 import { SurveyGame } from './survey';
 import { DotsGame } from './dots';
 import { MancalaGame } from './mancala';
-import { LifeGame } from './life';
 import { BlocksGame } from './blocks';
 import { CodebreakGame } from './codebreak';
 import { BoggleGame } from './boggle';
@@ -129,8 +128,6 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <DotsGame room={room} view={view} />;
     case 'mancala':
       return <MancalaGame room={room} view={view} />;
-    case 'life':
-      return <LifeGame room={room} view={view} />;
     case 'blocks':
       return <BlocksGame room={room} view={view} />;
     case 'codebreak':

@@ -115,21 +115,6 @@ export function mancala() {
     <circle cx="80.5" cy="50" r="1.7" fill="#2FB67C" data-noshade data-lw="0.5"/><circle cx="80.5" cy="56" r="1.7" fill="#F2C23D" data-noshade data-lw="0.5"/>`);
 }
 
-export function life() {
-  // a winding road with a car, a little house and coins
-  return svg100(`
-    ${base(SHIELD, SHIELD_IN, '#0F5A3A', '#2FB67C', ['#F2C23D', '#FFE89A'])}
-    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="${INK}" stroke-width="13" fill="none" stroke-linecap="round" data-flat/>
-    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="#E9D9B4" stroke-width="9" fill="none" stroke-linecap="round" data-flat/>
-    <path d="M22 76 C22 60 40 62 44 52 C48 42 30 40 34 30 C37 22 56 22 66 24" stroke="#C9A35A" stroke-width="1.4" stroke-dasharray="3 3" fill="none" data-flat/>
-    <path d="M60 52 L72 42 L84 52 V66 H60Z" fill="#FFF4DA"/>
-    <path d="M57 54 L72 40 L87 54" stroke="#E2475F" stroke-width="4" fill="none" stroke-linecap="round" data-flat/>
-    <rect x="68" y="56" width="8" height="10" rx="1.5" fill="#B5652B"/>
-    <rect x="40" y="46" width="14" height="9" rx="3" fill="#3D7BE0"/>
-    <circle cx="43" cy="56" r="2.2" fill="${INK}" data-noshade data-lw="0.5"/><circle cx="51" cy="56" r="2.2" fill="${INK}" data-noshade data-lw="0.5"/>
-    <circle cx="70" cy="76" r="6" fill="#F2C23D"/><circle cx="58" cy="78" r="5" fill="#F2C23D"/>`);
-}
-
 export function blocks() {
   const sq = (x, y, c) => `<rect x="${x}" y="${y}" width="10" height="10" rx="2" fill="${c}" data-lw="0.9"/>`;
   const piece = (cells, c, ox, oy) => cells.map(([i, j]) => sq(ox + i * 10, oy + j * 10, c)).join('');

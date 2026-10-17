@@ -43,7 +43,6 @@ export const GAME_IMG: Record<string, number> = {
   'kharbga': require('../../assets/art/games/kharbga.webp'),
   'konkan': require('../../assets/art/games/konkan.webp'),
   'ladders': require('../../assets/art/games/ladders.webp'),
-  'life': require('../../assets/art/games/life.webp'),
   'ludo': require('../../assets/art/games/ludo.webp'),
   'mancala': require('../../assets/art/games/mancala.webp'),
   'mapquiz': require('../../assets/art/games/mapquiz.webp'),

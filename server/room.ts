@@ -42,7 +42,6 @@ import { spy } from './games/spy';
 import { survey } from './games/survey';
 import { dots } from './games/dots';
 import { mancala } from './games/mancala';
-import { life } from './games/life';
 import { blocks } from './games/blocks';
 import { codebreak } from './games/codebreak';
 import { boggle } from './games/boggle';
@@ -127,7 +126,6 @@ const MODULES: Record<GameId, AnyModule> = {
   survey,
   dots,
   mancala,
-  life,
   blocks,
   codebreak,
   boggle,
