@@ -1,3 +1,10 @@
+import { PHASE10_INFO } from '@/shared/games/phase10';
+import { SCRABBLE_INFO } from '@/shared/games/scrabble';
+import { CHARADES_INFO } from '@/shared/games/charades';
+import { SPY_INFO } from '@/shared/games/spy';
+import { SURVEY_INFO } from '@/shared/games/survey';
+import { DOTS_INFO } from '@/shared/games/dots';
+import { MANCALA_INFO } from '@/shared/games/mancala';
 import type { GameId } from '@/shared/protocol';
 import { MIN_PLAYERS } from '@/shared/protocol';
 
@@ -13,6 +20,13 @@ export interface GameMeta {
 }
 
 export const GAMES: Record<GameId, GameMeta> = {
+  phase10: { id: 'phase10', minPlayers: MIN_PLAYERS.phase10, ...PHASE10_INFO },
+  scrabble: { id: 'scrabble', minPlayers: MIN_PLAYERS.scrabble, ...SCRABBLE_INFO },
+  charades: { id: 'charades', minPlayers: MIN_PLAYERS.charades, ...CHARADES_INFO },
+  spy: { id: 'spy', minPlayers: MIN_PLAYERS.spy, ...SPY_INFO },
+  survey: { id: 'survey', minPlayers: MIN_PLAYERS.survey, ...SURVEY_INFO },
+  dots: { id: 'dots', minPlayers: MIN_PLAYERS.dots, ...DOTS_INFO },
+  mancala: { id: 'mancala', minPlayers: MIN_PLAYERS.mancala, ...MANCALA_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -478,13 +492,13 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala'];
 
 /** Grouping for the home screen. */
 export const GAME_GROUPS: { title: string; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle'] },
+  { title: 'ألعاب الكلام والضحك', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble'] },
   { title: 'ألعاب إسلامية', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', games: ['estate', 'ludo', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
-  { title: 'ذكاء وذاكرة', games: ['trivia', 'memory', 'sudoku', 'xo'] },
-  { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip'] },
+  { title: 'ذكاء وذاكرة', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala'] },
+  { title: 'الكارطة', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip', 'phase10'] },
 ];

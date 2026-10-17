@@ -35,6 +35,13 @@ import { estate } from './games/estate';
 import { kdab } from './games/kdab';
 import { kharbga } from './games/kharbga';
 import { memory } from './games/memory';
+import { phase10 } from './games/phase10';
+import { scrabble } from './games/scrabble';
+import { charades } from './games/charades';
+import { spy } from './games/spy';
+import { survey } from './games/survey';
+import { dots } from './games/dots';
+import { mancala } from './games/mancala';
 import { sudoku } from './games/sudoku';
 import { trivia } from './games/trivia';
 import { wave } from './games/wave';
@@ -100,6 +107,13 @@ const MODULES: Record<GameId, AnyModule> = {
   sudoku,
   trivia,
   memory,
+  phase10,
+  scrabble,
+  charades,
+  spy,
+  survey,
+  dots,
+  mancala,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
@@ -467,6 +481,12 @@ export class Room {
       isNum(v) ? clamp(Math.round(v), min, max) : d;
     const cat = (v: unknown, d: string, keys: string[]) =>
       isStr(v) && (v === 'random' || keys.includes(v)) ? v : d;
+    // newer games validate their own settings
+    const own = MODULES[game].patchSettings;
+    if (own) {
+      own(this.settings[game], patch);
+      return;
+    }
     switch (game) {
       case 'imposter': {
         const s = this.settings.imposter;

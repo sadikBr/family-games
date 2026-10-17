@@ -17,6 +17,13 @@ import { WordleGame } from './wordle';
 import { BattleshipGame } from './battleship';
 import { KharbgaGame } from './kharbga';
 import { MemoryGame } from './memory';
+import { Phase10Game } from './phase10';
+import { ScrabbleGame } from './scrabble';
+import { CharadesGame } from './charades';
+import { SpyGame } from './spy';
+import { SurveyGame } from './survey';
+import { DotsGame } from './dots';
+import { MancalaGame } from './mancala';
 import { SudokuGame } from './sudoku';
 import { XoGame } from './xo';
 import { HajjGame } from './hajj';
@@ -96,6 +103,20 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <SudokuGame room={room} view={view} />;
     case 'memory':
       return <MemoryGame room={room} view={view} />;
+    case 'phase10':
+      return <Phase10Game room={room} view={view} />;
+    case 'scrabble':
+      return <ScrabbleGame room={room} view={view} />;
+    case 'charades':
+      return <CharadesGame room={room} view={view} />;
+    case 'spy':
+      return <SpyGame room={room} view={view} />;
+    case 'survey':
+      return <SurveyGame room={room} view={view} />;
+    case 'dots':
+      return <DotsGame room={room} view={view} />;
+    case 'mancala':
+      return <MancalaGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

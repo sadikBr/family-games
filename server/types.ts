@@ -33,6 +33,8 @@ export interface GameModule<S, Settings> {
    * ctx.bot(), or change state directly (return true if you did).
    */
   botPlan?(ctx: GameCtx, s: S, bots: string[]): boolean | void;
+  /** Lobby settings change for this game: validate and apply the keys it knows (in place). */
+  patchSettings?(settings: Settings, patch: Record<string, unknown>): void;
 }
 
 /** Thrown from game logic to send an Arabic error to the acting player. */

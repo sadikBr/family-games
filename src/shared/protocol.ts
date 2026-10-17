@@ -5,6 +5,20 @@
 import type { Card } from './cards';
 import type { ZadKind } from './islamic';
 import type { UnoColor, UnoFace, UnoSide } from './uno';
+import { PHASE10_DEFAULTS, type Phase10Settings, type Phase10View } from './games/phase10';
+import { SCRABBLE_DEFAULTS, type ScrabbleSettings, type ScrabbleView } from './games/scrabble';
+import { CHARADES_DEFAULTS, type CharadesSettings, type CharadesView } from './games/charades';
+import { SPY_DEFAULTS, type SpySettings, type SpyView } from './games/spy';
+import { SURVEY_DEFAULTS, type SurveySettings, type SurveyView } from './games/survey';
+import { DOTS_DEFAULTS, type DotsSettings, type DotsView } from './games/dots';
+import { MANCALA_DEFAULTS, type MancalaSettings, type MancalaView } from './games/mancala';
+export type { Phase10Settings, Phase10View } from './games/phase10';
+export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
+export type { CharadesSettings, CharadesView } from './games/charades';
+export type { SpySettings, SpyView } from './games/spy';
+export type { SurveySettings, SurveyView } from './games/survey';
+export type { DotsSettings, DotsView } from './games/dots';
+export type { MancalaSettings, MancalaView } from './games/mancala';
 
 export type { Card } from './cards';
 
@@ -41,7 +55,14 @@ export type GameId =
   | 'xo'
   | 'sudoku'
   | 'trivia'
-  | 'memory';
+  | 'memory'
+  | 'phase10'
+  | 'scrabble'
+  | 'charades'
+  | 'spy'
+  | 'survey'
+  | 'dots'
+  | 'mancala';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -77,10 +98,17 @@ export const GAME_IDS: GameId[] = [
   'sudoku',
   'trivia',
   'memory',
+  'phase10',
+  'scrabble',
+  'charades',
+  'spy',
+  'survey',
+  'dots',
+  'mancala',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -117,10 +145,17 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   sudoku: 1,
   trivia: 2,
   memory: 2,
+  phase10: 2,
+  scrabble: 2,
+  charades: 4,
+  spy: 3,
+  survey: 2,
+  dots: 2,
+  mancala: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -350,6 +385,13 @@ export interface AllSettings {
   sudoku: SudokuSettings;
   trivia: TriviaSettings;
   memory: MemorySettings;
+  phase10: Phase10Settings;
+  scrabble: ScrabbleSettings;
+  charades: CharadesSettings;
+  spy: SpySettings;
+  survey: SurveySettings;
+  dots: DotsSettings;
+  mancala: MancalaSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -386,6 +428,13 @@ export const DEFAULT_SETTINGS: AllSettings = {
   sudoku: { level: 'easy' },
   trivia: { rounds: 10, seconds: 15, category: 'all' },
   memory: { pairs: 10 },
+  phase10: PHASE10_DEFAULTS,
+  scrabble: SCRABBLE_DEFAULTS,
+  charades: CHARADES_DEFAULTS,
+  spy: SPY_DEFAULTS,
+  survey: SURVEY_DEFAULTS,
+  dots: DOTS_DEFAULTS,
+  mancala: MANCALA_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1217,7 +1266,14 @@ export type GameView =
   | BattleshipView
   | XoView
   | SudokuView
-  | MemoryView;
+  | MemoryView
+  | Phase10View
+  | ScrabbleView
+  | CharadesView
+  | SpyView
+  | SurveyView
+  | DotsView
+  | MancalaView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

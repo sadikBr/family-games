@@ -8,6 +8,14 @@ import { Avatar, Row } from '@/ui/bits';
 import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
+import { Phase10Settings } from './phase10';
+import { ScrabbleSettings } from './scrabble';
+import { CharadesSettings } from './charades';
+import { SpySettings } from './spy';
+import { SurveySettings } from './survey';
+import { DotsSettings } from './dots';
+import { MancalaSettings } from './mancala';
+
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
   const settings = room.settings[game];
   const change = (patch: Partial<RoomView['settings'][G]>) =>
@@ -19,6 +27,20 @@ const secs = (v: number) => `${v} ث`;
 
 export function GameSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   switch (room.game) {
+    case 'phase10':
+      return <Phase10Settings room={room} editable={editable} />;
+    case 'scrabble':
+      return <ScrabbleSettings room={room} editable={editable} />;
+    case 'charades':
+      return <CharadesSettings room={room} editable={editable} />;
+    case 'spy':
+      return <SpySettings room={room} editable={editable} />;
+    case 'survey':
+      return <SurveySettings room={room} editable={editable} />;
+    case 'dots':
+      return <DotsSettings room={room} editable={editable} />;
+    case 'mancala':
+      return <MancalaSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (
