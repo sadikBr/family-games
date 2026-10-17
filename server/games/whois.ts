@@ -5,13 +5,19 @@
  */
 import type { McqResult, WhoisSettings, WhoisView } from '../../src/shared/protocol';
 import { WHO, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
+import { qdeck } from '../qdeck';
 import { type GameModule } from '../types';
 import { isNum, randInt, shuffle } from '../util';
+import { soleWinner } from './mcq';
 
 const CLUE_MS = 7000;
 const LAST_MS = 9000; // time after the last clue
 const REVEAL_MS = 5500;
 const OPTIONS = 6;
+/** Chance that a bot dares to guess at clue 1, 2, 3, 4 (it always guesses at the last one)… */
+export const BOT_GO = [0.15, 0.3, 0.55, 1];
+/** …and how often that guess is right. */
+export const BOT_RIGHT = [0.45, 0.6, 0.75, 0.85];
 
 interface State {
   settings: WhoisSettings;
@@ -26,7 +32,7 @@ interface State {
   guesses: Record<string, { choice: number; clue: number }>;
   results: McqResult[] | null;
   scores: Record<string, number>;
-  botAt: Record<string, { clue: number; right: boolean }>;
+  botAt: Record<string, { clue: number; go: boolean; right: boolean }>;
 }
 
 const answerIdx = (s: State) => s.options.indexOf(s.entries[s.round - 1].name);
@@ -67,7 +73,7 @@ export const whois: GameModule<State, WhoisSettings> = {
     const s: State = {
       settings,
       participants,
-      entries: shuffle(WHO).slice(0, settings.rounds),
+      entries: qdeck(ctx, 'whois', WHO).deal(settings.rounds),
       options: [],
       round: 0,
       phase: 'ask',
@@ -106,7 +112,7 @@ export const whois: GameModule<State, WhoisSettings> = {
       if (s.round >= s.entries.length) {
         s.phase = 'final';
         s.endsAt = null;
-        ctx.fx('win');
+        ctx.fx('win', soleWinner(s.scores));
       } else newRound(ctx.now, s);
     }
     return true;
@@ -114,12 +120,16 @@ export const whois: GameModule<State, WhoisSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase !== 'ask') return;
-    // each bot decides once per round after which clue it guesses, and whether it knows the answer
+    // at each new clue a bot decides whether to guess now; early guesses are rare and less often right
+    const last = s.entries[s.round - 1].clues.length;
     for (const b of bots) {
       if (!s.participants.includes(b) || s.guesses[b]) continue;
-      s.botAt[b] ??= { clue: randInt(1, 4), right: Math.random() < 0.7 };
+      if (s.botAt[b]?.clue !== s.shown) {
+        const k = Math.min(s.shown, BOT_GO.length) - 1;
+        s.botAt[b] = { clue: s.shown, go: s.shown >= last || Math.random() < BOT_GO[k], right: Math.random() < BOT_RIGHT[k] };
+      }
       const plan = s.botAt[b];
-      if (s.shown < plan.clue) continue;
+      if (!plan.go) continue;
       const ans = answerIdx(s);
       const wrong = [...s.options.keys()].filter((k) => k !== ans);
       ctx.bot(b, `g:${s.round}`, randInt(1500, 4500), { type: 'guess', choice: plan.right ? ans : wrong[randInt(0, wrong.length - 1)] });

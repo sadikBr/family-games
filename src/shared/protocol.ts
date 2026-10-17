@@ -935,6 +935,7 @@ export interface HajjView {
   played: { by: string; kind: ZadKind; target: string | null; id: number } | null;
   mods: { bonus: number; pass: boolean; again: boolean; played: boolean };
   winner: string | null;
+  order: string[] | null; // finishing order (furthest first, ties: who got there first), at the end
   feed: FeedItem[];
 }
 
@@ -947,6 +948,7 @@ export interface LaddersView {
   rollId: number;
   card: BoardCard | null;
   winner: string | null;
+  order: string[] | null; // finishing order (furthest first, ties: who got there first), at the end
   feed: FeedItem[];
 }
 

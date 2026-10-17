@@ -10,7 +10,7 @@ import { shuffle } from '../util';
 
 interface State {
   settings: LaddersSettings;
-  players: { id: string; pos: number }[];
+  players: { id: string; pos: number; since: number }[]; // since: the roll that brought them to `pos`
   turnIdx: number;
   phase: LaddersView['phase'];
   dice: number | null;
@@ -23,6 +23,11 @@ interface State {
 
 const cur = (s: State) => s.players[s.turnIdx];
 
+/** Finishing order: furthest along first; on the same square, whoever got there first. */
+export function laddersOrder(s: State): string[] {
+  return [...s.players].sort((a, b) => b.pos - a.pos || a.since - b.since).map((p) => p.id);
+}
+
 export const ladders: GameModule<State, LaddersSettings> = {
   id: 'ladders',
 
@@ -30,7 +35,7 @@ export const ladders: GameModule<State, LaddersSettings> = {
     ctx.fx('start');
     return {
       settings,
-      players: shuffle(participants).map((id) => ({ id, pos: 0 })),
+      players: shuffle(participants).map((id) => ({ id, pos: 0, since: 0 })),
       turnIdx: 0,
       phase: 'roll',
       dice: null,
@@ -57,6 +62,7 @@ export const ladders: GameModule<State, LaddersSettings> = {
         to = p.pos;
       } else to = 100;
     }
+    const from = p.pos;
     p.pos = to;
     const jump = JUMPS[to];
     if (jump) {
@@ -65,6 +71,7 @@ export const ladders: GameModule<State, LaddersSettings> = {
       s.feed.push(`${ctx.playerName(by)}: ${jump.deed.title} ${jump.kind === 'ladder' ? '↑' : '↓'} ${jump.to}`, { by });
       ctx.fx(jump.kind === 'ladder' ? 'correct' : 'buzz', by);
     }
+    if (p.pos !== from) p.since = s.rollId;
     if (p.pos === 100) {
       s.winner = by;
       s.phase = 'final';
@@ -84,12 +91,13 @@ export const ladders: GameModule<State, LaddersSettings> = {
     return {
       game: 'ladders',
       phase: s.phase,
-      players: s.players,
+      players: s.players.map((p) => ({ id: p.id, pos: p.pos })),
       turn: cur(s)?.id ?? '',
       dice: s.dice,
       rollId: s.rollId,
       card: s.card,
       winner: s.winner,
+      order: s.phase === 'final' ? laddersOrder(s) : null,
       feed: s.feed.list(),
     };
   },
@@ -103,6 +111,7 @@ export const ladders: GameModule<State, LaddersSettings> = {
     if (s.players.length === 1) {
       s.winner = s.players[0].id;
       s.phase = 'final';
+      ctx.fx('win', s.winner);
     }
   },
 };

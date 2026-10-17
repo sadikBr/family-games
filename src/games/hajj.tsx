@@ -19,9 +19,9 @@ import { Txt } from '@/ui/txt';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { EventCard, RaceStrip, RaceToken, stackOffsets } from './dice-race';
+import { EventCard, FinishOrder, RaceStrip, RaceToken, stackOffsets } from './dice-race';
 import { helpers } from './helpers';
-import { AnsweredRow, OptionGrid } from './islamic-ui';
+import { AnsweredRow, OptionGrid, useMyResultFx } from './islamic-ui';
 
 const ASPECT = 70 / 90; // board image height / width
 const ZAD_LOOK: Record<ZadKind, { color: string; icon: IconName }> = {
@@ -74,25 +74,12 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
   const [landed, setLanded] = useState(view.rollId);
   const [sadaqa, setSadaqa] = useState<{ turn: string; card: number } | null>(null);
   const me = view.players.find((p) => p.id === h.me);
+  const myQuiz = view.quiz?.results?.find((r) => r.id === h.me);
+  useMyResultFx(view.quiz && myQuiz ? `${view.quiz.station}:${view.quiz.text}` : null, myQuiz?.correct ?? null);
   if (!me && view.phase !== 'final') return <Spectator room={room} />;
 
-  if (view.phase === 'final') {
-    const won = view.winner === h.me;
-    return (
-      <>
-        {won ? <Confetti /> : null}
-        <ResultBanner
-          tone={won ? 'good' : 'neutral'}
-          art={<GameArt id="hajj" size={84} />}
-          title={view.winner ? `${h.player(view.winner).name} أتمّ الرحلة أولاً` : 'انتهت الرحلة'}
-          sub="حجّاً مبروراً وسعياً مشكوراً"
-        />
-        {view.card ? <EventCard card={view.card} h={h} /> : null}
-        <PlayAgain room={room} />
-      </>
-    );
-  }
-
+  const final = view.phase === 'final';
+  const won = final && view.winner === h.me;
   const myTurn = view.turn === h.me;
   const rolling = view.rollId !== landed;
   const at = (sq: number) => {
@@ -109,7 +96,20 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
 
   return (
     <>
-      <RaceStrip players={view.players} turn={view.turn} h={h} label={stationName} />
+      {final && !rolling ? (
+        <>
+          {won ? <Confetti /> : null}
+          <ResultBanner
+            tone={won ? 'good' : 'neutral'}
+            art={<GameArt id="hajj" size={84} />}
+            title={view.winner ? `${h.player(view.winner).name} أتمّ الرحلة أولاً` : 'انتهت الرحلة'}
+            sub="حجّاً مبروراً وسعياً مشكوراً"
+          />
+          {view.order ? <FinishOrder order={view.order} players={view.players} h={h} label={stationName} /> : null}
+        </>
+      ) : (
+        <RaceStrip players={view.players} turn={view.turn} h={h} label={stationName} />
+      )}
       <View style={{ width: W, height: H, alignSelf: 'center', direction: 'ltr', borderRadius: 14, overflow: 'hidden' }}>
         <Image source={BOARD_IMG['hajj-board']} style={StyleSheet.absoluteFill} contentFit="fill" />
         {view.players.map((p) => (
@@ -130,7 +130,12 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
         </View>
       </View>
 
-      {quiz && !rolling ? (
+      {final ? (
+        <>
+          {view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
+          <PlayAgain room={room} />
+        </>
+      ) : quiz && !rolling ? (
         <Animated.View key={quiz.text} entering={FadeIn.duration(220)} style={[styles.panel, styles.quiz]}>
           <Txt v="tiny" color={C.yellow}>
             سؤال محطة {quiz.station} — للجميع: الإجابة الصحيحة تعطيك بطاقة زاد، والأسرع يتقدّم خطوة
@@ -207,7 +212,7 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
         </View>
       )}
 
-      {me && view.myHand.length ? (
+      {!final && me && view.myHand.length ? (
         <View style={{ gap: 6 }}>
           <Txt v="tiny" color={C.muted}>
             زادك {canPlay ? '— اضغط بطاقة لتستعملها قبل الرمي (بطاقة واحدة في الدور)' : ''}
@@ -233,8 +238,8 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
         </View>
       ) : null}
 
-      {view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
-      <LastEvent feed={view.feed} h={h} />
+      {!final && view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
+      {final ? null : <LastEvent feed={view.feed} h={h} />}
     </>
   );
 }

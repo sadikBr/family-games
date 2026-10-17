@@ -14,8 +14,10 @@ export interface McqItem {
   ref?: string;
 }
 
-const REVEAL_MS = 5000;
+const REVEAL_MS = 7000;
 const BOT_SKILL = 0.7;
+/** Share of bot answers that come in the second half of the timer, so people get the speed points. */
+const BOT_LATE = 0.7;
 
 export interface McqState<S> {
   settings: S;
@@ -44,7 +46,20 @@ function reveal(ctx: GameCtx, s: McqState<unknown>) {
   });
   s.phase = 'reveal';
   s.endsAt = ctx.now + REVEAL_MS;
-  ctx.fx(s.results.some((r) => r.correct) ? 'correct' : 'buzz');
+  // no shared sound here: each phone plays «correct» or «wrong» for its own player (see quiz.tsx)
+}
+
+/** The only top scorer, or undefined on a tie (for the win / lose sound). */
+export function soleWinner(scores: Record<string, number>): string | undefined {
+  const best = Math.max(...Object.values(scores));
+  const top = Object.keys(scores).filter((id) => scores[id] === best);
+  return top.length === 1 ? top[0] : undefined;
+}
+
+/** When a bot answers: mostly in the second half of the timer, sometimes earlier. */
+export function botAnswerDelay(seconds: number): number {
+  const total = seconds * 1000;
+  return Math.random() < BOT_LATE ? randInt(total * 0.5, total * 0.92) : randInt(Math.min(2500, total * 0.25), total * 0.5);
 }
 
 function ask(ctx: GameCtx, s: McqState<unknown>) {
@@ -59,12 +74,16 @@ function ask(ctx: GameCtx, s: McqState<unknown>) {
 
 export function makeMcq<S extends { rounds: number; seconds: number }>(
   id: Extract<GameId, 'quiz' | 'surah' | 'trivia'>,
-  build: (settings: S) => McqItem[],
+  /** At most `rounds` items, drawn from the room's deck (see qdeck) so questions don't repeat between games. */
+  build: (ctx: GameCtx, settings: S, rounds: number) => McqItem[],
+  /** How often bots pick the right answer (default 70%). */
+  botSkill: (settings: S) => number = () => BOT_SKILL,
 ): GameModule<McqState<S>, S> {
   return {
     id,
     start(ctx, participants, settings) {
-      const items = build(settings).slice(0, settings.rounds);
+      // rounds are clamped to the size of the chosen pool
+      const items = build(ctx, settings, settings.rounds).slice(0, settings.rounds);
       const s: McqState<S> = {
         settings,
         participants,
@@ -99,7 +118,7 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
         if (s.round >= s.items.length) {
           s.phase = 'final';
           s.endsAt = null;
-          ctx.fx('win');
+          ctx.fx('win', soleWinner(s.scores));
         } else ask(ctx, s);
       }
       return true;
@@ -110,11 +129,10 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
       const item = s.items[s.round - 1];
       for (const b of bots) {
         if (!s.participants.includes(b) || s.answers[b]) continue;
-        const right = Math.random() < BOT_SKILL;
+        const right = Math.random() < botSkill(s.settings);
         const wrong = [...item.options.keys()].filter((k) => k !== item.correct);
         const choice = right ? item.correct : wrong[randInt(0, wrong.length - 1)];
-        const max = Math.max(2500, s.seconds * 1000 * 0.7);
-        ctx.bot(b, `ans:${s.round}`, randInt(1800, max), { type: 'answer', choice });
+        ctx.bot(b, `ans:${s.round}`, botAnswerDelay(s.seconds), { type: 'answer', choice });
       }
     },
 

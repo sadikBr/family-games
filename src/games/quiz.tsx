@@ -9,11 +9,13 @@ import { Txt } from '@/ui/txt';
 
 import { Spectator } from './common';
 import { helpers } from './helpers';
-import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader } from './islamic-ui';
+import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader, useMyResultFx } from './islamic-ui';
 
 export function McqGame({ room, view }: { room: RoomView; view: McqView }) {
   const h = helpers(room);
   const playing = h.me in view.scores;
+  const mine = view.results?.find((r) => r.id === h.me);
+  useMyResultFx(view.phase === 'reveal' && mine ? `${view.round}` : null, mine?.correct ?? null);
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game={view.game} h={h} />;
   if (!playing) return <Spectator room={room} />;
   const verse = view.game === 'surah';
@@ -22,7 +24,7 @@ export function McqGame({ room, view }: { room: RoomView; view: McqView }) {
   return (
     <>
       <RoundHeader label={view.label} round={view.round} rounds={view.rounds} />
-      {view.phase === 'ask' ? <TimerBar endsAt={view.endsAt} total={total} onTick /> : null}
+      {view.phase === 'ask' ? <TimerBar endsAt={view.endsAt} total={total} onTick={view.myAnswer === null} /> : null}
 
       <Animated.View key={view.round} entering={FadeIn.duration(220)} style={[styles.card, verse && styles.verseCard]}>
         {verse ? (

@@ -10,13 +10,15 @@ import { Txt, num } from '@/ui/txt';
 
 import { Spectator } from './common';
 import { helpers } from './helpers';
-import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader } from './islamic-ui';
+import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader, useMyResultFx } from './islamic-ui';
 
 const POINTS = [400, 300, 200, 100];
 
 export function WhoisGame({ room, view }: { room: RoomView; view: WhoisView }) {
   const h = helpers(room);
   const next = useCountdown(view.nextClueAt ?? view.endsAt, 250);
+  const mine = view.results?.find((r) => r.id === h.me);
+  useMyResultFx(view.phase === 'reveal' && mine ? `${view.round}` : null, mine?.correct ?? null);
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="whois" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
   const asking = view.phase === 'ask';

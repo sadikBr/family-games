@@ -7,7 +7,7 @@ import { Icon, type IconName } from '@/art/icons';
 import type { BoardCard, PlayerPublic } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar } from '@/ui/bits';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from './helpers';
 
@@ -124,6 +124,36 @@ export function RaceStrip({ players, turn, h, label }: { players: { id: string; 
   );
 }
 
+const MEDAL = [C.yellow, '#C9CED8', '#D08A55'];
+
+/** End of a race: everyone in finishing order (furthest first; same square → who got there first). */
+export function FinishOrder({ order, players, h, label }: { order: string[]; players: { id: string; pos: number }[]; h: Helpers; label: (pos: number) => string }) {
+  const rows = order.flatMap((id) => players.filter((p) => p.id === id));
+  return (
+    <Animated.View entering={FadeIn.duration(260)} style={{ gap: 6 }}>
+      {rows.map((p, i) => {
+        const pl = h.player(p.id);
+        return (
+          <View key={p.id} style={[styles.place, p.id === h.me && { backgroundColor: alpha(C.yellow, 0.1) }]}>
+            <View style={[styles.rank, { backgroundColor: MEDAL[i] ?? C.surfaceStrong }]}>
+              <Txt v="tiny" color={i < 3 ? C.ink : C.text}>
+                {num(i + 1)}
+              </Txt>
+            </View>
+            <Avatar player={pl} size={32} ring={pl.color} />
+            <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
+              {pl.name}
+            </Txt>
+            <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 150 }}>
+              {label(p.pos)}
+            </Txt>
+          </View>
+        );
+      })}
+    </Animated.View>
+  );
+}
+
 const CARD_STYLE: Record<BoardCard['kind'], { color: string; icon: IconName }> = {
   station: { color: '#2F9E6E', icon: 'star' },
   event: { color: '#E09A1A', icon: 'sparkle' },
@@ -163,5 +193,7 @@ const styles = StyleSheet.create({
   strip: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
   card: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 2, overflow: 'hidden' },
+  place: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)' },
+  rank: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6 },
 });
