@@ -9,6 +9,7 @@ import type { SurahSettings } from '../../src/shared/protocol';
 import { qdeck } from '../qdeck';
 import { shuffle } from '../util';
 import { makeMcq, mcqOptions } from './mcq';
+import { forFont } from './tajweed';
 
 interface QuranData {
   surahs: { n: number; name: string; type: string; count: number }[];
@@ -49,7 +50,7 @@ export const surah = makeMcq<SurahSettings>(
       const others = shuffle(near.length >= 3 ? near : inLevel.filter((x) => x.n !== n)).slice(0, 3);
       const s = surahs[n - 1];
       return {
-        text,
+        text: forFont(text), // open tanween as the Quran font draws it
         ...mcqOptions(s.name, others.map((o) => o.name)),
         label: LEVEL_LABEL[settings.level],
         ref: `سورة ${s.name} — الآية ${ayah}`,

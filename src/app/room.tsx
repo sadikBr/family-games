@@ -122,7 +122,7 @@ export default function RoomScreen() {
             title={
               <Row gap={8} style={{ maxWidth: '100%' }}>
                 {/* on narrow phones the title needs the room more than the emblem does */}
-                {playing && width >= 360 ? <GameArt id={room.game} size={34} /> : null}
+                {playing && width >= 410 ? <GameArt id={room.game} size={34} /> : null}
                 <Txt v="h2" numberOfLines={1} style={{ flexShrink: 1 }} size={width < 360 ? 17 : undefined}>
                   {playing ? meta.title : 'غرفة الانتظار'}
                 </Txt>
