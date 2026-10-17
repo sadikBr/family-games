@@ -6,6 +6,7 @@ import { Pressable, View, useWindowDimensions } from 'react-native';
 import { GameArt } from '@/art/game-art';
 import { GameView } from '@/games/game-view';
 import { Lobby } from '@/games/lobby';
+import { VoiceButton, VoiceStrip } from '@/games/voice-ui';
 import { RoomMenu, shareRoom } from '@/games/room-menu';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
@@ -121,14 +122,19 @@ export default function RoomScreen() {
             }
             right={
               <Row gap={6}>
-                <Pressable onPress={() => shareRoom(room)} accessibilityLabel={`رمز الغرفة ${room.code} — شارك`} hitSlop={6}>
-                  <Pill label={room.code} icon="key" />
-                </Pressable>
+                {/* narrow phones: the code moves to the room menu to leave space for the mic */}
+                {width >= 360 ? (
+                  <Pressable onPress={() => shareRoom(room)} accessibilityLabel={`رمز الغرفة ${room.code} — شارك`} hitSlop={6}>
+                    <Pill label={room.code} icon="key" />
+                  </Pressable>
+                ) : null}
+                <VoiceButton />
                 <IconBtn icon="users" size={38} onPress={() => setMenu(true)} label="قائمة الغرفة" />
               </Row>
             }
           />
           <ConnectionBanner />
+          <VoiceStrip room={room} />
         </>
       }>
       {playing && room.view ? <GameView room={room} view={room.view} /> : <Lobby room={room} />}

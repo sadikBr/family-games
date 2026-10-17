@@ -69,6 +69,7 @@ class Phone {
   ws!: WebSocket;
   room: RoomView | null = null;
   errors: string[] = [];
+  other: ServerMsg[] = []; // voice messages
   constructor(public id: string, public name: string) {}
 
   async connect() {
@@ -82,6 +83,7 @@ class Phone {
       if (msg.t === 'state') this.room = msg.room;
       if (msg.t === 'error') this.errors.push(msg.message);
       if (msg.t === 'left') this.room = null;
+      if (msg.t === 'signal' || msg.t === 'voiceConfig') this.other.push(msg);
     };
     this.send({ t: 'hello', player: { id: this.id, name: this.name, avatar: '🦊', color: '#FF0000' } });
   }
@@ -1282,3 +1284,33 @@ test('ronda: a player who leaves is replaced by a bot and the hand goes on', asy
   expect(host.view<RondaView>().phase).not.toBe('final');
   host.ws.close();
 }, 20000);
+
+test('voice: join, mute, signals only between voice members, gone on disconnect', async () => {
+  const { phones } = await makeRoom(3, 'xo');
+  const [A, B, C] = phones;
+  A.send({ t: 'voice', a: 'join' });
+  B.send({ t: 'voice', a: 'join', muted: true });
+  await settle(200);
+  expect(A.other.some((m) => m.t === 'voiceConfig' && m.iceServers.length > 0)).toBe(true);
+  expect(C.room!.voice).toEqual(expect.arrayContaining([{ id: A.id, muted: false }, { id: B.id, muted: true }]));
+  expect(C.room!.voice.length).toBe(2);
+  // A ↔ B pass messages; C (not in voice) can neither send nor receive
+  A.send({ t: 'signal', to: B.id, data: { description: { type: 'offer', sdp: 'v=0' } } });
+  C.send({ t: 'signal', to: A.id, data: { candidate: { candidate: 'x' } } });
+  A.send({ t: 'signal', to: C.id, data: { restart: true } });
+  A.send({ t: 'signal', to: B.id, data: { evil: 1 } as never }); // malformed: dropped
+  await settle();
+  expect(B.other.filter((m) => m.t === 'signal')).toEqual([{ t: 'signal', from: A.id, data: { description: { type: 'offer', sdp: 'v=0' } } }]);
+  expect(A.other.filter((m) => m.t === 'signal').length).toBe(0);
+  expect(C.other.length).toBe(0);
+  B.send({ t: 'voice', a: 'mute', muted: false });
+  await settle();
+  expect(C.room!.voice.find((v) => v.id === B.id)!.muted).toBe(false);
+  // a phone that drops out leaves the voice chat (it rejoins itself when back)
+  B.ws.close();
+  await settle(200);
+  expect(A.room!.voice.map((v) => v.id)).toEqual([A.id]);
+  A.send({ t: 'voice', a: 'leave' });
+  await settle();
+  expect(C.room!.voice).toEqual([]);
+});

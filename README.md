@@ -54,6 +54,17 @@ A party-games app for family night. **Every player uses their own phone.** One p
 - **Two-player games** alternate who starts and keep a running score for the room; you can resign.
 - **Questions don't repeat** between games in the same room (quiz, who is it, which surah, Hajj, Huroof) until the pool runs out.
 
+## Voice chat
+
+Tap the microphone at the top of any room to join the room's voice chat. Others see who is in it and can join with «انضم». Once you're in, the same button mutes and unmutes you; the strip under the header shows everyone in voice (glowing while they talk, a red mark when muted), and the red button hangs up.
+
+- **Phone to phone:** every phone connects directly to every other phone with WebRTC (`react-native-webrtc`; in the browser, the browser's own WebRTC). The game server only keeps the list of who is in voice and passes the connection set-up messages; the sound doesn't go through it. That works well up to about 8 people. Echo cancellation and noise suppression come with WebRTC, and the sound plays on the loudspeaker (or headphones / Bluetooth when connected) while voice is on.
+- **If two phones can't reach each other** (some mobile networks block direct connections), the sound needs a relay. The server can hand out free [Cloudflare TURN](https://developers.cloudflare.com/realtime/turn/) relay credentials (free up to 1,000 GB a month — far more than a family uses):
+  1. In the Cloudflare dashboard (free account), open **Realtime → TURN** and create a TURN key. Copy its **key id** and **API token**.
+  2. In Railway, open the `family-games` service → **Variables** and add `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN` with those values. Railway restarts the server.
+  Without them, voice still works on Wi-Fi and most networks; only some mobile-data connections will fail to connect.
+- Code: `src/lib/voice.ts` (connections, mute, who is talking), `src/lib/rtc.ts` / `rtc.native.ts` (web / phone WebRTC), `src/games/voice-ui.tsx` (button and strip), `server/voice.ts` (ICE servers, message checks); the server's room keeps the voice list.
+
 ## Bots
 
 Not enough people? In the lobby, the host taps **«أضف بوت»** (up to 8). Tap a bot to remove it.

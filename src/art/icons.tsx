@@ -40,6 +40,8 @@ export type IconName =
   | 'thumbDown'
   | 'vote'
   | 'mic'
+  | 'micOff'
+  | 'phoneOff'
   | 'moon'
   | 'sun'
   | 'skull'
@@ -230,6 +232,19 @@ function shapes(name: IconName, c: string) {
         <>
           <Rect x={9} y={3.5} width={6} height={11} rx={3} {...s} />
           <Path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6" {...s} />
+        </>
+      );
+    case 'micOff':
+      return (
+        <>
+          <Path d="M15 10V6.5a3 3 0 00-5.6-1.5M9 9v2.5a3 3 0 004.6 2.5" {...s} />
+          <Path d="M5.5 11a6.5 6.5 0 0010.4 5.2M18.4 12.6c.07-.5.1-1 .1-1.6M12 17.5V21M9 21h6M4 4l16 16" {...s} />
+        </>
+      );
+    case 'phoneOff':
+      return (
+        <>
+          <Path d="M3.5 14.5c4.7-4 12.3-4 17 0l-2 2.5-3-1.2v-2.3a10 10 0 00-7 0v2.3l-3 1.2z" {...s} />
         </>
       );
     case 'moon':

@@ -39,6 +39,8 @@ class GameClient {
   private errorId = 0;
   private code: string | null = null;
   private appStateSub: { remove(): void } | null = null;
+  /** voice chat messages go to the voice manager (src/lib/voice.ts) */
+  private voiceListener: ((msg: Extract<ServerMsg, { t: 'signal' | 'voiceConfig' }>) => void) | null = null;
 
   snap: ClientSnapshot = {
     status: 'idle',
@@ -180,12 +182,30 @@ class GameClient {
         this.update({ error: { id: ++this.errorId, message: msg.message, code: msg.code } });
         return;
       }
+      case 'signal':
+      case 'voiceConfig':
+        this.voiceListener?.(msg);
+        return;
       case 'left':
         this.code = null;
         this.forgetRoom();
         if (msg.kicked) this.update({ error: { id: ++this.errorId, message: 'أخرجك المضيف من الغرفة', code: 'kicked' } });
         return;
     }
+  }
+
+  onVoice(fn: typeof this.voiceListener) {
+    this.voiceListener = fn;
+  }
+
+  /** Voice chat messages: sent only while connected (a stale WebRTC message is worse than none). */
+  voice(msg: Extract<ClientMsg, { t: 'voice' | 'signal' }>) {
+    if (this.isOpen()) this.raw(msg);
+  }
+
+  /** Is the connection to the server up? */
+  get online() {
+    return this.isOpen();
   }
 
   private forgetRoom() {

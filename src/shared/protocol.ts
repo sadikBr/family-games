@@ -1292,7 +1292,24 @@ export interface RoomView {
   categories: { imposter: CategoryInfo[]; headsup: CategoryInfo[] };
   /** true while the game is waiting for me to play (drives the your-turn alert) */
   myTurn: boolean;
+  /** who is in the room's voice chat (connected players only) */
+  voice: VoiceMember[];
 }
+
+export interface VoiceMember {
+  id: string;
+  muted: boolean;
+}
+
+/** An ICE server for WebRTC (STUN, or TURN with credentials). */
+export interface IceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+/** What phones send each other through the server to set up a voice connection. */
+export type VoiceSignal = { description: { type: 'offer' | 'answer'; sdp: string } } | { candidate: Record<string, unknown> } | { restart: true };
 
 /* ------------------------------------------------------------------ */
 /* Messages                                                            */
@@ -1307,7 +1324,9 @@ export type ClientMsg =
   | { t: 'leave' }
   | { t: 'ping' }
   | { t: 'room'; action: RoomAction }
-  | { t: 'act'; action: GameAction };
+  | { t: 'act'; action: GameAction }
+  | { t: 'voice'; a: 'join' | 'leave' | 'mute'; muted?: boolean }
+  | { t: 'signal'; to: string; data: VoiceSignal };
 
 export type RoomAction =
   | { type: 'game'; game: GameId }
@@ -1322,4 +1341,6 @@ export type ServerMsg =
   | { t: 'state'; room: RoomView; now: number }
   | { t: 'error'; message: string; code?: 'no_room' | 'generic' }
   | { t: 'left'; kicked?: boolean }
-  | { t: 'pong'; now: number };
+  | { t: 'pong'; now: number }
+  | { t: 'voiceConfig'; iceServers: IceServer[] }
+  | { t: 'signal'; from: string; data: VoiceSignal };

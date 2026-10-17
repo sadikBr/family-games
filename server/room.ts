@@ -163,6 +163,8 @@ export class Room {
   status: 'lobby' | 'playing' = 'lobby';
   players: PlayerPublic[] = [];
   sockets = new Map<string, Sock>();
+  /** voice chat: who joined, and whether they're muted */
+  private voice = new Map<string, { muted: boolean }>();
   settings: AllSettings = structuredClone(DEFAULT_SETTINGS);
   state: unknown = null;
   memo = new Map<string, unknown>();
@@ -251,9 +253,35 @@ export class Room {
     this.broadcast();
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Voice chat: the server only keeps the list and passes the WebRTC   */
+  /* set-up messages between phones; the sound goes phone to phone.     */
+  /* ---------------------------------------------------------------- */
+
+  voiceAction(id: string, a: 'join' | 'leave' | 'mute', muted?: boolean) {
+    if (!this.sockets.has(id)) return;
+    if (a === 'join') this.voice.set(id, { muted: !!muted });
+    else if (a === 'leave') this.voice.delete(id);
+    else {
+      const v = this.voice.get(id);
+      if (!v) return;
+      v.muted = !!muted;
+    }
+    this.broadcast();
+  }
+
+  /** Pass a WebRTC message to another phone, only between two members of this room's voice chat. */
+  relaySignal(from: string, to: string, data: unknown) {
+    if (!this.voice.has(from) || !this.voice.has(to) || from === to) return;
+    const ws = this.sockets.get(to);
+    if (!ws) return;
+    send(ws, { t: 'signal', from, data: data as never });
+  }
+
   disconnect(id: string, ws: Sock) {
     if (this.sockets.get(id) !== ws) return; // an older socket closed
     this.sockets.delete(id);
+    this.voice.delete(id); // they rejoin voice themselves when they reconnect
     const p = this.players.find((x) => x.id === id);
     if (p) p.connected = false;
     if (p && !p.bot) this.offlineSince.set(id, Date.now());
@@ -306,6 +334,7 @@ export class Room {
     this.sockets.delete(id);
     this.offlineSince.delete(id);
     this.autopilot.delete(id);
+    this.voice.delete(id);
     const p = this.players.find((x) => x.id === id);
     if (p && !p.bot && this.status === 'playing' && this.state && KEEP_SEATS.includes(this.game) && this.isSeated(id)) {
       // the hand can't lose a seat: a bot takes it over for the rest of the game
@@ -656,6 +685,7 @@ export class Room {
       fx: this.fx,
       categories: categoriesInfo,
       myTurn: this.status === 'playing' && !!this.state && !!this.module.turnOf?.(this.state).includes(me),
+      voice: [...this.voice].map(([id, v]) => ({ id, muted: v.muted })),
     };
   }
 

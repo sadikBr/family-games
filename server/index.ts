@@ -11,6 +11,7 @@ import { networkInterfaces } from 'node:os';
 import { DEFAULT_PORT, GAME_IDS, type ClientMsg, type PlayerInfo } from '../src/shared/protocol';
 import { Room, send, type Sock, type SockData } from './room';
 import { GameError } from './types';
+import { cleanSignal, iceServers } from './voice';
 import { isStr } from './util';
 
 const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
@@ -89,6 +90,24 @@ function handle(ws: Sock, msg: ClientMsg) {
     case 'act': {
       if (!room) return send(ws, { t: 'error', code: 'no_room', message: 'لست في غرفة' });
       room.gameAction(player.id, msg.action);
+      return;
+    }
+    case 'voice': {
+      if (!room || !['join', 'leave', 'mute'].includes(msg.a)) return;
+      if (msg.a === 'join') {
+        // the phone needs the ICE servers before it can connect to anyone
+        iceServers().then((servers) => {
+          send(ws, { t: 'voiceConfig', iceServers: servers });
+          room.voiceAction(player.id, 'join', msg.muted === true);
+        });
+        return;
+      }
+      room.voiceAction(player.id, msg.a, msg.muted === true);
+      return;
+    }
+    case 'signal': {
+      const data = cleanSignal(msg.data);
+      if (room && data && isStr(msg.to)) room.relaySignal(player.id, msg.to, data);
       return;
     }
   }
