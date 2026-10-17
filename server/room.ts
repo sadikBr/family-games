@@ -44,6 +44,8 @@ import { dots } from './games/dots';
 import { mancala } from './games/mancala';
 import { blocks } from './games/blocks';
 import { codebreak } from './games/codebreak';
+import { catan } from './games/catan';
+import { carca } from './games/carca';
 import { boggle } from './games/boggle';
 import { qquote } from './games/qquote';
 import { tajweed } from './games/tajweed';
@@ -128,6 +130,8 @@ const MODULES: Record<GameId, AnyModule> = {
   mancala,
   blocks,
   codebreak,
+  catan,
+  carca,
   boggle,
   qquote,
   tajweed,

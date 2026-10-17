@@ -18,6 +18,8 @@ import { DotsSettings } from './dots';
 import { MancalaSettings } from './mancala';
 import { BlocksSettings } from './blocks';
 import { CodebreakSettings } from './codebreak';
+import { CatanSettings } from './catan';
+import { CarcaSettings } from './carca';
 import { BoggleSettings } from './boggle';
 import { QquoteSettings } from './qquote';
 import { TajweedSettings } from './tajweed';
@@ -57,6 +59,10 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <BlocksSettings room={room} editable={editable} />;
     case 'codebreak':
       return <CodebreakSettings room={room} editable={editable} />;
+    case 'catan':
+      return <CatanSettings room={room} editable={editable} />;
+    case 'carca':
+      return <CarcaSettings room={room} editable={editable} />;
     case 'boggle':
       return <BoggleSettings room={room} editable={editable} />;
     case 'qquote':
