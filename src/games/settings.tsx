@@ -20,6 +20,14 @@ import { LifeSettings } from './life';
 import { BlocksSettings } from './blocks';
 import { CodebreakSettings } from './codebreak';
 import { BoggleSettings } from './boggle';
+import { QquoteSettings } from './qquote';
+import { TajweedSettings } from './tajweed';
+import { QwordSettings } from './qword';
+import { AsmaSettings } from './asma';
+import { StepsSettings } from './steps';
+import { MapquizSettings } from './mapquiz';
+import { ProphetsSettings } from './prophets';
+import { MosqueSettings } from './mosque';
 
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
   const settings = room.settings[game];
@@ -54,6 +62,22 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <CodebreakSettings room={room} editable={editable} />;
     case 'boggle':
       return <BoggleSettings room={room} editable={editable} />;
+    case 'qquote':
+      return <QquoteSettings room={room} editable={editable} />;
+    case 'tajweed':
+      return <TajweedSettings room={room} editable={editable} />;
+    case 'qword':
+      return <QwordSettings room={room} editable={editable} />;
+    case 'asma':
+      return <AsmaSettings room={room} editable={editable} />;
+    case 'steps':
+      return <StepsSettings room={room} editable={editable} />;
+    case 'mapquiz':
+      return <MapquizSettings room={room} editable={editable} />;
+    case 'prophets':
+      return <ProphetsSettings room={room} editable={editable} />;
+    case 'mosque':
+      return <MosqueSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (

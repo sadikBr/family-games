@@ -16,6 +16,14 @@ import { LIFE_DEFAULTS, type LifeSettings, type LifeView } from './games/life';
 import { BLOCKS_DEFAULTS, type BlocksSettings, type BlocksView } from './games/blocks';
 import { CODEBREAK_DEFAULTS, type CodebreakSettings, type CodebreakView } from './games/codebreak';
 import { BOGGLE_DEFAULTS, type BoggleSettings, type BoggleView } from './games/boggle';
+import { QQUOTE_DEFAULTS, type QquoteSettings, type QquoteView } from './games/qquote';
+import { TAJWEED_DEFAULTS, type TajweedSettings, type TajweedView } from './games/tajweed';
+import { QWORD_DEFAULTS, type QwordSettings, type QwordView } from './games/qword';
+import { ASMA_DEFAULTS, type AsmaSettings, type AsmaView } from './games/asma';
+import { STEPS_DEFAULTS, type StepsSettings, type StepsView } from './games/steps';
+import { MAPQUIZ_DEFAULTS, type MapquizSettings, type MapquizView } from './games/mapquiz';
+import { PROPHETS_DEFAULTS, type ProphetsSettings, type ProphetsView } from './games/prophets';
+import { MOSQUE_DEFAULTS, type MosqueSettings, type MosqueView } from './games/mosque';
 export type { Phase10Settings, Phase10View } from './games/phase10';
 export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
 export type { CharadesSettings, CharadesView } from './games/charades';
@@ -27,6 +35,14 @@ export type { LifeSettings, LifeView } from './games/life';
 export type { BlocksSettings, BlocksView } from './games/blocks';
 export type { CodebreakSettings, CodebreakView } from './games/codebreak';
 export type { BoggleSettings, BoggleView } from './games/boggle';
+export type { QquoteSettings, QquoteView } from './games/qquote';
+export type { TajweedSettings, TajweedView } from './games/tajweed';
+export type { QwordSettings, QwordView } from './games/qword';
+export type { AsmaSettings, AsmaView } from './games/asma';
+export type { StepsSettings, StepsView } from './games/steps';
+export type { MapquizSettings, MapquizView } from './games/mapquiz';
+export type { ProphetsSettings, ProphetsView } from './games/prophets';
+export type { MosqueSettings, MosqueView } from './games/mosque';
 
 export type { Card } from './cards';
 
@@ -74,7 +90,15 @@ export type GameId =
   | 'life'
   | 'blocks'
   | 'codebreak'
-  | 'boggle';
+  | 'boggle'
+  | 'qquote'
+  | 'tajweed'
+  | 'qword'
+  | 'asma'
+  | 'steps'
+  | 'mapquiz'
+  | 'prophets'
+  | 'mosque';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -121,10 +145,18 @@ export const GAME_IDS: GameId[] = [
   'blocks',
   'codebreak',
   'boggle',
+  'qquote',
+  'tajweed',
+  'qword',
+  'asma',
+  'steps',
+  'mapquiz',
+  'prophets',
+  'mosque',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -172,10 +204,18 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   blocks: 2,
   codebreak: 1,
   boggle: 1,
+  qquote: 1,
+  tajweed: 1,
+  qword: 1,
+  asma: 1,
+  steps: 1,
+  mapquiz: 1,
+  prophets: 1,
+  mosque: 1,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, life: 6, blocks: 4, codebreak: 6, boggle: 12 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, life: 6, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, qword: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -418,6 +458,14 @@ export interface AllSettings {
   blocks: BlocksSettings;
   codebreak: CodebreakSettings;
   boggle: BoggleSettings;
+  qquote: QquoteSettings;
+  tajweed: TajweedSettings;
+  qword: QwordSettings;
+  asma: AsmaSettings;
+  steps: StepsSettings;
+  mapquiz: MapquizSettings;
+  prophets: ProphetsSettings;
+  mosque: MosqueSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -465,6 +513,14 @@ export const DEFAULT_SETTINGS: AllSettings = {
   blocks: BLOCKS_DEFAULTS,
   codebreak: CODEBREAK_DEFAULTS,
   boggle: BOGGLE_DEFAULTS,
+  qquote: QQUOTE_DEFAULTS,
+  tajweed: TAJWEED_DEFAULTS,
+  qword: QWORD_DEFAULTS,
+  asma: ASMA_DEFAULTS,
+  steps: STEPS_DEFAULTS,
+  mapquiz: MAPQUIZ_DEFAULTS,
+  prophets: PROPHETS_DEFAULTS,
+  mosque: MOSQUE_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1312,7 +1368,15 @@ export type GameView =
   | LifeView
   | BlocksView
   | CodebreakView
-  | BoggleView;
+  | BoggleView
+  | QquoteView
+  | TajweedView
+  | QwordView
+  | AsmaView
+  | StepsView
+  | MapquizView
+  | ProphetsView
+  | MosqueView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

@@ -46,6 +46,14 @@ import { life } from './games/life';
 import { blocks } from './games/blocks';
 import { codebreak } from './games/codebreak';
 import { boggle } from './games/boggle';
+import { qquote } from './games/qquote';
+import { tajweed } from './games/tajweed';
+import { qword } from './games/qword';
+import { asma } from './games/asma';
+import { steps } from './games/steps';
+import { mapquiz } from './games/mapquiz';
+import { prophets } from './games/prophets';
+import { mosque } from './games/mosque';
 import { sudoku } from './games/sudoku';
 import { trivia } from './games/trivia';
 import { wave } from './games/wave';
@@ -123,6 +131,14 @@ const MODULES: Record<GameId, AnyModule> = {
   blocks,
   codebreak,
   boggle,
+  qquote,
+  tajweed,
+  qword,
+  asma,
+  steps,
+  mapquiz,
+  prophets,
+  mosque,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */

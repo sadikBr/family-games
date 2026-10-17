@@ -9,6 +9,14 @@ import { LIFE_INFO } from '@/shared/games/life';
 import { BLOCKS_INFO } from '@/shared/games/blocks';
 import { CODEBREAK_INFO } from '@/shared/games/codebreak';
 import { BOGGLE_INFO } from '@/shared/games/boggle';
+import { QQUOTE_INFO } from '@/shared/games/qquote';
+import { TAJWEED_INFO } from '@/shared/games/tajweed';
+import { QWORD_INFO } from '@/shared/games/qword';
+import { ASMA_INFO } from '@/shared/games/asma';
+import { STEPS_INFO } from '@/shared/games/steps';
+import { MAPQUIZ_INFO } from '@/shared/games/mapquiz';
+import { PROPHETS_INFO } from '@/shared/games/prophets';
+import { MOSQUE_INFO } from '@/shared/games/mosque';
 import type { IconName } from '@/art/icons';
 import type { GameId } from '@/shared/protocol';
 import { MIN_PLAYERS } from '@/shared/protocol';
@@ -36,6 +44,14 @@ export const GAMES: Record<GameId, GameMeta> = {
   blocks: { id: 'blocks', minPlayers: MIN_PLAYERS.blocks, ...BLOCKS_INFO },
   codebreak: { id: 'codebreak', minPlayers: MIN_PLAYERS.codebreak, ...CODEBREAK_INFO },
   boggle: { id: 'boggle', minPlayers: MIN_PLAYERS.boggle, ...BOGGLE_INFO },
+  qquote: { id: 'qquote', minPlayers: MIN_PLAYERS.qquote, ...QQUOTE_INFO },
+  tajweed: { id: 'tajweed', minPlayers: MIN_PLAYERS.tajweed, ...TAJWEED_INFO },
+  qword: { id: 'qword', minPlayers: MIN_PLAYERS.qword, ...QWORD_INFO },
+  asma: { id: 'asma', minPlayers: MIN_PLAYERS.asma, ...ASMA_INFO },
+  steps: { id: 'steps', minPlayers: MIN_PLAYERS.steps, ...STEPS_INFO },
+  mapquiz: { id: 'mapquiz', minPlayers: MIN_PLAYERS.mapquiz, ...MAPQUIZ_INFO },
+  prophets: { id: 'prophets', minPlayers: MIN_PLAYERS.prophets, ...PROPHETS_INFO },
+  mosque: { id: 'mosque', minPlayers: MIN_PLAYERS.mosque, ...MOSQUE_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -502,12 +518,12 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'life', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
 
 /** Grouping for the home screen (`short`: the filter chip). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
   { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble', 'boggle'] },
-  { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders'] },
+  { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'qword', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['estate', 'life', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
   { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
   { title: 'الكارطة', short: 'الكارطة', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'konkan', 'kdab', 'unoflip', 'phase10'] },

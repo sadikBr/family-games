@@ -28,6 +28,14 @@ import { LifeGame } from './life';
 import { BlocksGame } from './blocks';
 import { CodebreakGame } from './codebreak';
 import { BoggleGame } from './boggle';
+import { QquoteGame } from './qquote';
+import { TajweedGame } from './tajweed';
+import { QwordGame } from './qword';
+import { AsmaGame } from './asma';
+import { StepsGame } from './steps';
+import { MapquizGame } from './mapquiz';
+import { ProphetsGame } from './prophets';
+import { MosqueGame } from './mosque';
 import { SudokuGame } from './sudoku';
 import { XoGame } from './xo';
 import { HajjGame } from './hajj';
@@ -129,6 +137,22 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <CodebreakGame room={room} view={view} />;
     case 'boggle':
       return <BoggleGame room={room} view={view} />;
+    case 'qquote':
+      return <QquoteGame room={room} view={view} />;
+    case 'tajweed':
+      return <TajweedGame room={room} view={view} />;
+    case 'qword':
+      return <QwordGame room={room} view={view} />;
+    case 'asma':
+      return <AsmaGame room={room} view={view} />;
+    case 'steps':
+      return <StepsGame room={room} view={view} />;
+    case 'mapquiz':
+      return <MapquizGame room={room} view={view} />;
+    case 'prophets':
+      return <ProphetsGame room={room} view={view} />;
+    case 'mosque':
+      return <MosqueGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }
