@@ -4,7 +4,7 @@
  * where the word appears (Amiri Quran font) with its reference.
  */
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
@@ -38,6 +38,7 @@ function Tile({ ch, mark, size, active }: { ch: string; mark?: WordleMark; size:
 export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
   const h = helpers(room);
   const contentWidth = useContentWidth();
+  const { height } = useWindowDimensions();
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
   const { error } = useClient();
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="qword" h={h} />;
@@ -50,7 +51,8 @@ export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
   const out = solved || view.myRows.length >= view.maxTries;
   const playing = view.phase === 'play' && !out;
   // the grid shrinks a little once the round is over, to leave room for the verse
-  const tile = Math.min(view.phase === 'reveal' ? 40 : 54, (contentWidth - 30) / view.length);
+  // and on short screens, so the keyboard stays in view under the six rows
+  const tile = Math.max(34, Math.min(view.phase === 'reveal' ? 40 : 54, (contentWidth - 30) / view.length, (height - 390) / 6.5));
   // the keyboard has 6px padding and 4px gaps: 11 keys on the top rows, 8 keys + enter + delete on the last
   const keysW = contentWidth - 12;
   const keyW = Math.floor(Math.min(36, (keysW - 10 * 4) / 11));
