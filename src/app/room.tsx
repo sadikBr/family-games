@@ -114,6 +114,7 @@ export default function RoomScreen() {
   return (
     <Screen
       bg={night ? C.night : C.bg}
+      scrollKey={`${room.status}|${room.game}`}
       header={
         <>
           <Header

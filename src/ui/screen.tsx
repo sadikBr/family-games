@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +16,8 @@ export interface ScreenProps {
   scroll?: boolean;
   contentStyle?: ViewStyle;
   pattern?: boolean;
+  /** when this changes, the page scrolls back to the top (e.g. a game starting in the room) */
+  scrollKey?: string;
 }
 
 /** Usable width inside <Screen> (16px gutters, 560px max), for grids that must fit any phone. */
@@ -24,9 +26,12 @@ export function useContentWidth() {
   return Math.min(width - 32, 560);
 }
 
-export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true }: ScreenProps) {
+export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true, scrollKey }: ScreenProps) {
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (scrollKey !== undefined) scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [scrollKey]);
   const contentRef = useRef<View>(null);
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
