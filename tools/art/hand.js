@@ -194,4 +194,12 @@ window.mascot = function mascot(svgString, opts = {}) {
   </filter>`);
   if (opts.sticker !== false) content.setAttribute('filter', 'url(#stk)');
   svg.appendChild(content);
+  // breathing room so bolts, the sticker border and its shadow aren't cut off at the edges
+  if (opts.pad || opts.padX || opts.padY) {
+    const px2 = (opts.padX ?? opts.pad ?? 0) * u, py2 = (opts.padY ?? opts.pad ?? 0) * u;
+    const dy = (opts.padShift ?? 0) * u; // a little lower: the drop shadow falls downwards
+    const [x, y, w, h] = [vb.x - px2, vb.y - py2 + dy, vb.width + 2 * px2, vb.height + 2 * py2]; // vb is live: read it first
+    svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+    svg.setAttribute('height', Math.round((px * h) / w));
+  }
 };

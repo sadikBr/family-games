@@ -10,17 +10,34 @@ import type { GameId, WolfRole } from '@/shared/protocol';
 
 import { GAME_IMG, HERO_IMG, ROLE_IMG } from './assets';
 
+/**
+ * The emblem files keep a transparent margin so the artwork is never cut off. The image is drawn a
+ * little bigger than its box (the margin spills over, the artwork stays inside) so emblems keep
+ * their size on screen.
+ */
+const BLEED = 0.05;
+const bleed = (size: number) => ({ width: size * (1 + 2 * BLEED), height: size * (1 + 2 * BLEED), margin: -size * BLEED });
+
 export function GameArt({ id, size }: { id: GameId; size: number }) {
-  return <Image source={GAME_IMG[id]} style={{ width: size, height: size }} contentFit="contain" transition={0} />;
+  return <Image source={GAME_IMG[id]} style={bleed(size)} contentFit="contain" transition={0} />;
 }
 
 export function RoleArt({ role, size }: { role: WolfRole; size: number }) {
-  return <Image source={ROLE_IMG[role]} style={{ width: size, height: size }} contentFit="contain" transition={0} />;
+  return <Image source={ROLE_IMG[role]} style={bleed(size)} contentFit="contain" transition={0} />;
 }
 
 /** The app emblem (teapot, cards and the title ribbon). */
 export function HeroArt({ width }: { width: number }) {
-  return <Image source={HERO_IMG} style={{ width, height: (width * 186) / 224 }} contentFit="contain" transition={0} accessibilityLabel="ألعاب العائلة" />;
+  const w = width * (1 + 2 * 0.06);
+  return (
+    <Image
+      source={HERO_IMG}
+      style={{ width: w, height: (w * 524) / 720, marginHorizontal: -width * 0.06 }}
+      contentFit="contain"
+      transition={0}
+      accessibilityLabel="ألعاب العائلة"
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ */

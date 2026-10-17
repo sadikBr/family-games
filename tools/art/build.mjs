@@ -10,7 +10,8 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const tmp = path.join(here, '.out');
 const ART = path.join(here, '../../assets/art');
 const avatar = { style: 'mascot', px: 512, line: 2.0, ringColor: '#151726', border: 0.9, ring: 0.6, outer: 0.01, shadow: 0 };
-const badge = { style: 'mascot', px: 512, line: 2.2, border: 1.4, ring: 3, outer: 1.6 };
+// pad: room around the 100×100 drawing so the burst behind the shield and the sticker border aren't cut off
+const badge = { style: 'mascot', px: 512, line: 2.2, border: 1.4, ring: 3, outer: 1.6, pad: 11, padShift: 2.5 };
 const flat = { style: 'mascot', line: 2.2, sticker: false };
 
 const AVATARS = ['boy', 'girl', 'grandma', 'grandpa', 'lion', 'cat', 'fox', 'bear', 'panda', 'rabbit', 'owl', 'frog', 'penguin', 'monkey', 'tiger', 'koala', 'robot'];
@@ -34,14 +35,20 @@ const groups = {
     { name: 'ladders-board', module: 'islamic.mjs', fn: 'laddersBoard', px: 1080, style: 'mascot', line: 0.6, sticker: false },
     ...['w', 'b'].flatMap((c) => [...'kqrbnp'].map((t) => ({ name: `chess-${c}${t}`, module: 'chess.mjs', fn: 'piece', args: [c, t], style: 'mascot', px: 192, line: 2.6, border: 1.0, ring: 1.8, outer: 1.0, shadow: 0.3 }))),
     { name: 'hajj-board', module: 'islamic.mjs', fn: 'hajjBoard', px: 1260, style: 'mascot', line: 0.6, sticker: false },
-    ...['red', 'green', 'yellow', 'blue'].map((c) => ({ name: `pawn-${c}`, module: 'boards.mjs', fn: 'pawn', args: [c], px: 192, style: 'mascot', line: 2.6, border: 1.2, ring: 2.4, outer: 1.4, shadow: 0.4 })),
+    ...['red', 'green', 'yellow', 'blue'].map((c) => ({ name: `pawn-${c}`, module: 'boards.mjs', fn: 'pawn', args: [c], px: 192, style: 'mascot', line: 2.6, border: 1.2, ring: 2.4, outer: 1.4, shadow: 0.4, pad: 4.5, padShift: 4.5 })),
     ...[1, 2, 3, 4, 5, 6].map((n) => ({ name: `dice-${n}`, module: 'boards.mjs', fn: 'dice', args: [n], px: 200, style: 'mascot', line: 2.4, border: 1, ring: 2, outer: 1.2 })),
     ...['white', 'black'].flatMap((c) => [false, true].map((k) => ({ name: `dama-${c}${k ? '-king' : ''}`, module: 'boards.mjs', fn: 'damaPiece', args: [c, k], px: 160, style: 'mascot', line: 2.4, sticker: false }))),
   ]],
-  '.': [720, [{ name: 'hero', module: 'hero.mjs', fn: 'hero', style: 'mascot', px: 720, line: 2.2, border: 1.2, ring: 2.6, outer: 1.4 }]],
+  '.': [720, [{ name: 'hero', module: 'hero.mjs', fn: 'hero', style: 'mascot', px: 720, line: 2.2, border: 1.2, ring: 2.6, outer: 1.4, padX: 7 }]],
 };
 
-for (const [dir, [size, jobs]] of Object.entries(groups)) {
+// `node build.mjs games roles` rebuilds only those groups; ONLY=pawn-red,pawn-blue limits the jobs
+const pickGroups = process.argv.slice(2);
+const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+for (const [dir, [size, allJobs]] of Object.entries(groups)) {
+  if (pickGroups.length && !pickGroups.includes(dir)) continue;
+  const jobs = only ? allJobs.filter((j) => only.includes(j.name)) : allJobs;
+  if (!jobs.length) continue;
   const out = path.join(tmp, dir);
   fs.rmSync(out, { recursive: true, force: true });
   const jf = path.join(tmp, `${dir === '.' ? 'hero' : dir}.json`);
@@ -49,6 +56,11 @@ for (const [dir, [size, jobs]] of Object.entries(groups)) {
   fs.writeFileSync(jf, JSON.stringify(jobs));
   execFileSync('node', [path.join(here, 'render.mjs'), jf, out], { stdio: 'inherit' });
   execFileSync('python3', [path.join(here, 'towebp.py'), out, path.join(ART, dir), String(size)], { stdio: 'inherit' });
+}
+if (pickGroups.length) {
+  execFileSync('python3', [path.join(here, 'gen_assets.py')], { stdio: 'inherit' });
+  console.log('done → assets/art (' + pickGroups.join(', ') + ')');
+  process.exit(0);
 }
 // app icon + splash (assets/images)
 {
