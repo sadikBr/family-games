@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AvatarArt } from '@/art/avatars';
@@ -18,7 +18,8 @@ import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
 export default function ProfileScreen() {
-  const { first } = useLocalSearchParams<{ first?: string }>();
+  // first launch; `next`: where to go once the name is chosen (e.g. a group invite link)
+  const { first, next } = useLocalSearchParams<{ first?: string; next?: string }>();
   const isFirst = first === '1';
   const { profile } = useProfile();
   const [name, setName] = useState(profile.name);
@@ -38,7 +39,7 @@ export default function ProfileScreen() {
     } else {
       client.refreshProfile();
     }
-    if (isFirst) router.replace('/');
+    if (isFirst) router.replace(typeof next === 'string' && next.startsWith('/') ? (next as Href) : '/');
     else goBack();
   };
 

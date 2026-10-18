@@ -8,7 +8,9 @@
  */
 import { networkInterfaces } from 'node:os';
 
-import { DEFAULT_PORT, GAME_IDS, type ClientMsg, type PlayerInfo } from '../src/shared/protocol';
+import { DEFAULT_PORT, GAME_IDS, type ClientMsg, type GameId, type PlayerInfo } from '../src/shared/protocol';
+import { Store } from './db';
+import { GroupHub } from './groups';
 import { Room, send, type Sock, type SockData } from './room';
 import { GameError } from './types';
 import { cleanSignal, iceServers } from './voice';
@@ -27,6 +29,17 @@ function newCode(): string {
   }
   throw new Error('no free room codes');
 }
+
+function openRoom(host: PlayerInfo, game: GameId): Room {
+  const code = newCode();
+  const r = new Room(code, host, game);
+  rooms.set(code, r);
+  return r;
+}
+
+// groups live in a small SQLite file (DATA_DIR / the Railway volume); rooms stay in memory
+const store = Store.open();
+const groups = new GroupHub({ store, rooms, createRoom: openRoom, expoAccessToken: process.env.EXPO_ACCESS_TOKEN || undefined });
 
 function cleanPlayer(p: unknown): PlayerInfo | null {
   if (!p || typeof p !== 'object') return null;
@@ -48,6 +61,7 @@ function handle(ws: Sock, msg: ClientMsg) {
     const player = cleanPlayer(msg.player);
     if (!player) return send(ws, { t: 'error', message: 'بيانات اللاعب غير صالحة' });
     ws.data.player = player;
+    groups.hello(ws, player);
     send(ws, { t: 'welcome', now: Date.now() });
     return;
   }
@@ -60,11 +74,9 @@ function handle(ws: Sock, msg: ClientMsg) {
     case 'create': {
       if (!GAME_IDS.includes(msg.game)) return;
       if (room) room.leave(player.id);
-      const code = newCode();
-      const r = new Room(code, player, msg.game);
-      rooms.set(code, r);
+      const r = openRoom(player, msg.game);
       r.join(player, ws);
-      console.log(`room ${code} created by ${player.name} (${msg.game})`);
+      console.log(`room ${r.code} created by ${player.name} (${msg.game})`);
       return;
     }
     case 'join': {
@@ -110,6 +122,11 @@ function handle(ws: Sock, msg: ClientMsg) {
       if (room && data && isStr(msg.to)) room.relaySignal(player.id, msg.to, data);
       return;
     }
+    case 'groups':
+    case 'group':
+    case 'push':
+      groups.handle(ws, player, msg);
+      return;
   }
 }
 
@@ -150,6 +167,7 @@ const server = Bun.serve({
     close(ws) {
       const { player, code } = ws.data;
       if (player && code) rooms.get(code)?.disconnect(player.id, ws);
+      groups.closed(ws);
     },
   },
 });
@@ -169,7 +187,23 @@ setInterval(() => {
       console.log(`room ${code} closed`);
     }
   }
+  try {
+    groups.tick();
+  } catch (e) {
+    console.error(e);
+  }
 }, 200);
+
+// a redeploy stops the server with SIGTERM: close the database cleanly (WAL checkpoint)
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, () => {
+    try {
+      groups.stop();
+      store.close();
+    } catch {}
+    process.exit(0);
+  });
+}
 
 const ips = Object.values(networkInterfaces())
   .flat()

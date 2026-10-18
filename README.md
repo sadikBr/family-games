@@ -63,7 +63,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 
 ## Playing together
 
-- **Home screen:** join a room or go back to the last one, «لعبة اليوم» (a different game each day), «لعبتم مؤخراً», and every game with search, a «كم عددكم؟» player-count filter (bot games count as playable with fewer people) and category chips. Tap the star on a game to keep it in «المفضلة» (saved on the phone).
+- **Home screen:** join a room or go back to the last one, «مجموعاتي» (see [المجموعات](#المجموعات-groups)), «لعبة اليوم» (a different game each day), «لعبتم مؤخراً», and every game with search, a «كم عددكم؟» player-count filter (bot games count as playable with fewer people) and category chips. Tap the star on a game to keep it in «المفضلة» (saved on the phone).
 - **Invite:** tap the room code (or «ادعُ أحداً» in the room menu) to share a link that opens the app on the join screen with the code filled in.
 - **Room menu** (the people icon at the top of every room): who is connected, mute, and for the host: remove a player or go back to the waiting room.
 - **Your turn:** your phone plays a sound and vibrates when it becomes your move, in every turn-based game.
@@ -74,6 +74,40 @@ A party-games app for family night. **Every player uses their own phone.** One p
 - **Someone's phone drops:** after 20 s a bot plays for them until they come back (marked «البوت يلعب عنه»). If the host drops, the host role passes to someone else after 15 s. In روندا، الكانزة and التريس, a player who leaves is replaced by a bot so the table stays full.
 - **Two-player games** alternate who starts and keep a running score for the room; you can resign.
 - **Questions don't repeat** between games in the same room (quiz, who is it, which surah, Hajj, Huroof) until the pool runs out.
+
+## المجموعات (groups)
+
+Save the family once, then start a room with everyone in one tap — no code to share each time.
+
+- **Make a group:** on the home screen, «مجموعاتي» → «أنشئ مجموعة للعائلة» (or «مجموعة جديدة»), give it a name. The group screen shows a 6-letter code (no 0/O or 1/I, case doesn't matter) and «شارك رابط الدعوة», which shares `familygames://group?code=XXXXXX`. Opening the link on a phone with the app adds that phone to the group (after choosing a name on a first launch); typing the code in «انضم إلى مجموعة» does the same. No accounts: a member is a phone (its player id).
+- **«لنلعب»:** any member presses it (home card or group screen). The server opens a normal room, with the group's last game, and puts the caller in it:
+  - members with the app open get an invitation over whatever screen they are on («دعوة من سارة» — «ادخل» / «لاحقاً»), with a chime and a buzz;
+  - members whose app is closed get a push notification («ألعاب العائلة — دعوة من سارة: «العائلة» تلعب الآن — ادخل!»); tapping it opens the room;
+  - the group card switches to «يلعبون الآن — ادخل», so anyone can still join later.
+  One call per group per minute: pressing again just joins the live room.
+- **Waiting room:** at the top, «بانتظار «العائلة»» lists every member — in the room ✓, app open (on another screen), or app closed (notified). The game can't start until everyone is in («اكتمل الجمع!»), but the caller or the host can press «ابدأ بالموجودين» to go on without the missing ones; picking the game and settings is allowed meanwhile. Someone arriving later joins normally.
+- **Presence:** the app stays connected while it is open (not only in a room), so the server knows who has it open; on a phone it disconnects when sent to the background outside a room, so that person gets a notification instead of an invitation nobody sees.
+- **Limits:** 20 groups per phone, 30 members per group, names up to 30 characters. Any member can rename the group; only its creator can remove members (when the creator leaves, the longest-standing member takes over); the last member to leave deletes it.
+
+**Storage.** Rooms stay in memory, but groups, members and push tokens are saved in a small SQLite file (`bun:sqlite`, WAL), `family-games.db`, in:
+
+| Variable | Meaning |
+|---|---|
+| `DATA_DIR` | folder for the database (wins if set) |
+| `RAILWAY_VOLUME_MOUNT_PATH` | set by Railway when a volume is attached — used when `DATA_DIR` is not set |
+| *(neither)* | `./data` — fine on a computer; the server logs a warning, because a host without a volume starts empty after each redeploy and the groups are lost |
+
+On Railway: open the `family-games` service → **Settings → Volumes → Add volume**, mount path `/data`. Railway then sets `RAILWAY_VOLUME_MOUNT_PATH=/data` and redeploys; the groups survive every later `railway up`.
+
+**Push notifications** (`expo-notifications`, sent through the Expo push service by `server/groups.ts`):
+
+- Configured: the Firebase project `family-games-f2665` gives Android its push tokens — its `google-services.json` sits at the repo root and is referenced by `expo.android.googleServicesFile` in `app.json`; the FCM V1 service-account key is uploaded to the Expo project's credentials (expo.dev → project → Credentials → Android → FCM V1). Never commit a service-account key (`.gitignore` covers it).
+- The app asks for notification permission once, after the first group create / join, with a one-line explanation first; Android shows the `group-calls` channel (high importance, default sound; small icon `assets/images/notification-icon.png`). Push needs a real build (`eas build`), not Expo Go, and doesn't exist on the web — the in-app invitation works everywhere.
+- Without a push token (permission refused, no Google services, an old build) everything still works; those phones only get invitations while the app is open.
+- Optional `EXPO_ACCESS_TOKEN` server variable: only if «enhanced push security» is turned on in the Expo project; it is then sent as a Bearer token.
+- Tokens Expo reports as `DeviceNotRegistered` are dropped; failures are logged and never slow the server.
+
+Code: `server/db.ts` (SQLite + migrations), `server/groups.ts` (presence, messages, «لنلعب», push), `Room.group` in `server/room.ts` (waiting list, «ابدأ بالموجودين»); `src/app/group.tsx`, `src/groups/` (home cards, forms, invitation sheet, waiting panel), `src/lib/push.native.ts`; tests in `server/groups.test.ts`.
 
 ## Voice chat
 
@@ -132,6 +166,7 @@ Build the app with `EXPO_PUBLIC_SERVER_URL=wss://your-server.example.com` so pho
 server/              Realtime game server (Bun WebSockets). Source of truth for every game.
   index.ts           Rooms, connections, timers
   room.ts            Lobby, settings, sending each player only what they may see
+  db.ts, groups.ts   Groups: SQLite storage (DATA_DIR / Railway volume), presence, «لنلعب», push notifications
   games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
@@ -147,7 +182,8 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   duel.ts, qdeck.ts  Rematch series for 2-player games; per-room question decks
 src/
   shared/protocol.ts Types shared by the app and the server
-  app/               Screens: home, profile, join, room
+  app/               Screens: home, profile, join, room, group
+  groups/            Group cards on the home screen, create / join sheets, the invitation sheet, the waiting panel
   games/             Lobby, settings and one screen per game (games/cards/ for the card games)
   shared/cards.ts    The 40-card Spanish deck (ذهب، كوبا، سيوف، زرواطة)
   shared/uno.ts      The 112 two-sided UNO FLIP cards and matching rules
@@ -243,7 +279,7 @@ after 15 minutes without players (about a minute to wake) and may ask for a card
 
 ### Updating later
 
-- **Server / game rules:** `npx @railway/cli up`.
+- **Server / game rules:** `npx @railway/cli up` (attach a volume first so the groups survive it — see [المجموعات](#المجموعات-groups)).
 - **App screens or new games:** build a new APK (step 2) and install it over the old one.
 - The server address can still be changed inside the app («إعدادات الخادم» on the profile screen), for
   example to play on a computer at home over Wi-Fi (`bun run server`).
