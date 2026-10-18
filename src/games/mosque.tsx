@@ -6,8 +6,9 @@ import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { MOSQUE_PIECES, MOSQUE_ROUNDS, type MosqueLevel, type MosqueView } from '@/shared/games/mosque';
 import type { RoomView } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
+import { C, shade } from '@/theme';
+import { useAccent } from '@/ui/accent';
+import { Row } from '@/ui/bits';
 import { ChipPicker, Stepper } from '@/ui/controls';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
@@ -16,10 +17,9 @@ import { SoftIn } from '@/ui/motion';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { AnsweredRow, OptionGrid, RoundHeader, useMyResultFx } from './islamic-ui';
+import { AnsweredRow, MyVerdict, NO_ANSWER, OptionGrid, QuestionPanel, ResultRows, RoundHeader, useMyResultFx } from './islamic-ui';
 import { MosqueArt } from './mosque-art';
 
-const ACCENT = '#2FA57A';
 const LEVEL_LABEL: Record<MosqueLevel, string> = { easy: 'سهل', normal: 'عادي', hard: 'صعب' };
 const BRICK = '#C9774A';
 
@@ -69,41 +69,36 @@ function Progress({ view }: { view: MosqueView }) {
 }
 
 function Results({ view, h }: { view: MosqueView; h: Helpers }) {
-  const rows = [...(view.results ?? [])].sort((a, b) => b.bricks - a.bricks);
   return (
-    <View style={{ gap: 6 }}>
-      {rows.map((r) => (
-        <Row key={r.id} gap={8} style={styles.result}>
-          <Avatar player={h.player(r.id)} size={26} />
-          <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-            {h.player(r.id).name}
-          </Txt>
-          <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 110 }}>
-            {r.choice === null ? 'لم يُجب' : view.options[r.choice]}
-          </Txt>
-          {r.fast ? <Icon name="bolt" size={14} color={C.yellow} /> : null}
-          <Txt style={[styles.bricks, { color: r.correct ? BRICK : C.dim }]}>{r.correct ? `+${num(r.bricks)}` : '0'}</Txt>
-        </Row>
-      ))}
-    </View>
+    <ResultRows
+      h={h}
+      gainLabel="الطوب"
+      gainColor={BRICK}
+      lines={(view.results ?? []).map((r) => ({
+        id: r.id,
+        detail: r.choice === null ? NO_ANSWER : view.options[r.choice],
+        gain: r.correct ? `+${num(r.bricks)}` : num(0),
+        good: r.correct,
+        icon: r.fast ? <Icon name="bolt" size={14} color={C.yellow} /> : undefined,
+      }))}
+    />
   );
 }
 
 function Reveal({ view, h }: { view: MosqueView; h: Helpers }) {
+  const accent = useAccent();
   const built = view.justBuilt.map((i) => MOSQUE_PIECES[i].label);
   return (
     <Animated.View entering={FadeInDown.duration(240)} style={{ gap: 8 }}>
       {built.length ? (
-        <Animated.View entering={SoftIn} style={styles.built}>
+        <Animated.View entering={SoftIn} style={[styles.built, { backgroundColor: shade(accent, -0.15) }]}>
           <Icon name="sparkle" size={22} color="#FFFFFF" />
           <Txt v="h2" color="#FFFFFF" center style={{ flexShrink: 1 }}>
             تمّ بناء {built.join(' و')}!
           </Txt>
         </Animated.View>
       ) : null}
-      <Txt v="bold" center color={view.earned ? BRICK : C.muted}>
-        {view.earned ? `أضافت العائلة ${bricks(view.earned)}` : 'لا طوب في هذه الجولة'}
-      </Txt>
+      <MyVerdict tone={view.earned ? 'good' : 'none'} text={view.earned ? `أضافت العائلة ${bricks(view.earned)}` : 'لا طوب في هذه الجولة'} />
       <Results view={view} h={h} />
     </Animated.View>
   );
@@ -128,22 +123,17 @@ function Final({ room, view, h, width }: { room: RoomView; view: MosqueView; h: 
       <Animated.View entering={FadeIn.duration(500)}>
         <MosqueArt built={view.built} width={width} />
       </Animated.View>
-      <View style={styles.stats}>
+      <View style={{ gap: 8 }}>
         <Txt v="h3" center>
           من العائلة: {bricks(total)}
         </Txt>
-        {sorted.map((id) => (
-          <Row key={id} gap={8} style={styles.result}>
-            <Avatar player={h.player(id)} size={30} />
-            <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-              {h.player(id).name}
-            </Txt>
-            <Txt v="small" color={C.muted}>
-              {num(view.stats[id].right)} صحيحة
-            </Txt>
-            <Txt style={[styles.bricks, { color: BRICK }]}>{num(view.stats[id].bricks)}</Txt>
-          </Row>
-        ))}
+        <ResultRows
+          h={h}
+          ordered
+          gainLabel="الطوب"
+          gainColor={BRICK}
+          lines={sorted.map((id) => ({ id, detail: `إجابات صحيحة: ${num(view.stats[id].right)}`, gain: num(view.stats[id].bricks), good: view.stats[id].bricks > 0 }))}
+        />
       </View>
       <PlayAgain room={room} />
     </>
@@ -165,15 +155,15 @@ export function MosqueGame({ room, view }: { room: RoomView; view: MosqueView })
   return (
     <>
       {!playing ? <Spectator room={room} /> : null}
-      <RoundHeader label={view.label} round={view.round} rounds={view.rounds} right={<Txt v="tiny" color={ACCENT}>{LEVEL_LABEL[view.level]}</Txt>} />
+      <RoundHeader label={view.label} round={view.round} rounds={view.rounds} right={<Txt v="tiny" color={C.muted}>{LEVEL_LABEL[view.level]}</Txt>} />
       <MosqueArt built={view.built} fresh={view.justBuilt} width={artWidth} />
       <Progress view={view} />
       {asking ? <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick={playing && view.myAnswer === null} /> : null}
-      <Animated.View key={view.round} entering={FadeIn.duration(220)} style={styles.question}>
+      <QuestionPanel id={view.round} compact>
         <Txt v="h3" center>
           {view.text}
         </Txt>
-      </Animated.View>
+      </QuestionPanel>
       <View testID="mosque-options">
         <OptionGrid options={view.options} mine={view.myAnswer} correct={view.correct} disabled={!playing} onPick={(choice) => h.act('answer', { choice })} columns={1} />
       </View>
@@ -195,7 +185,7 @@ export function MosqueSettings({ room, editable }: { room: RoomView; editable: b
         onChange={(level) => change({ level })}
         options={(['easy', 'normal', 'hard'] as MosqueLevel[]).map((k) => ({ key: k, label: `${LEVEL_LABEL[k]} (${MOSQUE_ROUNDS[k]} جولة)` }))}
       />
-      <Stepper label="وقت كل سؤال" value={s.seconds} min={10} max={30} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${v} ث`} />
+      <Stepper label="وقت كل سؤال" value={s.seconds} min={10} max={30} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${num(v)} ث`} />
       <Txt v="tiny" color={C.muted}>
         ابنوا القطع التسع قبل أن تنتهي الجولات. الجواب الصحيح السريع يضيف طوبة إضافية.
       </Txt>
@@ -207,9 +197,5 @@ const styles = StyleSheet.create({
   progress: { backgroundColor: C.surface, borderRadius: 18, padding: 12, gap: 6 },
   track: { height: 14, borderRadius: 7, backgroundColor: C.bg3, overflow: 'hidden', direction: 'rtl' },
   fill: { height: '100%', borderRadius: 7, backgroundColor: BRICK },
-  question: { backgroundColor: C.surface, borderRadius: 20, padding: 16, minHeight: 80, justifyContent: 'center', borderWidth: 2, borderColor: alpha(ACCENT, 0.5) },
-  result: { backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
-  bricks: { fontFamily: F.black, fontSize: 15, lineHeight: 22, minWidth: 40, textAlign: 'center' },
-  built: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: ACCENT, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
-  stats: { backgroundColor: C.surface, borderRadius: 20, padding: 14, gap: 8 },
+  built: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 14 },
 });

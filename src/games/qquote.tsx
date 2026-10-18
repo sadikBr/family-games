@@ -1,18 +1,17 @@
 /** «من القائل؟» — the quoted words (Amiri Quran font), four names, and the reference after the answer. */
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { QQUOTE_LEVELS, QQUOTE_ROUNDS, QQUOTE_SECONDS, type QquoteSettings as Settings, type QquoteView } from '@/shared/games/qquote';
 import type { RoomView } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
+import { F } from '@/theme';
 import { ChipPicker, Stepper } from '@/ui/controls';
 import { TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { Spectator } from './common';
 import { helpers } from './helpers';
-import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader, useMyResultFx } from './islamic-ui';
+import { AnsweredRow, McqFinal, McqVerdict, OptionGrid, QuestionPanel, ResultsList, RevealNote, RoundHeader, VERSE_INK, useMyResultFx } from './islamic-ui';
 
 export function QquoteGame({ room, view }: { room: RoomView; view: QquoteView }) {
   const h = helpers(room);
@@ -32,30 +31,19 @@ export function QquoteGame({ room, view }: { room: RoomView; view: QquoteView })
       <RoundHeader label={view.label} round={view.round} rounds={view.rounds} />
       {view.phase === 'ask' ? <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={view.myAnswer === null} /> : null}
 
-      <Animated.View key={view.round} entering={FadeIn.duration(220)} style={styles.card}>
-        <Txt v="tiny" center color={alpha('#FFFFFF', 0.65)}>
-          من القائل؟
-        </Txt>
+      <QuestionPanel id={view.round} verse kicker="من القائل؟">
         <Txt style={[styles.verse, { fontSize: size, lineHeight: size * 2.05 }]}>﴿{view.text}﴾</Txt>
-        {view.ref ? (
-          <Txt v="small" center color={C.yellow}>
-            {view.ref}
-          </Txt>
-        ) : null}
-      </Animated.View>
+      </QuestionPanel>
 
       <OptionGrid options={view.options} mine={view.myAnswer} correct={view.correct} onPick={(choice) => h.act('answer', { choice })} columns={1} />
 
       {view.phase === 'ask' ? (
         <AnsweredRow ids={view.answered} total={Object.keys(view.scores).length} h={h} />
       ) : view.results ? (
-        <View style={{ gap: 8 }}>
-          {view.correct !== null ? (
-            <Txt v="bold" center color={C.green}>
-              قالها: {view.options[view.correct]}
-            </Txt>
-          ) : null}
-          <ResultsList results={view.results} h={h} options={view.options} />
+        <View style={{ gap: 10 }}>
+          <McqVerdict mine={mine} />
+          <RevealNote text={view.correct !== null ? `القائل: ${view.options[view.correct]}` : null} sub={view.ref} />
+          <ResultsList results={view.results} h={h} options={view.options} scores={view.scores} />
         </View>
       ) : null}
     </>
@@ -77,6 +65,5 @@ export function QquoteSettings({ room, editable }: { room: RoomView; editable: b
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#0F4D3A', borderRadius: 22, padding: 16, gap: 6, minHeight: 120, justifyContent: 'center', borderWidth: 2, borderColor: alpha('#F4C02E', 0.5) },
-  verse: { fontFamily: F.quran, color: '#FFF8E6', textAlign: 'center', writingDirection: 'rtl' },
+  verse: { fontFamily: F.quran, color: VERSE_INK, textAlign: 'center', writingDirection: 'rtl' },
 });

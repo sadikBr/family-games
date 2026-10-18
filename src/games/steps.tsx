@@ -9,17 +9,19 @@ import { haptic, play } from '@/lib/sfx';
 import { STEPS_CATEGORIES, type StepsLevel, type StepsSettings as Settings, type StepsView } from '@/shared/games/steps';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Avatar, IconBubble, Row } from '@/ui/bits';
+import { useAccent } from '@/ui/accent';
+import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, Stepper } from '@/ui/controls';
-import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
+import { TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
-import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
+import { Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { AnsweredRow, RoundHeader, useMyResultFx } from './islamic-ui';
+import { AnsweredRow, HostNext, MyVerdict, QuestionPanel, QuestionText, QuizFinal, ResultRows, RevealNote, RoundHeader, SentNote, useMyResultFx } from './islamic-ui';
 
-const ACCENT = '#3D7BE0';
+/** a slot holding a step, in the game's tint */
+const filled = (accent: string) => ({ borderStyle: 'solid' as const, borderColor: alpha(accent, 0.7), backgroundColor: alpha(accent, 0.16) });
 
 /* ------------------------------------------------------------------ */
 /* Building my order                                                   */
@@ -34,6 +36,7 @@ interface Draft {
 }
 
 function Builder({ view, h }: { view: StepsView; h: Helpers }) {
+  const accent = useAccent();
   const n = view.items.length;
   const empty = (): Draft => ({ round: view.round, slots: Array(n).fill(null), target: null });
   const [state, setState] = useState<Draft>(empty);
@@ -81,8 +84,8 @@ function Builder({ view, h }: { view: StepsView; h: Helpers }) {
               onPress={() => tapSlot(k)}
               accessibilityRole="button"
               accessibilityLabel={item === null ? `الخانة ${k + 1} فارغة` : `${k + 1}: ${view.items[item]}`}
-              style={({ pressed }) => [styles.slot, item !== null && styles.slotFull, isTarget && styles.slotTarget, pressed && { opacity: 0.8 }]}>
-              <View style={[styles.badge, item !== null && { backgroundColor: ACCENT }]}>
+              style={({ pressed }) => [styles.slot, item !== null && filled(accent), isTarget && styles.slotTarget, pressed && { opacity: 0.8 }]}>
+              <View style={[styles.badge, item !== null && { backgroundColor: accent }]}>
                 <Txt style={styles.badgeText}>{num(k + 1)}</Txt>
               </View>
               {item === null ? (
@@ -120,7 +123,7 @@ function Builder({ view, h }: { view: StepsView; h: Helpers }) {
                 onPress={() => putStep(i)}
                 accessibilityRole="button"
                 accessibilityLabel={text}
-                style={({ pressed }) => [styles.pool, pressed && { transform: [{ scale: 0.98 }], backgroundColor: alpha(ACCENT, 0.35) }]}>
+                style={({ pressed }) => [styles.pool, { borderColor: alpha(accent, 0.5) }, pressed && { transform: [{ scale: 0.98 }], backgroundColor: alpha(accent, 0.3) }]}>
                 <Txt v="bold" style={styles.stepText}>
                   {text}
                 </Txt>
@@ -133,7 +136,7 @@ function Builder({ view, h }: { view: StepsView; h: Helpers }) {
 
       <Row gap={8}>
         <Btn size="md" ghost icon="refresh" label="من جديد" disabled={!placed.size} onPress={() => setState(empty())} />
-        <Btn size="md" flex icon="check" label={full ? 'أرسل الترتيب' : `بقي ${num(n - placed.size)}`} color={C.green} disabled={!full} onPress={send} />
+        <Btn size="md" flex icon="check" label={full ? 'أرسل الترتيب' : `بقي ${num(n - placed.size)}`} disabled={!full} onPress={send} />
       </Row>
     </View>
   );
@@ -141,14 +144,15 @@ function Builder({ view, h }: { view: StepsView; h: Helpers }) {
 
 /** My order once sent (waiting for the others). */
 function SentList({ view }: { view: StepsView }) {
+  const accent = useAccent();
   return (
     <View style={{ gap: 6 }}>
       <Txt v="tiny" color={C.muted}>
         ترتيبك (أُرسل)
       </Txt>
       {(view.mine ?? []).map((item, k) => (
-        <View key={k} style={[styles.slot, styles.slotFull, { opacity: 0.85 }]}>
-          <View style={[styles.badge, { backgroundColor: ACCENT }]}>
+        <View key={k} style={[styles.slot, filled(accent), { opacity: 0.85 }]}>
+          <View style={[styles.badge, { backgroundColor: accent }]}>
             <Txt style={styles.badgeText}>{num(k + 1)}</Txt>
           </View>
           <Txt v="bold" style={styles.stepText}>
@@ -195,58 +199,23 @@ function Answer({ view }: { view: StepsView }) {
           </View>
         );
       })}
-      {view.note ? (
-        <Txt v="small" center color={C.yellow} style={{ marginTop: 4 }}>
-          {view.note}
-        </Txt>
-      ) : null}
     </Animated.View>
   );
 }
 
 function Results({ view, h }: { view: StepsView; h: Helpers }) {
   const n = view.items.length;
-  const rows = [...(view.results ?? [])].sort((a, b) => b.points - a.points);
   return (
-    <View style={{ gap: 6 }}>
-      {rows.map((r) => (
-        <Row key={r.id} gap={8} style={[styles.result, r.id === h.me && { backgroundColor: alpha(C.yellow, 0.12) }]}>
-          <Avatar player={h.player(r.id)} size={26} />
-          <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-            {h.player(r.id).name}
-          </Txt>
-          <Txt v="tiny" color={r.order === null ? C.dim : r.right === n ? C.green : C.muted}>
-            {r.order === null ? 'لم يُرسل' : `${num(`${r.right}/${n}`)}${r.ms !== null ? ` · ${num(Math.ceil(r.ms / 1000))} ث` : ''}`}
-          </Txt>
-          <Txt style={[styles.points, { color: r.points > 0 ? C.green : C.dim }]}>{r.points > 0 ? num(`+${r.points}`) : num(0)}</Txt>
-        </Row>
-      ))}
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Final                                                               */
-/* ------------------------------------------------------------------ */
-
-function Final({ room, view, h }: { room: RoomView; view: StepsView; h: Helpers }) {
-  const ids = Object.keys(view.scores);
-  const best = ids.length ? Math.max(...ids.map((id) => view.scores[id])) : 0;
-  const winners = ids.filter((id) => view.scores[id] === best);
-  const won = winners.includes(h.me);
-  return (
-    <>
-      {won ? <Confetti /> : null}
-      <ResultBanner
-        tone={won ? 'good' : 'neutral'}
-        art={<IconBubble icon="layers" size={64} color={alpha('#FFFFFF', 0.16)} iconColor="#FFFFFF" />}
-        title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
-        sub="بارك الله فيكم جميعاً"
-      />
-      <Podium players={room.players} scores={view.scores} />
-      <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-      <PlayAgain room={room} />
-    </>
+    <ResultRows
+      h={h}
+      lines={(view.results ?? []).map((r) => ({
+        id: r.id,
+        detail: r.order === null ? 'بلا ترتيب' : `${num(r.right)} من ${num(n)} في مكانها${r.ms !== null ? ` · ${num(Math.ceil(r.ms / 1000))} ث` : ''}`,
+        gain: r.points > 0 ? num(`+${r.points}`) : num(0),
+        good: r.points > 0,
+        total: view.scores[r.id],
+      }))}
+    />
   );
 }
 
@@ -259,7 +228,7 @@ export function StepsGame({ room, view }: { room: RoomView; view: StepsView }) {
   const playing = view.players.includes(h.me);
   const mine = view.results?.find((r) => r.id === h.me);
   useMyResultFx(view.phase === 'reveal' && mine ? `${view.round}` : null, mine ? mine.right === view.items.length : null);
-  if (view.phase === 'final') return <Final room={room} view={view} h={h} />;
+  if (view.phase === 'final') return <QuizFinal room={room} scores={view.scores} game="steps" h={h} />;
   if (!playing) return <Spectator room={room} />;
   const sent = view.mine !== null;
   const last = view.round >= view.rounds;
@@ -268,18 +237,14 @@ export function StepsGame({ room, view }: { room: RoomView; view: StepsView }) {
     <>
       <RoundHeader label={view.label} round={view.round} rounds={view.rounds} />
       {view.endsAt ? <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick={view.phase === 'play' && !sent} /> : null}
-      <Animated.View key={view.round} entering={FadeIn.duration(220)} style={styles.titleCard}>
-        <Txt v="h2" center>
-          {view.title}
-        </Txt>
-      </Animated.View>
+      <QuestionPanel id={view.round} compact>
+        <QuestionText>{view.title}</QuestionText>
+      </QuestionPanel>
 
       {view.phase === 'play' ? (
         sent ? (
           <>
-            <Txt v="bold" center color={C.green}>
-              أُرسل ترتيبك — في انتظار الآخرين
-            </Txt>
+            <SentNote text="أُرسل ترتيبك — في انتظار الآخرين" />
             <AnsweredRow ids={view.submitted} total={view.players.length} h={h} />
             <SentList view={view} />
           </>
@@ -292,21 +257,21 @@ export function StepsGame({ room, view }: { room: RoomView; view: StepsView }) {
       ) : (
         <>
           {mine ? (
-            <Txt v="h3" center color={mine.right === view.items.length ? C.green : mine.order ? C.yellow : C.muted}>
-              {mine.order === null
-                ? 'لم ترسل ترتيبك في الوقت'
-                : mine.right === view.items.length
-                  ? `ممتاز! كل الخطوات في مكانها · ${num(`+${mine.points}`)}`
-                  : `${num(mine.right)} من ${num(view.items.length)} في مكانها · ${num(`+${mine.points}`)}`}
-            </Txt>
+            <MyVerdict
+              tone={mine.order === null ? 'none' : mine.right === view.items.length ? 'good' : 'bad'}
+              text={
+                mine.order === null
+                  ? 'لم ترسل ترتيبك في الوقت'
+                  : mine.right === view.items.length
+                    ? `ممتاز! كل الخطوات في مكانها · ${num(`+${mine.points}`)}`
+                    : `${num(mine.right)} من ${num(view.items.length)} في مكانها · ${num(`+${mine.points}`)}`
+              }
+            />
           ) : null}
           <Answer view={view} />
+          <RevealNote text={view.note} />
           <Results view={view} h={h} />
-          {h.isHost ? (
-            <Btn size="lg" icon="play" label={last ? 'النتيجة النهائية' : 'الجولة التالية'} onPress={() => h.act('next')} />
-          ) : (
-            <HostNote>{last ? 'النتيجة النهائية بعد قليل' : 'الجولة التالية بعد قليل'}</HostNote>
-          )}
+          <HostNext h={h} last={last} />
         </>
       )}
     </>
@@ -329,7 +294,7 @@ export function StepsSettings({ room, editable }: { room: RoomView; editable: bo
   return (
     <View style={{ gap: 10 }}>
       <Stepper label="عدد الجولات" value={s.rounds} min={3} max={12} editable={editable} onChange={(rounds) => change({ rounds })} />
-      <Stepper label="وقت الجولة" value={s.seconds} min={30} max={120} step={10} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${v} ث`} />
+      <Stepper label="وقت الجولة" value={s.seconds} min={30} max={120} step={10} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${num(v)} ث`} />
       <Txt v="bold">المجال</Txt>
       <ChipPicker<Settings['category']> editable={editable} value={s.category} onChange={(category) => change({ category })} options={STEPS_CATEGORIES} />
       <Txt v="bold">مستوى البوتات</Txt>
@@ -339,7 +304,6 @@ export function StepsSettings({ room, editable }: { room: RoomView; editable: bo
 }
 
 const styles = StyleSheet.create({
-  titleCard: { backgroundColor: C.surface, borderRadius: 20, padding: 14, borderWidth: 2, borderColor: alpha(ACCENT, 0.6) },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -352,7 +316,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
-  slotFull: { borderStyle: 'solid', borderColor: alpha(ACCENT, 0.7), backgroundColor: alpha(ACCENT, 0.16) },
   slotTarget: { borderColor: C.yellow, borderStyle: 'solid', backgroundColor: alpha(C.yellow, 0.08) },
   badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.surfaceStrong, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontFamily: F.black, fontSize: 14, lineHeight: 20, color: '#FFFFFF' },
@@ -367,8 +330,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: C.raised,
     borderWidth: 1.5,
-    borderColor: alpha(ACCENT, 0.5),
   },
-  result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
-  points: { fontFamily: F.black, fontSize: 15, lineHeight: 22, minWidth: 52, textAlign: 'center' },
 });
