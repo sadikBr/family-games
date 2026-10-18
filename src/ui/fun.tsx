@@ -247,14 +247,17 @@ export function Podium({ players, scores, lowIsBetter }: { players: PlayerPublic
   const order = [top[1], top[0], top[2]].filter(Boolean);
   const heights = [84, 60, 44];
   const accent = useAccent();
+  // three columns that always fit the screen (16 px gutters, 10 px between columns)
+  const { width } = useWindowDimensions();
+  const colW = Math.min(96, (Math.min(width - 32, 560) - 20) / 3);
   return (
     <View style={{ alignItems: 'center', marginTop: 8 }}>
     <Row gap={10} style={{ alignItems: 'flex-end', justifyContent: 'center', direction: 'ltr' }}>
       {order.map((p) => {
         const place = top.indexOf(p);
         return (
-          <View key={p.id} style={{ alignItems: 'center', gap: 6, width: 96 }}>
-            <Avatar player={p} size={place === 0 ? 68 : 54} crown={place === 0} />
+          <View key={p.id} style={{ alignItems: 'center', gap: 6, width: colW }}>
+            <Avatar player={p} size={Math.min(place === 0 ? 68 : 54, colW - 20)} crown={place === 0} />
             <Txt v="bold" numberOfLines={1} center>
               {p.name}
             </Txt>
@@ -266,7 +269,7 @@ export function Podium({ players, scores, lowIsBetter }: { players: PlayerPublic
       })}
     </Row>
     {/* the stage the podium stands on, in the game's colour */}
-    <View style={{ height: 8, width: order.length * 106, borderRadius: 4, backgroundColor: alpha(accent, 0.55) }} />
+    <View style={{ height: 8, width: order.length * (colW + 10), borderRadius: 4, backgroundColor: alpha(accent, 0.55) }} />
     </View>
   );
 }
