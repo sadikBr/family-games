@@ -268,6 +268,13 @@ export const boggle: GameModule<State, BoggleSettings> = {
     if (s.phase === 'play' && peopleDone(ctx, s)) finishRound(ctx, s);
   },
 
+  result(s) {
+    if (s.phase !== 'final' || !s.players.length) return null;
+    const pts = (id: string) => s.scores[id] ?? 0;
+    const vals = [...new Set(s.players.map(pts))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.players.filter((id) => pts(id) === v)) };
+  },
+
   patchSettings(settings, patch) {
     if (isNum(patch.rounds)) settings.rounds = Math.max(1, Math.min(5, Math.round(patch.rounds)));
     if (BOGGLE_SIZES.includes(patch.size as 4)) settings.size = patch.size as number;

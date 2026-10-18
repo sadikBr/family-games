@@ -204,6 +204,19 @@ function findCapture(table: Card[], card: Card): Card[] {
   return took;
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const ronda: GameModule<State, RondaSettings> = {
   turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'ronda',
@@ -397,5 +410,13 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.phase = 'final';
       s.winner = null;
     }
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    // the side that reached the target, then the other sides by score (partners share their side's place)
+    const members = (key: string) => s.sides.find((x) => x.key === key)?.members ?? [];
+    const rest = s.sides.map((x) => x.key).filter((k) => k !== s.winner);
+    return { places: [members(s.winner), ...placesByScore(rest, (k) => s.scores[k] ?? 0).map((keys) => keys.flatMap(members))] };
   },
 };

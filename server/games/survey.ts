@@ -621,6 +621,13 @@ export const survey: GameModule<State, SurveySettings> = {
     }
     if (isNum(patch.seconds)) settings.seconds = Math.max(10, Math.min(45, Math.round(patch.seconds / 5) * 5));
   },
+
+  result(s) {
+    // a team emptied by players leaving ends the game without a result
+    if (s.phase !== 'final' || s.winner === null || !s.teams[0].length || !s.teams[1].length) return null;
+    if (s.winner === -1) return { places: [[...s.teams[0], ...s.teams[1]]] };
+    return { places: [[...s.teams[s.winner]], [...s.teams[other(s.winner)]]] };
+  },
 };
 
 export type { State as SurveyState };

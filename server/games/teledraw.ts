@@ -323,6 +323,19 @@ function tooFew(ctx: GameCtx, s: TeledrawState) {
 
 const cleanText = (v: unknown) => (isStr(v) ? v.replace(/\s+/g, ' ').trim().slice(0, TELEDRAW_TEXT_MAX) : '');
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const teledraw: GameModule<TeledrawState, TeledrawSettings> = {
   id: 'teledraw',
   hostOnly: ['next', 'endVote'],
@@ -568,5 +581,12 @@ export const teledraw: GameModule<TeledrawState, TeledrawSettings> = {
     if (isNum(patch.drawSeconds)) settings.drawSeconds = clamp(Math.round(patch.drawSeconds), 30, 180);
     if (isNum(patch.guessSeconds)) settings.guessSeconds = clamp(Math.round(patch.guessSeconds), 15, 90);
     for (const k of ['custom', 'capSteps', 'votes', 'autoReveal'] as const) if (typeof patch[k] === 'boolean') settings[k] = patch[k];
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.live.length) return null;
+    // with the votes: ranked by votes received; without them nobody is ahead, so everyone shares first place
+    const scores = s.result?.votes ? s.result.scores : null;
+    return { places: scores ? placesByScore(s.live, (id) => scores[id] ?? 0) : [[...s.live]] };
   },
 };

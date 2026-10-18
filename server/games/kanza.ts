@@ -254,4 +254,12 @@ export const kanza: GameModule<State, KanzaSettings> = {
       s.winner = null;
     }
   },
+
+  /** Sides (a player, or a 2v2 team) by total points; null if the game stopped because someone left. */
+  result(s) {
+    if (s.phase !== 'final' || !s.handSummary || s.hand < s.settings.hands) return null;
+    const pts = (k: string) => s.scores[k] ?? 0;
+    const vals = [...new Set(s.sides.map((x) => pts(x.key)))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.sides.filter((x) => pts(x.key) === v).flatMap((x) => x.members)) };
+  },
 };

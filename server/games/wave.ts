@@ -86,6 +86,19 @@ function reveal(ctx: GameCtx, s: State) {
   );
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const wave: GameModule<State, WaveSettings> = {
   turnOf: (s) => s.phase === 'clue' ? [s.giver] : [],
   id: 'wave',
@@ -197,5 +210,10 @@ export const wave: GameModule<State, WaveSettings> = {
       return;
     }
     if (s.phase === 'guess' && !s.players.some((p) => p !== psychic(s) && s.guesses[p] === undefined && ctx.isConnected(p))) reveal(ctx, s);
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.players.length) return null;
+    return { places: placesByScore(s.players, (id) => s.scores[id] ?? 0) };
   },
 };

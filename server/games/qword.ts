@@ -114,6 +114,19 @@ export function qwordVerse(e: QwordEntry): { text: string; ref: string } | null 
   return r && text ? { text, ref: verseRef(r[0], r[1]) } : null;
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const qword: GameModule<State, QwordSettings> = {
   id: 'qword',
 
@@ -234,6 +247,11 @@ export const qword: GameModule<State, QwordSettings> = {
     if (typeof patch.rounds === 'number' && Number.isFinite(patch.rounds)) settings.rounds = Math.max(1, Math.min(10, Math.round(patch.rounds)));
     if (typeof patch.race === 'boolean') settings.race = patch.race;
     if (typeof patch.hint === 'boolean') settings.hint = patch.hint;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.players.length) return null;
+    return { places: placesByScore(s.players, (id) => s.scores[id] ?? 0) };
   },
 };
 

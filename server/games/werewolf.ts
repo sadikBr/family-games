@@ -606,4 +606,19 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
       if (s.phase !== 'over') finishIfWon(ctx, s);
     }
   },
+
+  result(s) {
+    // the narrator is not a player (s.participants never includes them); no winner = the narrator left
+    if (s.phase !== 'over' || !s.winner) return null;
+    const w = s.winner;
+    const won = (id: string) => {
+      const r = s.roles[id];
+      if (w === 'village') return !isWolfRole(r) && r !== 'tanner';
+      if (w === 'wolves') return isWolfRole(r) && r !== 'whitewolf';
+      return r === w; // 'tanner' / 'whitewolf': that one player
+    };
+    const winners = s.participants.filter(won);
+    const losers = s.participants.filter((id) => !won(id));
+    return { places: [winners, losers].filter((p) => p.length) };
+  },
 };

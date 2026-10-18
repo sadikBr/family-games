@@ -52,6 +52,19 @@ function newRound(ctx: GameCtx, s: State, starter: string) {
   s.lastWord = null;
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const potato: GameModule<State, PotatoSettings> = {
   // the holder starts the round, then throws
   turnOf: (s) => (s.phase === 'play' || s.phase === 'ready' ? [s.holderId] : []),
@@ -196,5 +209,11 @@ export const potato: GameModule<State, PotatoSettings> = {
       s.receivedAt = ctx.now;
     }
     if (s.fromId === id) s.fromId = null;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    // fewest burns wins
+    return { places: placesByScore(s.participants, (id) => -(s.burns[id] ?? 0)) };
   },
 };

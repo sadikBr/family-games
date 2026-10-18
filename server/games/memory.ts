@@ -22,6 +22,19 @@ interface State {
   moves: number;
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const memory: GameModule<State, MemorySettings> = {
   turnOf: (s) => s.phase === 'play' && s.peekUntil === null ? [s.order[s.turnIdx]] : [],
   id: 'memory',
@@ -131,5 +144,10 @@ export const memory: GameModule<State, MemorySettings> = {
     } else if (i < s.turnIdx) s.turnIdx -= 1;
     if (!s.order.length) return;
     s.turnIdx %= s.order.length;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.order.length) return null;
+    return { places: placesByScore(s.order, (id) => s.pairs[id] ?? 0) };
   },
 };

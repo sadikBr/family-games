@@ -316,6 +316,15 @@ export const charades: GameModule<State, CharadesSettings> = {
     if (wasActor || !s.teams[activeTeam(s)].includes(s.actorId)) pickActor(ctx, s);
   },
 
+  /** The team with more points first (a tie shares first place); null if players left before all the turns were played. */
+  result(s) {
+    if (s.phase !== 'final' || s.turn < s.totalTurns) return null;
+    const [a, b] = s.teamScores;
+    const [t0, t1] = [s.teams[0].slice(), s.teams[1].slice()];
+    if (a === b) return { places: [[...t0, ...t1]] };
+    return { places: a > b ? [t0, t1] : [t1, t0] };
+  },
+
   patchSettings(settings, patch) {
     if (isNum(patch.seconds) && (CHARADES_SECONDS as readonly number[]).includes(patch.seconds)) settings.seconds = patch.seconds;
     if (isNum(patch.turnsEach)) settings.turnsEach = Math.max(1, Math.min(3, Math.round(patch.turnsEach)));

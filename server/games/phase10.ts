@@ -266,6 +266,19 @@ export function botHit(s: State, bot: string): { card: P10Card; group: P10Group 
 
 /* ------------------------------------------------------------------ */
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const phase10: GameModule<State, Phase10Settings> = {
   id: 'phase10',
   hostOnly: ['next'],
@@ -535,5 +548,12 @@ export const phase10: GameModule<State, Phase10Settings> = {
 
   patchSettings(settings, patch) {
     if (typeof patch.short === 'boolean') settings.short = patch.short;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    // the winner, then the others by phases completed, then fewest penalty points
+    const rest = s.active.filter((id) => id !== s.winner);
+    return { places: [[s.winner], ...placesByScore(rest, (id) => (s.progress[id] ?? 0) * 1e6 - (s.scores[id] ?? 0))] };
   },
 };

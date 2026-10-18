@@ -139,4 +139,9 @@ export const battleship: GameModule<State, BattleshipSettings> = {
     s.resigned = true;
     win(ctx, s, enemyOf(s, id));
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    return { places: [[s.winner], [enemyOf(s, s.winner)]] };
+  },
 };

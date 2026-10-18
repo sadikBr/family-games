@@ -50,3 +50,20 @@ test('konkan: draw, meld and discard are announced; the thrower and the last gro
   expect(w.discardBy).toBe(q);
   expect(w.lastMeld).toBeNull(); // the next player's turn is over
 });
+
+test('konkan: a hand where nobody goes out ends after the discards went back into the stock twice', () => {
+  // nobody ever lays down a meld here: without the cap this hand would never end
+  const ctx: any = { now: 0, fx: () => {}, isConnected: () => true, isBot: () => false, playerName: (id: string) => id, memo: new Map(), bot: () => {} };
+  const s: any = konkan.start(ctx, ['a', 'b'], { limit: 100 });
+  let draws = 0;
+  while (s.phase === 'play' && draws < 2000) {
+    const p = s.turn;
+    if (s.step === 'draw') {
+      konkan.act(ctx, s, p, { type: 'drawStock' });
+      draws++;
+    } else konkan.act(ctx, s, p, { type: 'discard', card: s.hands[p][0].id });
+  }
+  expect(s.phase).not.toBe('play');
+  expect(s.reshuffles).toBe(2);
+  expect(s.handWinner).toBeNull();
+});

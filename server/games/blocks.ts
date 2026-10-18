@@ -249,6 +249,15 @@ export const blocks: GameModule<State, BlocksSettings> = {
     }
   },
 
+  /** Colours still in the game by final score (the leavers' colours are left out). */
+  result(s) {
+    if (s.phase !== 'final' || !s.winners?.length) return null;
+    const sc = scores(s);
+    const inGame = s.seats.map((_, i) => i).filter((i) => !s.gone[i]);
+    const vals = [...new Set(inGame.map((i) => sc[i].total))].sort((a, b) => b - a);
+    return { places: vals.map((v) => inGame.filter((i) => sc[i].total === v).map((i) => s.seats[i])) };
+  },
+
   patchSettings(settings, patch) {
     if (patch.level === 'easy' || patch.level === 'hard') settings.level = patch.level;
   },

@@ -459,6 +459,13 @@ export const carca: GameModule<CarcaState, CarcaSettings> = {
     startTurn(ctx, s, next);
   },
 
+  /** The players still in the game by final score (leavers are left out, like on the final screen). */
+  result(s) {
+    if (s.phase !== 'final' || !s.order.length) return null;
+    const vals = [...new Set(s.order.map((id) => s.scores[id]))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.order.filter((id) => s.scores[id] === v)) };
+  },
+
   /** Validate a settings change from the lobby (only the keys this game knows). */
   patchSettings(settings, patch) {
     if (typeof patch.farmers === 'boolean') settings.farmers = patch.farmers;

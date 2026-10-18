@@ -268,4 +268,9 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       ctx.fx('reveal');
     }
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    return { places: [s.teams[s.winner].slice(), s.teams[other(s.winner)].slice()] };
+  },
 };

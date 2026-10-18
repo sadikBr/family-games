@@ -247,6 +247,19 @@ function closeCatch(s: State, by: string) {
   if (s.catchable && s.catchable !== by) s.catchable = null;
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const unoflip: GameModule<State, UnoSettings> = {
   turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
   id: 'unoflip',
@@ -481,5 +494,12 @@ export const unoflip: GameModule<State, UnoSettings> = {
     }
     if (s.turnIdx > idx || s.turnIdx >= s.seats.length) s.turnIdx = (s.turnIdx - (s.turnIdx > idx ? 1 : 0)) % s.seats.length;
     if (wasTurn) s.drawn = null;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    // the winner, then the others by points scored
+    const rest = s.seats.filter((id) => id !== s.winner);
+    return { places: [[s.winner], ...placesByScore(rest, (id) => s.scores[id] ?? 0)] };
   },
 };

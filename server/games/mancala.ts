@@ -127,6 +127,12 @@ export const mancala: GameModule<State, MancalaSettings> = {
     forfeit(ctx, s, id);
   },
 
+  result(s) {
+    if (s.phase !== 'final' || s.winner === null) return null;
+    if (s.winner === 'draw') return { places: [[...s.seats]] };
+    return { places: [[s.seats[s.winner]], [s.seats[other(s.winner)]]] };
+  },
+
   patchSettings(settings, patch) {
     if (isNum(patch.seeds) && (MANCALA_SEEDS as readonly number[]).includes(patch.seeds)) settings.seeds = patch.seeds;
     if (patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') settings.level = patch.level as MancalaLevel;

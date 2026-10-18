@@ -86,6 +86,19 @@ function revealIfAllIn(ctx: GameCtx, s: State, gone?: string) {
   if (!waiting.length) reveal(ctx, s);
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const qquote: GameModule<State, QquoteSettings> = {
   id: 'qquote',
 
@@ -184,6 +197,11 @@ export const qquote: GameModule<State, QquoteSettings> = {
     if (isNum(patch.rounds)) settings.rounds = step(patch.rounds, QQUOTE_ROUNDS);
     if (isNum(patch.seconds)) settings.seconds = step(patch.seconds, QQUOTE_SECONDS);
     if (patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') settings.level = patch.level;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };
 

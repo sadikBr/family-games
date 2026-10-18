@@ -79,6 +79,19 @@ function finishRound(ctx: GameCtx, s: State) {
   ctx.fx('reveal');
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const wordle: GameModule<State, WordleSettings> = {
   id: 'wordle',
 
@@ -176,5 +189,10 @@ export const wordle: GameModule<State, WordleSettings> = {
 
   onLeave(ctx, s, id) {
     if (s.phase === 'play' && s.players.every((p) => p === id || done(s, p) || !(ctx.isConnected(p) || ctx.isBot(p)))) finishRound(ctx, s);
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.players.length) return null;
+    return { places: placesByScore(s.players, (id) => s.scores[id] ?? 0) };
   },
 };

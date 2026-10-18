@@ -206,6 +206,19 @@ function spyGuess(ctx: GameCtx, s: State, guessed: string) {
   else endRound(ctx, s, 'civilians', 'guessWrong', { guessed });
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const spy: GameModule<State, SpySettings> = {
   id: 'spy',
   hostOnly: ['skipReady', 'forceResolve', 'next'],
@@ -432,5 +445,10 @@ export const spy: GameModule<State, SpySettings> = {
     if (isNum(patch.spies)) settings.spies = Math.max(0, Math.min(2, Math.round(patch.spies)));
     if (isNum(patch.minutes) && (SPY_MINUTES as readonly number[]).includes(patch.minutes)) settings.minutes = patch.minutes;
     if (isNum(patch.rounds)) settings.rounds = Math.max(1, Math.min(10, Math.round(patch.rounds)));
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };

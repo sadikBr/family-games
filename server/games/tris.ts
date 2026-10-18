@@ -249,4 +249,11 @@ export const tris: GameModule<State, TrisSettings> = {
       s.winner = null;
     }
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    const win = s.sides.find((x) => x.key === s.winner);
+    const lose = s.sides.filter((x) => x.key !== s.winner).flatMap((x) => x.members);
+    return win ? { places: [[...win.members], lose] } : null;
+  },
 };

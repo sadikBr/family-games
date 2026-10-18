@@ -144,6 +144,19 @@ function score(ctx: GameCtx, s: State) {
   );
 }
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const names: GameModule<State, NamesSettings> = {
   id: 'names',
   hostOnly: ['score', 'next', 'forceStop'],
@@ -342,5 +355,10 @@ export const names: GameModule<State, NamesSettings> = {
     s.participants = s.participants.filter((p) => p !== id);
     s.done = s.done.filter((p) => p !== id);
     if (s.done.length) checkAllDone(ctx, s);
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };

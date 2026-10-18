@@ -299,4 +299,12 @@ export const draw: GameModule<State, DrawSettings> = {
     s.guessed = s.guessed.filter((g) => g.id !== id);
     if (s.phase === 'draw' && allGuessed(ctx, s)) endTurn(ctx, s);
   },
+
+  /** By total score; null if the game stopped early because too many players left. */
+  result(s) {
+    if (s.phase !== 'final' || s.round <= s.settings.rounds || !s.order.length) return null;
+    const pts = (id: string) => s.scores[id] ?? 0;
+    const vals = [...new Set(s.order.map(pts))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.order.filter((id) => pts(id) === v)) };
+  },
 };
