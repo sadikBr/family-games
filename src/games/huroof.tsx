@@ -13,10 +13,9 @@ import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
-import { Confetti, Shake, TimerBar } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Confetti, TimerBar } from '@/ui/fun';
+import { Txt, num } from '@/ui/txt';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 
@@ -95,20 +94,25 @@ function Grid({ view, size, canPick, onPick }: { view: HuroofView; size: number;
   );
 }
 
+/** The two teams, in the same language as the player strip: the team picking now is framed in its colour. */
 function Teams({ view, h, mine }: { view: HuroofView; h: Helpers; mine: HuroofTeam | null }) {
   return (
-    <Row gap={8} style={{ alignItems: 'stretch' }}>
+    <Row gap={6} style={{ alignItems: 'stretch' }}>
       {(['red', 'green'] as HuroofTeam[]).map((t) => {
         const count = view.cells.filter((c) => c.owner === t).length;
         const active = view.phase === 'pick' && view.turn === t;
         return (
-          <View key={t} style={[styles.team, { borderColor: active ? TEAM_COLOR[t] : 'transparent', backgroundColor: alpha(TEAM_COLOR[t], mine === t ? 0.24 : 0.12) }]}>
+          <View
+            key={t}
+            style={[styles.team, { borderColor: active ? TEAM_COLOR[t] : C.border, backgroundColor: alpha(TEAM_COLOR[t], active ? 0.22 : 0.1) }]}>
             <Row gap={6} style={{ justifyContent: 'space-between' }}>
-              <Txt v="tiny" color={TEAM_COLOR[t]}>
+              <Txt v="tiny" color={C.text} numberOfLines={1} style={{ flexShrink: 1 }}>
                 {TEAM_NAME[t]}
                 {mine === t ? ' (فريقك)' : ''}
               </Txt>
-              <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 20, color: C.text }}>{count}</Txt>
+              <Txt v="bold" color={active ? C.text : C.yellow} style={{ fontSize: 17 }}>
+                {num(count)}
+              </Txt>
             </Row>
             <Row gap={4} wrap>
               {view.teams[t].map((id) => (
@@ -137,6 +141,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
         {won ? <Confetti /> : null}
         <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="huroof" size={84} />} title={view.winner ? `فاز ${TEAM_NAME[view.winner]}` : 'انتهت اللعبة'} sub="أحسنتم جميعاً!" />
         <Grid view={view} size={size} canPick={false} onPick={() => {}} />
+        <Teams view={view} h={h} mine={mine} />
         <PlayAgain room={room} />
       </>
     );
@@ -164,7 +169,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
       {view.phase === 'pick' ? (
         <Animated.View entering={FadeIn.duration(180)} style={styles.panel}>
           <Txt v="bold" center color={myPick ? C.yellow : C.muted}>
-            {myPick ? 'دور فريقك — اختر حرفاً من الشبكة' : `${TEAM_NAME[view.turn]} يختار حرفاً…`}
+            {myPick ? 'اختر حرفاً من الشبكة' : `${TEAM_NAME[view.turn]} يختار حرفاً…`}
           </Txt>
           <Txt v="tiny" center color={C.dim}>
             {mine === 'red' ? 'فريقك يصل بين اليمين واليسار' : 'فريقك يصل بين الأعلى والأسفل'}
@@ -182,11 +187,11 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
           </Row>
           <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick />
           {view.wrong ? (
-            <Shake trigger={view.wrong.id}>
+            <Animated.View key={view.wrong.id} entering={FadeIn.duration(200)}>
               <Txt v="small" center color={C.red}>
                 {h.player(view.wrong.by).name}: «{view.wrong.text}» — خطأ
               </Txt>
-            </Shake>
+            </Animated.View>
           ) : null}
 
           {view.phase === 'question' ? (
@@ -236,7 +241,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
             <Row gap={8} center>
               <Avatar player={h.player(view.buzzer)} size={28} />
               <Txt v="bold" color={C.muted}>
-                {h.player(view.buzzer).name} يكتب جوابه…
+                {h.player(view.buzzer).name}: جارٍ كتابة الجواب…
               </Txt>
             </Row>
           ) : null}
@@ -244,24 +249,26 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
       ) : null}
 
       {view.last ? (
-        <Animated.View key={view.last.id} entering={FadeIn.duration(200)} style={[styles.last, { borderColor: view.last.team ? TEAM_COLOR[view.last.team] : C.borderStrong }]}>
+        <Animated.View
+          key={view.last.id}
+          entering={FadeIn.duration(200)}
+          style={[styles.last, view.last.team ? { borderColor: alpha(TEAM_COLOR[view.last.team], 0.7), backgroundColor: alpha(TEAM_COLOR[view.last.team], 0.12) } : null]}>
           <Txt v="small" center>
             الجواب: «{view.last.answer}» — {view.last.team ? `الحرف ل${TEAM_NAME[view.last.team].slice(1)}` : 'لم يأخذه أحد'}
           </Txt>
         </Animated.View>
       ) : null}
-      <LastEvent feed={view.feed} h={h} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  team: { flex: 1, borderRadius: 16, padding: 8, gap: 6, borderWidth: 2 },
-  panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10 },
+  team: { flex: 1, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 8, gap: 6, borderWidth: 1.5 },
+  panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10, borderWidth: 2, borderColor: C.border },
   buzzer: { width: 120, height: 120, borderRadius: 60, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: INK, borderBottomWidth: 10 },
   buzzerDown: { borderBottomWidth: 4, transform: [{ translateY: 5 }] },
   buzzerText: { fontFamily: F.display, fontSize: 30, lineHeight: 46, color: '#FFFFFF' },
   input: { flex: 1, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.yellow },
   letter: { width: 52, height: 52, borderRadius: 14, backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: INK },
-  last: { borderRadius: 14, borderWidth: 2, padding: 8, backgroundColor: C.bg2 },
+  last: { borderRadius: 14, borderWidth: 1.5, borderColor: C.borderStrong, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: C.surface },
 });

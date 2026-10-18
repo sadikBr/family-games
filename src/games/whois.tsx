@@ -4,26 +4,26 @@
  */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { useCountdown } from '@/lib/time';
 import type { RoomView, WhoisView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
-import { Shake } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
-import { SoftIn } from '@/ui/motion';
 
 import { Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { AnsweredRow, McqFinal, OptionGrid, ResultsList, RoundHeader, useMyResultFx } from './islamic-ui';
+import { AnsweredRow, McqFinal, McqVerdict, MyVerdict, OptionGrid, QuestionPanel, ResultsList, RevealNote, RoundHeader, useMyResultFx } from './islamic-ui';
 
 const POINTS = [400, 300, 200, 100];
 
 export function WhoisGame({ room, view }: { room: RoomView; view: WhoisView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const next = useCountdown(view.nextClueAt ?? view.endsAt, 250);
   const mine = view.results?.find((r) => r.id === h.me);
   // options: right / wrong sounds at the reveal; typed: the moment you send a name
@@ -40,28 +40,34 @@ export function WhoisGame({ room, view }: { room: RoomView; view: WhoisView }) {
     <>
       <RoundHeader label={`من هو؟ — ${view.label}`} round={view.round} rounds={view.rounds} />
 
-      <View style={{ gap: 8 }}>
-        {view.clues.map((c, i) => (
-          <Animated.View key={`${view.round}:${i}`} entering={FadeInDown.duration(260)} style={[styles.clue, i === view.clues.length - 1 && asking && styles.clueNew]}>
-            <View style={styles.clueNum}>
-              <Txt style={{ fontFamily: F.black, fontSize: 13, lineHeight: 18, color: C.ink }}>{num(i + 1)}</Txt>
-            </View>
-            <Txt v="bold" style={{ flex: 1 }}>
-              {c}
-            </Txt>
-          </Animated.View>
-        ))}
-        {asking ? (
-          <Row gap={8} center>
-            {Array.from({ length: view.totalClues }, (_, i) => (
-              <View key={i} style={[styles.dot, i < view.clues.length && { backgroundColor: C.yellow }]} />
-            ))}
-            <Txt v="tiny" color={C.muted}>
-              {view.nextClueAt ? `التلميح التالي بعد ${num(Math.ceil(next / 1000))} ث` : `آخر فرصة: ${num(Math.ceil(next / 1000))} ث`}
-            </Txt>
-          </Row>
-        ) : null}
-      </View>
+      <QuestionPanel
+        id={view.round}
+        below={
+          asking ? (
+            <Row gap={6} center style={{ paddingTop: 2 }}>
+              {Array.from({ length: view.totalClues }, (_, i) => (
+                <View key={i} style={[styles.dot, i < view.clues.length && { backgroundColor: accent }]} />
+              ))}
+              <Txt v="tiny" color={C.muted}>
+                {view.nextClueAt ? `التلميح التالي بعد ${num(Math.ceil(next / 1000))} ث` : `آخر فرصة: ${num(Math.ceil(next / 1000))} ث`}
+              </Txt>
+            </Row>
+          ) : null
+        }>
+        {view.clues.map((c, i) => {
+          const fresh = i === view.clues.length - 1 && asking;
+          return (
+            <Animated.View key={`${view.round}:${i}`} entering={FadeIn.duration(260)} style={[styles.clue, fresh && { backgroundColor: alpha(accent, 0.2) }]}>
+              <View style={[styles.clueNum, { backgroundColor: fresh ? accent : alpha(accent, 0.35) }]}>
+                <Txt style={styles.clueNumText}>{num(i + 1)}</Txt>
+              </View>
+              <Txt v="bold" style={{ flex: 1 }} color={fresh || !asking ? C.text : C.muted}>
+                {c}
+              </Txt>
+            </Animated.View>
+          );
+        })}
+      </QuestionPanel>
 
       {view.typed ? (
         <TypedAnswer view={view} h={h} worth={worth} lastClue={lastClue} />
@@ -79,7 +85,10 @@ export function WhoisGame({ room, view }: { room: RoomView; view: WhoisView }) {
       {asking ? (
         <AnsweredRow ids={view.guessed} total={Object.keys(view.scores).length} h={h} />
       ) : view.results ? (
-        <ResultsList results={view.results} h={h} options={view.options} />
+        <View style={{ gap: 10 }}>
+          <McqVerdict mine={mine} />
+          <ResultsList results={view.results} h={h} options={view.options} scores={view.scores} />
+        </View>
       ) : null}
     </>
   );
@@ -98,26 +107,17 @@ function TypedAnswer({ view, h, worth, lastClue }: { view: WhoisView; h: Helpers
 
   if (view.phase !== 'ask') {
     return view.answerName ? (
-      <Animated.View entering={SoftIn} style={styles.answer}>
-        <Txt v="tiny" color={C.muted}>
-          الجواب
-        </Txt>
-        <Txt v="title" center>
-          {view.answerName}
-        </Txt>
-      </Animated.View>
+      <RevealNote kicker="الجواب" text={view.answerName} big />
     ) : null;
   }
   if (view.myGuess !== null) {
     return (
-      <Animated.View entering={SoftIn} style={[styles.answer, { borderColor: C.green }]}>
-        <Txt v="bold" center color={C.green}>
-          أصبت! 🎉
-        </Txt>
+      <View style={{ gap: 4 }}>
+        <MyVerdict tone="good" text="أصبت!" />
         <Txt v="tiny" center color={C.muted}>
           انتظر حتى يجيب الآخرون
         </Txt>
-      </Animated.View>
+      </View>
     );
   }
   return (
@@ -142,22 +142,20 @@ function TypedAnswer({ view, h, worth, lastClue }: { view: WhoisView; h: Helpers
           <Txt v="small" center color={C.yellow}>
             اكتب الاسم الآن واربح {num(worth)} نقطة
           </Txt>
-          <Shake trigger={view.myTries.length || null}>
-            <Row gap={8}>
-              <Field
-                value={text}
-                onChangeText={(t) => setDraft({ key, text: t })}
-                onSubmitEditing={send}
-                placeholder="من هو؟ اكتب الاسم"
-                placeholderTextColor={C.dim}
-                autoCorrect={false}
-                maxLength={60}
-                returnKeyType="send"
-                style={styles.input}
-              />
-              <Btn size="md" icon="check" label="أرسل" disabled={!text.trim()} onPress={send} />
-            </Row>
-          </Shake>
+          <Row gap={8}>
+            <Field
+              value={text}
+              onChangeText={(t) => setDraft({ key, text: t })}
+              onSubmitEditing={send}
+              placeholder="من هو؟ اكتب الاسم"
+              placeholderTextColor={C.dim}
+              autoCorrect={false}
+              maxLength={60}
+              returnKeyType="send"
+              style={styles.input}
+            />
+            <Btn size="md" icon="check" label="أرسل" disabled={!text.trim()} onPress={send} />
+          </Row>
           <Txt v="tiny" center color={C.dim}>
             الأخطاء الإملائية الصغيرة مقبولة
           </Txt>
@@ -168,11 +166,10 @@ function TypedAnswer({ view, h, worth, lastClue }: { view: WhoisView; h: Helpers
 }
 
 const styles = StyleSheet.create({
-  clue: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderRadius: 16, padding: 12 },
-  clueNew: { borderWidth: 2, borderColor: alpha(C.yellow, 0.6) },
-  clueNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.surfaceStrong },
+  clue: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 8 },
+  clueNum: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  clueNumText: { fontFamily: F.black, fontSize: 13, lineHeight: 18, color: '#FFFFFF' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.surfaceStrong },
   input: { flex: 1, minWidth: 0, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontFamily: F.bold, fontSize: 17, borderWidth: 2, borderColor: C.yellow },
-  answer: { alignItems: 'center', gap: 2, backgroundColor: C.surface, borderRadius: 18, padding: 14, borderWidth: 2, borderColor: alpha(C.yellow, 0.6) },
   miss: { backgroundColor: alpha(C.red, 0.12), borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
 });
