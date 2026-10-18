@@ -56,6 +56,8 @@ export class Tournament {
   rounds: BracketMatch[][] = [];
   /** knockout: duels decided so far */
   duels = 0;
+  /** knockout: the duel being played (the view shows it until the host moves on) */
+  private playingAt: { round: number; slot: number } | null = null;
   /** the current game's result is recorded */
   done = false;
   /** the current game has a result() (games without one are played for fun) */
@@ -110,6 +112,7 @@ export class Tournament {
     this.stage = 'playing';
     this.done = false;
     this.ranked = ranked;
+    this.playingAt = this.config.format === 'knockout' ? nextMatch(this.rounds) : null;
     // a league takes people who arrived after the start, from their first game on
     if (this.config.format === 'league') for (const p of people) this.addPerson(p);
   }
@@ -252,7 +255,7 @@ export class Tournament {
   view(): TournamentView {
     const c = this.config;
     const knockout = c.format === 'knockout';
-    const at = knockout && this.rounds.length ? nextMatch(this.rounds) : null;
+    const at = !knockout || !this.rounds.length ? null : this.stage === 'playing' && this.playingAt ? this.playingAt : nextMatch(this.rounds);
     const m = at ? this.rounds[at.round][at.slot] : null;
     const up = this.upcoming();
     const rounds = knockout ? Math.max(1, this.rounds.length) : 0;
