@@ -288,4 +288,13 @@ export const taboo: GameModule<State, TabooSettings> = {
     balanceTeams(ctx, s);
     if (wasDescriber) pickDescriber(ctx, s);
   },
+
+  result(s) {
+    if (s.phase !== 'final') return null;
+    const [a, b] = s.teamScores;
+    const [ta, tb] = s.teams;
+    const places = a === b ? [[...ta, ...tb]] : a > b ? [[...ta], [...tb]] : [[...tb], [...ta]];
+    const out = places.filter((p) => p.length);
+    return out.length ? { places: out } : null;
+  },
 };

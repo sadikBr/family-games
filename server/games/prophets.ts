@@ -308,4 +308,10 @@ export const prophets: GameModule<ProphetsState, ProphetsSettings> = {
     if (isNum(patch.seconds)) settings.seconds = clamp(Math.round(patch.seconds / 5) * 5, 15, 60);
     if (isNum(patch.lanterns)) settings.lanterns = clamp(Math.round(patch.lanterns), 1, 5);
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    // the family wins when it reaches the end of the story with a lantern still lit
+    return { places: [[...s.participants]], coop: { won: !!s.completed } };
+  },
 };

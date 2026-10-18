@@ -129,6 +129,19 @@ export function botGuess(place: MapquizPoint, level: MapquizLevel, region: Mapqu
 /* Module                                                              */
 /* ------------------------------------------------------------------ */
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const mapquiz: GameModule<State, MapquizSettings> = {
   id: 'mapquiz',
   hostOnly: ['next'],
@@ -226,6 +239,11 @@ export const mapquiz: GameModule<State, MapquizSettings> = {
     if (isNum(patch.seconds)) settings.seconds = clamp(Math.round(patch.seconds / 5) * 5, 10, 45);
     if (isStr(patch.region) && REGIONS.includes(patch.region as MapquizRegion)) settings.region = patch.region as MapquizRegion;
     if (isStr(patch.level) && LEVELS.includes(patch.level as MapquizLevel)) settings.level = patch.level as MapquizLevel;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };
 

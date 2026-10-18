@@ -296,4 +296,11 @@ export const ludo: GameModule<State, LudoSettings> = {
       nextTurn(s);
     }
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.ranking.length) return null;
+    // without «podium» only the winner is ranked: everyone else shares second place (as on the final screen)
+    const rest = s.seats.map((x) => x.id).filter((id) => !s.ranking.includes(id));
+    return { places: [...s.ranking.map((id) => [id]), ...(rest.length ? [rest] : [])] };
+  },
 };

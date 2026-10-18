@@ -253,4 +253,10 @@ export const mosque: GameModule<MosqueState, MosqueSettings> = {
     if (LEVELS.includes(patch.level as MosqueLevel)) settings.level = patch.level as MosqueLevel;
     if (isNum(patch.seconds)) settings.seconds = clamp(Math.round(patch.seconds / 5) * 5, 10, 30);
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    // the family wins when the whole mosque is built before the rounds run out
+    return { places: [[...s.participants]], coop: { won: !!s.completed } };
+  },
 };

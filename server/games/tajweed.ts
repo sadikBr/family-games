@@ -88,6 +88,19 @@ const base = makeMcq<TajweedSettings>(
   (settings) => TAJWEED_BOT_SKILL[settings.topic] ?? 0.6,
 );
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const tajweed: GameModule<State, TajweedSettings> = {
   ...base,
   id: 'tajweed',
@@ -135,5 +148,10 @@ export const tajweed: GameModule<State, TajweedSettings> = {
     if (isNum(patch.rounds)) settings.rounds = clamp(Math.round(patch.rounds), 5, 30);
     if (isNum(patch.seconds)) settings.seconds = clamp(Math.round(patch.seconds), 10, 40);
     if (TAJWEED_TOPICS.some((t) => t.key === patch.topic)) settings.topic = patch.topic as TajweedSettings['topic'];
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };

@@ -156,6 +156,19 @@ function botDelay(s: State): number {
 /* Module                                                              */
 /* ------------------------------------------------------------------ */
 
+/** For result(): the highest `score` first; equal scores share a place. */
+function placesByScore(ids: string[], score: (id: string) => number): string[][] {
+  const out: string[][] = [];
+  let prev: number | null = null;
+  for (const id of [...ids].sort((a, b) => score(b) - score(a))) {
+    const v = score(id);
+    if (v === prev) out[out.length - 1].push(id);
+    else out.push([id]);
+    prev = v;
+  }
+  return out;
+}
+
 export const steps: GameModule<State, StepsSettings> = {
   id: 'steps',
   hostOnly: ['next'],
@@ -255,6 +268,11 @@ export const steps: GameModule<State, StepsSettings> = {
     if (isNum(patch.seconds)) settings.seconds = clamp(Math.round(patch.seconds / 10) * 10, 30, 120);
     if (isStr(patch.category) && CATS.includes(patch.category as StepsCategory)) settings.category = patch.category as StepsSettings['category'];
     if (isStr(patch.level) && LEVELS.includes(patch.level as StepsLevel)) settings.level = patch.level as StepsLevel;
+  },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    return { places: placesByScore(s.participants, (id) => s.scores[id] ?? 0) };
   },
 };
 

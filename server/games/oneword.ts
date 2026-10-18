@@ -473,6 +473,13 @@ export const oneword: GameModule<State, OnewordSettings> = {
     if (isNum(patch.seconds)) settings.seconds = Math.max(45, Math.min(90, Math.round(patch.seconds / 15) * 15));
     if (LEVELS.includes(patch.level as OnewordLevel)) settings.level = patch.level as OnewordLevel;
   },
+
+  result(s) {
+    // ended early (fewer than 3 players left) before the deck was played: no result
+    if (s.phase !== 'final' || !s.participants.length || s.won + s.lost < s.settings.cards) return null;
+    // the family wins with more than half of the cards (7 of 13, 4 of 7: «في المتوسط» or better)
+    return { places: [[...s.participants]], coop: { won: s.won * 2 > s.settings.cards } };
+  },
 };
 
 export type { State as OnewordState };
