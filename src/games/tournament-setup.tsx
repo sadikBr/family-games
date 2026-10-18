@@ -174,7 +174,7 @@ function LeagueSetup({ room, c, editable }: { room: RoomView; c: LeagueConfig; e
   const [adding, setAdding] = useState(false);
   const { people, bots } = roomCounts(room);
   const set = (games: GameId[]) => send({ ...c, games });
-  const move = (i: number, d: -1 | 1) => {
+  const move = (i: number, d: -1) => {
     const g = [...c.games];
     [g[i], g[i + d]] = [g[i + d], g[i]];
     set(g);
@@ -207,7 +207,7 @@ function LeagueSetup({ room, c, editable }: { room: RoomView; c: LeagueConfig; e
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <GameArt id={g} size={36} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Txt v="bold" numberOfLines={1}>
+                  <Txt v="bold" numberOfLines={2} style={{ fontSize: 15, lineHeight: 21 }}>
                     {GAMES[g].title}
                   </Txt>
                   {note ? (
@@ -218,11 +218,11 @@ function LeagueSetup({ room, c, editable }: { room: RoomView; c: LeagueConfig; e
                 </View>
               </Pressable>
               {editable ? (
-                <Row gap={3}>
-                  <View style={{ transform: [{ rotate: '180deg' }] }}>
-                    <SmallBtn icon="chevron" label="إلى الأعلى" disabled={i === 0} onPress={() => move(i, -1)} />
+                <Row gap={4}>
+                  {/* one arrow is enough to reorder (moving a game down = moving the next one up), and leaves room for the name */}
+                  <View style={{ transform: [{ rotate: '180deg' }], opacity: i === 0 ? 0 : 1 }}>
+                    <SmallBtn icon="chevron" label={`قدّم ${GAMES[g].title}`} disabled={i === 0} onPress={() => move(i, -1)} />
                   </View>
-                  <SmallBtn icon="chevron" label="إلى الأسفل" disabled={i === c.games.length - 1} onPress={() => move(i, 1)} />
                   <SmallBtn icon="close" label={`احذف ${GAMES[g].title}`} onPress={() => set(c.games.filter((_, k) => k !== i))} />
                 </Row>
               ) : null}
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   segItem: { flex: 1, minHeight: 42, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
   segOn: { backgroundColor: GOLD },
   item: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface, minHeight: 48 },
-  small: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg2 },
+  small: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   cell: { width: 74, alignItems: 'center', gap: 4, paddingVertical: 8, borderRadius: 14, borderWidth: 2, borderColor: 'transparent', backgroundColor: C.bg2 },
   note: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 10, borderRadius: 14, backgroundColor: C.bg2 },
