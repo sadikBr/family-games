@@ -28,7 +28,9 @@ param(
   [switch]$Debug
 )
 
-$ErrorActionPreference = 'Stop'
+# Not 'Stop': in Windows PowerShell 5.1, anything a program writes to stderr (java -version, Gradle and
+# sdkmanager warnings) would then count as a failure. Each step checks $LASTEXITCODE instead.
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
@@ -62,7 +64,8 @@ if (-not $JavaHome -or -not (Test-Path (Join-Path $JavaHome 'bin\java.exe'))) {
 }
 $env:JAVA_HOME = $JavaHome
 $env:Path = "$JavaHome\bin;$env:Path"
-$javaVersion = (& "$JavaHome\bin\java.exe" -version 2>&1 | Out-String)
+# java prints its version on stderr: captured as records, turned back into plain text
+$javaVersion = (& "$JavaHome\bin\java.exe" -version 2>&1 | ForEach-Object { "$_" }) -join "`n"
 if ($javaVersion -notmatch 'version "17') { Fail "JAVA_HOME ($JavaHome) is not JDK 17:`n$javaVersion" }
 Write-Host "JDK: $JavaHome"
 
@@ -101,7 +104,7 @@ if (-not $SkipInstall) {
 
 # --- the same settings as the EAS "preview" build: the deployed server's address
 if (-not $env:EXPO_PUBLIC_SERVER_URL) {
-  $eas = Get-Content (Join-Path $root 'eas.json') -Raw | ConvertFrom-Json
+  $eas = Get-Content (Join-Path $root 'eas.json') -Raw -ErrorAction Stop | ConvertFrom-Json
   $env:EXPO_PUBLIC_SERVER_URL = $eas.build.preview.env.EXPO_PUBLIC_SERVER_URL
 }
 Write-Host "Server: $env:EXPO_PUBLIC_SERVER_URL"
