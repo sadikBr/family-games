@@ -193,14 +193,22 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
   let line = '';
   if (view.phase === 'play') {
     const byMe = last?.side === me;
-    if (last?.capture) line = byMe ? `أكلت ${num(last.capture.seeds)} حبات! ` : `${name(last.side)} أكل ${num(last.capture.seeds)} حبات. `;
+    if (last?.capture) line = byMe ? `أكلت ${num(last.capture.seeds)} حبات! ` : `أكلةٌ لـ${name(last.side)}: ${num(last.capture.seeds)} حبات. `;
     if (myTurn) line += last?.extra && byMe ? 'آخر حبة في خزانتك: العب مرة أخرى!' : 'اختر حفرة من صفّك';
-    else if (last?.extra && !byMe) line += `آخر حبة في خزانة ${name(view.turn)}: يلعب مرة أخرى…`;
+    else if (last?.extra && !byMe) line += `آخر حبة في خزانة ${name(view.turn)}: دورٌ آخر…`;
   }
 
   return (
     <>
       {won ? <Confetti /> : null}
+      {view.phase === 'final' ? (
+        <ResultBanner
+          tone={won ? 'good' : 'neutral'}
+          art={<MancalaArt size={60} />}
+          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : `فاز ${h.player(view.seats[view.winner as 0 | 1]).name}`}
+          sub={view.reason === 'forfeit' ? 'انسحب الخصم' : `${num(Math.max(s0, s1))} مقابل ${num(Math.min(s0, s1))}`}
+        />
+      ) : null}
       <DuelBar
         h={h}
         active={view.phase === 'play' ? view.seats[view.turn] : null}
@@ -211,14 +219,7 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
           score: view.score[view.seats[side]] ?? 0,
         }))}
       />
-      {view.phase === 'final' ? (
-        <ResultBanner
-          tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
-          art={<MancalaArt size={60} />}
-          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : `فاز ${h.player(view.seats[view.winner as 0 | 1]).name}`}
-          sub={view.reason === 'forfeit' ? 'انسحب الخصم' : `${num(Math.max(s0, s1))} مقابل ${num(Math.min(s0, s1))}`}
-        />
-      ) : line ? (
+      {view.phase !== 'final' && line ? (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
           {line}
         </Txt>

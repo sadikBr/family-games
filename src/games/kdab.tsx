@@ -10,10 +10,10 @@ import type { KdabView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti } from '@/ui/fun';
+import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
-import { CardRow, Felt, LastEvent, PlayingCard, Seats } from './cards/card-ui';
+import { CardRow, Felt, PlayingCard, TableStrip, TurnLine, cardsWord } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 
@@ -25,7 +25,7 @@ function RevealBox({ reveal, h }: { reveal: NonNullable<KdabView['reveal']>; h: 
   return (
     <Animated.View key={reveal.id} entering={FadeIn.duration(220)} style={[styles.reveal, { borderColor: reveal.truthful ? C.green : C.red }]}>
       <Txt v="bold" numberOfLines={2} style={{ flex: 1 }}>
-        {reveal.truthful ? `${h.player(reveal.player).name} كان صادقاً — ${h.player(reveal.taker).name} يأخذ الكومة` : `${h.player(reveal.player).name} كذب! يأخذ الكومة`}
+        {reveal.truthful ? `صدقٌ من ${h.player(reveal.player).name} — الكومة لـ${h.player(reveal.taker).name}` : `كذبٌ من ${h.player(reveal.player).name}! — الكومة لـ${h.player(reveal.taker).name}`}
       </Txt>
       <Row gap={3}>
         {reveal.cards.map((c) => (
@@ -48,8 +48,9 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
     return (
       <>
         {won ? <Confetti /> : null}
-        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kdab" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="تخلّص من كل أوراقه أولاً" />
-        <Seats seats={view.order} turn={null} counts={view.handCounts} h={h} />
+        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kdab" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="أول يدٍ فارغة من الأوراق" />
+        <Podium players={view.order.map((id) => h.player(id))} scores={view.handCounts} lowIsBetter />
+        <Scoreboard players={room.players} scores={view.handCounts} lowIsBetter unit="ورقة" highlight={h.me} />
         <PlayAgain room={room} />
       </>
     );
@@ -62,7 +63,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
 
   return (
     <>
-      <Seats seats={view.order} turn={view.turn} counts={view.handCounts} h={h} label={(id) => (view.finishing?.id === id ? 'آخر ورقة!' : null)} />
+      <TableStrip room={room} ids={view.order} turn={view.turn} sub={(id) => (view.finishing?.id === id ? 'آخر ورقة!' : cardsWord(view.handCounts[id] ?? 0))} />
 
       <Felt minHeight={150} active={myTurn}>
         <View style={{ alignItems: 'center', gap: 8 }}>
@@ -87,7 +88,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
               <Row gap={6} center>
                 <Avatar player={h.player(view.last.by)} size={20} />
                 <Txt v="small" center color="#FFF4DA" style={{ flexShrink: 1 }}>
-                  {h.player(view.last.by).name} لعب {num(view.last.count)} {view.last.count === 1 ? 'ورقة' : 'أوراق'} وقال «{rankLabel(view.last.rank)}»
+                  {h.player(view.last.by).name}: {cardsWord(view.last.count)} — «{rankLabel(view.last.rank)}»
                 </Txt>
               </Row>
             </Animated.View>
@@ -118,11 +119,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
       </View>
 
       <View style={{ gap: 8 }}>
-        {myTurn ? (
-          <Txt v="bold" center color={C.yellow}>
-            {starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank!)}» — أو مرّر`}
-          </Txt>
-        ) : null}
+        <TurnLine myTurn={myTurn} text={starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank ?? 1)}» — أو مرّر`} />
         <CardRow
           cards={view.myHand}
           size="md"
@@ -165,7 +162,6 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
           </Row>
         ) : null}
       </View>
-      <LastEvent feed={view.feed} h={h} />
     </>
   );
 }
@@ -174,6 +170,6 @@ const styles = StyleSheet.create({
   emptyPile: { width: 58, height: 87, borderRadius: 8, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.35)' },
   slot: { height: 78, justifyContent: 'center' },
   reveal: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 18, borderWidth: 2, paddingVertical: 6, paddingHorizontal: 10, gap: 8 },
-  rank: { minWidth: 44, alignItems: 'center', backgroundColor: C.surface, borderRadius: 12, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 2, borderColor: C.border },
+  rank: { minWidth: 44, minHeight: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 8, borderWidth: 2, borderColor: C.border },
   rankOn: { backgroundColor: C.yellow, borderColor: C.yellow },
 });

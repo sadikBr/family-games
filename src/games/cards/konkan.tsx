@@ -8,14 +8,14 @@ import { isKonkanMeld, type Card } from '@/shared/cards';
 import type { KonkanViewPlus } from '@/shared/games/konkan';
 import type { KonkanView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
-import { Avatar, Card as Panel, Row } from '@/ui/bits';
+import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti, Scoreboard } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Confetti, Podium, Scoreboard } from '@/ui/fun';
+import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, FeltFeed, PlayingCard, Seats, TurnLine } from './card-ui';
+import { CardRow, Felt, HandRows, PlayingCard, TableStrip, TurnLine, cardsWord } from './card-ui';
 
 export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanView }) {
   const h = helpers(room);
@@ -45,31 +45,26 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
           art={<GameArt id="konkan" size={72} />}
           title={final ? `فاز ${h.player(view.winner).name}` : view.handWinner ? `${h.player(view.handWinner).name}: كونكان` : 'انتهت الأوراق'}
         />
-        <Panel>
-          <Txt v="small" color={C.muted}>
-            الأوراق الباقية (الصور = 10)
-          </Txt>
-          {view.handSummary?.map((r) => (
-            <View key={r.id} style={{ gap: 4 }}>
-              <Row gap={8}>
-                <Avatar player={h.player(r.id)} size={26} />
-                <Txt v="bold" style={{ flex: 1 }}>
-                  {h.player(r.id).name}
-                </Txt>
-                <Txt v="h3" color={r.points ? C.red : C.green}>
-                  +{r.points}
-                </Txt>
-              </Row>
-              {r.cards.length ? <CardRow cards={r.cards} size="xs" gap={3} /> : null}
-            </View>
-          ))}
-        </Panel>
-        <Panel>
-          <Txt v="small" color={C.muted}>
-            نقاط الخسارة — من يصل {view.limit} يخرج
+        {final ? <Podium players={view.participants.map((id) => h.player(id))} scores={view.scores} lowIsBetter /> : null}
+        <View style={{ gap: 6 }}>
+          <Txt v="small" center color={C.muted}>
+            نقاط الخسارة — من يصل {num(view.limit)} يخرج
           </Txt>
           <Scoreboard players={room.players} scores={view.scores} lowIsBetter highlight={h.me} />
-        </Panel>
+        </View>
+        {view.handSummary ? (
+          <HandRows
+            title="الأوراق الباقية في اليد (الصور = 10)"
+            rows={view.handSummary.map((r) => ({
+              key: r.id,
+              players: [h.player(r.id)],
+              name: h.player(r.id).name,
+              points: num(`+${r.points}`),
+              tone: r.points ? 'bad' : 'good',
+              extra: r.cards.length ? <CardRow cards={r.cards} size="xs" gap={3} /> : undefined,
+            }))}
+          />
+        ) : null}
         {final ? (
           <PlayAgain room={room} />
         ) : h.isHost ? (
@@ -81,20 +76,20 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
     );
   }
 
-  const others = view.participants.filter((id) => id !== h.me);
   return (
     <>
-      <Seats
-        seats={others}
+      <TableStrip
+        room={room}
+        ids={view.participants}
         turn={view.turn}
-        counts={view.handCounts}
-        h={h}
+        score={(id) => view.scores[id] ?? 0}
+        sub={(id) => (view.active.includes(id) ? cardsWord(view.handCounts[id] ?? 0) : 'خارج اللعبة')}
         out={view.participants.filter((id) => !view.active.includes(id))}
-        label={(id) => `${view.handCounts[id]} أوراق · ${view.scores[id]} نقطة`}
+        note={`نقاط الخسارة — من يصل ${num(view.limit)} يخرج`}
       />
 
       {/* table: piles + melds */}
-      <View style={[styles.table, myTurn && { borderColor: alpha(C.yellow, 0.7) }]}>
+      <Felt active={myTurn} minHeight={0}>
         <Row center gap={18}>
           <Pressable disabled={!drawing} onPress={() => h.act('drawStock')} style={[styles.pile, drawing && styles.pileActive]}>
             <PlayingCard card={null} size="md" />
@@ -146,8 +141,7 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
             </Animated.View>
           );
         })}
-        <FeltFeed feed={view.feed} h={h} />
-      </View>
+      </Felt>
 
       {amOut ? (
         <Txt v="bold" center color={C.muted}>
@@ -156,7 +150,7 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
       ) : (
         <TurnLine
           myTurn={myTurn}
-          text={drawing ? 'دورك — اسحب من الكومة أو خذ المرمية' : 'نزّل مجموعاتك ثم ارمِ ورقة'}
+          text={drawing ? 'اسحب من الكومة أو خذ المرمية' : 'نزّل مجموعاتك ثم ارمِ ورقة'}
         />
       )}
 
@@ -202,22 +196,11 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
           </>
         ) : null}
       </View>
-      <Txt v="tiny" center color={C.dim}>
-        نقاطك: {view.scores[h.me] ?? 0} من {view.limit}
-      </Txt>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  table: {
-    backgroundColor: C.felt,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: C.feltDark,
-    padding: 12,
-    gap: 10,
-  },
   pile: { alignItems: 'center', gap: 4, padding: 6, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   pileActive: { borderColor: C.yellow },
   meld: {

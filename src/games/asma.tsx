@@ -7,7 +7,7 @@ import { haptic } from '@/lib/sfx';
 import { ASMA_PAIRS, type AsmaMatchView, type AsmaMemoryView, type AsmaSettings as Settings, type AsmaView } from '@/shared/games/asma';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
+import { useAccent } from '@/ui/accent';
 import { ChipPicker, Stepper } from '@/ui/controls';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
@@ -16,6 +16,7 @@ import { Txt, num } from '@/ui/txt';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { AnsweredRow, OptionGrid, ResultsList, RoundHeader, useMyResultFx } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const GOLD = '#E9C46A';
 const NIGHT = '#16304A';
@@ -52,6 +53,7 @@ function Final({ room, scores, h, sub, again = true }: { room: RoomView; scores:
 
 function MatchGame({ room, view }: { room: RoomView; view: AsmaMatchView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const mine = view.results?.find((r) => r.id === h.me);
   useMyResultFx(view.phase === 'reveal' && mine ? `${view.round}` : null, mine?.correct ?? null);
   if (view.phase === 'final') return <Final room={room} scores={view.scores} h={h} sub="«من أحصاها دخل الجنة»" />;
@@ -63,7 +65,7 @@ function MatchGame({ room, view }: { room: RoomView; view: AsmaMatchView }) {
       <RoundHeader label={showsName ? 'ما معنى هذا الاسم؟' : 'ما الاسم الذي هذا معناه؟'} round={view.round} rounds={view.rounds} />
       {view.phase === 'ask' ? <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={view.myAnswer === null} /> : null}
 
-      <Animated.View key={view.round} entering={FadeIn.duration(220)} style={styles.prompt}>
+      <Animated.View key={view.round} entering={FadeIn.duration(220)} style={[styles.prompt, { borderColor: alpha(accent, 0.7) }]}>
         {showsName ? (
           <NameText name={view.prompt} />
         ) : (
@@ -97,6 +99,7 @@ function MatchGame({ room, view }: { room: RoomView; view: AsmaMatchView }) {
 function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
   const h = helpers(room);
   const W = useContentWidth();
+  const accent = useAccent();
   const { height } = useWindowDimensions();
   const cols = view.size <= 12 ? 3 : 4;
   const rows = Math.ceil(view.size / cols);
@@ -116,25 +119,7 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
 
       {view.phase === 'play' ? (
         <>
-          <Row gap={8} wrap center>
-            {view.order.map((id) => {
-              const on = view.turn === id;
-              const p = h.player(id);
-              return (
-                <View key={id} style={[styles.player, on && { borderColor: p.color, backgroundColor: alpha(p.color, 0.2) }]}>
-                  <Avatar player={p} size={24} />
-                  <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 70 }}>
-                    {p.name}
-                  </Txt>
-                  <View style={[styles.count, { backgroundColor: p.color }]}>
-                    <Txt v="tiny" color="#FFFFFF">
-                      {num(view.pairs[id] ?? 0)}
-                    </Txt>
-                  </View>
-                </View>
-              );
-            })}
-          </Row>
+          <PlayerStrip room={room} entries={view.order.map((id) => ({ id, score: view.pairs[id] ?? 0 }))} active={[view.turn]} />
           <Txt v="bold" center color={view.peek ? C.orange : found ? C.green : C.yellow} style={{ minHeight: 26 }}>
             {view.peek
               ? 'ليس هذا معناه…'
@@ -145,14 +130,14 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
                 : myTurn
                   ? view.flipped.length
                     ? 'اقلب بطاقة ثانية'
-                    : 'دورك: اقلب اسماً ومعناه'
+                    : 'اقلب اسماً ومعناه'
                   : ''}
           </Txt>
         </>
       ) : null}
 
       {view.last && view.phase === 'play' ? (
-        <Animated.View key={view.last.name} entering={FadeIn.duration(240)} style={styles.last}>
+        <Animated.View key={view.last.name} entering={FadeIn.duration(240)} style={[styles.last, { borderColor: alpha(accent, 0.6) }]}>
           <Txt style={{ fontFamily: F.quran, fontSize: 22, lineHeight: 42, color: GOLD, textAlign: 'center' }}>{view.last.name}</Txt>
           <Txt v="small" center>
             {view.last.meaning}
@@ -260,11 +245,9 @@ export function AsmaSettings({ room, editable }: { room: RoomView; editable: boo
 
 const styles = StyleSheet.create({
   emblem: { fontFamily: F.quran, fontSize: 26, lineHeight: 50, color: GOLD, textAlign: 'center' },
-  prompt: { backgroundColor: NIGHT, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 16, minHeight: 130, justifyContent: 'center', borderWidth: 2, borderColor: alpha(GOLD, 0.55) },
+  prompt: { backgroundColor: NIGHT, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 16, minHeight: 130, justifyContent: 'center', borderWidth: 2 },
   answer: { backgroundColor: alpha(C.green, 0.16), borderColor: alpha(C.green, 0.55), borderWidth: 2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12 },
-  last: { backgroundColor: NIGHT, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 12, borderWidth: 1.5, borderColor: alpha(GOLD, 0.45) },
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 2, borderColor: 'transparent' },
-  count: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  last: { backgroundColor: NIGHT, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 12, borderWidth: 1.5 },
   table: { alignSelf: 'center', flexDirection: 'row', flexWrap: 'wrap' },
   card: { flex: 1, borderRadius: 12, borderWidth: 2, borderColor: alpha(INK, 0.5), alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingHorizontal: 3 },
   nameCard: { backgroundColor: PAPER },

@@ -7,17 +7,17 @@ import { Icon } from '@/art/icons';
 import type { RoomView, UnoView } from '@/shared/protocol';
 import { UNO_COLOR_INFO, colorsOf, otherSide } from '@/shared/uno';
 import { C, F, alpha } from '@/theme';
-import { Avatar, Card as Panel, Row } from '@/ui/bits';
+import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti, Scoreboard } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Confetti, Podium, Scoreboard } from '@/ui/fun';
+import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers, type Helpers } from '../helpers';
-import { DOUBLE_TAP_MS, FeltFeed, TurnLine, tapClock } from './card-ui';
+import { DOUBLE_TAP_MS, Felt, HandRows, TurnLine, cardsWord, tapClock } from './card-ui';
 import { UnoCard } from './uno-card';
 
-const FELT = { light: ['#1E6B4A', '#155238'], dark: ['#3A2466', '#24163F'] } as const;
+const FELT = { light: C.felt, dark: '#3A2466' } as const;
 
 /** The other players: avatar, count and the other side of their cards (that's the twist of UNO FLIP). */
 function Opponents({ view, h }: { view: UnoView; h: Helpers }) {
@@ -30,14 +30,17 @@ function Opponents({ view, h }: { view: UnoView; h: Helpers }) {
         const active = view.turn === id;
         const faces = view.backs[id] ?? [];
         return (
-          <View key={id} style={[styles.opp, active && styles.oppActive]}>
+          <View
+            key={id}
+            accessibilityLabel={`${p.name}: ${cardsWord(faces.length)}${active ? ' — دوره الآن' : ''}`}
+            style={[styles.opp, active && { borderColor: p.color, backgroundColor: alpha(p.color, 0.2) }]}>
             <Avatar player={p} size={30} />
-            <View style={{ width: 62 }}>
-              <Txt v="tiny" numberOfLines={1} color={active ? C.ink : C.text}>
+            <View style={{ width: 66 }}>
+              <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13 }}>
                 {p.name}
               </Txt>
-              <Txt v="tiny" color={active ? alpha(C.ink, 0.7) : C.dim}>
-                {faces.length} {faces.length === 1 ? 'ورقة' : 'أوراق'}
+              <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ fontSize: 11 }}>
+                {cardsWord(faces.length)} · {num(view.scores[id] ?? 0)}
               </Txt>
             </View>
             <View style={styles.fan}>
@@ -112,48 +115,45 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
     const final = view.phase === 'final';
     const winner = final ? view.winner : rs?.winner;
     const won = winner === h.me;
+    const board = (
+      <View style={{ gap: 6 }}>
+        <Txt v="small" center color={C.muted}>
+          النقاط — الهدف {num(view.target)}
+        </Txt>
+        <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
+      </View>
+    );
     return (
       <>
         {won ? <Confetti /> : null}
         <ResultBanner
           tone={won ? 'good' : 'neutral'}
           art={<GameArt id="unoflip" size={84} />}
-          title={winner ? `${final ? 'فاز' : 'ربح الجولة'} ${h.player(winner).name}` : 'انتهت اللعبة'}
-          sub={rs ? `+${rs.points} نقطة` : undefined}
+          title={winner ? (final ? `فاز ${h.player(winner).name}` : `الجولة لـ${h.player(winner).name}`) : 'انتهت اللعبة'}
+          sub={rs ? `${num(`+${rs.points}`)} نقطة` : undefined}
         />
+        {final ? <Podium players={view.participants.map((id) => h.player(id))} scores={view.scores} /> : null}
+        {final ? board : null}
         {rs ? (
-          <Panel>
-            <Txt v="small" color={C.muted}>
-              الأوراق الباقية
-            </Txt>
-            {rs.hands.map((r) => (
-              <View key={r.id} style={{ gap: 4 }}>
-                <Row gap={8}>
-                  <Avatar player={h.player(r.id)} size={26} />
-                  <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                    {h.player(r.id).name}
-                  </Txt>
-                  <Txt v="h3" color={C.yellow}>
-                    {r.points}
-                  </Txt>
+          <HandRows
+            title="الأوراق الباقية في الجولة"
+            rows={rs.hands.map((r) => ({
+              key: r.id,
+              players: [h.player(r.id)],
+              name: h.player(r.id).name,
+              points: num(r.points),
+              tone: 'plain',
+              extra: r.faces.length ? (
+                <Row wrap gap={3}>
+                  {r.faces.map((f, i) => (
+                    <UnoCard key={i} face={f} side={view.side} width={26} />
+                  ))}
                 </Row>
-                {r.faces.length ? (
-                  <Row wrap gap={3}>
-                    {r.faces.map((f, i) => (
-                      <UnoCard key={i} face={f} side={view.side} width={26} />
-                    ))}
-                  </Row>
-                ) : null}
-              </View>
-            ))}
-          </Panel>
+              ) : undefined,
+            }))}
+          />
         ) : null}
-        <Panel>
-          <Txt v="small" color={C.muted}>
-            النقاط — الهدف {view.target}
-          </Txt>
-          <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-        </Panel>
+        {final ? null : board}
         {final ? (
           <PlayAgain room={room} />
         ) : h.isHost ? (
@@ -168,16 +168,16 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
   const felt = FELT[view.side];
   // who played the card on top of the pile (it stays marked until the next card is played)
   const lastBy = view.lastPlay ? h.player(view.lastPlay.by) : null;
-  let turnText = 'دورك — العب ورقة أو اسحب';
+  let turnText = 'العب ورقة أو اسحب';
   if (view.drawn) turnText = 'سحبت ورقة تناسب — العبها أو مرّر';
-  else if (!view.playable.length) turnText = 'دورك — لا توجد ورقة مناسبة، اسحب';
+  else if (!view.playable.length) turnText = 'لا توجد ورقة مناسبة — اسحب';
 
   return (
     <>
       <Opponents view={view} h={h} />
 
       {/* table */}
-      <View style={[styles.table, { backgroundColor: felt[0], borderColor: myTurn ? alpha(C.yellow, 0.8) : felt[1] }]}>
+      <Felt active={myTurn} minHeight={0} bg={felt}>
         <Row style={{ justifyContent: 'space-between' }}>
           <View style={[styles.sideTag, { backgroundColor: view.side === 'light' ? '#FFF4DA' : '#1B1B2B' }]}>
             <Icon name={view.side === 'light' ? 'sun' : 'moon'} size={14} color={view.side === 'light' ? C.ink : '#FFF4DA'} />
@@ -222,14 +222,13 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
             </View>
           </View>
         </Row>
-        <FeltFeed feed={view.feed} h={h} />
-      </View>
+      </Felt>
 
-      {canCatch ? <Btn size="md" icon="siren" color={C.red} label={`امسك ${h.player(view.catchable!).name}! لم يقل أونو`} onPress={() => h.act('catch')} /> : null}
+      {canCatch ? <Btn size="md" icon="siren" color={C.red} label={`امسك ${h.player(view.catchable!).name}! — بلا «أونو»`} onPress={() => h.act('catch')} /> : null}
 
       {view.choosing && view.choosing !== h.me ? (
         <Txt v="bold" center color={C.muted}>
-          {h.player(view.choosing).name} يختار لوناً…
+          اختيار اللون: {h.player(view.choosing).name}…
         </Txt>
       ) : (
         <TurnLine myTurn={myTurn} text={turnText} />
@@ -265,7 +264,7 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
         ) : null}
       </Row>
       <Txt v="tiny" center color={C.dim}>
-        الجولة {view.round} · نقاطك {view.scores[h.me] ?? 0} من {view.target}
+        الجولة {num(view.round)} · نقاطك {num(view.scores[h.me] ?? 0)} من {num(view.target)}
       </Txt>
 
       {view.choosing === h.me ? <ColorPicker view={view} onPick={(c) => h.act('color', { color: c })} /> : null}
@@ -279,14 +278,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: C.surface,
-    borderRadius: 16,
-    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    paddingVertical: 6,
     paddingHorizontal: 8,
   },
-  oppActive: { backgroundColor: C.yellow },
   fan: { flex: 1, flexDirection: 'row', overflow: 'hidden' },
   unoTag: { backgroundColor: C.red, borderRadius: 999, paddingHorizontal: 8 },
-  table: { borderRadius: 22, borderWidth: 2, padding: 12, gap: 10 },
   sideTag: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
   pile: { alignItems: 'center', gap: 4, padding: 5, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   pileActive: { borderColor: C.yellow },
