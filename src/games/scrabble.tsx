@@ -454,7 +454,7 @@ export function ScrabbleSettings({ room, editable }: { room: RoomView; editable:
 const styles = StyleSheet.create({
   rack: { flexDirection: 'row', justifyContent: 'center', gap: 4, backgroundColor: '#5A3A1E', borderRadius: 12, paddingTop: 10, paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: 4, borderColor: '#3B2512' },
   rackRefused: { backgroundColor: alpha(C.red, 0.55), borderColor: C.red },
-  arrow: { width: 40, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderStrong },
+  arrow: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderStrong },
   backdrop: { flex: 1, backgroundColor: 'rgba(8,9,24,0.72)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   picker: { width: '100%', maxWidth: 380, backgroundColor: C.bg2, borderRadius: 20, padding: 14, gap: 12, borderWidth: 1, borderColor: C.borderStrong },
   pick: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4E3BC' },

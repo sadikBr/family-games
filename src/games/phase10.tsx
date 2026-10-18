@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   slotHalf: { flexBasis: '40%' },
   slotOk: { borderStyle: 'solid', borderColor: C.green, backgroundColor: alpha(C.green, 0.1) },
   slotDrop: { borderColor: C.yellow, backgroundColor: alpha(C.yellow, 0.08) },
-  sortChip: { paddingHorizontal: 10, minHeight: 32, justifyContent: 'center', borderRadius: 999, backgroundColor: C.surface },
+  sortChip: { paddingHorizontal: 12, minHeight: 40, justifyContent: 'center', borderRadius: 999, backgroundColor: C.surface },
   sortChipOn: { backgroundColor: C.yellow },
   standRow: { paddingVertical: 4, paddingHorizontal: 6, borderRadius: 12 },
   standMe: { backgroundColor: alpha(C.yellow, 0.12) },
