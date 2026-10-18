@@ -309,7 +309,7 @@ test('persistence: groups survive reopening the database', () => {
   expect(w2.store.pushToken('p-a')).toBe('ExponentPushToken[aaa]');
   // migrating again changes nothing
   migrate(w2.store.db);
-  expect((w2.store.db.query('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2);
+  expect((w2.store.db.query('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(3); // 3: tournaments
   expect((w2.store.db.query('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode).toBe('wal');
   const b = w2.phone('p-b');
   b.send({ t: 'groups' });

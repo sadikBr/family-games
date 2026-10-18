@@ -82,6 +82,8 @@ import { ronda } from './games/ronda';
 import { taboo } from './games/taboo';
 import { tris } from './games/tris';
 import { werewolf } from './games/werewolf';
+import { cleanConfig, problemText, tournamentProblem } from '../src/shared/tournament';
+import { Tournament, type TournamentRecord } from './tournament';
 import { GameError, type GameCtx, type GameModule } from './types';
 import { clamp, isNum, isStr } from './util';
 
@@ -259,6 +261,12 @@ export class Room {
   isOnline: (id: string) => boolean = () => false;
   /** called when a game starts (a group remembers its last game) */
   onStart: ((game: GameId) => void) | null = null;
+  /** a tournament being set up, played or just finished (see server/tournament.ts) */
+  tournament: Tournament | null = null;
+  /** the game (gameSeq) the tournament is waiting a result from */
+  private tournamentSeq = -1;
+  /** called when a tournament in a group room finishes (the group keeps it for its honour board) */
+  onTournamentEnd: ((t: TournamentRecord) => void) | null = null;
 
   constructor(
     public readonly code: string,
@@ -526,6 +534,7 @@ export class Room {
     switch (a.type) {
       case 'game': {
         if (!isHost || this.status !== 'lobby' || !GAME_IDS.includes(a.game)) return;
+        if (this.tournament && this.tournament.stage !== 'setup') return;
         this.game = a.game;
         break;
       }
@@ -547,39 +556,9 @@ export class Room {
       }
       case 'start': {
         if (!isHost) return;
-        if (this.group?.waiting) throw new GameError('بانتظار بقية المجموعة — أو اضغط «ابدأ بالموجودين»');
-        const botsAllowed = BOT_GAMES.includes(this.game);
-        const participants = this.players
-          .filter((p) => p.connected && (botsAllowed || !p.bot))
-          .map((p) => p.id);
-        const min = MIN_PLAYERS[this.game];
-        if (participants.length < min) {
-          const hint = botsAllowed ? ' — أو أضيفوا بوتات' : '';
-          throw new GameError(`هذه اللعبة تحتاج ${min} لاعبين على الأقل${hint}`);
-        }
-        const max = GAME_MAX_PLAYERS[this.game];
-        if (max && participants.length > max) {
-          throw new GameError(`هذه اللعبة لـ ${max} لاعبين كحد أقصى — أخرجوا بعض البوتات أو اللاعبين`);
-        }
-        const settings = structuredClone(this.settings[this.game]);
-        if (this.game === 'werewolf') {
-          const ww = settings as AllSettings['werewolf'];
-          const narratorOk = ww.narratorId && participants.includes(ww.narratorId) && !this.players.find((p) => p.id === ww.narratorId)?.bot;
-          if (!narratorOk) ww.narratorId = this.hostId;
-        }
-        this.gameSeq += 1;
-        this.botJobs = [];
-        const ctx = this.ctx();
-        this.seated = participants;
-        this.said = null;
-        this.state = this.module.start(ctx, participants, settings);
-        this.status = 'playing';
-        this.markChange('');
-        try {
-          this.onStart?.(this.game);
-        } catch (e) {
-          console.error(e);
-        }
+        if (this.tournament && this.tournament.stage !== 'setup') throw new GameError('البطولة جارية — تابعوا بأزرار البطولة');
+        if (this.tournament) this.startTournament();
+        else this.startGame();
         break;
       }
       case 'groupGo': {
@@ -590,9 +569,21 @@ export class Room {
       }
       case 'lobby': {
         if (!isHost) return;
-        this.status = 'lobby';
-        this.state = null;
-        this.botJobs = [];
+        // leaving the game during a tournament ends it (a finished one was kept already)
+        if (this.tournament && this.tournament.stage !== 'setup') this.tournament = null;
+        this.toLobby();
+        break;
+      }
+      case 'tournament':
+      case 'tournamentCancel':
+      case 'tournamentStart':
+      case 'tournamentNext':
+      case 'tournamentPlay':
+      case 'tournamentSkip':
+      case 'tournamentReplay':
+      case 'tournamentAgain': {
+        if (!isHost) return;
+        this.tournamentAction(a);
         break;
       }
       case 'kick': {
@@ -606,6 +597,200 @@ export class Room {
         return;
     }
     this.afterChange();
+  }
+
+  /** Start the room's game: with everyone connected (bots if the game takes them), or with `only` (a knockout duel). */
+  private startGame(only?: string[]) {
+    if (this.group?.waiting) throw new GameError('بانتظار بقية المجموعة — أو اضغط «ابدأ بالموجودين»');
+    const botsAllowed = BOT_GAMES.includes(this.game);
+    const participants = only ?? this.players.filter((p) => p.connected && (botsAllowed || !p.bot)).map((p) => p.id);
+    const min = MIN_PLAYERS[this.game];
+    if (participants.length < min) {
+      const hint = botsAllowed && !only ? ' — أو أضيفوا بوتات' : '';
+      throw new GameError(`هذه اللعبة تحتاج ${min} لاعبين على الأقل${hint}`);
+    }
+    const max = GAME_MAX_PLAYERS[this.game];
+    if (max && participants.length > max) {
+      throw new GameError(`هذه اللعبة لـ ${max} لاعبين كحد أقصى — أخرجوا بعض البوتات أو اللاعبين`);
+    }
+    const settings = structuredClone(this.settings[this.game]);
+    if (this.game === 'werewolf') {
+      const ww = settings as AllSettings['werewolf'];
+      const narratorOk = ww.narratorId && participants.includes(ww.narratorId) && !this.players.find((p) => p.id === ww.narratorId)?.bot;
+      if (!narratorOk) ww.narratorId = this.hostId;
+    }
+    this.gameSeq += 1;
+    this.botJobs = [];
+    const ctx = this.ctx();
+    this.seated = participants;
+    this.said = null;
+    this.state = this.module.start(ctx, participants, settings);
+    this.status = 'playing';
+    this.markChange('');
+    try {
+      this.onStart?.(this.game);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  private toLobby() {
+    this.status = 'lobby';
+    this.state = null;
+    this.botJobs = [];
+    this.said = null;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Tournaments                                                       */
+  /* ---------------------------------------------------------------- */
+
+  private tournamentAction(a: Extract<RoomAction, { type: `tournament${string}` }>) {
+    const t = this.tournament;
+    const now = Date.now();
+    switch (a.type) {
+      case 'tournament': {
+        // set up (or change) the tournament in the waiting room
+        if (this.status !== 'lobby' || (t && t.stage !== 'setup' && t.stage !== 'final')) return;
+        const config = cleanConfig(a.config);
+        if (!config) return;
+        if (t && t.stage === 'setup') t.config = config;
+        else this.tournament = new Tournament(config);
+        if (config.format === 'knockout' && GAME_IDS.includes(config.game)) this.game = config.game;
+        return;
+      }
+      case 'tournamentCancel': {
+        if (!t) return;
+        this.tournament = null;
+        if (this.status === 'playing') this.toLobby();
+        return;
+      }
+      case 'tournamentStart':
+        if (t?.stage === 'setup' && this.status === 'lobby') this.startTournament();
+        return;
+      case 'tournamentNext': {
+        if (!t || t.stage !== 'playing') return;
+        t.next(now);
+        this.afterTournamentGame();
+        return;
+      }
+      case 'tournamentPlay':
+        if (t?.stage === 'standings' && this.status === 'lobby') this.playTournamentGame();
+        return;
+      case 'tournamentSkip': {
+        if (!t || (t.stage !== 'playing' && t.stage !== 'standings')) return;
+        t.skip(now);
+        this.afterTournamentGame();
+        return;
+      }
+      case 'tournamentReplay': {
+        // the game ended without a result (or got stuck): play it again
+        if (!t || t.stage !== 'playing' || t.done) return;
+        this.playTournamentGame();
+        return;
+      }
+      case 'tournamentAgain': {
+        if (!t || t.stage !== 'final') return;
+        this.tournament = new Tournament(t.config);
+        this.toLobby();
+        return;
+      }
+    }
+  }
+
+  /** People in the room who can be ranked: connected, not bots. */
+  private rankable() {
+    return this.players.filter((p) => p.connected && !p.bot);
+  }
+
+  private startTournament() {
+    const t = this.tournament;
+    if (!t || t.stage !== 'setup') return;
+    if (this.group?.waiting) throw new GameError('بانتظار بقية المجموعة — أو اضغط «ابدأ بالموجودين»');
+    const people = this.rankable();
+    const bots = this.players.filter((p) => p.bot).length;
+    const problem = tournamentProblem(t.config, people.length, bots);
+    if (problem) throw new GameError(problemText(problem, (_, i) => `اللعبة ${i + 1}`));
+    if (t.config.format === 'knockout') {
+      const c = t.config;
+      const games = [c.game, ...(c.perRound ?? [])];
+      if (games.some((g) => !MODULES[g].result)) throw new GameError('هذه اللعبة لا تحدّد فائزاً للبطولة بعد — اختاروا لعبة أخرى');
+    }
+    t.begin(people, Date.now());
+    try {
+      this.playTournamentGame();
+    } catch (e) {
+      // the first game can't start (e.g. a seat limit): back to the set-up, nothing played
+      t.stage = 'setup';
+      t.people.clear();
+      t.rows.clear();
+      throw e;
+    }
+  }
+
+  /** Start the tournament's next game (a knockout duel with just its two players). */
+  private playTournamentGame() {
+    const t = this.tournament!;
+    if (t.format === 'knockout') {
+      // someone who left the room loses the duel before it starts
+      for (let up = t.upcoming(); up; up = t.upcoming()) {
+        const missing = up.participants!.filter((id) => !this.players.some((p) => p.id === id && p.connected && !p.bot));
+        if (!missing.length) break;
+        t.forfeit(missing, Date.now());
+      }
+    }
+    const up = t.upcoming();
+    if (!up) {
+      this.afterTournamentGame();
+      return;
+    }
+    const before = this.game;
+    this.game = up.game;
+    try {
+      this.startGame(up.participants ?? undefined);
+    } catch (e) {
+      this.game = before;
+      throw e;
+    }
+    t.started(
+      this.seated.map((id) => this.players.find((p) => p.id === id)).filter((p): p is PlayerPublic => !!p && !p.bot),
+      !!this.module.result,
+    );
+    this.tournamentSeq = this.gameSeq;
+  }
+
+  /** After a game (or a skip): back to the waiting room for the standings / champion; keep a finished tournament. */
+  private afterTournamentGame() {
+    const t = this.tournament;
+    if (!t) return;
+    this.toLobby();
+    const up = t.upcoming();
+    if (up) this.game = up.game;
+    if (t.stage === 'final' && !t.saved) {
+      t.saved = true;
+      if (this.group && t.anyPlayed) {
+        try {
+          this.onTournamentEnd?.(t.toRecord());
+        } catch (e) {
+          console.error('tournament save error', e);
+        }
+      }
+    }
+  }
+
+  /** The first time the current tournament game has a result, record it. */
+  private checkTournamentResult() {
+    const t = this.tournament;
+    if (!t || t.stage !== 'playing' || t.done || this.status !== 'playing' || !this.state || this.gameSeq !== this.tournamentSeq) return;
+    const result = this.module.result;
+    if (!result) return;
+    let r = null;
+    try {
+      r = result(this.state);
+    } catch (e) {
+      console.error('result error', e);
+    }
+    if (r) t.record(r, (id) => !this.players.find((p) => p.id === id)?.bot);
   }
 
   gameAction(by: string, a: GameAction) {
@@ -662,6 +847,7 @@ export class Room {
 
   /** Let bots react, then send everyone the new state. */
   private afterChange() {
+    this.checkTournamentResult();
     if (this.status === 'playing' && this.state && this.module.botPlan) {
       const bots = this.players.filter((p) => p.bot || this.autopilot.has(p.id)).map((p) => p.id);
       if (bots.length) {
@@ -862,6 +1048,7 @@ export class Room {
       pace: this.pace,
       voice: [...this.voice].map(([id, v]) => ({ id, muted: v.muted })),
       group: this.groupView(),
+      tournament: this.tournament?.view() ?? null,
     };
   }
 

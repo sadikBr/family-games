@@ -11,6 +11,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { PlayerInfo } from '../src/shared/protocol';
+import type { TournamentRecord } from './tournament';
 
 export interface GroupRow {
   id: string;
@@ -56,6 +57,18 @@ const MIGRATIONS: string[] = [
    );`,
   // 2: remember the group's last game
   `ALTER TABLE groups ADD COLUMN last_game TEXT;`,
+  // 3: finished tournaments, for the group's honour board («لوحة الشرف»)
+  `CREATE TABLE tournaments (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     group_id TEXT NOT NULL,
+     format TEXT NOT NULL,
+     games_json TEXT NOT NULL,
+     standings_json TEXT NOT NULL,
+     champions_json TEXT NOT NULL,
+     started_at INTEGER NOT NULL,
+     ended_at INTEGER NOT NULL
+   );
+   CREATE INDEX tournaments_by_group ON tournaments (group_id, ended_at);`,
 ];
 
 export function migrate(db: Database, steps = MIGRATIONS) {
@@ -75,6 +88,7 @@ export function dataLocation(env: Record<string, string | undefined> = process.e
 }
 
 type GroupSql = { id: string; code: string; name: string; created_by: string; created_at: number; last_game: string | null };
+type TournamentSql = { format: string; games_json: string; standings_json: string; champions_json: string; started_at: number; ended_at: number };
 type MemberSql = { player_id: string; name: string; avatar: string; color: string; joined_at: number };
 
 const toGroup = (r: GroupSql): GroupRow => ({ id: r.id, code: r.code, name: r.name, createdBy: r.created_by, createdAt: r.created_at, lastGame: r.last_game });
@@ -153,6 +167,7 @@ export class Store {
 
   deleteGroup(id: string) {
     this.db.transaction(() => {
+      this.db.query('DELETE FROM tournaments WHERE group_id = ?').run(id);
       this.db.query('DELETE FROM members WHERE group_id = ?').run(id);
       this.db.query('DELETE FROM groups WHERE id = ?').run(id);
     })();
@@ -188,6 +203,27 @@ export class Store {
       .query('UPDATE members SET name = ?, avatar = ?, color = ? WHERE player_id = ? AND (name != ? OR avatar != ? OR color != ?)')
       .run(p.name, p.avatar, p.color, p.id, p.name, p.avatar, p.color);
     return res.changes > 0;
+  }
+
+  /* tournaments */
+
+  saveTournament(groupId: string, t: TournamentRecord) {
+    this.db
+      .query('INSERT INTO tournaments (group_id, format, games_json, standings_json, champions_json, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(groupId, t.format, JSON.stringify(t.games), JSON.stringify(t.standings), JSON.stringify(t.champions), t.startedAt, t.endedAt);
+  }
+
+  /** The group's finished tournaments, oldest first. */
+  tournaments(groupId: string): TournamentRecord[] {
+    const rows = this.db.query('SELECT * FROM tournaments WHERE group_id = ? ORDER BY ended_at, id').all(groupId) as TournamentSql[];
+    return rows.map((r) => ({
+      format: r.format === 'knockout' ? 'knockout' : 'league',
+      games: JSON.parse(r.games_json),
+      standings: JSON.parse(r.standings_json),
+      champions: JSON.parse(r.champions_json),
+      startedAt: r.started_at,
+      endedAt: r.ended_at,
+    }));
   }
 
   /* push tokens */

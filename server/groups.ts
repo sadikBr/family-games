@@ -14,6 +14,7 @@ import { cleanGroupName, GROUP_CODE_ALPHABET, GROUP_CODE_LEN, isExpoPushToken, M
 import { GAME_IDS, type ClientMsg, type GameId, type GroupInfo, type GroupRequest, type PlayerInfo, type ServerMsg } from '../src/shared/protocol';
 import type { GroupRow, Store } from './db';
 import { send, type Room, type Sock } from './room';
+import { buildHonor } from './tournament';
 import { GameError } from './types';
 
 /** One call (notifications) per group per minute: a second tap just joins the live room. */
@@ -291,6 +292,13 @@ export class GroupHub {
     };
     r.isOnline = (id) => this.isOnline(id);
     r.onStart = (started) => this.store.setLastGame(g.id, started);
+    r.onTournamentEnd = (t) => {
+      // the group may have been deleted while the tournament was played
+      if (!this.store.group(g.id)) return;
+      this.store.saveTournament(g.id, t);
+      this.log.log(`group «${g.name}»: tournament won by ${t.champions.map((c) => c.name).join(', ') || '—'}`);
+      this.notifyGroup(g.id);
+    };
     this.playing.set(g.id, { code: r.code, by: player.id, since: now });
     this.idleSince.delete(g.id);
     this.enter(ws, player, r);
@@ -404,13 +412,15 @@ export class GroupHub {
   /* ---------------------------------------------------------------- */
 
   private info(g: GroupRow): GroupInfo {
+    const members = this.store.members(g.id).map(({ id, name, avatar, color }) => ({ id, name, avatar, color, online: this.isOnline(id) }));
     return {
       id: g.id,
       code: g.code,
       name: g.name,
       createdBy: g.createdBy,
-      members: this.store.members(g.id).map(({ id, name, avatar, color }) => ({ id, name, avatar, color, online: this.isOnline(id) })),
+      members,
       playing: this.livePlaying(g.id),
+      honor: buildHonor(this.store.tournaments(g.id), members.map(({ id, name, avatar, color }) => ({ id, name, avatar, color }))),
     };
   }
 

@@ -66,6 +66,12 @@ export const xo: GameModule<State, XoSettings> = {
   view(ctx, s, me): XoView {
     return { game: 'xo', phase: s.phase, x: s.x, o: s.o, board: s.board, size: s.size, inRow: inRow(s.size), last: s.last, turn: s.turn, mine: me === s.x ? 'x' : me === s.o ? 'o' : null, line: s.line, winner: s.winner, score: s.score };
   },
+  result(s) {
+    if (s.phase !== 'final') return null;
+    if (s.winner === 'draw') return { places: [[s.x, s.o]] };
+    const [win, lose] = s.winner === 'x' ? [s.x, s.o] : [s.o, s.x];
+    return { places: [[win], [lose]] };
+  },
   onLeave(ctx, s, id) {
     if (s.phase !== 'play' || (id !== s.x && id !== s.o)) return;
     s.winner = id === s.x ? 'o' : 'x';

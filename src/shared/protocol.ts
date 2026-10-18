@@ -28,6 +28,7 @@ import { STEPS_DEFAULTS, type StepsSettings, type StepsView } from './games/step
 import { MAPQUIZ_DEFAULTS, type MapquizSettings, type MapquizView } from './games/mapquiz';
 import { PROPHETS_DEFAULTS, type ProphetsSettings, type ProphetsView } from './games/prophets';
 import { MOSQUE_DEFAULTS, type MosqueSettings, type MosqueView } from './games/mosque';
+import type { TournamentConfig, TournamentFormat, TournamentView } from './tournament';
 export type { Phase10Settings, Phase10View } from './games/phase10';
 export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
 export type { CharadesSettings, CharadesView } from './games/charades';
@@ -1437,6 +1438,8 @@ export interface RoomView {
   voice: VoiceMember[];
   /** a room started from a group with «لنلعب»: who we wait for (see RoomGroup) */
   group?: RoomGroup;
+  /** a tournament being set up in the waiting room, played, or just finished (see src/shared/tournament.ts) */
+  tournament?: TournamentView | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1458,6 +1461,21 @@ export interface GroupInfo {
   members: GroupMember[];
   /** the group's live room, if a «لنلعب» room is still open: its code, who started it, when */
   playing: { code: string; by: string; since: number } | null;
+  /** «لوحة الشرف»: the tournaments played in the group's rooms */
+  honor?: GroupHonor;
+}
+
+/** A group's honour board, from the tournaments finished in its rooms. */
+export interface GroupHonor {
+  tournaments: number;
+  /** titles per person, most first */
+  titles: { id: string; count: number }[];
+  /** the last champions, newest first (at most 10) */
+  champions: { at: number; format: TournamentFormat; champions: string[] }[];
+  /** points over all tournaments, most first */
+  points: { id: string; total: number }[];
+  /** names and faces of everyone above (members who left, guests of a tournament) */
+  people: PlayerInfo[];
 }
 
 /** A group room's waiting list: everyone who was in the group when «لنلعب» was pressed. */
@@ -1523,7 +1541,23 @@ export type RoomAction =
   | { type: 'addBot' }
   | { type: 'pace'; pace: Pace }
   /** a group room: stop waiting for the missing members (caller or host) */
-  | { type: 'groupGo' };
+  | { type: 'groupGo' }
+  /** tournaments (host only): set up / change the tournament in the waiting room */
+  | { type: 'tournament'; config: TournamentConfig }
+  /** back to a single game (in the waiting room), or end the tournament («إنهاء البطولة») */
+  | { type: 'tournamentCancel' }
+  /** «ابدأ البطولة» */
+  | { type: 'tournamentStart' }
+  /** after a game's final screen: to the standings / bracket (or the champion after the last game) */
+  | { type: 'tournamentNext' }
+  /** from the standings / bracket: start the next game */
+  | { type: 'tournamentPlay' }
+  /** skip the current / next game (league: no points; knockout: the higher seed goes on) */
+  | { type: 'tournamentSkip' }
+  /** play the current game again (it ended without a result) */
+  | { type: 'tournamentReplay' }
+  /** the champion screen: «بطولة جديدة» with the same settings */
+  | { type: 'tournamentAgain' };
 
 /**
  * Bot speed. Besides scaling the bots' own thinking time, the room always leaves a pause after

@@ -56,6 +56,17 @@ export function soleWinner(scores: Record<string, number>): string | undefined {
   return top.length === 1 ? top[0] : undefined;
 }
 
+/** Players ranked by score, best first; equal scores share a place (for GameModule.result). */
+export function placesByScore(ids: string[], scores: Record<string, number>): string[][] {
+  const sorted = [...ids].sort((a, b) => (scores[b] ?? 0) - (scores[a] ?? 0));
+  const places: string[][] = [];
+  sorted.forEach((id, i) => {
+    if (i > 0 && (scores[id] ?? 0) === (scores[sorted[i - 1]] ?? 0)) places[places.length - 1].push(id);
+    else places.push([id]);
+  });
+  return places;
+}
+
 /** When a bot answers: mostly in the second half of the timer, sometimes earlier. */
 export function botAnswerDelay(seconds: number): number {
   const total = seconds * 1000;
@@ -155,6 +166,10 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
         results: s.results,
         scores: s.scores,
       };
+    },
+
+    result(s) {
+      return s.phase === 'final' ? { places: placesByScore(s.participants, s.scores) } : null;
     },
 
     onLeave(ctx, s, who) {
