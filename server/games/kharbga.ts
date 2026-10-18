@@ -237,4 +237,10 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     if (s.phase === 'final' || (id !== s.attacker && id !== s.defender)) return;
     end(ctx, s, id === s.attacker ? 2 : 1, 'left');
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    if (s.winner === 'draw') return { places: [[s.attacker, s.defender]] };
+    return { places: [[idOf(s, s.winner)], [idOf(s, s.winner === 1 ? 2 : 1)]] };
+  },
 };

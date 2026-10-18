@@ -281,4 +281,10 @@ export const huroof: GameModule<State, HuroofSettings> = {
       feed: s.feed.list(),
     };
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    const loser: HuroofTeam = s.winner === 'red' ? 'green' : 'red';
+    return { places: [s.teams[s.winner].slice(), s.teams[loser].slice()] };
+  },
 };

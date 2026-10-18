@@ -122,4 +122,11 @@ export const ladders: GameModule<State, LaddersSettings> = {
       ctx.fx('win', s.winner);
     }
   },
+
+  /** The finishing order of the final screen: furthest along first (same square: whoever got there first). */
+  result(s) {
+    const winner = s.winner;
+    if (s.phase !== 'final' || !winner) return null;
+    return { places: [winner, ...laddersOrder(s).filter((id) => id !== winner)].map((id) => [id]) };
+  },
 };

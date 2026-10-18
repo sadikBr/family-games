@@ -289,4 +289,10 @@ export const dama: GameModule<State, DamaSettings> = {
     if (s.phase === 'final' || (id !== s.white && id !== s.black)) return;
     finish(ctx, s, id === s.white ? 'black' : 'white', 'left');
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    if (s.winner === 'draw') return { places: [[s.white, s.black]] };
+    return { places: s.winner === 'white' ? [[s.white], [s.black]] : [[s.black], [s.white]] };
+  },
 };

@@ -327,4 +327,12 @@ export const imposter: GameModule<State, ImposterSettings> = {
     }
     checkAllIn(ctx, s);
   },
+
+  /** By total points over all the rounds. */
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    const pts = (id: string) => s.scores[id] ?? 0;
+    const vals = [...new Set(s.participants.map(pts))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.participants.filter((id) => pts(id) === v)) };
+  },
 };

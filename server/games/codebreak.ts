@@ -252,6 +252,13 @@ export const codebreak: GameModule<State, CodebreakSettings> = {
     if (s.phase === 'play' && allDone(ctx, s)) finishRound(ctx, s);
   },
 
+  result(s) {
+    if (s.phase !== 'final' || !s.players.length) return null;
+    const pts = (id: string) => s.scores[id] ?? 0;
+    const vals = [...new Set(s.players.map(pts))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.players.filter((id) => pts(id) === v)) };
+  },
+
   patchSettings(settings, patch) {
     if (isNum(patch.rounds)) settings.rounds = Math.max(1, Math.min(10, Math.round(patch.rounds)));
     if (CODEBREAK_PEGS.includes(patch.pegs as 4)) settings.pegs = patch.pegs as number;

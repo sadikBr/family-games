@@ -188,6 +188,16 @@ export const dots: GameModule<State, DotsSettings> = {
     dropOut(ctx, s, id);
   },
 
+  /** Players still in by boxes, then everyone who dropped out (resigned or left) sharing last place. */
+  result(s) {
+    if (s.phase !== 'final' || !s.active.length) return null;
+    const pts = (p: string) => s.points[p] ?? 0;
+    const vals = [...new Set(s.active.map(pts))].sort((a, b) => b - a);
+    const places = vals.map((v) => s.active.filter((p) => pts(p) === v));
+    const out = s.seats.filter((p) => !s.active.includes(p));
+    return { places: out.length ? [...places, out] : places };
+  },
+
   patchSettings(settings, patch) {
     if (isNum(patch.size) && (DOTS_SIZES as readonly number[]).includes(patch.size)) settings.size = patch.size;
     if (patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') settings.level = patch.level as DotsLevel;
