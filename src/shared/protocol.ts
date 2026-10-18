@@ -17,6 +17,8 @@ import { CODEBREAK_DEFAULTS, type CodebreakSettings, type CodebreakView } from '
 import { CATAN_DEFAULTS, type CatanSettings, type CatanView } from './games/catan';
 import { CARCA_DEFAULTS, type CarcaSettings, type CarcaView } from './games/carca';
 import { BALOOT_DEFAULTS, type BalootSettings, type BalootView } from './games/baloot';
+import { TELEDRAW_DEFAULTS, type TeledrawSettings, type TeledrawView } from './games/teledraw';
+import { ONEWORD_DEFAULTS, type OnewordSettings, type OnewordView } from './games/oneword';
 import { BOGGLE_DEFAULTS, type BoggleSettings, type BoggleView } from './games/boggle';
 import { QQUOTE_DEFAULTS, type QquoteSettings, type QquoteView } from './games/qquote';
 import { TAJWEED_DEFAULTS, type TajweedSettings, type TajweedView } from './games/tajweed';
@@ -38,6 +40,8 @@ export type { CodebreakSettings, CodebreakView } from './games/codebreak';
 export type { CatanSettings, CatanView } from './games/catan';
 export type { CarcaSettings, CarcaView } from './games/carca';
 export type { BalootSettings, BalootView } from './games/baloot';
+export type { TeledrawSettings, TeledrawView } from './games/teledraw';
+export type { OnewordSettings, OnewordView } from './games/oneword';
 export type { BoggleSettings, BoggleView } from './games/boggle';
 export type { QquoteSettings, QquoteView } from './games/qquote';
 export type { TajweedSettings, TajweedView } from './games/tajweed';
@@ -96,6 +100,8 @@ export type GameId =
   | 'catan'
   | 'carca'
   | 'baloot'
+  | 'teledraw'
+  | 'oneword'
   | 'boggle'
   | 'qquote'
   | 'tajweed'
@@ -152,6 +158,8 @@ export const GAME_IDS: GameId[] = [
   'catan',
   'carca',
   'baloot',
+  'teledraw',
+  'oneword',
   'boggle',
   'qquote',
   'tajweed',
@@ -164,7 +172,7 @@ export const GAME_IDS: GameId[] = [
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -213,6 +221,8 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   catan: 3,
   carca: 2,
   baloot: 4,
+  teledraw: 3,
+  oneword: 3,
   boggle: 1,
   qquote: 1,
   tajweed: 1,
@@ -225,7 +235,7 @@ export const MIN_PLAYERS: Record<GameId, number> = {
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, qword: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, qword: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10 };
 
 export const DEFAULT_PORT = 5757;
 
@@ -469,6 +479,8 @@ export interface AllSettings {
   catan: CatanSettings;
   carca: CarcaSettings;
   baloot: BalootSettings;
+  teledraw: TeledrawSettings;
+  oneword: OnewordSettings;
   boggle: BoggleSettings;
   qquote: QquoteSettings;
   tajweed: TajweedSettings;
@@ -526,6 +538,8 @@ export const DEFAULT_SETTINGS: AllSettings = {
   catan: CATAN_DEFAULTS,
   carca: CARCA_DEFAULTS,
   baloot: BALOOT_DEFAULTS,
+  teledraw: TELEDRAW_DEFAULTS,
+  oneword: ONEWORD_DEFAULTS,
   boggle: BOGGLE_DEFAULTS,
   qquote: QQUOTE_DEFAULTS,
   tajweed: TAJWEED_DEFAULTS,
@@ -1384,6 +1398,8 @@ export type GameView =
   | CatanView
   | CarcaView
   | BalootView
+  | TeledrawView
+  | OnewordView
   | BoggleView
   | QquoteView
   | TajweedView

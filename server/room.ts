@@ -50,6 +50,8 @@ import { codebreak } from './games/codebreak';
 import { catan } from './games/catan';
 import { carca } from './games/carca';
 import { baloot } from './games/baloot';
+import { teledraw } from './games/teledraw';
+import { oneword } from './games/oneword';
 import { boggle } from './games/boggle';
 import { qquote } from './games/qquote';
 import { tajweed } from './games/tajweed';
@@ -137,6 +139,8 @@ const MODULES: Record<GameId, AnyModule> = {
   catan,
   carca,
   baloot,
+  teledraw,
+  oneword,
   boggle,
   qquote,
   tajweed,

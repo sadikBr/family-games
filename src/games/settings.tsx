@@ -21,6 +21,8 @@ import { CodebreakSettings } from './codebreak';
 import { CatanSettings } from './catan';
 import { CarcaSettings } from './carca';
 import { BalootSettings } from './baloot';
+import { TeledrawSettings } from './teledraw';
+import { OnewordSettings } from './oneword';
 import { BoggleSettings } from './boggle';
 import { QquoteSettings } from './qquote';
 import { TajweedSettings } from './tajweed';
@@ -66,6 +68,10 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <CarcaSettings room={room} editable={editable} />;
     case 'baloot':
       return <BalootSettings room={room} editable={editable} />;
+    case 'teledraw':
+      return <TeledrawSettings room={room} editable={editable} />;
+    case 'oneword':
+      return <OnewordSettings room={room} editable={editable} />;
     case 'boggle':
       return <BoggleSettings room={room} editable={editable} />;
     case 'qquote':
