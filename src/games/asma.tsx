@@ -12,6 +12,7 @@ import { ChipPicker, Stepper } from '@/ui/controls';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -41,7 +42,7 @@ function Final({ room, scores, h, sub, again = true }: { room: RoomView; scores:
       <ResultBanner
         tone={won ? 'good' : 'neutral'}
         art={<Txt style={styles.emblem}>الأسماء الحسنى</Txt>}
-        title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
+        title={winners.length === 1 ? `الفوز ${li(h.player(winners[0]).name)}` : 'تعادل!'}
         sub={sub}
       />
       <Podium players={room.players} scores={scores} />

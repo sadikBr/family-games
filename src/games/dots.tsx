@@ -15,6 +15,7 @@ import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Confetti, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { MarkIn } from '@/ui/motion';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -205,7 +206,7 @@ export function DotsGame({ room, view }: { room: RoomView; view: DotsView }) {
   let sub = '';
   if (view.phase === 'final') {
     const ws = view.winners ?? [];
-    title = ws.length === 1 ? (ws[0] === meId ? 'فزت!' : `فاز ${nameOf(h, view, ws[0])}`) : 'تعادل!';
+    title = ws.length === 1 ? (ws[0] === meId ? 'فزت!' : `الفوز ${li(nameOf(h, view, ws[0]))}`) : 'تعادل!';
     sub = view.reason === 'forfeit' ? 'انسحب الآخرون' : ws.length === 1 ? `${num(view.points[ws[0]] ?? 0)} مربعات من ${num(view.n * view.n)}` : 'نفس عدد المربعات';
   }
 

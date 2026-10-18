@@ -12,6 +12,7 @@ import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
@@ -187,7 +188,7 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="potato" size={84} />}
-            title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
+            title={winners.length === 1 ? `الفوز ${li(player(winners[0]).name)}` : 'تعادل!'}
             sub="الفوز لأقل الحروق"
           />
           <Podium players={room.players} scores={burns} lowIsBetter />

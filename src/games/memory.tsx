@@ -11,6 +11,7 @@ import { useAccent } from '@/ui/accent';
 import { Avatar } from '@/ui/bits';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
@@ -46,7 +47,7 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="memory" size={72} />}
-            title={view.winner!.length === 1 ? `فاز ${h.player(view.winner![0]).name}` : 'تعادل!'}
+            title={view.winner!.length === 1 ? `الفوز ${li(h.player(view.winner![0]).name)}` : 'تعادل!'}
             sub="ذاكرة من حديد!"
           />
           <Podium players={room.players} scores={view.pairs} />

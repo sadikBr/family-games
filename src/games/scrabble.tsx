@@ -19,6 +19,7 @@ import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -112,7 +113,7 @@ function Final({ room, view, h, width }: { room: RoomView; view: ScrabbleView; h
       {winner === h.me ? <Confetti /> : null}
       <ResultBanner
         tone={winner === h.me ? 'good' : 'neutral'}
-        title={winner ? (winner === h.me ? 'فزت!' : `فاز ${h.player(winner).name}`) : 'تعادل!'}
+        title={winner ? (winner === h.me ? 'فزت!' : `الفوز ${li(h.player(winner).name)}`) : 'تعادل!'}
         sub={f?.out ? (f.out === h.me ? 'أنهيت كل أحرفك' : `نفدت أحرف ${h.player(f.out).name}`) : view.order.length <= 1 ? 'غادر باقي اللاعبين' : 'لا أحد يستطيع اللعب'}
       />
       <Podium players={players} scores={view.scores} />

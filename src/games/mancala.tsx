@@ -11,6 +11,7 @@ import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -205,7 +206,7 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
         <ResultBanner
           tone={won ? 'good' : 'neutral'}
           art={<MancalaArt size={60} />}
-          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : `فاز ${h.player(view.seats[view.winner as 0 | 1]).name}`}
+          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : `الفوز ${li(h.player(view.seats[view.winner as 0 | 1]).name)}`}
           sub={view.reason === 'forfeit' ? 'انسحب الخصم' : `${num(Math.max(s0, s1))} مقابل ${num(Math.min(s0, s1))}`}
         />
       ) : null}

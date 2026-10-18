@@ -15,6 +15,7 @@ import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti, Podium, PopIn, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -377,7 +378,7 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="names" size={84} />}
-            title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
+            title={winners.length === 1 ? `الفوز ${li(h.player(winners[0]).name)}` : 'تعادل!'}
             sub="أبطال الحروف"
           />
           <Podium players={room.players} scores={scores} />

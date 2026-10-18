@@ -17,6 +17,7 @@ import { Toggle } from '@/ui/controls';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { AnnounceBanner, Felt, TableStrip, TurnLine } from './cards/card-ui';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
@@ -150,7 +151,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
   const won = final && view.winner === h.me;
   const title = final
     ? view.winner
-      ? `فاز ${h.player(view.winner).name}`
+      ? `الفوز ${li(h.player(view.winner).name)}`
       : 'انتهت اللعبة'
     : view.handWinner
       ? `نفدت أوراق ${h.player(view.handWinner).name}`

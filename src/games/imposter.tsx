@@ -8,6 +8,7 @@ import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, HoldReveal, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
 import { helpers } from './helpers';
@@ -245,7 +246,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="imposter" size={84} />}
-            title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
+            title={winners.length === 1 ? `الفوز ${li(player(winners[0]).name)}` : 'تعادل!'}
             sub="انتهت كل الجولات"
           />
           <Podium players={room.players} scores={scores} />

@@ -9,6 +9,7 @@ import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
@@ -63,7 +64,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
       <>
         {won ? <Confetti /> : null}
         {final ? (
-          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kanza" size={72} />} title={winnerSide ? `فاز ${sideLabel(winnerSide, h)}` : 'تعادل'} />
+          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kanza" size={72} />} title={winnerSide ? `الفوز ${li(sideLabel(winnerSide, h))}` : 'تعادل'} />
         ) : (
           <PhaseTitle art={<GameArt id="kanza" size={60} />} title={`نهاية اليد ${num(view.hand)} من ${num(view.totalHands)}`} />
         )}

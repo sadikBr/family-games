@@ -8,6 +8,7 @@ import { C } from '@/theme';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
 import { num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
@@ -84,7 +85,7 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
         <ResultBanner
           tone={won ? 'good' : 'neutral'}
           art={<GameArt id="ronda" size={72} />}
-          title={winnerSide ? `فاز ${sideLabel(winnerSide, h)}` : 'انتهت اللعبة'}
+          title={winnerSide ? `الفوز ${li(sideLabel(winnerSide, h))}` : 'انتهت اللعبة'}
         />
         <SidesResult sides={view.sides} scores={view.scores} h={h} winner={view.winner} />
         {summary}

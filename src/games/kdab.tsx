@@ -12,6 +12,7 @@ import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { CardRow, Felt, PlayingCard, TableStrip, TurnLine, cardsWord } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
@@ -48,7 +49,7 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
     return (
       <>
         {won ? <Confetti /> : null}
-        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kdab" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="أول يدٍ فارغة من الأوراق" />
+        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kdab" size={84} />} title={view.winner ? `الفوز ${li(h.player(view.winner).name)}` : 'انتهت اللعبة'} sub="أول يدٍ فارغة من الأوراق" />
         <Podium players={view.order.map((id) => h.player(id))} scores={view.handCounts} lowIsBetter />
         <Scoreboard players={room.players} scores={view.handCounts} lowIsBetter unit="ورقة" highlight={h.me} />
         <PlayAgain room={room} />

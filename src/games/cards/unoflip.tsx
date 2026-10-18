@@ -11,6 +11,7 @@ import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers, type Helpers } from '../helpers';
@@ -129,7 +130,7 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
         <ResultBanner
           tone={won ? 'good' : 'neutral'}
           art={<GameArt id="unoflip" size={84} />}
-          title={winner ? (final ? `فاز ${h.player(winner).name}` : `الجولة لـ${h.player(winner).name}`) : 'انتهت اللعبة'}
+          title={winner ? (final ? `الفوز ${li(h.player(winner).name)}` : `الجولة ${li(h.player(winner).name)}`) : 'انتهت اللعبة'}
           sub={rs ? `${num(`+${rs.points}`)} نقطة` : undefined}
         />
         {final ? <Podium players={view.participants.map((id) => h.player(id))} scores={view.scores} /> : null}

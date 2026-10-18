@@ -15,6 +15,7 @@ import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 import { MarkIn } from '@/ui/motion';
+import { li } from '@/shared/li';
 
 import { LetterGrid } from './boggle-board';
 import { PlayAgain, ResultBanner, Spectator } from './common';
@@ -128,7 +129,7 @@ function Final({ room, view, h, width }: { room: RoomView; view: BoggleView; h: 
   const best = ids.length ? Math.max(...ids.map((id) => view.scores[id] ?? 0)) : 0;
   const winners = ids.filter((id) => (view.scores[id] ?? 0) === best);
   const won = winners.length === 1 && winners[0] === h.me;
-  const title = winners.length === 1 ? (winners[0] === h.me ? 'فزت!' : `فاز ${nameOf(h, view, winners[0])}`) : 'تعادل!';
+  const title = winners.length === 1 ? (winners[0] === h.me ? 'فزت!' : `الفوز ${li(nameOf(h, view, winners[0]))}`) : 'تعادل!';
   return (
     <>
       {won ? <Confetti /> : null}

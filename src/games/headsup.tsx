@@ -12,6 +12,7 @@ import { Avatar, Card, Pill, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, CountdownBig, Podium, PopIn, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
@@ -198,7 +199,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
       return (
         <>
           {won ? <Confetti /> : null}
-          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="headsup" size={84} />} title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'} sub="انتهت كل الأدوار" />
+          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="headsup" size={84} />} title={winners.length === 1 ? `الفوز ${li(player(winners[0]).name)}` : 'تعادل!'} sub="انتهت كل الأدوار" />
           <Podium players={room.players} scores={scores} />
           <Scoreboard players={room.players} scores={scores} highlight={me} />
           <PlayAgain room={room} />

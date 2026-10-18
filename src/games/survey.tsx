@@ -15,6 +15,7 @@ import { Field } from '@/ui/field';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { TEAM, helpers, type Helpers } from './helpers';
@@ -156,7 +157,7 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
         {won ? <Confetti /> : null}
         <ResultBanner
           tone={w === -1 || w === null ? 'neutral' : won ? 'good' : myTeam === null ? 'neutral' : 'bad'}
-          title={w === -1 || w === null ? 'تعادل!' : `فاز ${TEAM[w].name}`}
+          title={w === -1 || w === null ? 'تعادل!' : `الفوز ${li(TEAM[w].name)}`}
           sub="أحسنتم جميعاً!"
         />
         <TeamResult

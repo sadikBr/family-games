@@ -13,6 +13,7 @@ import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
@@ -180,7 +181,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
         <ResultBanner
           tone={won ? 'good' : 'neutral'}
           art={<GameArt id="draw" size={84} />}
-          title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
+          title={winners.length === 1 ? `الفوز ${li(h.player(winners[0]).name)}` : 'تعادل!'}
           sub="أبطال الرسم"
         />
         <Podium players={room.players} scores={scores} />

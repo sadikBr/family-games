@@ -15,6 +15,7 @@ import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -139,7 +140,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
     return (
       <>
         {won ? <Confetti /> : null}
-        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="huroof" size={84} />} title={view.winner ? `فاز ${TEAM_NAME[view.winner]}` : 'انتهت اللعبة'} sub="أحسنتم جميعاً!" />
+        <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="huroof" size={84} />} title={view.winner ? `الفوز ${li(TEAM_NAME[view.winner])}` : 'انتهت اللعبة'} sub="أحسنتم جميعاً!" />
         <Grid view={view} size={size} canPick={false} onPick={() => {}} />
         <Teams view={view} h={h} mine={mine} />
         <PlayAgain room={room} />

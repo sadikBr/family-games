@@ -11,6 +11,7 @@ import { Btn } from '@/ui/btn';
 import { ChipPicker, Stepper } from '@/ui/controls';
 import { Confetti, CountdownBig, PopIn, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { TEAM, helpers } from './helpers';
@@ -223,7 +224,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
       return (
         <>
           {iWon ? <Confetti /> : null}
-          <ResultBanner tone={winner === -1 ? 'neutral' : iWon ? 'good' : 'bad'} title={winner === -1 ? 'تعادل!' : `فاز ${TEAM[winner].name}`} sub={`${num(a)} مقابل ${num(b)}`} />
+          <ResultBanner tone={winner === -1 ? 'neutral' : iWon ? 'good' : 'bad'} title={winner === -1 ? 'تعادل!' : `الفوز ${li(TEAM[winner].name)}`} sub={`${num(a)} مقابل ${num(b)}`} />
           <TeamResult
             me={me}
             winner={winner}

@@ -13,6 +13,7 @@ import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -183,7 +184,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
         <ResultBanner
           tone={won ? 'good' : 'bad'}
           art={<GameArt id="codenames" size={84} />}
-          title={view.winner ? `فاز ${TEAM[view.winner].name}` : 'انتهت اللعبة'}
+          title={view.winner ? `الفوز ${li(TEAM[view.winner].name)}` : 'انتهت اللعبة'}
           sub={view.reason === 'assassin' ? 'كشف الخصم الكلمة السوداء' : 'كشف كل كلماته'}
         />
         <TeamScores view={view} />

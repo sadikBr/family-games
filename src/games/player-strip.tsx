@@ -65,8 +65,8 @@ export function PlayerStrip({ room, entries, active = [] }: { room: RoomView; en
             <Avatar player={p} size={small ? 26 : 30} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Txt v="tiny" numberOfLines={1} style={{ fontSize: small ? 12 : 13 }}>
-                {p.name}
-                {p.id === room.me ? ' (أنت)' : ''}
+                {/* narrow chips: just «أنت» for me, so the name isn't cut */}
+                {p.id === room.me ? (chipW < 140 ? 'أنت' : `${p.name} (أنت)`) : p.name}
               </Txt>
               {e.sub ? (
                 <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ fontSize: 11 }}>

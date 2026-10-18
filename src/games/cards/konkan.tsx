@@ -12,6 +12,7 @@ import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
@@ -43,7 +44,7 @@ export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanV
         <ResultBanner
           tone={(final ? view.winner : view.handWinner) === h.me ? 'good' : 'neutral'}
           art={<GameArt id="konkan" size={72} />}
-          title={final ? `فاز ${h.player(view.winner).name}` : view.handWinner ? `${h.player(view.handWinner).name}: كونكان` : 'انتهت الأوراق'}
+          title={final ? `الفوز ${li(h.player(view.winner).name)}` : view.handWinner ? `${h.player(view.handWinner).name}: كونكان` : 'انتهت الأوراق'}
         />
         {final ? <Podium players={view.participants.map((id) => h.player(id))} scores={view.scores} lowIsBetter /> : null}
         <View style={{ gap: 6 }}>

@@ -16,6 +16,7 @@ import { ChipPicker, ConfirmModal, Stepper } from '@/ui/controls';
 import { Confetti, HoldReveal, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -496,7 +497,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="spy" size={84} />}
-            title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
+            title={winners.length === 1 ? `الفوز ${li(player(winners[0]).name)}` : 'تعادل!'}
             sub="انتهت كل الجولات"
           />
           <Podium players={room.players} scores={scores} />
