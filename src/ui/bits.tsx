@@ -5,8 +5,9 @@ import { AvatarArt, isArtAvatar } from '@/art/avatars';
 import { Icon, type IconName } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
 import type { PlayerPublic } from '@/shared/protocol';
-import { C, F } from '@/theme';
+import { C, F, alpha } from '@/theme';
 
+import { useRoomAccent } from './accent';
 import { Txt } from './txt';
 
 export function Card({
@@ -20,8 +21,10 @@ export function Card({
   color?: string;
   outline?: string;
 }) {
+  // inside a game, plain cards take a faint edge of the game's colour
+  const accent = useRoomAccent();
   return (
-    <View style={[styles.card, color ? { backgroundColor: color } : null, outline ? { borderColor: outline, borderWidth: 2 } : null, style]}>
+    <View style={[styles.card, accent && !outline ? { borderColor: alpha(accent, 0.2) } : null, color ? { backgroundColor: color } : null, outline ? { borderColor: outline, borderWidth: 2 } : null, style]}>
       {children}
     </View>
   );

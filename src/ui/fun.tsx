@@ -9,6 +9,7 @@ import type { PlayerPublic } from '@/shared/protocol';
 import { C, F, alpha, hashRand } from '@/theme';
 
 import { Avatar, Row } from './bits';
+import { useAccent } from './accent';
 import { Txt, num } from './txt';
 
 /* ------------------------------------------------------------------ */
@@ -245,8 +246,10 @@ export function Podium({ players, scores, lowIsBetter }: { players: PlayerPublic
   const top = sorted.slice(0, 3);
   const order = [top[1], top[0], top[2]].filter(Boolean);
   const heights = [84, 60, 44];
+  const accent = useAccent();
   return (
-    <Row gap={10} style={{ alignItems: 'flex-end', justifyContent: 'center', direction: 'ltr', marginTop: 8 }}>
+    <View style={{ alignItems: 'center', marginTop: 8 }}>
+    <Row gap={10} style={{ alignItems: 'flex-end', justifyContent: 'center', direction: 'ltr' }}>
       {order.map((p) => {
         const place = top.indexOf(p);
         return (
@@ -262,6 +265,9 @@ export function Podium({ players, scores, lowIsBetter }: { players: PlayerPublic
         );
       })}
     </Row>
+    {/* the stage the podium stands on, in the game's colour */}
+    <View style={{ height: 8, width: order.length * 106, borderRadius: 4, backgroundColor: alpha(accent, 0.55) }} />
+    </View>
   );
 }
 

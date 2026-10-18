@@ -8,6 +8,7 @@ import { Icon } from '@/art/icons';
 import { haptic, play } from '@/lib/sfx';
 import type { GameId, McqResult, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
@@ -37,10 +38,11 @@ export function useMyResultFx(key: string | null, correct: boolean | null) {
 export const OPTION_COLORS = [C.red, C.blue, C.yellow, C.green, C.purple, C.cyan];
 
 export function RoundHeader({ label, round, rounds, right }: { label: string; round: number; rounds: number; right?: ReactNode }) {
+  const accent = useAccent();
   return (
     <Row gap={8} style={{ justifyContent: 'space-between' }}>
-      <View style={styles.chip}>
-        <Txt v="tiny" color={C.yellow}>
+      <View style={[styles.chip, { backgroundColor: alpha(accent, 0.2) }]}>
+        <Txt v="tiny" color={C.text}>
           {label}
         </Txt>
       </View>
@@ -92,7 +94,8 @@ export function OptionGrid({
             style={({ pressed }) => [
               styles.option,
               columns === 2 ? styles.half : styles.full,
-              { borderColor: isRight ? C.green : wrongMine ? C.red : isMine ? C.yellow : alpha(color, 0.55) },
+              // calm frames: the option's colour lives in its side strip only
+              { borderColor: isRight ? C.green : wrongMine ? C.red : isMine ? C.yellow : C.borderStrong },
               isRight && { backgroundColor: alpha(C.green, 0.25) },
               wrongMine && { backgroundColor: alpha(C.red, 0.22) },
               isMine && correct === null && { backgroundColor: alpha(C.yellow, 0.18) },

@@ -5,7 +5,7 @@ import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { GameView } from '@/games/game-view';
-import { Lobby } from '@/games/lobby';
+import { Lobby, LobbyFooter } from '@/games/lobby';
 import { TurnBar } from '@/games/turn-bar';
 import { VoiceButton, VoiceStrip } from '@/games/voice-ui';
 import { RoomMenu, shareRoom } from '@/games/room-menu';
@@ -19,6 +19,7 @@ import { C } from '@/theme';
 import { Card, IconBubble, Pill, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { ConfirmModal, ConnectionBanner, Header } from '@/ui/controls';
+import { AccentContext } from '@/ui/accent';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
@@ -113,19 +114,22 @@ export default function RoomScreen() {
   const night = room.game === 'werewolf' && playing;
 
   return (
+    <AccentContext.Provider value={meta.color}>
     <Screen
       bg={night ? C.night : C.bg}
+      glow={night ? undefined : meta.color}
       scrollKey={`${room.status}|${room.game}`}
+      footer={playing ? undefined : <LobbyFooter room={room} />}
       header={
         <>
           <Header
             onBack={() => setConfirmLeave(true)}
             title={
               <Row gap={8} style={{ maxWidth: '100%' }}>
-                {/* on narrow phones the title needs the room more than the emblem does */}
-                {playing && width >= 410 ? <GameArt id={room.game} size={34} /> : null}
+                {/* the emblem only when the title still fits next to it */}
+                {width >= 410 || meta.title.length <= (width >= 360 ? 8 : 6) ? <GameArt id={room.game} size={width >= 410 ? 34 : 28} /> : null}
                 <Txt v="h2" numberOfLines={1} style={{ flexShrink: 1 }} size={width < 360 ? 17 : undefined}>
-                  {playing ? meta.title : 'غرفة الانتظار'}
+                  {meta.title}
                 </Txt>
               </Row>
             }
@@ -181,5 +185,6 @@ export default function RoomScreen() {
         }}
       />
     </Screen>
+    </AccentContext.Provider>
   );
 }

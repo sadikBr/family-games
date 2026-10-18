@@ -5,17 +5,19 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import type { IconName } from '@/art/icons';
 import { client } from '@/lib/client';
 import type { PlayerPublic, RoomView } from '@/shared/protocol';
-import { C } from '@/theme';
+import { C, alpha, shade } from '@/theme';
 import { Avatar, Card, IconBubble, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
+import { useAccent } from '@/ui/accent';
 import { Txt } from '@/ui/txt';
 
 /** Screen headline: optional illustration, a title and one line of help. */
 export function PhaseTitle({ icon, art, title, sub, color }: { icon?: IconName; art?: ReactNode; title: string; sub?: string; color?: string }) {
+  const accent = useAccent();
   return (
     <Animated.View entering={FadeIn.duration(200)} style={{ alignItems: 'center', gap: 6, paddingTop: 6 }}>
-      {art ?? (icon ? <IconBubble icon={icon} size={60} iconColor={color ?? C.yellow} color={C.surface} /> : null)}
+      {art ?? (icon ? <IconBubble icon={icon} size={60} iconColor={color ?? accent} color={alpha(accent, 0.16)} /> : null)}
       <Txt v="display" center>
         {title}
       </Txt>
@@ -96,7 +98,8 @@ export function PlayAgain({ room }: { room: RoomView }) {
 
 /** Big result banner (win / lose / info). */
 export function ResultBanner({ title, sub, tone = 'good', art }: { title: string; sub?: string; tone?: 'good' | 'bad' | 'neutral'; art?: ReactNode }) {
-  const color = tone === 'good' ? C.green : tone === 'bad' ? C.red : C.surfaceStrong;
+  const accent = useAccent();
+  const color = tone === 'good' ? C.green : tone === 'bad' ? C.red : shade(accent, -0.35);
   return (
     <Animated.View entering={FadeIn.duration(220)} style={{ backgroundColor: color, borderRadius: 22, padding: 18, alignItems: 'center', gap: 4 }}>
       {art}

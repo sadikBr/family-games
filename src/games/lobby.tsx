@@ -8,10 +8,10 @@ import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { BOT_GAMES, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Card, PlayerTag, Row } from '@/ui/bits';
-import { Btn, IconBtn } from '@/ui/btn';
+import { Card, Pill, PlayerTag, Row } from '@/ui/bits';
+import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import { helpers } from './helpers';
 import { GAMES, GAME_ORDER } from './meta';
@@ -29,9 +29,46 @@ function LinkBtn({ label, icon, onPress }: { label: string; icon: 'book' | 'shuf
   );
 }
 
+/** Players needed / allowed, as shown on the cover: «2–5 لاعبين», «3 لاعبين فأكثر». */
+function seatsLabel(min: number, max: number | undefined) {
+  // Arabic counted noun: 2 → لاعبان, 3–10 → لاعبين, 11+ → لاعباً
+  const noun = (n: number) => (n === 2 ? 'لاعبان' : n >= 11 ? 'لاعباً' : 'لاعبين');
+  if (max && max === min) return min === 2 ? 'لاعبان' : `${num(min)} ${noun(min)}`;
+  return max ? `${num(min)}–${num(max)} ${noun(max)}` : `${num(min)} ${noun(min)} فأكثر`;
+}
+
+/** An empty seat: the host taps it to add a bot (bot games) or to invite someone. */
+function EmptySeat({ kind, onPress, accent }: { kind: 'bot' | 'invite' | 'wait'; onPress?: () => void; accent: string }) {
+  const label = kind === 'bot' ? 'أضف بوتاً' : kind === 'invite' ? 'ادعُ أحداً' : 'مقعد فارغ';
+  const body = (
+    <View style={styles.seat}>
+      <View style={[styles.seatRing, { borderColor: alpha(accent, kind === 'wait' ? 0.3 : 0.7) }]}>
+        <Icon name={kind === 'bot' ? 'bot' : kind === 'invite' ? 'plus' : 'user'} size={22} color={kind === 'wait' ? C.dim : accent} />
+      </View>
+      <Txt v="tiny" center numberOfLines={1} color={kind === 'wait' ? C.dim : C.muted} style={{ fontSize: 12 }}>
+        {label}
+      </Txt>
+    </View>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        haptic.tap();
+        onPress();
+      }}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+      {body}
+    </Pressable>
+  );
+}
+
 export function Lobby({ room }: { room: RoomView }) {
   const { isHost, me } = helpers(room);
   const meta = GAMES[room.game];
+  const accent = meta.color;
   const [howTo, setHowTo] = useState(false);
   const [picking, setPicking] = useState(false);
   const [kick, setKick] = useState<string | null>(null);
@@ -40,36 +77,29 @@ export function Lobby({ room }: { room: RoomView }) {
   const online = room.players.filter((p) => p.connected && (botsAllowed || !p.bot)).length;
   const missing = Math.max(0, meta.minPlayers - online);
   const maxSeats = MAX_PLAYERS[room.game];
-  const tooMany = maxSeats ? online > maxSeats : false;
   const kickPlayer = room.players.find((p) => p.id === kick);
+  // empty seats: the ones still needed, or one more if there is room
+  const free = maxSeats ? Math.max(0, maxSeats - online) : 99;
+  const emptySeats = Math.min(free, Math.max(missing, 1));
+  const canBot = isHost && botsAllowed && botCount < MAX_BOTS;
 
   return (
     <>
-      {/* Room code */}
-      <Card style={styles.codeCard}>
-        <View style={{ flex: 1 }}>
-          <Txt v="small" color={C.muted}>
-            رمز الغرفة
-          </Txt>
-          <Txt style={styles.code}>{room.code}</Txt>
-        </View>
-        <IconBtn
-          icon="share"
-          size={46}
-          label="شارك الرمز"
-          onPress={() => shareRoom(room)}
-        />
-      </Card>
-
-      {/* Selected game */}
-      <Card>
-        <Row gap={12}>
-          <GameArt id={room.game} size={78} />
-          <View style={{ flex: 1 }}>
-            <Txt v="title">{meta.title}</Txt>
-            <Txt v="small" color={C.muted}>
+      {/* The game's cover */}
+      <View style={[styles.cover, { backgroundColor: alpha(accent, 0.16), borderColor: alpha(accent, 0.5) }]}>
+        <Row gap={14} style={{ alignItems: 'center' }}>
+          <GameArt id={room.game} size={96} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Txt v="display" numberOfLines={2}>
+              {meta.title}
+            </Txt>
+            <Txt v="small" color={C.text} style={{ opacity: 0.85 }}>
               {meta.tagline}
             </Txt>
+            <Row gap={6} wrap>
+              <Pill label={seatsLabel(meta.minPlayers, maxSeats)} icon="users" color={alpha('#000000', 0.25)} />
+              {botsAllowed ? <Pill label="البوتات تلعب" icon="bot" color={alpha('#000000', 0.25)} /> : null}
+            </Row>
           </View>
         </Row>
         <Row gap={18}>
@@ -80,7 +110,7 @@ export function Lobby({ room }: { room: RoomView }) {
           <Animated.View entering={FadeIn.duration(160)} style={{ gap: 6 }}>
             {meta.howTo.map((line, i) => (
               <Row key={i} gap={8} style={{ alignItems: 'flex-start' }}>
-                <View style={styles.stepNum}>
+                <View style={[styles.stepNum, { backgroundColor: accent }]}>
                   <Txt v="tiny" color={C.ink}>
                     {i + 1}
                   </Txt>
@@ -116,32 +146,17 @@ export function Lobby({ room }: { room: RoomView }) {
             })}
           </Animated.View>
         ) : null}
-      </Card>
+      </View>
 
-      {/* Settings */}
+      {/* The table: who is in, and the empty seats */}
       <Card>
         <Row>
           <Txt v="h3" style={{ flex: 1 }}>
-            الإعدادات
-          </Txt>
-          {isHost ? null : (
-            <Txt v="tiny" color={C.dim}>
-              المضيف يختار
-            </Txt>
-          )}
-        </Row>
-        <GameSettings room={room} editable={isHost} />
-      </Card>
-
-      {/* Players */}
-      <Card>
-        <Row>
-          <Txt v="h3" style={{ flex: 1 }}>
-            اللاعبون
+            حول الطاولة
           </Txt>
           <Txt v="small" color={C.muted}>
-            {online}
-            {maxSeats ? ` من ${maxSeats}` : ''}
+            {num(online)}
+            {maxSeats ? ` من ${num(maxSeats)}` : ''}
           </Txt>
         </Row>
         <Row wrap gap={6} center>
@@ -155,10 +170,15 @@ export function Lobby({ room }: { room: RoomView }) {
               onPress={isHost && p.id !== me ? () => setKick(p.id) : undefined}
             />
           ))}
+          {Array.from({ length: emptySeats }, (_, i) => (
+            <EmptySeat
+              key={`empty-${i}`}
+              accent={accent}
+              kind={canBot ? 'bot' : i === 0 ? 'invite' : 'wait'}
+              onPress={canBot ? () => client.roomAction({ type: 'addBot' }) : i === 0 ? () => shareRoom(room) : undefined}
+            />
+          ))}
         </Row>
-        {isHost && botsAllowed ? (
-          <Btn size="sm" ghost icon="bot" label="أضف بوتاً" disabled={botCount >= MAX_BOTS} onPress={() => client.roomAction({ type: 'addBot' })} />
-        ) : null}
         {botCount > 0 && botsAllowed ? (
           <Row gap={8} wrap style={{ justifyContent: 'center' }}>
             <Txt v="small" color={C.muted}>
@@ -177,6 +197,20 @@ export function Lobby({ room }: { room: RoomView }) {
             البوتات لا تلعب «{meta.title}»
           </Txt>
         ) : null}
+        {/* the code to join, with a share button */}
+        <Pressable
+          onPress={() => shareRoom(room)}
+          accessibilityRole="button"
+          accessibilityLabel={`رمز الغرفة ${room.code} — شارك`}
+          style={({ pressed }) => [styles.codeRow, pressed && { opacity: 0.7 }]}>
+          <View style={{ flex: 1 }}>
+            <Txt v="tiny" color={C.muted}>
+              رمز الغرفة — شاركه مع العائلة
+            </Txt>
+            <Txt style={styles.code}>{room.code}</Txt>
+          </View>
+          <Icon name="share" size={22} color={C.yellow} />
+        </Pressable>
         {isHost && room.players.length > 1 ? (
           <Txt v="tiny" center color={C.dim}>
             اضغط على لاعب لإخراجه
@@ -184,30 +218,20 @@ export function Lobby({ room }: { room: RoomView }) {
         ) : null}
       </Card>
 
-      {/* Start */}
-      {isHost ? (
-        <View style={{ gap: 6 }}>
-          <Btn size="xl" icon="play" label="ابدأ اللعبة" color={C.green} disabled={missing > 0 || tooMany} onPress={() => client.roomAction({ type: 'start' })} />
-          {tooMany ? (
-            <Txt v="small" center color={C.muted}>
-              هذه اللعبة لـ {maxSeats} لاعبين على الأكثر
-            </Txt>
-          ) : null}
-          {missing > 0 ? (
-            <Txt v="small" center color={C.muted}>
-              تحتاجون {missing} {missing === 1 ? 'لاعباً إضافياً' : 'لاعبين إضافيين'}
-              {botsAllowed ? '، أو أضيفوا بوتات' : ''}
-            </Txt>
-          ) : null}
-        </View>
-      ) : (
-        <View style={styles.waiting}>
-          <Icon name="clock" size={18} color={C.muted} />
-          <Txt v="bold" color={C.muted}>
-            في انتظار المضيف ليبدأ
+      {/* Settings */}
+      <Card>
+        <Row>
+          <Txt v="h3" style={{ flex: 1 }}>
+            الإعدادات
           </Txt>
-        </View>
-      )}
+          {isHost ? null : (
+            <Txt v="tiny" color={C.dim}>
+              المضيف يختار
+            </Txt>
+          )}
+        </Row>
+        <GameSettings room={room} editable={isHost} />
+      </Card>
 
       <ConfirmModal
         visible={!!kickPlayer}
@@ -226,9 +250,48 @@ export function Lobby({ room }: { room: RoomView }) {
   );
 }
 
+/** Stays at the bottom of the waiting room: start (host) or «waiting for the host». */
+export function LobbyFooter({ room }: { room: RoomView }) {
+  const { isHost } = helpers(room);
+  const meta = GAMES[room.game];
+  const botsAllowed = BOT_GAMES.includes(room.game);
+  const online = room.players.filter((p) => p.connected && (botsAllowed || !p.bot)).length;
+  const missing = Math.max(0, meta.minPlayers - online);
+  const maxSeats = MAX_PLAYERS[room.game];
+  const tooMany = maxSeats ? online > maxSeats : false;
+  if (!isHost) {
+    return (
+      <View style={styles.waiting}>
+        <Icon name="clock" size={18} color={C.muted} />
+        <Txt v="bold" color={C.muted}>
+          في انتظار المضيف ليبدأ
+        </Txt>
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: 6 }}>
+      {tooMany ? (
+        <Txt v="small" center color={C.muted}>
+          هذه اللعبة لـ {num(maxSeats!)} لاعبين على الأكثر
+        </Txt>
+      ) : missing > 0 ? (
+        <Txt v="small" center color={C.muted}>
+          تحتاجون {num(missing)} {missing === 1 ? 'لاعباً إضافياً' : 'لاعبين إضافيين'}
+          {botsAllowed ? '، أو أضيفوا بوتات' : ''}
+        </Txt>
+      ) : null}
+      <Btn size="xl" icon="play" label="ابدأ اللعبة" color={C.green} disabled={missing > 0 || tooMany} onPress={() => client.roomAction({ type: 'start' })} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  codeCard: { flexDirection: 'row', alignItems: 'center', borderColor: alpha(C.yellow, 0.4), borderWidth: 1 },
-  code: { fontFamily: F.display, fontSize: 46, lineHeight: 60, color: C.yellow, letterSpacing: 6, writingDirection: 'ltr', alignSelf: 'flex-start' },
+  cover: { borderRadius: 24, borderWidth: 1.5, padding: 16, gap: 12 },
+  seat: { width: 78, alignItems: 'center', gap: 3 },
+  seatRing: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.bg2, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
+  code: { fontFamily: F.display, fontSize: 32, lineHeight: 44, color: C.yellow, letterSpacing: 5, writingDirection: 'ltr', alignSelf: 'flex-start' },
   link: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   stepNum: {
     width: 22,
