@@ -319,3 +319,30 @@ export function baloot() {
     ${card(50, 49, 0, 'J', '♥', true)}
     <path d="M32 76 H68 L64 83 H36Z" fill="#F2C23D"/>`);
 }
+
+export function teledraw() {
+  // a little chain: a speech card → a drawing → a question mark, linked by arrows
+  const card = (x, y, rot, inner) => `<g transform="translate(${x} ${y}) rotate(${rot})">
+    <rect x="-13" y="-15" width="26" height="30" rx="4" fill="#FFF8EA" data-shade="0.86"/>${inner}</g>`;
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#7A3414', '#E0703A', ['#F2C23D', '#FFE89A'])}
+    ${card(30, 44, -10, '<path d="M-7 -6 H7 M-7 0 H5 M-7 6 H3" stroke="#3A2412" stroke-width="2" stroke-linecap="round" data-flat/>')}
+    ${card(56, 58, 6, '<circle cx="0" cy="-2" r="6" fill="none" stroke="#E2475F" stroke-width="2.2" data-flat/><path d="M-6 9 Q0 3 6 9" stroke="#3D7BE0" stroke-width="2.2" fill="none" stroke-linecap="round" data-flat/>')}
+    ${card(72, 34, 12, '<text x="0" y="7" font-size="20" font-family="Lilita" fill="#7B61D9" text-anchor="middle" data-flat>?</text>')}
+    <path d="M38 56 Q42 66 46 62" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" data-flat/>
+    <path d="M62 44 Q64 38 66 40" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" data-flat/>
+    <g transform="translate(36 70) rotate(-35)"><rect x="-2.5" y="-12" width="5" height="18" rx="1.5" fill="#F2C23D" data-lw="0.8"/><path d="M-2.5 6 L0 11 L2.5 6Z" fill="#3A2412" data-noshade/></g>`);
+}
+
+export function oneword() {
+  // a big word card in the middle, and small clue cards around it (one struck out)
+  const clue = (x, y, rot, w, struck) => `<g transform="translate(${x} ${y}) rotate(${rot})">
+    <rect x="${-w / 2}" y="-7" width="${w}" height="14" rx="4" fill="#FFFFFF" data-shade="0.86"/>
+    <path d="M${-w / 2 + 4} 0 H${w / 2 - 4}" stroke="#2E9C8F" stroke-width="2.2" stroke-linecap="round" data-flat/>
+    ${struck ? `<path d="M${-w / 2 + 2} 5 L${w / 2 - 2} -5" stroke="#E2475F" stroke-width="2.4" stroke-linecap="round" data-flat/>` : ''}</g>`;
+  return svg100(`
+    ${base(HEX, HEX_IN, '#114A44', '#2E9C8F', ['#F2C23D', '#FFE89A'])}
+    <rect x="34" y="38" width="32" height="24" rx="5" fill="#F2C23D" data-lw="1.1"/>
+    <text x="50" y="56" font-size="15" font-family="Lilita" fill="#3A2412" text-anchor="middle" data-flat>1</text>
+    ${clue(30, 28, -8, 26, false)}${clue(70, 28, 8, 26, true)}${clue(28, 74, 6, 24, false)}${clue(72, 74, -6, 24, false)}`);
+}
