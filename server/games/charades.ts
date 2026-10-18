@@ -100,10 +100,14 @@ function drawCard(ctx: GameCtx, s: State) {
 }
 
 function endTurn(ctx: GameCtx, s: State) {
+  const wasPlaying = s.phase === 'play';
   s.phase = 'turnEnd';
   s.endsAt = null;
   s.card = null;
   ctx.fx('buzz');
+  if (!wasPlaying) return;
+  const pts = s.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'penalty' ? -1 : 0), 0);
+  ctx.say?.(`انتهى الوقت: ${TEAM_NAMES[activeTeam(s)]} ${pts} في هذا الدور`);
 }
 
 function finish(ctx: GameCtx, s: State) {
@@ -206,12 +210,14 @@ export const charades: GameModule<State, CharadesSettings> = {
           s.history.push({ word: s.card.word, result: 'ok' });
           s.teamScores[team] += 1;
           ctx.fx('correct');
+          ctx.say?.(`خمّنوها! ${TEAM_NAMES[team]}: ${s.history.filter((h) => h.result === 'ok').length} في هذا الدور`, by);
         } else {
           const free = freeSkipsLeft(s) > 0;
           s.skipsUsed += 1;
           s.history.push({ word: s.card.word, result: free ? 'skip' : 'penalty' });
           if (!free) s.teamScores[team] -= 1;
           ctx.fx('skip');
+          ctx.say?.(free ? `تخطٍّ من ${ctx.playerName(by)}` : `تخطٍّ من ${ctx.playerName(by)} (نقطة أقل)`, by);
         }
         drawCard(ctx, s);
         return;
@@ -243,6 +249,7 @@ export const charades: GameModule<State, CharadesSettings> = {
         s.phase = 'play';
         s.endsAt = ctx.now + s.settings.seconds * 1000;
         drawCard(ctx, s);
+        ctx.say?.(`حان دور ${ctx.playerName(s.actorId)} في التمثيل ل${TEAM_NAMES[activeTeam(s)].slice(1)}`, s.actorId);
         return true;
       }
       if (s.phase === 'play') {

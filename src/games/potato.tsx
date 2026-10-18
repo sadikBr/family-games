@@ -18,13 +18,13 @@ import { helpers } from './helpers';
 /** The potato. On the holder's phone it trembles a little, more as time passes. */
 function Potato({ size = 120, heat = 0, tremble }: { size?: number; heat?: number; tremble?: boolean }) {
   const r = useSharedValue(0);
-  const amp = 1.5 + heat * 4;
+  const amp = 1 + heat * 2; // a gentle tremble (at most 3°)
   useEffect(() => {
     if (!tremble) {
       r.set(0);
       return;
     }
-    r.set(withRepeat(withSequence(withTiming(-amp, { duration: 90 }), withTiming(amp, { duration: 90 })), -1, true));
+    r.set(withRepeat(withSequence(withTiming(-amp, { duration: 140 }), withTiming(amp, { duration: 140 })), -1, true));
   }, [r, amp, tremble]);
   const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
   return (
@@ -112,6 +112,11 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
               <Txt v="display" center>
                 بسرعة، قل كلمة
               </Txt>
+              {view.fromId ? (
+                <Txt v="small" center color={C.muted}>
+                  جاءتك من {player(view.fromId).name}
+                </Txt>
+              ) : null}
             </View>
             <Txt v="h3" center color={C.muted}>
               ثم ارمِها لـ
@@ -139,7 +144,7 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
               البطاطا عند {holder.name}
             </Txt>
             <Txt center color={C.muted} v="small">
-              استعد، قد تصلك في أي لحظة
+              {view.fromId ? `جاءت من ${player(view.fromId).name} · ` : ''}استعد، قد تصلك في أي لحظة
             </Txt>
           </Card>
         </>

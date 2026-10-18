@@ -10,7 +10,8 @@ import { isNum, isStr, shuffle } from '../util';
 
 const GUESS_MS = 90_000;
 export const CLUE_MS = 60_000;
-const REVEAL_MS = 8000;
+/** the results stay up this long (the screen shows a countdown bar) */
+export const WAVE_REVEAL_MS = 11_000;
 
 export const wavePoints = (d: number) => (d <= 4 ? 4 : d <= 10 ? 3 : d <= 17 ? 2 : 0);
 
@@ -76,8 +77,13 @@ function reveal(ctx: GameCtx, s: State) {
   s.scores[p] += avg;
   s.results.push({ id: p, guess: null, points: avg });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + REVEAL_MS;
+  s.endsAt = ctx.now + WAVE_REVEAL_MS;
   ctx.fx(s.results.some((r) => r.points >= 3) ? 'correct' : 'buzz');
+  const best = s.results.filter((r) => r.id !== p).sort((a, b) => b.points - a.points)[0];
+  ctx.say?.(
+    best && best.points > 0 ? `الهدف كان عند ${s.target}: أقرب تخمين من ${ctx.playerName(best.id)} (+${best.points})` : `الهدف كان عند ${s.target}: لم يقترب أحد`,
+    best && best.points > 0 ? best.id : undefined,
+  );
 }
 
 export const wave: GameModule<State, WaveSettings> = {
@@ -117,6 +123,7 @@ export const wave: GameModule<State, WaveSettings> = {
       s.clue = clue;
       s.phase = 'guess';
       s.endsAt = ctx.now + GUESS_MS;
+      ctx.say?.(`تلميح ${ctx.playerName(by)}: «${clue}» — حرّكوا المؤشر`, by);
       return;
     }
     if (a.type === 'guess') {
@@ -135,6 +142,7 @@ export const wave: GameModule<State, WaveSettings> = {
       s.passedFrom = s.giver;
       nextGiver(ctx, s);
       ctx.fx('tick');
+      ctx.say?.(`انتهى وقت ${ctx.playerName(s.passedFrom)}: التلميح الآن عند ${ctx.playerName(s.giver)}`, s.giver);
     } else if (s.phase === 'guess') reveal(ctx, s);
     else if (s.phase === 'reveal') {
       if (s.round >= rounds(s)) {

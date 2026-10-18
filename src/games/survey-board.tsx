@@ -17,7 +17,7 @@ const TILE = '#2B3170';
 const GOLD = '#F2B33D';
 
 /** One answer slot: a numbered tile that flips (around its horizontal axis) to show the answer. */
-function Slot({ slot, rank, height }: { slot: SurveySlot; rank: number; height: number }) {
+function Slot({ slot, rank, height, hot }: { slot: SurveySlot; rank: number; height: number; hot?: boolean }) {
   const open = slot.text !== null;
   const turn = useSharedValue(open ? 1 : 0);
   useEffect(() => {
@@ -42,7 +42,7 @@ function Slot({ slot, rank, height }: { slot: SurveySlot; rank: number; height: 
           <Txt style={{ fontFamily: F.display, fontSize: height * 0.45, lineHeight: height * 0.68, color: C.ink }}>{num(rank)}</Txt>
         </View>
       </Animated.View>
-      <Animated.View style={[styles.slot, styles.openFace, { height, backgroundColor: tint, borderColor: edge }, openStyle]}>
+      <Animated.View style={[styles.slot, styles.openFace, { height, backgroundColor: tint, borderColor: hot ? GOLD : edge }, hot && styles.hot, openStyle]}>
         <View style={styles.rankSmall}>
           <Txt v="tiny" color={C.ink}>
             {num(rank)}
@@ -79,7 +79,7 @@ function BigStrike({ id, count }: { id: number | null; count: number }) {
     if (id === null) return;
     o.set(withSequence(withTiming(1, { duration: 120 }), withDelay(650, withTiming(0, { duration: 260 }))));
   }, [id, o]);
-  const st = useAnimatedStyle(() => ({ opacity: o.get(), transform: [{ scale: 0.7 + 0.3 * o.get() }] }));
+  const st = useAnimatedStyle(() => ({ opacity: o.get(), transform: [{ scale: 0.94 + 0.06 * o.get() }] }));
   return (
     <Animated.View pointerEvents="none" style={[styles.bigStrike, st]}>
       <Row gap={8} style={{ direction: 'ltr' }}>
@@ -97,13 +97,15 @@ export function Board({ view, width, compact }: { view: SurveyView; width: numbe
   const n = view.slots.length;
   const height = compact ? 34 : width < 340 ? 40 : 44;
   const miss = view.last && (view.last.kind === 'miss' || view.last.kind === 'timeout') ? view.last.id : null;
+  // the answer found last keeps a gold frame until the next answer
+  const hot = view.last && view.last.kind === 'hit' ? view.last.slot : null;
   // in the face-off a miss is a single ✗; in play it shows how many strikes there are now
   const shownStrikes = view.phase === 'play' || view.phase === 'steal' ? view.strikes || 3 : 1;
   return (
     <View style={styles.board}>
       <View style={{ gap: compact ? 4 : 6 }}>
         {view.slots.map((slot, i) => (
-          <Slot key={`${view.round}-${i}`} slot={slot} rank={i + 1} height={height} />
+          <Slot key={`${view.round}-${i}`} slot={slot} rank={i + 1} height={height} hot={hot === i} />
         ))}
       </View>
       <Row gap={8} style={{ justifyContent: 'space-between' }}>
@@ -194,6 +196,7 @@ const styles = StyleSheet.create({
   },
   closed: { backgroundColor: TILE, justifyContent: 'center', borderWidth: 1, borderColor: C.borderStrong },
   openFace: { borderWidth: 1.5 },
+  hot: { borderWidth: 2.5 },
   rankBig: { width: 34, height: 34, borderRadius: 17, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
   rankSmall: { width: 22, height: 22, borderRadius: 11, backgroundColor: alpha(GOLD, 0.85), alignItems: 'center', justifyContent: 'center' },
   points: { minWidth: 40, height: 26, borderRadius: 9, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },

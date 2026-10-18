@@ -69,6 +69,8 @@ export interface CarcaState {
 }
 
 const BREAK: Record<Group['kind'], CarcaScoreKind> = { road: 'road', city: 'city', monastery: 'monastery', field: 'farm' };
+const DONE: Record<CarcaScoreKind, string> = { road: 'اكتمل طريق', city: 'اكتملت مدينة', monastery: 'اكتمل دير', farm: 'حقل' };
+const ROLE: Record<Group['kind'], string> = { city: 'فارس في مدينة', road: 'قاطع طريق على طريق', monastery: 'راهب في دير', field: 'مزارع في حقل' };
 
 function remember(s: CarcaState, e: Omit<CarcaEvent, 'n'>) {
   s.log.push({ ...e, n: ++s.logN });
@@ -160,6 +162,7 @@ function endGame(ctx: GameCtx, s: CarcaState) {
   const winners = s.order.filter((id) => s.scores[id] === top);
   s.final = { winners, left: s.left.slice() };
   ctx.fx('win', winners.length === 1 ? winners[0] : undefined);
+  ctx.say?.(`انتهت البلاطات: ${winners.length === 1 ? `الفوز لـ${ctx.playerName(winners[0])}` : 'تعادل'} (${top} نقطة)`, winners.length === 1 ? winners[0] : undefined);
 }
 
 /** Draw the next tile that fits somewhere (discarding the others); false when the pile runs out. */
@@ -210,7 +213,17 @@ function finishTurn(ctx: GameCtx, s: CarcaState) {
   s.step = null;
   s.options = [];
   s.preview = null;
+  const before = s.logN;
   scoreCompleted(ctx, s, last.x, last.y);
+  // completed features that scored: the most points first
+  const scored = s.log
+    .filter((e): e is CarcaEvent & { kind: CarcaScoreKind } => e.n > before && e.kind !== 'discard' && e.who.length > 0 && e.pts > 0)
+    .sort((a, b) => b.pts - a.pts);
+  if (scored.length) {
+    const e = scored[0];
+    const more = scored.length > 1 ? ` (+${scored.length - 1} غيرها)` : '';
+    ctx.say?.(`${DONE[e.kind]}: ${e.who.map((id) => ctx.playerName(id)).join(' و')} +${e.pts}${more}`, e.who.length === 1 ? e.who[0] : undefined);
+  }
   if (!s.pile.length) endGame(ctx, s);
   else startTurn(ctx, s, nextAfter(s, s.turn));
 }
@@ -223,6 +236,7 @@ function placeTile(ctx: GameCtx, s: CarcaState, by: string, x: number, y: number
   s.preview = null;
   s.last = { x, y, by };
   ctx.fx('card');
+  ctx.say?.(`بلاطة جديدة من ${ctx.playerName(by)}`, by);
   const options = (s.supply[by] ?? 0) > 0 ? followerOptions(s, x, y) : [];
   if (!options.length) {
     finishTurn(ctx, s);
@@ -241,6 +255,9 @@ function placeFollower(ctx: GameCtx, s: CarcaState, by: string, f: number | null
     s.followers.push({ owner: by, x: last.x, y: last.y, f });
     s.supply[by] -= 1;
     ctx.fx('reveal', by);
+    const t = s.board.find((p) => p.x === last.x && p.y === last.y)?.t;
+    const kind = t ? TILES[t].feats[f]?.k : undefined;
+    ctx.say?.(`بلاطة جديدة من ${ctx.playerName(by)}، ومعها ${kind ? ROLE[kind] : 'تابع'}`, by);
   }
   finishTurn(ctx, s);
 }

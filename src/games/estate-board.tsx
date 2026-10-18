@@ -99,7 +99,7 @@ const ICON_TINT: Partial<Record<EstateSquare['kind'], string>> = {
   go: '#D6334B',
 };
 
-function Square({ g, i, view, colorOf, onPress }: { g: Geom; i: number; view: EstateView; colorOf: (id: string) => string; onPress: (i: number) => void }) {
+function Square({ g, i, view, colorOf, onPress, focus }: { g: Geom; i: number; view: EstateView; colorOf: (id: string) => string; onPress: (i: number) => void; focus?: string }) {
   const sq = BOARD[i];
   const r = rectOf(g, i);
   const prop = view.props[i];
@@ -175,6 +175,7 @@ function Square({ g, i, view, colorOf, onPress }: { g: Geom; i: number; view: Es
           <Txt style={{ fontFamily: F.display, fontSize: fs, lineHeight: fs * 1.4, color: '#fff' }}>رهن</Txt>
         </View>
       ) : null}
+      {focus ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: 2.5, borderColor: focus }]} /> : null}
     </Pressable>
   );
 }
@@ -241,12 +242,15 @@ export function EstateBoard({
   view,
   player,
   onSquare,
+  focus,
   children,
 }: {
   W: number;
   view: EstateView;
   player: (id: string) => PlayerPublic;
   onSquare: (i: number) => void;
+  /** the square where the player on turn landed, framed in their colour */
+  focus?: { sq: number; color: string } | null;
   /** drawn in the middle of the board */
   children?: ReactNode;
 }) {
@@ -263,7 +267,7 @@ export function EstateBoard({
         {children}
       </View>
       {BOARD.map((_, i) => (
-        <Square key={i} g={g} i={i} view={view} colorOf={colorOf} onPress={onSquare} />
+        <Square key={i} g={g} i={i} view={view} colorOf={colorOf} onPress={onSquare} focus={focus?.sq === i ? focus.color : undefined} />
       ))}
       {alive.map((p) => {
         const here = alive.filter((q) => q.pos === p.pos);

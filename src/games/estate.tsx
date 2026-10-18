@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
@@ -60,13 +60,16 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
   const card = view.card && view.card.id !== seenCard && !rolling ? view.card : null;
   const incoming = view.trade && view.trade.to === h.me ? view.trade : null;
   const offerHidden = !!incoming && hiddenOffer === incoming.id;
+  // once the token has landed, frame the square: what happens there is the move everyone watches
+  const mover = view.players.find((p) => p.id === view.turn);
+  const focus = mover && !rolling && view.dice && ['buy', 'manage', 'debt', 'auction'].includes(view.phase) ? { sq: mover.pos, color: h.player(mover.id).color } : null;
 
   return (
     <>
       <PlayersStrip view={view} h={h} />
       {incoming && offerHidden ? <OfferBar h={h} trade={incoming} onOpen={() => setHiddenOffer(null)} /> : null}
 
-      <EstateBoard W={W} view={view} player={h.player} onSquare={setDetail}>
+      <EstateBoard W={W} view={view} player={h.player} onSquare={setDetail} focus={focus}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Txt style={{ fontFamily: F.display, fontSize: C0 * 0.1, lineHeight: C0 * 0.15, color: alpha('#FFFFFF', 0.16), position: 'absolute', top: C0 * 0.06 }}>ملك العقار</Txt>
           <Txt v="tiny" color={alpha('#FFFFFF', 0.45)} style={{ position: 'absolute', bottom: C0 * 0.05 }}>
@@ -76,7 +79,7 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
             <ThrownDice values={view.dice} rollId={view.rollId} width={C0} height={C0 * 0.6} size={C0 * 0.16} onLanded={() => setLandedRoll(view.rollId)} />
           </View>
           {card ? (
-            <Animated.View entering={ZoomIn.duration(220)} style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+            <Animated.View entering={FadeIn.duration(220)} style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
               <Pressable onPress={() => setSeenCard(card.id)} style={[styles.luckCard, { width: C0 * 0.82 }]} accessibilityLabel="إغلاق البطاقة">
                 <View style={[styles.luckHead, { backgroundColor: card.deck === 'luck' ? '#F08A3E' : '#22B8B0' }]}>
                   <Icon name={card.deck === 'luck' ? 'question' : 'gift'} size={18} color={INK} />
@@ -187,9 +190,22 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
   } else if (view.phase === 'auction' && view.auction) {
     body = <AuctionPanel view={view} h={h} />;
   } else if (!myTurn) {
+    // what the player on turn is doing now (whose turn it is shows in the bar above)
+    const who = h.player(view.turn).name;
+    const pl = view.players.find((p) => p.id === view.turn);
+    const doing =
+      view.phase === 'buy' && view.buy !== null
+        ? `قرار ${who}: شراء ${BOARD[view.buy].name} أو طرحه في المزاد`
+        : view.phase === 'debt' && view.debt
+          ? `دين على ${who}: ${num(view.debt.amount)} — بيع أو رهن للسداد`
+          : view.phase === 'manage'
+            ? `إدارة العقارات لـ${who} قبل نهاية الدور`
+            : pl?.jail !== null && pl?.jail !== undefined
+              ? `${who} في السجن: محاولة للخروج`
+              : `في انتظار رمية ${who}`;
     body = (
       <Txt v="bold" center color={C.muted}>
-        دور {h.player(view.turn).name}…
+        {doing}
       </Txt>
     );
   } else if (view.phase === 'roll') {
@@ -619,7 +635,7 @@ function OfferModal({ h, trade, onHide }: { h: Helpers; trade: EstateView['trade
   return (
     <Modal visible transparent animationType="fade">
       <View style={styles.backdrop}>
-        <Animated.View entering={ZoomIn.duration(180)} style={styles.sheet}>
+        <Animated.View entering={FadeIn.duration(180)} style={styles.sheet}>
           <Row gap={8}>
             <Avatar player={from} size={36} />
             <Txt v="h2" style={{ flex: 1 }}>

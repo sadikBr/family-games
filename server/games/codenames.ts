@@ -33,7 +33,10 @@ interface State {
   notice: string | null;
 }
 
-const NOTE_MS = 4000;
+/** why the last turn ended stays up this long */
+const NOTE_MS = 6000;
+const TEAM_NAME: Record<Team, string> = { red: 'الفريق الأحمر', blue: 'الفريق الأزرق' };
+const COLOR_NAME: Record<CodeColor, string> = { red: 'للأحمر', blue: 'للأزرق', neutral: 'محايدة', assassin: 'الكلمة السوداء' };
 
 const other = (t: Team): Team => (t === 'red' ? 'blue' : 'red');
 const teamOf = (s: State, id: string): Team | null => (s.teams.red.includes(id) ? 'red' : s.teams.blue.includes(id) ? 'blue' : null);
@@ -72,6 +75,7 @@ function endTurn(ctx: GameCtx, s: State, why: string) {
 function reveal(ctx: GameCtx, s: State, by: string, i: number) {
   s.revealed[i] = true;
   const color = s.key[i];
+  ctx.say?.(`«${s.words[i]}» من ${ctx.playerName(by)}: ${COLOR_NAME[color]}`, by);
   s.log[s.log.length - 1]?.picks.push({ word: s.words[i], color });
   s.proposals = Object.fromEntries(Object.entries(s.proposals).filter(([, v]) => v !== i));
   if (color === 'assassin') {
@@ -79,6 +83,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
     s.winner = other(s.turn);
     s.reason = 'assassin';
     ctx.fx('boom', by);
+    ctx.say?.(`الكلمة السوداء من ${ctx.playerName(by)}! الفوز ل${TEAM_NAME[s.winner].slice(1)}`, by);
     return;
   }
   for (const t of ['red', 'blue'] as Team[]) {
@@ -87,6 +92,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
       s.winner = t;
       s.reason = 'words';
       ctx.fx('win');
+      ctx.say?.(`فاز ${TEAM_NAME[t]}: كشف كل كلماته`);
       return;
     }
   }
@@ -184,6 +190,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       s.phase = 'guess';
       s.log.push({ team: s.turn, clue: word, n, picks: [] });
       ctx.fx('reveal');
+      ctx.say?.(`تلميح ${TEAM_NAME[s.turn]}: «${word}» ${n === 0 ? '∞' : n}`, by);
       return;
     }
     if (s.phase !== 'guess' || myTeam !== s.turn || s.spymasters[myTeam] === by) return;
@@ -201,6 +208,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
     if (a.type === 'pass') {
       if (!s.log[s.log.length - 1]?.picks.length) throw new GameError('اكشفوا كلمة واحدة على الأقل قبل إنهاء الدور');
       endTurn(ctx, s, 'أنهى الفريق دوره');
+      ctx.say?.(`انتهى الدور بطلب من ${ctx.playerName(by)}`, by);
     }
   },
 

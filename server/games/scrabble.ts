@@ -86,6 +86,7 @@ function endGame(ctx: GameCtx, s: State, out: string | null) {
   const winner = leader(s);
   s.final = { winner, out, adjust, left };
   ctx.fx('win', winner ?? undefined);
+  ctx.say?.(winner ? `انتهت اللعبة: الفوز لـ${ctx.playerName(winner)} (${s.scores[winner]} نقطة)` : 'انتهت اللعبة بالتعادل', winner ?? undefined);
 }
 
 /** After a turn without a word: end the game once everyone has had two of them in a row. */
@@ -98,6 +99,7 @@ function afterScoreless(ctx: GameCtx, s: State, by: string) {
 function pass(ctx: GameCtx, s: State, by: string, kind: 'pass' | 'timeout') {
   remember(s, move(by, kind));
   ctx.fx(kind === 'timeout' ? 'buzz' : 'skip');
+  ctx.say?.(kind === 'timeout' ? `انتهى وقت ${ctx.playerName(by)}` : `تمرير الدور من ${ctx.playerName(by)}`, by);
   afterScoreless(ctx, s, by);
 }
 
@@ -135,6 +137,8 @@ function play(ctx: GameCtx, s: State, by: string, raw: unknown) {
   s.scoreless = 0;
   remember(s, move(by, 'play', { cells: placements.map((p) => p.cell), words: res.words.map((w) => ({ w: w.w, score: w.score })), score: res.score, bingo: res.bingo }));
   ctx.fx(res.bingo ? 'reveal' : 'correct', by);
+  const words = res.words.map((w) => `«${w.w}»`).join(' و');
+  ctx.say?.(`${res.words.length > 1 ? 'كلمات' : 'كلمة'} من ${ctx.playerName(by)}: ${words} (+${res.score})${res.bingo ? ' بالأحرف السبعة!' : ''}`, by);
   if (!s.racks[by].length && !s.bag.length) endGame(ctx, s, by);
   else startTurn(ctx, s, nextAfter(s, by));
 }
@@ -150,6 +154,7 @@ function swap(ctx: GameCtx, s: State, by: string, raw: unknown) {
   s.bag = shuffle([...s.bag, ...out]);
   remember(s, move(by, 'swap', { count: out.length }));
   ctx.fx('card');
+  ctx.say?.(`تبديل ${out.length === 1 ? 'حرف واحد' : out.length === 2 ? 'حرفين' : `${out.length} أحرف`} لـ${ctx.playerName(by)}`, by);
   afterScoreless(ctx, s, by);
 }
 

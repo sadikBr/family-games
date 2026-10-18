@@ -58,14 +58,19 @@ function goToTurn(ctx: GameCtx, s: State, turn: number) {
 }
 
 function endTurn(ctx: GameCtx, s: State) {
+  const wasPlaying = s.phase === 'play';
   s.phase = 'turnEnd';
   s.endsAt = null;
   s.card = null;
   ctx.fx('buzz');
+  const g = s.turnOrder[s.turn];
+  if (wasPlaying && g) ctx.say?.(`انتهى وقت ${ctx.playerName(g)}: ${s.history.filter((h) => h.ok).length} كلمات صحيحة`, g);
 }
 
 export const headsup: GameModule<State, HeadsUpSettings> = {
   id: 'headsup',
+  /** the guesser starts and guesses; the family describes */
+  turnOf: (s) => ((s.phase === 'ready' || s.phase === 'play') && s.turnOrder[s.turn] ? [s.turnOrder[s.turn]] : []),
   hostOnly: ['endTurn'],
 
   start(ctx, participants, settings) {
@@ -127,6 +132,8 @@ export const headsup: GameModule<State, HeadsUpSettings> = {
       s.phase = 'play';
       s.endsAt = ctx.now + s.settings.seconds * 1000;
       drawCard(ctx, s);
+      const g = s.turnOrder[s.turn];
+      if (g) ctx.say?.(`التخمين الآن على ${ctx.playerName(g)}: صِفوا الكلمة`, g);
       return true;
     }
     if (s.phase === 'play') {

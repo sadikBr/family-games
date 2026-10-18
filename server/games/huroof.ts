@@ -96,8 +96,10 @@ function openBuzzers(ctx: GameCtx, s: State) {
 function miss(ctx: GameCtx, s: State, team: HuroofTeam) {
   s.canAnswer = s.canAnswer.filter((t) => t !== team);
   s.attempt += 1;
-  if (!s.canAnswer.length) settle(s, null, null);
-  else openBuzzers(ctx, s);
+  if (!s.canAnswer.length) {
+    ctx.say?.(`لم يأخذ أحد الحرف: الجواب «${s.question?.answer ?? ''}»`);
+    settle(s, null, null);
+  } else openBuzzers(ctx, s);
 }
 
 function settle(s: State, team: HuroofTeam | null, by: string | null) {
@@ -178,6 +180,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.wrong = null;
       openBuzzers(ctx, s);
       ctx.fx('reveal');
+      ctx.say?.(`حرف «${displayLetter(s.cells[a.cell].letter)}» باختيار ${ctx.playerName(by)}: من يضغط أولاً؟`, by);
       return;
     }
     if (a.type === 'buzz') {
@@ -189,6 +192,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.endsAt = ctx.now + ANSWER_MS;
       s.feed.push(`${ctx.playerName(by)} ضغط الجرس!`, { by });
       ctx.fx('throw', by);
+      ctx.say?.(`الجرس لـ${ctx.playerName(by)}: في انتظار الجواب`, by);
       return;
     }
     if (a.type === 'answer') {
@@ -196,14 +200,16 @@ export const huroof: GameModule<State, HuroofSettings> = {
       const text = a.text.trim().slice(0, 60);
       if (!text) return;
       if (answerMatches(text, s.question.answer)) {
-        s.feed.push(`${ctx.playerName(by)} أجاب صحيحاً — الحرف لـ${TEAM_NAME[team]}`, { by });
+        s.feed.push(`جواب صحيح من ${ctx.playerName(by)} — الحرف ل${TEAM_NAME[team].slice(1)}`, { by });
         ctx.fx('correct', by);
+        ctx.say?.(`${ctx.playerName(by)}: «${s.question.answer}» صحيح — الحرف ل${TEAM_NAME[team].slice(1)}`, by);
         settle(s, team, by);
         if (s.winner) ctx.fx('win');
       } else {
         s.wrong = { by, text, id: ++s.lastN };
         s.feed.push(`${ctx.playerName(by)}: «${text}» — خطأ`, { by });
         ctx.fx('buzz', by);
+        ctx.say?.(`${ctx.playerName(by)}: «${text}» خطأ`, by);
         miss(ctx, s, team);
       }
     }
@@ -216,9 +222,11 @@ export const huroof: GameModule<State, HuroofSettings> = {
       const team = teamOf(s, s.buzzer)!;
       s.wrong = { by: s.buzzer, text: '…', id: ++s.lastN };
       s.feed.push(`انتهى وقت ${ctx.playerName(s.buzzer)}`, { by: s.buzzer });
+      ctx.say?.(`انتهى وقت ${ctx.playerName(s.buzzer)}`, s.buzzer);
       miss(ctx, s, team);
     } else {
       s.feed.push('انتهى الوقت — لم يضغط أحد الجرس');
+      ctx.say?.(`انتهى الوقت: الجواب «${s.question?.answer ?? ''}»`);
       settle(s, null, null);
     }
     return true;

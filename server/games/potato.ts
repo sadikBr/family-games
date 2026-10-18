@@ -53,7 +53,8 @@ function newRound(ctx: GameCtx, s: State, starter: string) {
 }
 
 export const potato: GameModule<State, PotatoSettings> = {
-  turnOf: (s) => s.phase === 'play' ? [s.holderId] : [],
+  // the holder starts the round, then throws
+  turnOf: (s) => (s.phase === 'play' || s.phase === 'ready' ? [s.holderId] : []),
   id: 'potato',
   hostOnly: ['next'],
 
@@ -89,6 +90,7 @@ export const potato: GameModule<State, PotatoSettings> = {
         s.receivedAt = ctx.now;
         s.explodeAt = ctx.now + randInt(min * 1000, max * 1000);
         ctx.fx('start');
+        ctx.say?.(`اشتعلت البطاطا! الموضوع: ${s.category}`, s.holderId);
         return;
       }
       case 'throw': {
@@ -106,6 +108,7 @@ export const potato: GameModule<State, PotatoSettings> = {
         s.passes += 1;
         s.lastWord = ctx.isBot(by) && isStr(a.word) ? { by, word: a.word } : null;
         ctx.fx('throw', to);
+        ctx.say?.(`البطاطا من ${ctx.playerName(by)} إلى ${ctx.playerName(to)}`, by);
         return;
       }
       case 'next': {
@@ -133,6 +136,7 @@ export const potato: GameModule<State, PotatoSettings> = {
       s.burns[s.holderId] = (s.burns[s.holderId] ?? 0) + 1;
       s.explodeAt = null;
       ctx.fx('boom', s.holderId);
+      ctx.say?.(`بوم! انفجرت البطاطا في يد ${ctx.playerName(s.holderId)}`, s.holderId);
       return true;
     }
     // the holder's phone went to sleep: toss the potato to someone else
@@ -143,6 +147,7 @@ export const potato: GameModule<State, PotatoSettings> = {
         s.holderId = pick(targets);
         s.receivedAt = ctx.now;
         ctx.fx('throw', s.holderId);
+        ctx.say?.(`انتقلت البطاطا إلى ${ctx.playerName(s.holderId)}`, s.holderId);
         return true;
       }
     }

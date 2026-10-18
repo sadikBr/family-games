@@ -174,6 +174,12 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
             </Shake>
           ) : view.card ? (
             <>
+              <Row gap={8} center>
+                <Avatar player={describer} size={28} ring={active.color} />
+                <Txt v="small" color={C.muted} style={{ flexShrink: 1 }}>
+                  الشرح من {describer.name} ل{active.name.slice(1)}: راقب الكلمات الممنوعة
+                </Txt>
+              </Row>
               <TabooCardView card={view.card} />
               <Pressable onPress={() => act('buzz', { index: view.card!.index })} style={({ pressed }) => [styles.buzzer, pressed && { opacity: 0.85, transform: [{ translateY: 3 }] }]}>
                 <Icon name="siren" size={44} color="#FFFFFF" />

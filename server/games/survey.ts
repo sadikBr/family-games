@@ -103,6 +103,29 @@ function event(s: State, by: string, text: string, kind: SurveyEvent['kind'], sl
   s.last = { id: ++s.lastN, by, text, kind, slot };
 }
 
+/** One line for everyone about an answer that was just checked. */
+function sayAnswer(ctx: GameCtx, s: State, was: SurveyView['phase']) {
+  const e = s.last;
+  if (!e) return;
+  const name = ctx.playerName(e.by);
+  const strikes = s.phase === 'play' && s.strikes ? ` (${s.strikes} من 3)` : '';
+  const text =
+    e.kind === 'hit'
+      ? `${name}: «${e.text}» صحيح، +${question(s).answers[e.slot ?? 0]?.points ?? 0}`
+      : e.kind === 'dup'
+        ? `${name}: «${e.text}» موجود على اللوحة`
+        : e.kind === 'timeout'
+          ? `انتهى وقت ${name}${strikes}`
+          : `${name}: «${e.text}» خطأ${strikes}`;
+  const then =
+    was === 'faceoff' && s.phase === 'play' && s.control !== null
+      ? ` — ${TEAM_NAME[s.control]} يلعب`
+      : was === 'play' && s.phase === 'steal' && s.control !== null
+        ? ` — السرقة ل${TEAM_NAME[other(s.control)].slice(1)}`
+        : '';
+  ctx.say?.(text + then, e.by);
+}
+
 function reveal(s: State, slot: number, team: SurveyTeam) {
   s.revealed[slot] = true;
   s.foundBy[slot] = team;
@@ -192,6 +215,7 @@ function endRound(ctx: GameCtx, s: State, team: SurveyTeam, stolen: boolean) {
   s.step++;
   setTimer(ctx, s, ROUND_END_MS);
   ctx.fx('reveal');
+  ctx.say?.(stolen ? `سرقة! ${TEAM_NAME[team]} يأخذ ${points} نقطة` : `انتهت الجولة: ${TEAM_NAME[team]} +${points}`);
 }
 
 function nextRound(ctx: GameCtx, s: State) {
@@ -217,8 +241,16 @@ function finish(ctx: GameCtx, s: State) {
 /* Answers                                                             */
 /* ------------------------------------------------------------------ */
 
-/** A typed answer (or a timeout when `text` is null) from `by`. */
+/** A typed answer (or a timeout when `text` is null) from `by`, announced to everyone. */
 function answer(ctx: GameCtx, s: State, by: string, text: string | null) {
+  const before = s.lastN;
+  const was = s.phase;
+  checkAnswer(ctx, s, by, text);
+  // the round's result speaks for itself; otherwise say what the answer did
+  if (s.lastN !== before && s.phase !== 'roundEnd' && s.phase !== 'final') sayAnswer(ctx, s, was);
+}
+
+function checkAnswer(ctx: GameCtx, s: State, by: string, text: string | null) {
   const q = question(s);
   const r = text === null ? -1 : matchAnswer(q, text, s.revealed);
   const team = teamOf(s, by)!;
@@ -408,6 +440,7 @@ export const survey: GameModule<State, SurveySettings> = {
         if (isNum(a.step) && a.step !== s.step) return;
         faceAnswerer(ctx, s, by);
         ctx.fx('throw', by);
+        ctx.say?.(`الجرس أولاً لـ${ctx.playerName(by)}`, by);
         return;
       }
       case 'answer': {

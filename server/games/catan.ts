@@ -9,8 +9,8 @@
  * reaching the target (10 by default) wins.
  * Rules helpers: server/catan-rules.ts. Bots: server/catan-bot.ts.
  */
-import type { CatanDevKind, CatanFinalRow, CatanPhase, CatanRes, CatanResMap, CatanSettings, CatanView } from '../../src/shared/games/catan';
-import { COST, HEX_COUNT, HEX_VERTS, RES, VERT_COUNT, VERT_HEXES, emptyRes, resTotal } from '../../src/shared/catan-board';
+import type { CatanDevKind, CatanFinalRow, CatanLog, CatanPhase, CatanRes, CatanResMap, CatanSettings, CatanView } from '../../src/shared/games/catan';
+import { COST, HEX_COUNT, HEX_NAME, HEX_VERTS, RES, RES_NAME, VERT_COUNT, VERT_HEXES, emptyRes, resTotal } from '../../src/shared/catan-board';
 import { autoDiscard, botAction, botRobber, botSetupRoad, botSetupSettlement, botVictim, pickAccepter } from '../catan-bot';
 import {
   activePlayers,
@@ -49,6 +49,63 @@ function readMap(v: unknown): CatanResMap {
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/* Announcements                                                       */
+/* ------------------------------------------------------------------ */
+
+const BUILT: Record<string, string> = { road: 'طريق جديد', settlement: 'قرية جديدة', city: 'مدينة جديدة', dev: 'بطاقة تطوير جديدة' };
+
+/** One short line for a log entry, for everyone (never the identity of a stolen card). */
+function logLine(s: State, e: CatanLog): string | null {
+  const nm = (id: string) => s.names[id] ?? '؟';
+  switch (e.t) {
+    case 'roll':
+      return `رمية ${nm(e.p)}: ${e.d[0] + e.d[1]}${e.d[0] + e.d[1] === 7 ? '، واللص يتحرك' : ''}`;
+    case 'build':
+      return `${BUILT[e.b]} لـ${nm(e.p)}`;
+    case 'dev':
+      if (e.k === 'knight') return `فارس من ${nm(e.p)}`;
+      if (e.k === 'roads') return `بطاقة بناء الطرق من ${nm(e.p)}`;
+      if (e.k === 'plenty') return `الوفرة لـ${nm(e.p)}: ${RES_NAME[e.r!]} و${RES_NAME[e.r2!]}`;
+      return `احتكار ${RES_NAME[e.r!]} لـ${nm(e.p)}: ${e.n ?? 0} بطاقة`;
+    case 'robber':
+      return `اللص الآن في ${HEX_NAME[s.hexes[e.h]]}${s.nums[e.h] ? ` ${s.nums[e.h]}` : ''} (بيد ${nm(e.p)})`;
+    case 'steal':
+      return `سرقة بطاقة من ${nm(e.from)} لـ${nm(e.p)}`;
+    case 'discard':
+      return `إعادة ${e.n} بطاقات إلى البنك من ${nm(e.p)}`;
+    case 'bank':
+      return `مبادلة مع البنك لـ${nm(e.p)}: ${e.n} ${RES_NAME[e.give]} بـ ${RES_NAME[e.get]}`;
+    case 'trade':
+      return `مبادلة بين ${nm(e.p)} و${nm(e.with)}`;
+    case 'longest':
+      return e.p ? `أطول طريق لـ${nm(e.p)} (+2)` : null;
+    case 'army':
+      return `أكبر جيش لـ${nm(e.p)} (+2)`;
+    case 'timeout':
+      return `انتهى وقت ${nm(e.p)}: لعب تلقائي`;
+    default:
+      return null;
+  }
+}
+
+/** What a move added to the log, in one line: the robber's theft and titles first, then what was built. */
+function announce(ctx: GameCtx, s: State, fromId: number) {
+  if (s.phase === 'final') return; // the result screen says it all
+  const fresh = s.log.filter((e) => e.id > fromId);
+  if (!fresh.length) return;
+  const rank = (e: CatanLog) => (e.t === 'steal' || e.t === 'longest' || e.t === 'army' ? 3 : e.t === 'roll' || e.t === 'gain' || e.t === 'nothing' || e.t === 'short' ? 1 : 2);
+  let best: CatanLog | null = null;
+  for (const e of fresh) if (logLine(s, e) && (!best || rank(e) >= rank(best))) best = e;
+  if (!best) return;
+  let line = logLine(s, best)!;
+  // a robber move and its theft read better together
+  const moved = fresh.find((e) => e.t === 'robber');
+  if (best.t === 'steal' && moved && moved.t === 'robber') line = `اللص في ${HEX_NAME[s.hexes[moved.h]]}، وسرقة بطاقة من ${s.names[best.from] ?? '؟'} لـ${s.names[best.p] ?? '؟'}`;
+  const by = 'p' in best && typeof best.p === 'string' ? best.p : undefined;
+  ctx.say?.(line, by);
+}
+
 const deadline = (ctx: GameCtx, s: State) => (s.settings.seconds ? ctx.now + s.settings.seconds * 1000 : null);
 
 /* ------------------------------------------------------------------ */
@@ -79,6 +136,7 @@ function endGame(ctx: GameCtx, s: State, winner: string | null, reason: 'win' | 
   s.discard = {};
   s.final = { winner, reason, rows: finalRows(s) };
   ctx.fx('win', winner ?? undefined);
+  ctx.say?.(winner ? `الفوز لـ${s.names[winner] ?? '؟'} بـ ${totalVp(s, winner)} نقاط` : 'انتهت اللعبة', winner ?? undefined);
 }
 
 /** The player whose turn it is wins as soon as they reach the target. */
@@ -178,7 +236,7 @@ function setupSettle(ctx: GameCtx, s: State, by: string, v: number) {
   s.buildings[v] = { s: seatOf(s, by), city: false };
   s.setupNeed = 'road';
   s.setupAt = v;
-  addLog(s, { t: 'build', p: by, b: 'settlement' });
+  addLog(s, { t: 'build', p: by, b: 'settlement', at: v });
   if (s.setupStep >= s.order.length) {
     // the second settlement pays one card from each touching hex
     const got = emptyRes();
@@ -198,7 +256,7 @@ function setupRoad(ctx: GameCtx, s: State, by: string, e: number) {
   if (s.setupNeed !== 'road') throw new GameError('ضع القرية أولاً');
   if (!legalRoads(s, seatOf(s, by)).includes(e)) throw new GameError('ضع الطريق بجانب القرية التي وضعتها الآن');
   s.roads[e] = seatOf(s, by);
-  addLog(s, { t: 'build', p: by, b: 'road' });
+  addLog(s, { t: 'build', p: by, b: 'road', at: e });
   ctx.fx('correct', by);
   s.setupStep++;
   setupBegin(ctx, s);
@@ -349,7 +407,7 @@ function buildRoad(ctx: GameCtx, s: State, by: string, e: number) {
     pay(s, by, COST.road);
   }
   s.roads[e] = seat;
-  addLog(s, { t: 'build', p: by, b: 'road' });
+  addLog(s, { t: 'build', p: by, b: 'road', at: e });
   ctx.fx('correct', by);
   updateLongest(s);
   if (free) {
@@ -370,7 +428,7 @@ function buildSettlement(ctx: GameCtx, s: State, by: string, v: number) {
   if (!canAfford(s.hands[by], COST.settlement)) throw new GameError('القرية تحتاج خشباً وطوباً وصوفاً وقمحاً');
   pay(s, by, COST.settlement);
   s.buildings[v] = { s: seat, city: false };
-  addLog(s, { t: 'build', p: by, b: 'settlement' });
+  addLog(s, { t: 'build', p: by, b: 'settlement', at: v });
   ctx.fx('correct', by);
   updateLongest(s); // a settlement can break someone's road
   checkWin(ctx, s);
@@ -384,7 +442,7 @@ function buildCity(ctx: GameCtx, s: State, by: string, v: number) {
   if (!canAfford(s.hands[by], COST.city)) throw new GameError('المدينة تحتاج قمحتين وثلاثة أحجار');
   pay(s, by, COST.city);
   s.buildings[v] = { s: seat, city: true };
-  addLog(s, { t: 'build', p: by, b: 'city' });
+  addLog(s, { t: 'build', p: by, b: 'city', at: v });
   ctx.fx('correct', by);
   checkWin(ctx, s);
 }
@@ -614,18 +672,23 @@ export const catan: GameModule<State, CatanSettings> = {
     // a bot move planned for an older state: drop it (the bot plans again)
     if (a.seq !== undefined && a.seq !== s.seq) return;
     const before = s.seq;
+    const logged = s.logSeq;
     try {
       handle(ctx, s, by, a);
     } finally {
       if (s.seq === before) s.seq++;
     }
+    announce(ctx, s, logged);
+    if (a.type === 'offer' && s.trade?.from === by) ctx.say?.(`عرض مبادلة من ${s.names[by] ?? '؟'} على الجميع`, by);
   },
 
   tick(ctx, s) {
     if (s.phase === 'final' || s.endsAt === null || ctx.now < s.endsAt) return false;
     s.endsAt = null;
+    const logged = s.logSeq;
     autoplay(ctx, s);
     s.seq++;
+    announce(ctx, s, logged);
     return true;
   },
 
