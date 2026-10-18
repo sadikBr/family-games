@@ -64,6 +64,9 @@ A party-games app for family night. **Every player uses their own phone.** One p
 - **Invite:** tap the room code (or «ادعُ أحداً» in the room menu) to share a link that opens the app on the join screen with the code filled in.
 - **Room menu** (the people icon at the top of every room): who is connected, mute, and for the host: remove a player or go back to the waiting room.
 - **Your turn:** your phone plays a sound and vibrates when it becomes your move, in every turn-based game.
+- **Turn bar:** under the header of every game, «دورك!» (yellow) or «دور سارة» with their avatar, from the game's `turnOf`; hidden while everyone plays at once. Under it, the last move in one sentence («ورقة من ماما: 7 كؤوس»), sent by the game with `ctx.say?.()` — never hidden information, and never a verb that agrees with the player (we don't know their gender): «شراء لبابا: …», «كلمة من سلمى: …».
+- **Bot speed:** the room leaves a pause after someone else's move (and between two steps of a bot's own turn) so everyone sees what happened. The host picks «بطيئة / عادية / سريعة» in the waiting room or the room menu, also mid-game (`PACE` in `server/room.ts`). Answers and votes that race a timer are not slowed down.
+- **Animations stay gentle:** short fades and small growth (`src/ui/motion.ts`), no bounces or zooms from nothing.
 - **Someone's phone drops:** after 20 s a bot plays for them until they come back (marked «البوت يلعب عنه»). If the host drops, the host role passes to someone else after 15 s. In روندا، الكانزة and التريس, a player who leaves is replaced by a bot so the table stays full.
 - **Two-player games** alternate who starts and keep a running score for the room; you can resign.
 - **Questions don't repeat** between games in the same room (quiz, who is it, which surah, Hajj, Huroof) until the pool runs out.
