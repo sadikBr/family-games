@@ -159,7 +159,7 @@ function Reveal({ view, h, playing }: { view: ProphetsView; h: Helpers; playing:
           onPress={() => h.act('ready')}
         />
       ) : null}
-      <AnsweredRow ids={view.ready} total={view.participants.length} h={h} label="جاهز" />
+      <AnsweredRow ids={view.ready} total={view.participants.length} h={h} label="الجاهزون:" />
     </Animated.View>
   );
 }
@@ -230,7 +230,7 @@ export function ProphetsGame({ room, view }: { room: RoomView; view: ProphetsVie
             صوّت مع عائلتك: جواب الأكثرية هو جواب الجميع
           </Txt>
         ) : (
-          <AnsweredRow ids={view.voted} total={view.participants.length} h={h} label="صوّت" />
+          <AnsweredRow ids={view.voted} total={view.participants.length} h={h} label="الأصوات:" />
         )
       ) : (
         <Reveal view={view} h={h} playing={playing} />

@@ -179,7 +179,7 @@ export function OptionGrid({
 }
 
 /** Who answered so far: their avatars, then an empty seat for each one still thinking. */
-export function AnsweredRow({ ids, total, h, label = 'أجاب' }: { ids: string[]; total: number; h: Helpers; label?: string }) {
+export function AnsweredRow({ ids, total, h, label = 'الإجابات:' }: { ids: string[]; total: number; h: Helpers; label?: string }) {
   const left = Math.max(0, total - ids.length);
   return (
     <Row gap={6} center wrap>
