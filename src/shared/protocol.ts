@@ -781,7 +781,7 @@ export interface RondaView {
   scores: Record<string, number>; // side -> points
   target: number;
   lastPlay: { by: string; card: Card; took: Card[] } | null;
-  /** big banner on the felt (روندا، تريلا، مسّة، إسطي…); a new id = a new announcement */
+  /** big banner on the felt (روندا، ترينكا، مسّة، دقة…); a new id = a new announcement */
   announce: { by: string | null; text: string; id: number } | null;
   /** a side scores one point per captured card above this (20 with two sides, 13 with three) */
   base: number;

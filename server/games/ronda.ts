@@ -1,8 +1,9 @@
 /**
  * روندا — the family variant: 4 cards each, no cards dealt to the table.
  * Play a card: if the same rank is on the table you take it, plus the cards that follow
- * it in sequence (… 6, 7, 10, 11, 12). إسطي = taking the card just played by the
- * previous player (+1). مسّة = clearing the table (+1). روندا (pair) = 1, تريلا
+ * it in sequence (… 6, 7, 10, 11, 12). دقة = taking the card just played by the
+ * previous player (+1); if the next player answers with the third card of that rank, they take the
+ * three cards from the other pile (+5), and the fourth card takes all four (+10). مسّة = clearing the table (+1). روندا (pair) = 1, ترينكا
  * (three of a kind) = 5, four of a kind = two rondas. At the end of a hand the side
  * with more than 20 cards (13 with three players) scores one point per extra card. First to the target wins.
  */
@@ -29,8 +30,13 @@ interface State {
   table: Card[];
   captured: Record<string, Card[]>;
   lastCapturer: string | null;
-  /** card left on the table by the previous turn (for إسطي) */
+  /** card left on the table by the previous turn (for دقة) */
   lastPlayed: { by: string; cardId: string } | null;
+  /**
+   * After a دقة: the cards of that rank just taken, still on top of the taker's pile. The very
+   * next player can answer with the same rank and take them all: 3 cards = +5, 4 cards = +10.
+   */
+  chain: { by: string; side: string; rank: Card['rank']; cards: Card[] } | null;
   lastPlay: RondaView['lastPlay'];
   announce: RondaView['announce'];
   announceN: number;
@@ -62,7 +68,7 @@ function addPoints(ctx: GameCtx, s: State, side: string, pts: number): boolean {
   return false;
 }
 
-/** روندا / تريلا detection for one hand of cards. */
+/** روندا / ترينكا detection for one hand of cards. */
 function announcement(cards: Card[]) {
   const counts = new Map<number, number>();
   for (const c of cards) counts.set(c.rank, (counts.get(c.rank) ?? 0) + 1);
@@ -82,7 +88,7 @@ function announcement(cards: Card[]) {
       best = Math.max(best, 100 + rankIndex(rank));
     }
   }
-  const label = tringa ? 'تريلا!!' : value >= 2 ? 'روندتان!' : 'روندا!';
+  const label = tringa ? 'ترينكا!!' : value >= 2 ? 'روندتان!' : 'روندا!';
   return { value, best, label };
 }
 
@@ -156,6 +162,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.captured = Object.fromEntries(s.sides.map((x) => [x.key, []]));
   s.lastCapturer = null;
   s.lastPlay = null;
+  s.chain = null;
   s.announce = null;
   s.handSummary = null;
   s.dealerIdx = (s.dealerIdx + 1) % n(s);
@@ -164,7 +171,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.feed.push(`اليد ${s.hand} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
   ctx.say?.(`اليد ${s.hand} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
   dealRound(ctx, s);
-  // a روندا / تريلا at the first deal: say it (the banner shows it on the felt too)
+  // a روندا / ترينكا at the first deal: say it (the banner shows it on the felt too)
   const call = s.announce as State['announce'];
   if (call) ctx.say?.(call.text.replace(/\n/g, ' — '), call.by ?? undefined);
 }
@@ -220,6 +227,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       captured: {},
       lastCapturer: null,
       lastPlayed: null,
+      chain: null,
       lastPlay: null,
       announce: null,
       announceN: 0,
@@ -249,8 +257,29 @@ export const ronda: GameModule<State, RondaSettings> = {
     let ended = false;
 
     let said = '';
-    if (took.length) {
-      const wasEsti = s.lastPlayed?.by === prev && s.lastPlayed.cardId === took[0].id;
+    const chain = s.chain && s.chain.by === prev && s.chain.rank === card.rank && s.chain.side !== side ? s.chain : null;
+    if (chain) {
+      // the third (or fourth) card of the rank right after a دقة: take those cards from the other pile
+      const pile = s.captured[chain.side];
+      for (const c of chain.cards) {
+        const i = pile.findIndex((x) => x.id === c.id);
+        if (i >= 0) pile.splice(i, 1);
+      }
+      s.captured[side].push(card, ...chain.cards);
+      s.lastCapturer = by;
+      const count = chain.cards.length + 1;
+      const pts = count >= 4 ? 10 : 5;
+      const label = count >= 4 ? `الرابعة! ${cardsWord(4)} +10` : `الثالثة! ${cardsWord(3)} +5`;
+      s.feed.push(`${label} لـ${ctx.playerName(by)}`, { by, points: pts });
+      setAnnounce(s, by, label);
+      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(count)} بـ ${cardName(card)} — +${pts}`;
+      ctx.fx('reveal', by);
+      s.chain = count < 4 ? { by, side, rank: card.rank, cards: [...chain.cards, card] } : null;
+      s.lastPlayed = null;
+      s.lastPlay = { by, card, took: chain.cards };
+      ended = addPoints(ctx, s, side, pts);
+    } else if (took.length) {
+      const wasDaqa = s.lastPlayed?.by === prev && s.lastPlayed.cardId === took[0].id;
       s.table = s.table.filter((c) => !took.includes(c));
       s.captured[side].push(card, ...took);
       s.lastCapturer = by;
@@ -258,18 +287,21 @@ export const ronda: GameModule<State, RondaSettings> = {
       const missa = s.table.length === 0 && !lastCardOfHand;
       s.feed.push(`أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}`, { by });
       let pts = 0;
-      if (wasEsti) {
+      if (wasDaqa) {
         pts += 1;
-        s.feed.push('إسطي! +1', { by, points: 1 });
+        s.feed.push('دقة! +1', { by, points: 1 });
       }
       if (missa) {
         pts += 1;
         s.feed.push('مسّة! +1', { by, points: 1 });
       }
-      if (pts) setAnnounce(s, by, wasEsti && missa ? 'إسطي ومسّة! +2' : wasEsti ? 'إسطي! +1' : 'مسّة! +1');
-      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasEsti && missa ? ' — إسطي ومسّة!' : wasEsti ? ' — إسطي!' : missa ? ' — مسّة!' : ''}`;
+      if (pts) setAnnounce(s, by, wasDaqa && missa ? 'دقة ومسّة! +2' : wasDaqa ? 'دقة! +1' : 'مسّة! +1');
+      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasDaqa && missa ? ' — دقة ومسّة!' : wasDaqa ? ' — دقة!' : missa ? ' — مسّة!' : ''}`;
       ctx.fx(pts ? 'reveal' : 'correct', by);
       s.lastPlayed = null;
+      // a دقة opens a chain: the next player may answer with the same rank
+      s.chain = wasDaqa ? { by, side, rank: card.rank, cards: [took[0], card] } : null;
+      s.lastPlay = { by, card, took };
       ended = addPoints(ctx, s, side, pts);
     } else {
       s.table.push(card);
@@ -277,8 +309,9 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
       ctx.fx('card');
       said = `ورقة من ${ctx.playerName(by)}: ${cardName(card)}`;
+      s.chain = null;
+      s.lastPlay = { by, card, took };
     }
-    s.lastPlay = { by, card, took };
     ctx.say?.(said, by);
     if (ended) return;
 
@@ -287,7 +320,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       if (s.deck.length) {
         const before = s.announceN;
         const won = dealRound(ctx, s, took.length > 0);
-        // a روندا / تريلا at this deal scores: it replaces the play in the announcement line
+        // a روندا / ترينكا at this deal scores: it replaces the play in the announcement line
         // (the play itself stays on the felt)
         if (s.announceN !== before && s.announce) ctx.say?.(s.announce.text.replace(/\n/g, ' — '), s.announce.by ?? undefined);
         if (won) return;
@@ -306,6 +339,12 @@ export const ronda: GameModule<State, RondaSettings> = {
     let best: Card = pick(hand);
     let bestScore = -1;
     for (const c of hand) {
+      // answering a دقة with the same rank is worth +5 / +10: always take it
+      if (s.chain && s.chain.by === prev && s.chain.rank === c.rank && s.chain.side !== sideOf(s.sides, bot)) {
+        best = c;
+        bestScore = 100;
+        break;
+      }
       const took = findCapture(s.table, c);
       if (!took.length) continue;
       let score = took.length + 1;
