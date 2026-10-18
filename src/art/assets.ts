@@ -22,6 +22,7 @@ export const AVATAR_IMG: Record<string, number> = {
 
 export const GAME_IMG: Record<string, number> = {
   'asma': require('../../assets/art/games/asma.webp'),
+  'baloot': require('../../assets/art/games/baloot.webp'),
   'battleship': require('../../assets/art/games/battleship.webp'),
   'blocks': require('../../assets/art/games/blocks.webp'),
   'boggle': require('../../assets/art/games/boggle.webp'),

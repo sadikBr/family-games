@@ -306,3 +306,16 @@ export function carca() {
       <path d="M-6 6 L-3.5 -3 H3.5 L6 6Z" fill="#E2475F" data-lw="0.9"/>
     </g>`);
 }
+
+export function baloot() {
+  // three French cards fanned out: the jack and nine of the trump suit, and an ace
+  const card = (x, y, rot, label, suit, red) => `<g transform="translate(${x} ${y}) rotate(${rot})">
+    <rect x="-13" y="-18" width="26" height="36" rx="3.5" fill="#FFFDF6" data-shade="0.88"/>
+    <text x="-8.5" y="-8" font-size="8" font-family="Lilita" fill="${red ? '#C8283C' : '#1B1830'}" text-anchor="middle" data-flat>${label}</text>
+    <text x="0" y="8" font-size="17" font-family="Lilita" fill="${red ? '#C8283C' : '#1B1830'}" text-anchor="middle" data-flat>${suit}</text></g>`;
+  return svg100(`
+    ${base(SHIELD, SHIELD_IN, '#5E1424', '#B8324A', ['#F2C23D', '#FFE89A'])}
+    ${card(34, 53, -20, 'A', '♠', false)}${card(66, 53, 20, '9', '♥', true)}
+    ${card(50, 49, 0, 'J', '♥', true)}
+    <path d="M32 76 H68 L64 83 H36Z" fill="#F2C23D"/>`);
+}
