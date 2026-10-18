@@ -1565,7 +1565,7 @@ export type RoomAction =
  */
 export type Pace = 'slow' | 'normal' | 'fast';
 
-/** A move announced by the game: «روبو لعب ٧ ذهب». */
+/** A move announced by the game: «روبو لعب ٧ أوروص». */
 export interface Said {
   id: number;
   text: string;

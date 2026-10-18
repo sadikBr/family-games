@@ -1,6 +1,6 @@
 /**
- * Traditional Spanish 40-card deck (coins, cups, swords, clubs; 1–7, 10, 11, 12),
- * drawn in the app's mascot style and rendered as HD images (see assets.ts).
+ * The traditional Moroccan deck (Spanish suits: أوروص, الكوباص, شباضا, الباسطوص; 1–7, 10, 11, 12)
+ * in the classic printed style, rendered as HD images (see assets.ts and tools/art/cards.mjs).
  */
 import { Image } from 'expo-image';
 import { memo } from 'react';

@@ -71,7 +71,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
         {final ? <SidesResult sides={view.sides} scores={view.scores} h={h} winner={view.winner} /> : null}
         {view.handSummary ? (
           <HandRows
-            title={`اليد ${num(view.hand)} — كل ورقة = 1 · الذهب = رقمه · 1 ذهب = 20`}
+            title={`اليد ${num(view.hand)} — كل ورقة = 1 · أوروص = رقمها · 1 أوروص = 20`}
             rows={view.handSummary.map((r) => {
               const side = view.sides.find((x) => x.key === r.side)!;
               return {

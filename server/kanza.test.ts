@@ -27,7 +27,7 @@ test('kanza: a drop and a 15 are announced with who played', () => {
   s.hands[p] = [{ id: 'cups-3', suit: 'cups', rank: 3 }, { id: 'cups-4', suit: 'cups', rank: 4 }];
   s.hands[q] = [{ id: 'coins-5', suit: 'coins', rank: 5 }, { id: 'coins-6', suit: 'coins', rank: 6 }];
   kanza.act(ctx, s, p, { type: 'play', card: 'cups-3', take: [] });
-  expect(said.at(-1)).toEqual({ text: `ورقة من ${p}: 3 كؤوس`, by: p });
+  expect(said.at(-1)).toEqual({ text: `ورقة من ${p}: 3 كوباص`, by: p });
   kanza.act(ctx, s, q, { type: 'play', card: 'coins-5', take: ['cups-10'] });
   expect(said.at(-1)!.by).toBe(q);
   expect(said.at(-1)!.text).toContain(`أخذٌ لـ${q}: ورقتان`);

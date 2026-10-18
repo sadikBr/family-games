@@ -2,8 +2,8 @@
  * الكانزة (15) — play a card and take table cards so that, together with your card,
  * they add up to exactly 15, using at most 3 cards (your card + up to 2 from the table).
  * Capture values are the card numbers (1–7, 10, 11, 12).
- * Scoring at the end of a hand: every card = 1 point, except gold (ذهب) cards which
- * count their number, and the 1 of gold which is worth 20.
+ * Scoring at the end of a hand: every card = 1 point, except coins (أوروص) cards which
+ * count their number, and the 1 of coins which is worth 20.
  */
 import { cardName, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, KanzaSettings, KanzaView } from '../../src/shared/protocol';
@@ -176,7 +176,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
       s.lastCapturer = by;
       const pts = [card, ...take].reduce((t, c) => t + kanzaPoints(c), 0);
       const gold = [card, ...take].some((c) => c.suit === 'coins');
-      s.feed.push(`${ctx.playerName(by)} جمع 15${gold ? ' بالذهب' : ''}`, { by, points: pts });
+      s.feed.push(`${ctx.playerName(by)} جمع 15${gold ? ' بأوروص' : ''}`, { by, points: pts });
       ctx.say?.(`أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(take.length + 1)} بـ ${cardName(card)} (+${pts})`, by);
       ctx.fx(take.some((c) => c.suit === 'coins' && c.rank === 1) || (card.suit === 'coins' && card.rank === 1) ? 'reveal' : 'correct', by);
     } else {

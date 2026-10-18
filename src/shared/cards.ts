@@ -11,11 +11,15 @@ export interface Card {
 export const SUITS: Suit[] = ['coins', 'cups', 'swords', 'clubs'];
 export const RANKS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
 
-export const SUIT_INFO: Record<Suit, { name: string; emoji: string; color: string }> = {
-  coins: { name: 'ذهب', emoji: '🪙', color: '#C98A00' },
-  cups: { name: 'كؤوس', emoji: '🏆', color: '#D7263D' },
-  swords: { name: 'سيوف', emoji: '🗡️', color: '#2563EB' },
-  clubs: { name: 'عصيّ', emoji: '🪵', color: '#15803D' },
+/**
+ * The suits by their traditional Moroccan names (kept as they are said, like «روندا»): `name` for a label
+ * («حكم الكوباص», legends), `short` after a number («7 كوباص»).
+ */
+export const SUIT_INFO: Record<Suit, { name: string; short: string; emoji: string; color: string }> = {
+  coins: { name: 'أوروص', short: 'أوروص', emoji: '🪙', color: '#C98A00' },
+  cups: { name: 'الكوباص', short: 'كوباص', emoji: '🏆', color: '#D7263D' },
+  swords: { name: 'شباضا', short: 'شباضا', emoji: '🗡️', color: '#2563EB' },
+  clubs: { name: 'الباسطوص', short: 'باسطوص', emoji: '🪵', color: '#15803D' },
 };
 
 export const FIGURES: Record<number, { name: string; emoji: string }> = {
@@ -24,9 +28,10 @@ export const FIGURES: Record<number, { name: string; emoji: string }> = {
   12: { name: 'الملك', emoji: '👑' },
 };
 
+/** «7 كوباص», «الملك شباضا» */
 export function cardName(c: Card): string {
   const r = FIGURES[c.rank]?.name ?? String(c.rank);
-  return `${r} ${SUIT_INFO[c.suit].name}`;
+  return `${r} ${SUIT_INFO[c.suit].short}`;
 }
 
 export function makeDeck(): Card[] {

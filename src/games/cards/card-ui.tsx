@@ -5,7 +5,7 @@ import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { Icon } from '@/art/icons';
 import { SpanishCard } from '@/art/spanish-card';
 import { haptic } from '@/lib/sfx';
-import { SUIT_INFO, type Card } from '@/shared/cards';
+import { cardName, type Card } from '@/shared/cards';
 import type { CardSide, FeedItem, PlayerPublic, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
@@ -70,7 +70,7 @@ export function PlayingCard({
       }}
       hitSlop={3}
       accessibilityRole="button"
-      accessibilityLabel={card ? `ورقة ${card.rank} ${SUIT_INFO[card.suit].name}` : 'الكومة'}>
+      accessibilityLabel={card ? `ورقة ${cardName(card)}` : 'الكومة'}>
       {face}
     </Pressable>
   );

@@ -2,7 +2,7 @@
  * The strip under the room header during a game, the same in every game:
  * - whose turn it is: «دورك!» in the primary colour when the game waits for me, otherwise the
  *   player's avatar and name (it slides in again at every change of turn);
- * - under it, the last move the game announced («روبو لعب ٧ ذهب وأخذ ورقتين», see GameCtx.say), so a
+ * - under it, the last move the game announced («روبو لعب ٧ أوروص وأخذ ورقتين», see GameCtx.say), so a
  *   quick move by someone else is never missed.
  */
 import { View } from 'react-native';

@@ -4,6 +4,7 @@ Every illustration in the app (avatars, game emblems, Werewolf roles, the Spanis
 
 - `avatars.mjs`, `badges.mjs`, `roles.mjs`, `cards.mjs`, `uno.mjs`, `hero.mjs`: the drawings (100×100 or 200×300 SVG).
 - `mkit.mjs`: the drawing kit (expressive eyes, brows, mouths…).
+- `cards.mjs` draws the traditional Moroccan deck (Spanish suits) with its own lines (`data-flat`); `glyphs.mjs` holds its serif index digits as outlines.
 - `hand.js`: the "mascot" pass, run in Chromium: bold outlines, cel shading, sticker border.
 - `build.mjs`: renders everything and converts it to WebP (needs Python 3 with Pillow).
 
