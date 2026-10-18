@@ -155,8 +155,10 @@ test('codenames: the clue and a revealed word are announced', () => {
   codenames.act(ctx, s, 'a', { type: 'begin' });
   const team = s.turn;
   const master = s.spymasters[team];
-  codenames.act(ctx, s, master, { type: 'clue', word: 'بحر', n: 1 });
-  expect(lastSaid(ctx)).toEqual({ text: expect.stringContaining('«بحر»'), by: master });
+  // a clue word that is never on the grid (a word on the board would be refused)
+  const clue = ['بحر', 'جبل', 'شمس', 'قمر', 'نهر'].find((w) => !s.words.includes(w))!;
+  codenames.act(ctx, s, master, { type: 'clue', word: clue, n: 1 });
+  expect(lastSaid(ctx)).toEqual({ text: expect.stringContaining(`«${clue}»`), by: master });
   const guesser = s.teams[team].find((id: string) => id !== master);
   const i = s.key.findIndex((k: string) => k === team);
   codenames.act(ctx, s, guesser, { type: 'reveal', index: i });
