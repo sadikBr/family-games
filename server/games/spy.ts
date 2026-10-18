@@ -134,6 +134,8 @@ function endRound(ctx: GameCtx, s: State, winners: 'spies' | 'civilians', how: S
   s.guessEndsAt = null;
   s.failed = null;
   ctx.fx('reveal');
+  const spies = s.spies.map((id) => ctx.playerName(id)).join(' و');
+  ctx.say?.(winners === 'spies' ? `الفوز للجاسوس: ${spies}، والمكان: ${s.location.name}` : `الفوز للمواطنين! الجاسوس: ${spies}`);
 }
 
 function finishGame(ctx: GameCtx, s: State) {
@@ -169,6 +171,7 @@ function checkAccusation(ctx: GameCtx, s: State, force = false) {
     s.failed = { by: acc.by, target: acc.target, yes, no, until: ctx.now + NOTICE_MS };
     s.accusation = null;
     ctx.fx('skip');
+    ctx.say?.(`فشل اتّهام ${ctx.playerName(acc.target)} (نعم ${yes} · لا ${no}) — يستمر اللعب`);
     resume(ctx, s);
   }
 }
@@ -252,6 +255,7 @@ export const spy: GameModule<State, SpySettings> = {
         if ((s.phase !== 'play' && s.phase !== 'accuse') || !s.order.length) return;
         if (isNum(a.idx) && a.idx !== s.askIdx) return;
         s.askIdx = (s.askIdx + 1) % s.order.length;
+        ctx.say?.(`السؤال الآن عند ${ctx.playerName(s.order[s.askIdx])}`, s.order[s.askIdx]);
         return;
       }
       case 'accuse': {
@@ -265,6 +269,7 @@ export const spy: GameModule<State, SpySettings> = {
         pause(ctx, s);
         s.phase = 'accuse';
         ctx.fx('buzz', target);
+        ctx.say?.(`اتّهام من ${ctx.playerName(by)} لـ${ctx.playerName(target)}: صوّتوا!`, by);
         checkAccusation(ctx, s);
         return;
       }
@@ -289,6 +294,7 @@ export const spy: GameModule<State, SpySettings> = {
         s.guessEndsAt = ctx.now + SPY_GUESS_MS;
         s.failed = null;
         ctx.fx('reveal', by);
+        ctx.say?.(`انكشاف ${ctx.playerName(by)}: الجاسوس! فرصة لتخمين المكان`, by);
         return;
       case 'spyGuess':
         if (s.phase !== 'spyGuess' || by !== s.guesserId || !isStr(a.location) || !s.locations.includes(a.location)) return;
@@ -320,6 +326,7 @@ export const spy: GameModule<State, SpySettings> = {
       s.endsAt = null;
       s.finalVotes = new Map();
       ctx.fx('tick');
+      ctx.say?.('انتهى الوقت: صوّتوا على من تشكّون فيه');
       return true;
     }
     if (s.failed && ctx.now >= s.failed.until) {
@@ -369,12 +376,7 @@ export const spy: GameModule<State, SpySettings> = {
     switch (s.phase) {
       case 'play':
         return s.order.length ? [s.order[s.askIdx % s.order.length]] : [];
-      case 'accuse': {
-        const acc = s.accusation;
-        return acc ? s.participants.filter((id) => id !== acc.target && !acc.votes.has(id)) : [];
-      }
-      case 'finalVote':
-        return s.participants.filter((id) => !s.finalVotes.has(id));
+      // votes: everyone answers at once (the screen lists who is still voting)
       case 'spyGuess':
         return s.guesserId ? [s.guesserId] : [];
       default:

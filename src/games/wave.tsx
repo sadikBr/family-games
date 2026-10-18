@@ -17,6 +17,7 @@ import { helpers } from './helpers';
 import { McqFinal, RoundHeader } from './islamic-ui';
 
 const INK = '#151726';
+const REVEAL_MS = 11_000; // keep in sync with WAVE_REVEAL_MS in server/games/wave.ts
 // 0 sits at the right end of the dial (where Arabic reading starts), 100 at the left end
 const angle = (v: number) => (Math.PI * v) / 100;
 
@@ -141,6 +142,7 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
 
       {view.phase === 'guess' ? <TimerBar endsAt={view.endsAt} total={90000} /> : null}
       {view.phase === 'clue' ? <TimerBar endsAt={view.endsAt} total={60000} onTick={iAmPsychic} /> : null}
+      {view.phase === 'reveal' ? <TimerBar endsAt={view.endsAt} total={REVEAL_MS} /> : null}
       {view.passedFrom ? (
         <Txt v="small" center color={C.yellow}>
           انتهى وقت {h.player(view.passedFrom).name} — التلميح الآن عند {psychic.name}

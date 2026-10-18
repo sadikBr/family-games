@@ -326,7 +326,7 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
         fitKey={placing ? `t${view.turnNo}` : ''}
         spots={placing ? spots : undefined}
         preview={preview}
-        last={view.last && view.step !== 'follower' ? { x: view.last.x, y: view.last.y, color: view.colors[view.last.by] ?? 0 } : null}
+        last={view.last && !options ? { x: view.last.x, y: view.last.y, color: view.colors[view.last.by] ?? 0 } : null}
         options={options}
         onCell={onCell}
         onSpot={(f) => setPick({ turnNo: view.turnNo, f })}

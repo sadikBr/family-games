@@ -52,7 +52,8 @@ export type CatanLog =
   | { id: number; t: 'gain'; p: string; r: CatanResMap }
   | { id: number; t: 'nothing' }
   | { id: number; t: 'short'; r: CatanRes }
-  | { id: number; t: 'build'; p: string; b: CatanBuild }
+  /** `at`: the vertex (settlement, city) or edge (road) built on */
+  | { id: number; t: 'build'; p: string; b: CatanBuild; at?: number }
   | { id: number; t: 'dev'; p: string; k: CatanDevKind; r?: CatanRes; n?: number; r2?: CatanRes }
   | { id: number; t: 'robber'; p: string; h: number }
   | { id: number; t: 'steal'; p: string; from: string; r?: CatanRes }

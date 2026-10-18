@@ -27,6 +27,7 @@ interface State {
 
 export const UNDO_MS = 5000;
 const NOTICE_MS = 6000;
+const TEAM_NAME = ['الفريق الأحمر', 'الفريق الأزرق'] as const;
 
 function deck(ctx: GameCtx): Deck<TabooCard> {
   let d = ctx.memo.get('taboo') as Deck<TabooCard> | undefined;
@@ -80,6 +81,8 @@ function endTurn(ctx: GameCtx, s: State) {
   s.card = null;
   s.lastBuzz = null;
   ctx.fx('tick');
+  const pts = s.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'buzz' ? -1 : 0), 0);
+  ctx.say?.(`انتهى الوقت: ${TEAM_NAME[activeTeam(s)]} ${pts} في هذا الدور`);
 }
 
 function teamOf(s: State, id: string): 0 | 1 | -1 {
@@ -100,6 +103,7 @@ function undoBuzz(ctx: GameCtx, s: State) {
   s.lastBuzz = null;
   s.notice = { text: `تراجع عن «قالها» (${ctx.playerName(b.by)}) — النقطة رجعت`, until: ctx.now + NOTICE_MS };
   ctx.fx('reveal');
+  ctx.say?.('أُلغي «قالها» ورجعت النقطة');
 }
 
 /** After someone leaves: a team needs at least 2 players, so move one over from the bigger team. */
@@ -120,6 +124,8 @@ function balanceTeams(ctx: GameCtx, s: State) {
 
 export const taboo: GameModule<State, TabooSettings> = {
   id: 'taboo',
+  /** the describer starts the timer and explains; everyone else guesses or watches */
+  turnOf: (s) => ((s.phase === 'ready' || s.phase === 'play') && s.describerId ? [s.describerId] : []),
   hostOnly: ['shuffle', 'swap', 'begin', 'endTurn', 'hostUndo'],
 
   start(ctx, participants, settings) {
@@ -179,6 +185,7 @@ export const taboo: GameModule<State, TabooSettings> = {
         s.endsAt = ctx.now + s.settings.seconds * 1000;
         drawCard(ctx, s);
         ctx.fx('start');
+        ctx.say?.(`بدأ الوقت: الشرح من ${ctx.playerName(s.describerId)} ل${TEAM_NAME[activeTeam(s)].slice(1)}`, s.describerId);
         return;
       case 'ok':
       case 'skip': {
@@ -187,6 +194,8 @@ export const taboo: GameModule<State, TabooSettings> = {
         s.history.push({ word: s.card.word, result: ok ? 'ok' : 'skip' });
         if (ok) s.teamScores[activeTeam(s)] += 1;
         ctx.fx(ok ? 'correct' : 'skip');
+        const okN = s.history.filter((h) => h.result === 'ok').length;
+        ctx.say?.(ok ? `كلمة صحيحة! (${okN} في هذا الدور)` : `تخطٍّ من ${ctx.playerName(by)}`, by);
         drawCard(ctx, s);
         return;
       }
@@ -199,6 +208,7 @@ export const taboo: GameModule<State, TabooSettings> = {
         s.history.push({ word: card.word, result: 'buzz' });
         s.teamScores[activeTeam(s)] -= 1;
         ctx.fx('buzz', by);
+        ctx.say?.(`«قالها» من ${ctx.playerName(by)}: نقطة أقل`, by);
         drawCard(ctx, s);
         s.lastBuzz = { at: ctx.now, card, by };
         return;

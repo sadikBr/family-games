@@ -11,7 +11,8 @@ import type { GameCtx, GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const CHOOSE_MS = 15000;
-const REVEAL_MS = 6000;
+/** the word and the round's points stay up this long (or until the host taps «التالي») */
+export const DRAW_REVEAL_MS = 9000;
 const MAX_POINTS = 24000;
 const MAX_STROKES = 400;
 
@@ -99,6 +100,7 @@ function beginDrawing(ctx: GameCtx, s: State, word: string) {
   s.phase = 'draw';
   s.startedAt = ctx.now;
   s.endsAt = ctx.now + s.settings.seconds * 1000;
+  ctx.say?.(`حان دور ${ctx.playerName(drawer(s))} في الرسم: خمّنوا!`, drawer(s));
 }
 
 function endTurn(ctx: GameCtx, s: State) {
@@ -108,8 +110,9 @@ function endTurn(ctx: GameCtx, s: State) {
   for (const [id, p] of Object.entries(pts)) s.scores[id] = (s.scores[id] ?? 0) + p;
   s.roundPoints = pts;
   s.phase = 'reveal';
-  s.endsAt = ctx.now + REVEAL_MS;
+  s.endsAt = ctx.now + DRAW_REVEAL_MS;
   ctx.fx('reveal');
+  ctx.say?.(`الكلمة كانت «${s.word}» — عرفها ${s.guessed.length} من ${s.order.length - 1}`, drawer(s));
 }
 
 function advance(ctx: GameCtx, s: State) {
@@ -130,8 +133,10 @@ function advance(ctx: GameCtx, s: State) {
 }
 
 export const draw: GameModule<State, DrawSettings> = {
-  turnOf: (s) => s.phase === 'choose' ? [s.order[s.turn]] : [],
+  // the drawer picks a word, then draws while everyone else guesses
+  turnOf: (s) => (s.phase === 'choose' || s.phase === 'draw' ? [s.order[s.turn]] : []),
   id: 'draw',
+  hostOnly: ['next'],
 
   start(ctx, participants, settings) {
     const s: State = {
@@ -210,6 +215,7 @@ export const draw: GameModule<State, DrawSettings> = {
         s.guessed.push({ id: by, pts: Math.max(20, pts) });
         s.feed.push({ id: ++s.feedN, by, text: '', ok: true });
         ctx.fx('correct', by);
+        ctx.say?.(`إجابة صحيحة من ${ctx.playerName(by)}!`, by);
         if (allGuessed(ctx, s)) endTurn(ctx, s);
         return;
       }
@@ -265,7 +271,7 @@ export const draw: GameModule<State, DrawSettings> = {
       word: knows && s.word ? s.word : null,
       hint: s.word ? hintText(s.word, s.hints) : '',
       endsAt: s.phase === 'final' ? null : s.endsAt,
-      total: s.phase === 'choose' ? CHOOSE_MS : s.phase === 'reveal' ? REVEAL_MS : s.settings.seconds * 1000,
+      total: s.phase === 'choose' ? CHOOSE_MS : s.phase === 'reveal' ? DRAW_REVEAL_MS : s.settings.seconds * 1000,
       strokes: s.strokes,
       guessed: s.guessed.map((g) => g.id),
       close: s.close.has(me),

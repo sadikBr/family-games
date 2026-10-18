@@ -141,7 +141,7 @@ test('codenames: a team must reveal a word before passing; a broken team goes ba
   codenames.act(ctx, s, 'b', { type: 'pass' });
   expect(s.turn).toBe('blue');
   expect((codenames.view(ctx, s, 'c') as any).turnNote.text).toBe('أنهى الفريق دوره');
-  ctx.now += 4001;
+  ctx.now += 6001; // the note stays 6 s
   expect(codenames.tick!(ctx, s)).toBe(true);
   expect((codenames.view(ctx, s, 'c') as any).turnNote).toBeNull();
 

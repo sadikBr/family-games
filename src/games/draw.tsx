@@ -218,8 +218,13 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
   return (
     <>
       {header}
-      {view.phase === 'draw' ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={isDrawer} /> : null}
+      {view.phase === 'draw' || view.phase === 'reveal' ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={isDrawer && view.phase === 'draw'} /> : null}
       <View style={styles.wordBox}>
+        {view.phase === 'reveal' ? (
+          <Txt v="tiny" center color={C.muted}>
+            الكلمة كانت
+          </Txt>
+        ) : null}
         {word ? (
           <Txt v="title" center color={view.phase === 'reveal' ? C.yellow : C.text}>
             {word}
@@ -258,7 +263,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
         <Card>
           <Txt v="h3">نقاط هذا الدور</Txt>
           <Scoreboard players={room.players} scores={view.roundPoints} highlight={h.me} />
-          <Btn size="md" icon="next" label="التالي" onPress={() => h.act('next')} />
+          {h.isHost ? <Btn size="md" icon="next" label="التالي" onPress={() => h.act('next')} /> : null}
         </Card>
       ) : null}
 
@@ -284,7 +289,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
 const styles = StyleSheet.create({
   canvas: { alignSelf: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 3, borderColor: '#151726', overflow: 'hidden' },
   swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#151726' },
-  swatchOn: { borderColor: C.yellow, borderWidth: 3, transform: [{ scale: 1.12 }] },
+  swatchOn: { borderColor: C.yellow, borderWidth: 3, transform: [{ scale: 1.06 }] },
   eraser: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   width: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   widthOn: { borderColor: C.yellow },

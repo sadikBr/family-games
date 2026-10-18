@@ -21,7 +21,7 @@ import {
   type EstateGroup,
 } from '../../src/shared/estate';
 import type { EstateAuction, EstatePlayer, EstateSettings, EstateTrade, EstateView } from '../../src/shared/protocol';
-import { Feed, randDelay } from '../cardkit';
+import { Feed, randDelay as rand } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
@@ -57,6 +57,9 @@ interface State {
   winner: string | null;
   feed: Feed;
   moves: number;
+  /** the last roll: when, and how many squares the token hops (bots wait for it to land) */
+  rolledAt: number;
+  rollSteps: number;
 }
 
 /** Tests set BOT_SPEED to speed bots up; auction countdowns follow so test games stay short. */
@@ -66,6 +69,17 @@ export const AUCTION_STEPS = [10, 50, 100];
 /** How long an offer waits for an answer. */
 export const BOT_TRADE_MS = 15_000;
 export const HUMAN_TRADE_MS = 30_000;
+
+/** Add a line to the game's log and tell everyone (the line under the turn bar). */
+function log(ctx: GameCtx, s: State, text: string, extra: { by?: string; points?: number } = {}) {
+  s.feed.push(text, extra);
+  ctx.say?.(text, extra.by);
+}
+
+const lastLogId = (s: State) => s.feed.list().at(-1)?.id ?? 0;
+
+/** How long the dice and the hopping token take on the phones, plus a moment to see where it landed. */
+export const rollShowMs = (steps: number) => 1100 + 150 * Math.min(12, steps) + 700;
 
 const cur = (s: State) => s.players[s.turnIdx];
 const P = (s: State, id: string) => s.players.find((p) => p.id === id)!;
@@ -144,7 +158,7 @@ function liquidate(ctx: GameCtx, s: State, id: string, need: number) {
     if (p.mortgaged || (g && groupSquares(g).some((j) => s.props[j]?.houses))) continue;
     p.mortgaged = true;
     pl.cash += priceOf(i) / 2;
-    s.feed.push(`${name(ctx, id)} رهن ${BOARD[i].name}`, { by: id });
+    log(ctx, s, `رهن: ${BOARD[i].name} (${name(ctx, id)})`, { by: id });
   }
 }
 
@@ -161,7 +175,7 @@ function bankrupt(ctx: GameCtx, s: State, id: string, to: string | null) {
   }
   if (to) P(s, to).cash += pl.cash;
   pl.cash = 0;
-  s.feed.push(`${name(ctx, id)} أفلس${to ? ` لصالح ${name(ctx, to)}` : ''}`, { by: id });
+  log(ctx, s, `إفلاس ${name(ctx, id)}${to ? ` لصالح ${name(ctx, to)}` : ''}`, { by: id });
   ctx.fx('boom', id);
   if (s.trade && (s.trade.from === id || s.trade.to === id)) s.trade = null;
   if (s.auction) {
@@ -248,7 +262,7 @@ function sendToJail(ctx: GameCtx, s: State, id: string) {
   pl.jail = 0;
   s.extraRoll = false;
   s.doubles = 0;
-  s.feed.push(`${name(ctx, id)} دخل السجن`, { by: id });
+  log(ctx, s, `إلى السجن: ${name(ctx, id)}`, { by: id });
   ctx.fx('buzz', id);
 }
 
@@ -256,7 +270,7 @@ function moveTo(ctx: GameCtx, s: State, id: string, to: number, passGo = true) {
   const pl = P(s, id);
   if (passGo && to < pl.pos) {
     pl.cash += GO_BONUS;
-    s.feed.push(`${name(ctx, id)} مرّ بـ «انطلاق»: +${GO_BONUS}`, { by: id, points: GO_BONUS });
+    log(ctx, s, `+${GO_BONUS} لـ${name(ctx, id)} من «انطلاق»`, { by: id, points: GO_BONUS });
   }
   pl.pos = to;
 }
@@ -266,7 +280,7 @@ function drawCard(ctx: GameCtx, s: State, id: string, deck: 'luck' | 'family') {
   const card = pile.shift()!;
   pile.push(card);
   s.card = { id: ++s.cardN, deck, text: card.text, by: id };
-  s.feed.push(`${name(ctx, id)}: ${card.text}`, { by: id });
+  log(ctx, s, `${name(ctx, id)}: ${card.text}`, { by: id });
   ctx.fx('reveal', id);
   const pl = P(s, id);
   const a = card.act;
@@ -331,7 +345,7 @@ function land(ctx: GameCtx, s: State, id: string) {
       if (owner.bankrupt) return;
       const rent = rentOf(s, i, (s.dice ?? [0, 0]).reduce((a, b) => a + b, 0));
       if (charge(ctx, s, id, rent, p.owner)) {
-        s.feed.push(`${name(ctx, id)} دفع ${rent} لـ ${name(ctx, p.owner)} (${sq.name})`, { by: id });
+        log(ctx, s, `كراء ${sq.name}: ${rent} من ${name(ctx, id)} لـ${name(ctx, p.owner)}`, { by: id });
         ctx.fx('throw', p.owner);
       }
     }
@@ -339,7 +353,7 @@ function land(ctx: GameCtx, s: State, id: string) {
   }
   switch (sq.kind) {
     case 'tax':
-      if (charge(ctx, s, id, sq.amount, null)) s.feed.push(`${name(ctx, id)} دفع ${sq.name}: ${sq.amount}`, { by: id });
+      if (charge(ctx, s, id, sq.amount, null)) log(ctx, s, `${sq.name}: ${sq.amount} من ${name(ctx, id)}`, { by: id });
       break;
     case 'luck':
       drawCard(ctx, s, id, 'luck');
@@ -374,7 +388,7 @@ function startAuction(ctx: GameCtx, s: State, i: number) {
   s.buy = null;
   s.phase = 'auction';
   s.auction = { n: ++s.auctionN, sq: i, price: 0, leader: null, endsAt: ctx.now + AUCTION_MS, out: [], bids: 0 };
-  s.feed.push(`مزاد على ${BOARD[i].name}!`);
+  log(ctx, s, `مزاد على ${BOARD[i].name}!`);
   ctx.fx('reveal');
 }
 
@@ -394,9 +408,9 @@ function endAuction(ctx: GameCtx, s: State) {
   if (winner && !winner.bankrupt && winner.cash >= a.price && !s.props[a.sq]) {
     winner.cash -= a.price;
     s.props[a.sq] = { owner: winner.id, houses: 0, mortgaged: false };
-    s.feed.push(`${name(ctx, winner.id)} ربح المزاد: ${sq.name} بـ ${a.price}`, { by: winner.id });
+    log(ctx, s, `المزاد لـ${name(ctx, winner.id)}: ${sq.name} بـ ${a.price}`, { by: winner.id });
     ctx.fx('correct', winner.id);
-  } else s.feed.push(`لم يشترِ أحدٌ ${sq.name} — يبقى للبنك`);
+  } else log(ctx, s, `لم يشترِ أحدٌ ${sq.name} — يبقى للبنك`);
   s.moves += 1;
   s.phase = 'manage';
   afterResolve(ctx, s);
@@ -524,6 +538,8 @@ export const estate: GameModule<State, EstateSettings> = {
       winner: null,
       feed: new Feed(),
       moves: 0,
+      rolledAt: 0,
+      rollSteps: 0,
     };
   },
 
@@ -539,7 +555,7 @@ export const estate: GameModule<State, EstateSettings> = {
       if (!t || t.to !== by) return;
       s.trade = null;
       if (a.type === 'tradeDecline') {
-        s.feed.push(`${name(ctx, by)} رفض العرض`, { by });
+        log(ctx, s, `العرض مرفوض (${name(ctx, by)})`, { by });
         return;
       }
       const A = P(s, t.from), B = P(s, t.to);
@@ -553,7 +569,7 @@ export const estate: GameModule<State, EstateSettings> = {
       for (const i of t.get.props) s.props[i].owner = A.id;
       A.cash += t.get.cash - t.give.cash;
       B.cash += t.give.cash - t.get.cash;
-      s.feed.push(`صفقة بين ${name(ctx, A.id)} و ${name(ctx, B.id)}`, { by: A.id });
+      log(ctx, s, `صفقة بين ${name(ctx, A.id)} و ${name(ctx, B.id)}`, { by: A.id });
       ctx.fx('correct', A.id);
       s.moves += 1;
       return;
@@ -609,7 +625,7 @@ export const estate: GameModule<State, EstateSettings> = {
       if (built) throw new GameError('بِع المنازل أولاً قبل مبادلة مدن هذا اللون');
       if (give.cash > me.cash || get.cash > to.cash) throw new GameError('المبلغ أكبر من المتوفر');
       s.trade = { id: ++s.tradeN, from: by, to: to.id, give, get, endsAt: ctx.now + (ctx.isBot(by) ? BOT_TRADE_MS : HUMAN_TRADE_MS) };
-      s.feed.push(`${name(ctx, by)} يقترح صفقة على ${name(ctx, to.id)}`, { by });
+      log(ctx, s, `عرض صفقة من ${name(ctx, by)} على ${name(ctx, to.id)}`, { by });
       return;
     }
 
@@ -627,7 +643,7 @@ export const estate: GameModule<State, EstateSettings> = {
         if (sq.kind !== 'city') return;
         p.houses += 1;
         me.cash -= sq.house;
-        s.feed.push(`${name(ctx, by)} بنى ${p.houses === 5 ? 'فندقاً' : 'منزلاً'} في ${sq.name}`, { by });
+        log(ctx, s, `${p.houses === 5 ? 'فندق جديد' : 'منزل جديد'} لـ${name(ctx, by)} في ${sq.name}`, { by });
         ctx.fx('card', by);
       } else if (a.type === 'sell') {
         if (sq.kind !== 'city' || p.houses === 0) return;
@@ -641,7 +657,7 @@ export const estate: GameModule<State, EstateSettings> = {
         if (g && groupSquares(g).some((j) => s.props[j]?.houses)) throw new GameError('بِع المنازل أولاً');
         p.mortgaged = true;
         me.cash += priceOf(i) / 2;
-        s.feed.push(`${name(ctx, by)} رهن ${sq.name}`, { by });
+        log(ctx, s, `رهن: ${sq.name} (${name(ctx, by)})`, { by });
       } else {
         if (!p.mortgaged || s.phase === 'debt') return;
         const cost = Math.ceil((priceOf(i) / 2) * 1.1);
@@ -654,7 +670,7 @@ export const estate: GameModule<State, EstateSettings> = {
         const d = s.debt;
         me.cash -= d.amount;
         if (d.to) P(s, d.to).cash += d.amount;
-        s.feed.push(`${name(ctx, by)} سدّد ${d.amount}`, { by });
+        log(ctx, s, `سداد ${d.amount} من ${name(ctx, by)}`, { by });
         s.debt = null;
         s.phase = 'manage';
         afterResolve(ctx, s);
@@ -700,7 +716,7 @@ export const estate: GameModule<State, EstateSettings> = {
         me.cash -= JAIL_FINE;
       }
       me.jail = null;
-      s.feed.push(`${name(ctx, by)} خرج من السجن`, { by });
+      log(ctx, s, `خروج ${name(ctx, by)} من السجن`, { by });
       return;
     }
 
@@ -716,18 +732,18 @@ export const estate: GameModule<State, EstateSettings> = {
       if (me.jail !== null) {
         if (dbl) {
           me.jail = null;
-          s.feed.push(`${name(ctx, by)} رمى زوجاً وخرج من السجن`, { by });
+          log(ctx, s, `زوج لـ${name(ctx, by)}: خروج من السجن`, { by });
         } else {
           me.jail += 1;
           if (me.jail < 3) {
-            s.feed.push(`${name(ctx, by)} بقي في السجن`, { by });
+            log(ctx, s, `لا زوج: السجن مستمر لـ${name(ctx, by)}`, { by });
             s.phase = 'manage';
             return;
           }
           // third try: pay and go
           me.jail = null;
           if (!charge(ctx, s, by, JAIL_FINE, null)) return afterResolve(ctx, s);
-          s.feed.push(`${name(ctx, by)} دفع ${JAIL_FINE} وخرج من السجن`, { by });
+          log(ctx, s, `خروج ${name(ctx, by)} من السجن مقابل ${JAIL_FINE}`, { by });
         }
         s.extraRoll = false;
       } else if (dbl) {
@@ -739,9 +755,20 @@ export const estate: GameModule<State, EstateSettings> = {
         }
         s.extraRoll = true;
       } else s.extraRoll = false;
+      s.rolledAt = ctx.now;
+      s.rollSteps = sum;
+      const from = me.pos;
       moveTo(ctx, s, by, (me.pos + sum) % 40);
       ctx.fx('tick', by);
+      const mark = lastLogId(s);
       land(ctx, s, by);
+      if (lastLogId(s) === mark) {
+        // nothing to pay or draw: say the roll and where the token stopped
+        const sq = BOARD[me.pos];
+        const free = isOwnable(sq) && !s.props[me.pos] ? ' (للبيع)' : '';
+        const go = me.pos < from ? ` · +${GO_BONUS} من الانطلاق` : '';
+        ctx.say?.(`رمية ${name(ctx, by)} ${d[0]}+${d[1]}: ${sq.name}${free}${go}${dbl ? ' · زوج!' : ''}`, by);
+      }
       afterResolve(ctx, s);
       return;
     }
@@ -754,7 +781,7 @@ export const estate: GameModule<State, EstateSettings> = {
         if (me.cash < price) throw new GameError('لا يكفي المال — ارهن عقاراً أو اطرحه في المزاد');
         me.cash -= price;
         s.props[i] = { owner: by, houses: 0, mortgaged: false };
-        s.feed.push(`${name(ctx, by)} اشترى ${BOARD[i].name} بـ ${price}`, { by });
+        log(ctx, s, `شراء لـ${name(ctx, by)}: ${BOARD[i].name} بـ ${price}`, { by });
         ctx.fx('correct', by);
       } else return startAuction(ctx, s, i);
       s.buy = null;
@@ -777,7 +804,7 @@ export const estate: GameModule<State, EstateSettings> = {
     const t = s.trade;
     if (t && ctx.isBot(t.to)) {
       const accept = botLikes(s, t);
-      ctx.bot(t.to, `trade:${t.id}`, randDelay(800, 1300), { type: accept ? 'tradeAccept' : 'tradeDecline' });
+      ctx.bot(t.to, `trade:${t.id}`, rand(800, 1300), { type: accept ? 'tradeAccept' : 'tradeDecline' });
     }
     const au = s.auction;
     if (s.phase === 'auction' && au) {
@@ -786,14 +813,18 @@ export const estate: GameModule<State, EstateSettings> = {
         if (!pl || pl.bankrupt || au.out.includes(id) || au.leader === id) continue;
         const gap = botAuctionMax(s, id, au.sq) - au.price;
         const key = `auc:${au.n}:${au.bids}`;
-        if (gap < 10) ctx.bot(id, key, randDelay(600, 1200), { type: 'pass', at: au.bids });
-        else ctx.bot(id, key, randDelay(700, 1500), { type: 'bid', add: gap >= 150 ? 100 : gap >= 60 ? 50 : 10, at: au.bids });
+        if (gap < 10) ctx.bot(id, key, rand(600, 1200), { type: 'pass', at: au.bids });
+        else ctx.bot(id, key, rand(700, 1500), { type: 'bid', add: gap >= 150 ? 100 : gap >= 60 ? 50 : 10, at: au.bids });
       }
       return;
     }
     const p = cur(s);
     if (!ctx.isBot(p.id)) return;
     const key = `${s.moves}:${s.phase}`;
+    // after a roll, wait until the dice and the token have landed on the phones (the room stretches
+    // a bot's delay a little, hence ×0.75)
+    const landed = Math.max(0, s.rolledAt + rollShowMs(s.rollSteps) - ctx.now) * 0.75;
+    const randDelay = (min: number, max: number) => Math.max(landed, rand(min, max));
     if (s.phase === 'debt') {
       ctx.bot(p.id, `bk:${key}`, randDelay(600, 1000), { type: 'settle' });
       return;
@@ -834,7 +865,7 @@ export const estate: GameModule<State, EstateSettings> = {
   tick(ctx, s) {
     let changed = false;
     if (s.trade && ctx.now > s.trade.endsAt) {
-      s.feed.push(`انتهت مهلة العرض`, { by: s.trade.from });
+      log(ctx, s, `انتهت مهلة العرض`, { by: s.trade.from });
       s.trade = null;
       changed = true;
     }

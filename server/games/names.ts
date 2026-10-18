@@ -58,6 +58,7 @@ function checkAllDone(ctx: GameCtx, s: State) {
   s.phase = 'stopping';
   s.endsAt = ctx.now + GRACE_MS;
   ctx.fx('buzz');
+  ctx.say?.('أنهى الجميع الكتابة');
 }
 
 function newRound(ctx: GameCtx, s: State) {
@@ -135,6 +136,12 @@ function score(ctx: GameCtx, s: State) {
   s.roundPoints = roundPoints;
   s.phase = 'results';
   ctx.fx('reveal');
+  const best = Math.max(...s.participants.map((id) => roundPoints[id] ?? 0));
+  const top = s.participants.filter((id) => (roundPoints[id] ?? 0) === best);
+  ctx.say?.(
+    top.length === 1 ? `أكثر نقاط في الجولة: ${ctx.playerName(top[0])} (+${best})` : `تعادل في الجولة: ${best} نقطة لكلٍّ من ${top.map((id) => ctx.playerName(id)).join(' و')}`,
+    top.length === 1 ? top[0] : undefined,
+  );
 }
 
 export const names: GameModule<State, NamesSettings> = {
@@ -190,6 +197,7 @@ export const names: GameModule<State, NamesSettings> = {
         s.stoppedBy = by;
         s.endsAt = ctx.now + GRACE_MS;
         ctx.fx('buzz', by);
+        ctx.say?.(`«ستوب» من ${ctx.playerName(by)}! ارفعوا الأقلام`, by);
         return;
       }
       case 'forceStop': {
@@ -245,18 +253,21 @@ export const names: GameModule<State, NamesSettings> = {
       s.phase = 'write';
       s.endsAt = ctx.now + s.settings.seconds * 1000;
       ctx.fx('reveal');
+      ctx.say?.(`الحرف «${displayLetter(s.letter)}»: اكتبوا!`);
       return true;
     }
     if (s.phase === 'write') {
       s.phase = 'stopping';
       s.endsAt = ctx.now + GRACE_MS;
       ctx.fx('buzz');
+      ctx.say?.('انتهى الوقت: ارفعوا الأقلام');
       return true;
     }
     if (s.phase === 'stopping') {
       s.phase = 'review';
       s.endsAt = null;
       ctx.fx('tick');
+      ctx.say?.('المراجعة: صوّتوا ضد الأجوبة الخاطئة');
       return true;
     }
     return false;

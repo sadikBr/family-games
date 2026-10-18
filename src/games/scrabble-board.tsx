@@ -20,8 +20,10 @@ const FRAME = '#0F2B30';
 const TILE = '#F4E3BC';
 const TILE_EDGE = '#C9A86A';
 const PENDING = '#FFD36A';
+/** the tiles just put down: a soft green tile with a green frame (the rest of the word: the frame only) */
+const LAST_TILE = '#E2F0C6';
 
-export function TileFace({ l, v, size, blank, pending, last, dim, selected }: { l: string; v: number; size: number; blank?: boolean; pending?: boolean; last?: boolean; dim?: boolean; selected?: boolean }) {
+export function TileFace({ l, v, size, blank, pending, last, word, dim, selected }: { l: string; v: number; size: number; blank?: boolean; pending?: boolean; last?: boolean; word?: boolean; dim?: boolean; selected?: boolean }) {
   const showPoints = size >= 22 && !blank;
   return (
     <View
@@ -31,12 +33,13 @@ export function TileFace({ l, v, size, blank, pending, last, dim, selected }: { 
           width: size,
           height: size,
           borderRadius: Math.max(3, size * 0.16),
-          backgroundColor: pending ? PENDING : TILE,
+          backgroundColor: pending ? PENDING : last ? LAST_TILE : TILE,
           borderBottomWidth: Math.max(1, size * 0.07),
-          borderColor: last ? C.green : selected ? C.yellow : TILE_EDGE,
+          borderColor: last || word ? C.green : selected ? C.yellow : TILE_EDGE,
           opacity: dim ? 0.3 : 1,
         },
         (last || selected) && { borderWidth: Math.max(2, size * 0.08) },
+        word && !last && !selected && { borderWidth: Math.max(1.5, size * 0.06) },
       ]}>
       <Txt
         style={{
@@ -66,13 +69,17 @@ export function Board({
   board,
   pending,
   last,
+  word,
   width,
   win,
   onCell,
 }: {
   board: readonly (ScrabbleCell | null)[];
   pending: ReadonlyMap<number, { l: string; v: number; blank: boolean }>;
+  /** tiles put down by the last move */
   last: ReadonlySet<number>;
+  /** the other tiles of the words the last move made */
+  word?: ReadonlySet<number>;
   width: number;
   win: BoardWindow;
   onCell?: (cell: number) => void;
@@ -93,7 +100,7 @@ export function Board({
             const p = pending.get(i);
             const prem = PREMIUM[i];
             const content = t ? (
-              <TileFace l={t.l} v={t.v} blank={t.v === 0} size={inner} last={last.has(i)} />
+              <TileFace l={t.l} v={t.v} blank={t.v === 0} size={inner} last={last.has(i)} word={word?.has(i)} />
             ) : p ? (
               <TileFace l={p.l} v={p.v} blank={p.blank} size={inner} pending />
             ) : (

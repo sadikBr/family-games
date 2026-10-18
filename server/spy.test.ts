@@ -92,7 +92,7 @@ test('spy: everyone ready starts the timer; questions follow the order; time up 
   ctx.now = s.endsAt;
   expect(spy.tick!(ctx, s)).toBe(true);
   expect(s.phase).toBe('finalVote');
-  expect(spy.turnOf!(s).length).toBe(P.length);
+  expect(spy.turnOf!(s)).toEqual([]); // everyone votes at once: no turn to point at
 });
 
 test('spy: a majority accusation of the spy — civilians win, the accuser gets 2', () => {
@@ -105,7 +105,7 @@ test('spy: a majority accusation of the spy — civilians win, the accuser gets 
   expect(s.phase).toBe('accuse');
   expect(s.endsAt).toBeNull();
   expect(s.pausedLeft).toBe(7 * 60_000);
-  expect(spy.turnOf!(s).sort()).toEqual(rest.sort());
+  expect(spy.turnOf!(s)).toEqual([]); // the voters answer at once
   expect(() => spy.act(ctx, s, spyId, { type: 'accuseVote', yes: false })).toThrow(GameError); // the accused can't vote
   expect(v(ctx, s, rest[0]).accusation).toEqual({ by: accuser, target: spyId, voted: [accuser] });
   spy.act(ctx, s, rest[0], { type: 'accuseVote', yes: true });

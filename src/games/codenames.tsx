@@ -38,7 +38,20 @@ function TeamScores({ view }: { view: CodenamesView }) {
   );
 }
 
+/** The card revealed last (it keeps a ring until the next one is revealed). */
+function lastRevealed(view: CodenamesView): number | null {
+  for (let k = view.log.length - 1; k >= 0; k--) {
+    const picks = view.log[k].picks;
+    if (picks.length) {
+      const i = view.words.indexOf(picks[picks.length - 1].word);
+      return i >= 0 ? i : null;
+    }
+  }
+  return null;
+}
+
 function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; onCard?: (i: number) => void; picking: number | null }) {
+  const last = view.phase === 'final' ? null : lastRevealed(view);
   return (
     <View style={styles.grid}>
       {view.words.map((w, i) => {
@@ -60,6 +73,7 @@ function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; o
               styles.word,
               { backgroundColor: bg, borderColor: picking === i ? C.yellow : hintBorder, borderWidth: picking === i ? 3 : !revealed && color ? 3 : 1.5 },
               revealed && { opacity: 0.92 },
+              last === i && { borderColor: C.yellow, borderWidth: 3, opacity: 1 },
             ]}>
             {spyView && color !== 'assassin' ? <View style={[styles.tint, { backgroundColor: alpha(CARD_BG[color], color === 'neutral' ? 0.0 : 0.35) }]} /> : null}
             <Txt
@@ -208,7 +222,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           </>
         ) : (
           <Txt v="bold">
-            {iGiveClue ? 'أنت القائد: أعط تلميحاً لفريقك' : `في انتظار تلميح قائد ${TEAM[view.turn].name}`}
+            {iGiveClue ? 'أنت القائد: أعط تلميحاً لفريقك' : `في انتظار تلميح ${h.player(view.spymasters[view.turn]).name} ل${TEAM[view.turn].name.slice(1)}`}
           </Txt>
         )}
       </View>

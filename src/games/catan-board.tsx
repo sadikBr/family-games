@@ -9,7 +9,7 @@ import { Pressable, View } from 'react-native';
 import Svg, { Circle, G, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 
 import { haptic } from '@/lib/sfx';
-import type { CatanView } from '@/shared/games/catan';
+import type { CatanLog, CatanView } from '@/shared/games/catan';
 import { BOARD_BOX, EDGES, EDGE_XY, HEX_VERTS, HEX_XY, HEX_NAME, PORT_SLOTS, VERT_XY, isRed, pips } from '@/shared/catan-board';
 import { F } from '@/theme';
 
@@ -26,6 +26,17 @@ const BH = BOARD_BOX.maxY - BOARD_BOX.minY;
 export const boardHeight = (width: number) => (width * BH) / BW;
 
 const HILITE = '#FFD84D';
+/** the last move: a soft white halo around the piece built last, and around the robber when it just moved */
+const LAST = 'rgba(255,255,255,0.9)';
+
+type BuildLog = Extract<CatanLog, { t: 'build' }>;
+function lastBuilt(view: CatanView): BuildLog | null {
+  for (let i = view.log.length - 1; i >= 0; i--) {
+    const e = view.log[i];
+    if (e.t === 'build' && e.b !== 'dev' && e.at !== undefined) return e;
+  }
+  return null;
+}
 
 export function CatanBoard({
   view,
@@ -59,6 +70,9 @@ export function CatanBoard({
   const fs = (k: number) => Math.max(7, u * k);
 
   const hexPoints = (h: number) => HEX_VERTS[h].map((v) => `${vx(v)},${vy(v)}`).join(' ');
+  const built = lastBuilt(view);
+  // the robber moved within the last few events (the latest roll or knight)
+  const robberMoved = kind !== 'hex' && view.log.slice(-5).some((e) => e.t === 'robber');
   const selId = sel && sel.kind === kind ? sel.id : null;
 
   // tap areas: big enough for a finger, centred on each legal spot
@@ -154,6 +168,20 @@ export function CatanBoard({
           );
         })}
 
+        {/* the road built last: a halo under it */}
+        {built && built.b === 'road' && built.at !== undefined && view.roads[built.at] >= 0 ? (
+          <Line
+            x1={vx(EDGES[built.at][0])}
+            y1={vy(EDGES[built.at][0])}
+            x2={vx(EDGES[built.at][1])}
+            y2={vy(EDGES[built.at][1])}
+            stroke={LAST}
+            strokeWidth={u * 0.36}
+            strokeLinecap="round"
+            opacity={0.7}
+          />
+        ) : null}
+
         {/* roads */}
         {view.roads.map((s, e) => {
           if (s < 0) return null;
@@ -178,6 +206,10 @@ export function CatanBoard({
           b ? <Building key={`b${v}`} cx={vx(v)} cy={vy(v)} u={u} color={SEAT_COLORS[b.s]} outline={SEAT_OUTLINE[b.s]} city={b.city} /> : null,
         )}
 
+        {built && built.b !== 'road' && built.at !== undefined && view.buildings[built.at] ? (
+          <Circle cx={vx(built.at)} cy={vy(built.at)} r={u * (built.b === 'city' ? 0.5 : 0.42)} fill="none" stroke={LAST} strokeWidth={Math.max(2, u * 0.07)} />
+        ) : null}
+
         {kind === 'settle'
           ? ids.map((v) => (v === selId ? null : <Circle key={`ls${v}`} cx={vx(v)} cy={vy(v)} r={u * 0.17} fill="rgba(255,255,255,0.9)" stroke={HILITE} strokeWidth={Math.max(2, u * 0.08)} />))
           : null}
@@ -189,6 +221,7 @@ export function CatanBoard({
           const h = kind === 'hex' && selId !== null ? selId : view.robber;
           return (
             <G opacity={h !== view.robber ? 0.85 : 1}>
+              {robberMoved && h === view.robber ? <Circle cx={X(HEX_XY[h].x)} cy={Y(HEX_XY[h].y) + u * 0.05} r={u * 0.62} fill="none" stroke={LAST} strokeWidth={Math.max(2, u * 0.07)} /> : null}
               {h !== view.robber ? <Circle cx={X(HEX_XY[h].x)} cy={Y(HEX_XY[h].y) + u * 0.05} r={u * 0.5} fill="none" stroke={HILITE} strokeWidth={Math.max(2.5, u * 0.1)} /> : null}
               <Robber cx={X(HEX_XY[h].x) - u * 0.5} cy={Y(HEX_XY[h].y) + u * 0.05} u={u} />
             </G>

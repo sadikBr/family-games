@@ -1,7 +1,7 @@
 /** «حروف» — claim letter hexagons: buzz first, then type the answer. Red joins right ↔ left, green joins top ↔ bottom. */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Polygon, Rect, Text as SvgText } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
@@ -41,6 +41,8 @@ function Grid({ view, size, canPick, onPick }: { view: HuroofView; size: number;
       return `${(x + rr * Math.cos(a)).toFixed(1)},${(y + rr * Math.sin(a)).toFixed(1)}`;
     }).join(' ');
   const win = new Set(view.winPath ?? []);
+  // the hexagon settled last keeps a light ring until the next question is settled
+  const lastCell = view.last && view.cell === null ? view.last.cell : null;
   return (
     <View style={{ width: size, height: H, alignSelf: 'center', direction: 'ltr' }}>
       <Svg width={size} height={H}>
@@ -58,8 +60,8 @@ function Grid({ view, size, canPick, onPick }: { view: HuroofView; size: number;
               key={i}
               points={poly(x, y, R * 0.95)}
               fill={owner ? TEAM_COLOR[owner] : PAPER}
-              stroke={win.has(i) ? '#F4C02E' : active ? '#F4C02E' : INK}
-              strokeWidth={win.has(i) || active ? 4 : 2}
+              stroke={win.has(i) || active ? '#F4C02E' : lastCell === i ? '#FFFFFF' : INK}
+              strokeWidth={win.has(i) || active ? 4 : lastCell === i ? 3.5 : 2}
             />
           );
         })}
@@ -110,7 +112,7 @@ function Teams({ view, h, mine }: { view: HuroofView; h: Helpers; mine: HuroofTe
             </Row>
             <Row gap={4} wrap>
               {view.teams[t].map((id) => (
-                <Avatar key={id} player={h.player(id)} size={24} ring={TEAM_COLOR[t]} />
+                <Avatar key={id} player={h.player(id)} size={24} ring={view.buzzer === id ? C.yellow : TEAM_COLOR[t]} badge={view.buzzer === id ? 'mic' : undefined} />
               ))}
             </Row>
           </View>
@@ -169,7 +171,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
           </Txt>
         </Animated.View>
       ) : q && letter ? (
-        <Animated.View key={q.text} entering={ZoomIn.duration(200)} style={styles.panel}>
+        <Animated.View key={q.text} entering={FadeIn.duration(200)} style={styles.panel}>
           <Row gap={10}>
             <View style={styles.letter}>
               <Txt style={{ fontFamily: F.display, fontSize: 30, lineHeight: 44, color: C.ink }}>{displayLetter(letter)}</Txt>
@@ -244,7 +246,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
       {view.last ? (
         <Animated.View key={view.last.id} entering={FadeIn.duration(200)} style={[styles.last, { borderColor: view.last.team ? TEAM_COLOR[view.last.team] : C.borderStrong }]}>
           <Txt v="small" center>
-            الجواب: «{view.last.answer}» — {view.last.team ? `الحرف لـ${TEAM_NAME[view.last.team]}` : 'لم يأخذه أحد'}
+            الجواب: «{view.last.answer}» — {view.last.team ? `الحرف ل${TEAM_NAME[view.last.team].slice(1)}` : 'لم يأخذه أحد'}
           </Txt>
         </Animated.View>
       ) : null}

@@ -46,6 +46,24 @@ function lastPlay(view: ScrabbleView): ScrabbleMove | null {
   return null;
 }
 
+/** Every tile of the words a move made: its new tiles and the tiles they joined, in both directions. */
+function wordCells(board: ScrabbleView['board'], cells: readonly number[]): Set<number> {
+  const out = new Set<number>();
+  const has = (r: number, c: number) => r >= 0 && c >= 0 && r < SIZE && c < SIZE && !!board[r * SIZE + c];
+  for (const cell of cells) {
+    for (const [dr, dc] of [
+      [0, 1],
+      [1, 0],
+    ]) {
+      const run = [cell];
+      for (let r = rowOf(cell) - dr, c = colOf(cell) - dc; has(r, c); r -= dr, c -= dc) run.push(r * SIZE + c);
+      for (let r = rowOf(cell) + dr, c = colOf(cell) + dc; has(r, c); r += dr, c += dc) run.push(r * SIZE + c);
+      if (run.length > 1) for (const x of run) out.add(x);
+    }
+  }
+  return out;
+}
+
 function moveText(m: ScrabbleMove, h: Helpers): string {
   const name = m.by === h.me ? 'أنت' : h.player(m.by).name;
   switch (m.kind) {
@@ -182,7 +200,10 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   const swapSel = swap?.filter((id) => rackIds.has(id)) ?? null;
   const res = list.length ? analyse(view.board, list) : null;
   const last = lastPlay(view);
-  const lastCells = new Set(last?.cells ?? []);
+  // the word just played stays marked until the next move (a pass or a swap clears it)
+  const lastMove = view.last?.kind === 'play' ? view.last : null;
+  const lastCells = new Set(lastMove?.cells ?? []);
+  const lastWord = lastMove ? wordCells(view.board, lastMove.cells) : undefined;
 
   const fullCell = (width - 6) / SIZE;
   const small = fullCell < SMALL_CELL;
@@ -250,7 +271,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
       <View style={{ gap: 2 }}>
         <Row gap={8} style={{ justifyContent: 'space-between' }}>
           <Txt v="bold" color={myTurn ? C.yellow : C.muted} style={{ flex: 1 }} numberOfLines={1}>
-            {myTurn ? 'دورك!' : `دور ${h.player(view.turn).name}…`}
+            {myTurn ? 'ضع أحرفك على اللوحة ثم «العب»' : ''}
           </Txt>
           <Pill icon="box" label={`في الكيس: ${num(view.bag)}`} />
         </Row>
@@ -268,7 +289,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
       </View>
 
       <View style={{ gap: 6 }}>
-        <Board board={view.board} pending={pendingMap} last={lastCells} width={width} win={win} onCell={playing ? onCell : undefined} />
+        <Board board={view.board} pending={pendingMap} last={lastCells} word={lastWord} width={width} win={win} onCell={playing ? onCell : undefined} />
         <Row gap={6} center>
           <Btn
             size="sm"

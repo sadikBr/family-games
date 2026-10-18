@@ -114,6 +114,8 @@ function finish(ctx: GameCtx, s: State, accused: string | null, guessed: string 
   };
   s.phase = 'result';
   ctx.fx('reveal');
+  const who = s.imposters.map((id) => ctx.playerName(id)).join(' و');
+  ctx.say?.(imposterWins ? `الفوز للدخيل: ${who}، والكلمة: ${s.word}` : `الفوز للمواطنين! الدخيل: ${who}`);
 }
 
 function checkAllIn(ctx: GameCtx, s: State) {
@@ -121,6 +123,7 @@ function checkAllIn(ctx: GameCtx, s: State) {
   if (s.phase === 'reveal' && active.every((id) => s.ready.has(id))) {
     s.phase = 'clues';
     ctx.fx('start');
+    ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`);
   } else if (s.phase === 'vote' && active.every((id) => s.votes.has(id))) {
     resolveVotes(ctx, s);
   }
@@ -154,6 +157,7 @@ function resolveVotes(ctx: GameCtx, s: State) {
     s.guessEndsAt = ctx.now + GUESS_MS;
     s.phase = 'guess';
     ctx.fx('buzz', accused);
+    ctx.say?.(`انكشاف ${ctx.playerName(accused)}: الدخيل! فرصة أخيرة لتخمين الكلمة`, accused);
     return;
   }
   finish(ctx, s, accused, null);
@@ -205,13 +209,17 @@ export const imposter: GameModule<State, ImposterSettings> = {
         return;
       }
       case 'skipReady': {
-        if (s.phase === 'reveal') s.phase = 'clues';
+        if (s.phase === 'reveal') {
+          s.phase = 'clues';
+          ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`);
+        }
         return;
       }
       case 'toVote': {
         if (s.phase === 'clues') {
           s.phase = 'vote';
           ctx.fx('tick');
+          ctx.say?.('بدأ التصويت: من هو الدخيل؟');
         }
         return;
       }
