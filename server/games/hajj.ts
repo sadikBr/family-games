@@ -18,6 +18,9 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { mcqOptions } from './mcq';
 
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
 const LAST = HAJJ_LEN - 1;
 const Q_MS = 20000;
 const QUIZ_MS = 15000;
@@ -204,7 +207,7 @@ function revealQuiz(ctx: GameCtx, s: State) {
   if (first) {
     step(first, 1, false); // a bonus step never lands on a station (arriving there needs a roll)
     s.feed.push(`${ctx.playerName(first.id)} أسرع إجابة صحيحة — خطوة إلى الأمام وبطاقة زاد`, { by: first.id });
-    ctx.say?.(`أسرع إجابة صحيحة: ${ctx.playerName(first.id)} — يتقدّم خطوة`, first.id);
+    ctx.say?.(`أسرع إجابة صحيحة: ${ctx.playerName(first.id)} — خطوة إلى الأمام`, first.id);
   } else {
     s.feed.push('لم يُجب أحد صحيحاً');
     ctx.say?.('لم يُجب أحد صحيحاً');
@@ -284,7 +287,7 @@ export const hajj: GameModule<State, HajjSettings> = {
       if (kind === 'zamzam') s.mods.again = true;
       s.played = { by, kind, target, id: ++s.playedN };
       s.feed.push(`${ctx.playerName(by)} استعمل «${ZAD_INFO[kind].title}»${target ? ` مع ${ctx.playerName(target)}` : ''}`, { by });
-      ctx.say?.(`${ctx.playerName(by)} استعمل «${ZAD_INFO[kind].title}»${target ? ` مع ${ctx.playerName(target)}` : ''}`, by);
+      ctx.say?.(`بطاقة «${ZAD_INFO[kind].title}» من ${ctx.playerName(by)}${target ? ` (مع ${ctx.playerName(target)})` : ''}`, by);
       ctx.fx('card', by);
       return;
     }
@@ -311,11 +314,11 @@ export const hajj: GameModule<State, HajjSettings> = {
       // what the roll led to, in one line
       const c = s.cardN !== cardN ? s.card : null;
       let what = '';
-      if (c?.kind === 'station') what = ` ووصل إلى ${c.title}`;
-      else if (c?.kind === 'event') what = c.title === 'عمل صالح' ? ' — عمل صالح يقدّمه' : ' — تأخّر في الطريق';
-      else if (c?.kind === 'zad') what = ' — الصبر حماه من التأخير';
-      else if (s.question) what = ' — سؤال له';
-      ctx.say?.(`${ctx.playerName(by)} رمى ${d}${bonus ? ` (+${bonus})` : ''}${what}`, by);
+      if (c?.kind === 'station') what = ` — الوصول إلى ${c.title}`;
+      else if (c?.kind === 'event') what = c.title === 'عمل صالح' ? ' — عمل صالح وخطوات إلى الأمام' : ' — تأخير في الطريق';
+      else if (c?.kind === 'zad') what = ' — الصبر منع التأخير';
+      else if (s.question) what = ' — وسؤال';
+      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}${bonus ? ` (+${bonus})` : ''}${what}`, by);
       return;
     }
 
@@ -331,10 +334,10 @@ export const hajj: GameModule<State, HajjSettings> = {
           text: `«${q.options[q.correct]}» — تقدّم خطوة${got ? ` وخذ بطاقة «${ZAD_INFO[got].title}»` : ''}.`,
         });
         s.feed.push(`${ctx.playerName(by)} أجاب صحيحاً`, { by });
-        ctx.say?.(`${ctx.playerName(by)} أجاب صحيحاً وتقدّم خطوة`, by);
+        ctx.say?.(`إجابة صحيحة من ${ctx.playerName(by)} — خطوة إلى الأمام`, by);
         ctx.fx('correct', by);
       } else {
-        ctx.say?.(`${ctx.playerName(by)} أخطأ في الإجابة`, by);
+        ctx.say?.(`إجابة خاطئة من ${ctx.playerName(by)}`, by);
         card(s, by, { kind: 'wrong', title: 'إجابة خاطئة', text: `الجواب الصحيح: «${q.options[q.correct]}».` });
         ctx.fx('buzz', by);
       }

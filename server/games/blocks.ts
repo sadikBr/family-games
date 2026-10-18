@@ -61,6 +61,9 @@ function startGroup(ctx: GameCtx, participants: string[]) {
   return { seats: order, score };
 }
 
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
 const seatCtx = (s: State, seat: number): SeatCtx => ({
   board: s.board,
   n: s.n,
@@ -191,7 +194,7 @@ export const blocks: GameModule<State, BlocksSettings> = {
     const k = PIECE_SIZES[piece];
     const size = k === 1 ? 'مربع واحد' : k === 2 ? 'مربعين' : `${k} مربعات`;
     const skipped = s.passed.map((i) => ctx.playerName(s.seats[i]));
-    ctx.say?.(`${ctx.playerName(by)} وضع قطعة من ${size}${skipped.length ? ` — لا مكان لقطع ${skipped.join(' و')}` : ''}`, by);
+    ctx.say?.(`قطعة من ${size} ${li(ctx.playerName(by))}${skipped.length ? ` — لا مكان لقطع ${skipped.join(' و')}` : ''}`, by);
   },
 
   botPlan(ctx, s, bots) {

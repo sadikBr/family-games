@@ -236,7 +236,7 @@ export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
           <View style={{ flex: 1, gap: 4 }}>
             {myTurn ? (
               <Txt v="bold" color={C.yellow}>
-                {view.phase === 'roll' ? 'اضغط على النرد لترمي' : view.autoAt ? 'حركة واحدة ممكنة — ستتحرك قطعتك' : 'اختر قطعة لتحريكها'}
+                {view.phase === 'roll' ? 'اضغط على النرد' : view.autoAt ? 'حركة واحدة ممكنة — ستتحرك قطعتك' : 'اختر قطعة لتحريكها'}
               </Txt>
             ) : null}
             {turnSeat ? (

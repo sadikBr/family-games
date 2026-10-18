@@ -31,6 +31,9 @@ interface State {
   botCache: { moves: number; line: number } | null;
 }
 
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
 interface GroupMemo {
   group: string;
   order: string[];
@@ -122,7 +125,7 @@ export const dots: GameModule<State, DotsSettings> = {
   act(ctx, s, by, a) {
     if (s.phase !== 'play' || !s.active.includes(by)) return;
     if (a.type === 'resign') {
-      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
       return dropOut(ctx, s, by);
     }
     if (a.type !== 'line') return;
@@ -137,7 +140,7 @@ export const dots: GameModule<State, DotsSettings> = {
     s.lastBoxes = dotsLineBoxes(s.n, e).filter((b) => s.boxes[b] < 0 && dotsBoxLines(s.n, b).every((x) => s.lines[x] >= 0));
     for (const b of s.lastBoxes) s.boxes[b] = seat;
     const k = s.lastBoxes.length;
-    ctx.say?.(`${ctx.playerName(by)} ${k ? `أغلق ${k === 1 ? 'مربعاً' : 'مربعين'} ويلعب مرة أخرى` : 'رسم خطاً'}`, by);
+    ctx.say?.(k ? `${k === 1 ? 'مربع' : 'مربعان'} ${li(ctx.playerName(by))} — ودور إضافي` : `خط من ${ctx.playerName(by)}`, by);
     if (s.lastBoxes.length) {
       s.points[by] += s.lastBoxes.length;
       ctx.fx('correct', by);

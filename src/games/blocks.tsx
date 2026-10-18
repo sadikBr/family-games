@@ -318,7 +318,7 @@ export function BlocksGame({ room, view }: { room: RoomView; view: BlocksView })
       status = 'مكان مسموح — اضغط «ضع»';
       statusColor = OK_GREEN;
     }
-  } else status = sel ? 'جهّز قطعتك، وتضعها حين يأتي دورك' : 'يمكنك اختيار قطعة وتجهيزها حتى يأتي دورك';
+  } else status = sel ? 'القطعة جاهزة — توضع حين يحلّ دورك' : 'اختيار قطعة وتجهيزها ممكن قبل دورك';
 
   const piecesShown = trayOrder(left);
   const trayBox = 54;

@@ -48,9 +48,9 @@ test('ludo: the roll and the move are announced; the bot waits for the dice to l
   Math.random = () => 3 / 6 + 0.01; // a 4
   ludo.act(ctx, s, 'a', { type: 'roll' });
   Math.random = realRandom;
-  expect(last()).toEqual({ text: '«a» رمى 4', by: 'a' });
+  expect(last()).toEqual({ text: 'رمية لـ«a»: 4', by: 'a' });
   ludo.act(ctx, s, 'a', { type: 'move', token: 0 });
-  expect(last()).toEqual({ text: '«a» رمى 4 وحرّك قطعة', by: 'a' });
+  expect(last()).toEqual({ text: 'رمية لـ«a»: 4 — حركة قطعة', by: 'a' });
   expect(s.lastMove).toMatchObject({ by: 'a', token: 0, from: 10, to: 14 });
   // a bot's move comes well after its roll (×1.4 pace on top): the number is seen first
   const b: any = ludo.start(ctx, ['a', 'b'], { exitOnOne: false, podium: false, quick: false });
@@ -75,7 +75,7 @@ test('ludo: a capture names the player whose piece was taken', () => {
   ludo.act(ctx, s, 'a', { type: 'roll' });
   Math.random = realRandom;
   ludo.act(ctx, s, 'a', { type: 'move', token: 0 });
-  expect(last().text).toBe('«a» رمى 2 وأكل قطعة «b» ويلعب مرة أخرى');
+  expect(last().text).toBe('رمية لـ«a»: 2 — قطعة «b» عادت إلى القاعدة — ودور إضافي');
 });
 
 test('dama: a move is announced', () => {
@@ -84,14 +84,14 @@ test('dama: a move is announced', () => {
   const v: any = dama.view(ctx, s, s.white);
   const m = v.moves[0];
   dama.act(ctx, s, s.white, { type: 'move', from: m.from, to: m.path[m.path.length - 1] });
-  expect(last()).toEqual({ text: `«${s.white}» حرّك قطعة`, by: s.white });
+  expect(last()).toEqual({ text: `حركة من «${s.white}»`, by: s.white });
 });
 
 test('chess: the piece and its square are announced', () => {
   const { ctx, last } = fakeCtx();
   const s: any = chess.start(ctx, ['a', 'b'], { level: 1 } as any);
   chess.act(ctx, s, s.white, { type: 'move', from: 52, to: 36 }); // e2 → e4
-  expect(last()).toEqual({ text: `«${s.white}»: الجندي إلى e4`, by: s.white });
+  expect(last()).toEqual({ text: `حركة من «${s.white}»: الجندي إلى e4`, by: s.white });
 });
 
 test('kharbga: a placed piece is announced and marked as the last move', () => {
@@ -99,7 +99,7 @@ test('kharbga: a placed piece is announced and marked as the last move', () => {
   const s: any = kharbga.start(ctx, ['a', 'b'], { level: 1 });
   kharbga.act(ctx, s, s.attacker, { type: 'place', cell: 0 });
   kharbga.act(ctx, s, s.attacker, { type: 'place', cell: 1 });
-  expect(last()).toEqual({ text: `«${s.attacker}» وضع قطعة (بقي 22)`, by: s.attacker });
+  expect(last()).toEqual({ text: `قطعة جديدة لـ«${s.attacker}» (الباقي: 22)`, by: s.attacker });
   expect(s.last).toEqual({ from: 0, to: 1, captured: [] });
   expect(s.turn).toBe(2);
   kharbga.act(ctx, s, s.defender, { type: 'place', cell: 6 });
@@ -112,24 +112,24 @@ test('connect4 and xo: a disc / a mark is announced', () => {
   const { ctx, last } = fakeCtx();
   const c: any = connect4.start(ctx, ['a', 'b'], { level: 1 } as any);
   connect4.act(ctx, c, c.red, { type: 'drop', col: 3 });
-  expect(last()).toEqual({ text: `«${c.red}» أسقط قرصاً`, by: c.red });
+  expect(last()).toEqual({ text: `قرص من «${c.red}»`, by: c.red });
   const x: any = xo.start(ctx, ['a', 'b'], { level: 1, size: 3 });
   xo.act(ctx, x, x.x, { type: 'mark', cell: 4 });
-  expect(last()).toEqual({ text: `«${x.x}» وضع X`, by: x.x });
+  expect(last()).toEqual({ text: `X من «${x.x}»`, by: x.x });
 });
 
 test('dots: a line is announced', () => {
   const { ctx, last } = fakeCtx();
   const s: any = dots.start(ctx, ['a', 'b'], { size: 3, level: 'easy' });
   dots.act(ctx, s, s.seats[0], { type: 'line', line: 0 });
-  expect(last()).toEqual({ text: `«${s.seats[0]}» رسم خطاً`, by: s.seats[0] });
+  expect(last()).toEqual({ text: `خط من «${s.seats[0]}»`, by: s.seats[0] });
 });
 
 test('mancala: sowing is announced; the bot waits for the seeds to land on the phones', () => {
   const { ctx, last } = fakeCtx();
   const s: any = mancala.start(ctx, ['a', 'b'], { seeds: 4, level: 'easy' });
   mancala.act(ctx, s, s.seats[0], { type: 'sow', pit: 0 });
-  expect(last()).toEqual({ text: `«${s.seats[0]}» وزّع 4 حبات`, by: s.seats[0] });
+  expect(last()).toEqual({ text: `توزيع من «${s.seats[0]}»: 4 حبات`, by: s.seats[0] });
   expect(sowingMs(s.last)).toBe(4 * 170);
   expect(sowingMs({ ...s.last, capture: { pit: 1, opposite: 11, seeds: 3 } })).toBe(4 * 170 + 750);
 });
@@ -143,7 +143,7 @@ test('battleship: a shot is announced', () => {
   const enemy = s.players[1];
   const water = Array.from({ length: 100 }, (_, i) => i).find((i) => !s.fleets[enemy].some((sh: number[]) => sh.includes(i)))!;
   battleship.act(ctx, s, shooter, { type: 'fire', cell: water });
-  expect(last()).toEqual({ text: `«${shooter}» أطلق: في الماء`, by: shooter });
+  expect(last()).toEqual({ text: `طلقة من «${shooter}»: في الماء`, by: shooter });
   const hit = s.fleets[shooter][0][0];
   battleship.act(ctx, s, enemy, { type: 'fire', cell: hit });
   expect(last().text).toContain('إصابة');
@@ -156,7 +156,21 @@ test('blocks: a placed piece is announced with its size', () => {
   blocks.botPlan!(ctx, s, [first]);
   blocks.act(ctx, s, first, bots[0].a);
   expect(last().by).toBe(first);
-  expect(last().text).toContain('وضع قطعة من');
+  expect(last().text).toStartWith('قطعة من ');
+});
+
+test('announcements attach the name with لـ without conjugating a verb', () => {
+  const { ctx, last } = fakeCtx();
+  const named = { ...ctx, playerName: (id: string) => ({ a: 'ماما', b: 'الحسن' })[id] ?? id };
+  const l: any = ladders.start(named, ['a', 'b'], { exact: true });
+  l.players = [l.players.find((p: any) => p.id === 'a'), l.players.find((p: any) => p.id === 'b')];
+  l.turnIdx = 0;
+  Math.random = () => 2 / 6 + 0.01;
+  ladders.act(named, l, 'a', { type: 'roll' });
+  expect(last().text).toBe('رمية لماما: 3 — إلى الخانة 3');
+  ladders.act(named, l, 'b', { type: 'roll' });
+  Math.random = realRandom;
+  expect(last().text).toBe('رمية للحسن: 3 — إلى الخانة 3');
 });
 
 test('ladders and hajj: the roll is announced with where it led', () => {
@@ -166,11 +180,11 @@ test('ladders and hajj: the roll is announced with where it led', () => {
   Math.random = () => 2 / 6 + 0.01; // a 3: square 3 has no ladder or snake
   ladders.act(ctx, l, p.id, { type: 'roll' });
   Math.random = realRandom;
-  expect(last()).toEqual({ text: `«${p.id}» رمى 3 ووصل إلى الخانة 3`, by: p.id });
+  expect(last()).toEqual({ text: `رمية لـ«${p.id}»: 3 — إلى الخانة 3`, by: p.id });
 
   const hj: any = hajj.start(ctx, ['a', 'b'], { questions: false });
   const q = hj.players[hj.turnIdx];
   hajj.act(ctx, hj, q.id, { type: 'roll' });
   expect(last().by).toBe(q.id);
-  expect(last().text).toStartWith(`«${q.id}» رمى `);
+  expect(last().text).toStartWith(`رمية لـ«${q.id}»: `);
 });

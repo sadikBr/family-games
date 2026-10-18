@@ -155,8 +155,11 @@ interface State {
   score: Record<string, number>;
 }
 
-/** «قطعة», «قطعتين», «3 قطع»… */
-const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتين' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
+/** «قطعة», «قطعتان», «3 قطع»… */
+const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتان' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
 
 function finish(ctx: GameCtx, s: State, winner: 'white' | 'black', reason: DamaView['reason']) {
   s.phase = 'final';
@@ -228,7 +231,7 @@ export const dama: GameModule<State, DamaSettings> = {
     const side = by === s.white ? 1 : by === s.black ? -1 : 0;
     if (!side) return;
     if (a.type === 'resign') {
-      ctx.say?.(`${ctx.playerName(by)} استسلم`, by);
+      ctx.say?.(`استسلام من ${ctx.playerName(by)}`, by);
       return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
     }
     if (a.type !== 'move') return;
@@ -248,7 +251,7 @@ export const dama: GameModule<State, DamaSettings> = {
     s.quiet = m.captures.length || wasMan ? 0 : s.quiet + 1;
     s.moves += 1;
     const crowned = wasMan && Math.abs(s.board[m.path[m.path.length - 1]]) === 2;
-    ctx.say?.(`${ctx.playerName(by)} ${m.captures.length ? `أكل ${pieces(m.captures.length)}` : 'حرّك قطعة'}${crowned ? ' وصارت قطعته ملكاً' : ''}`, by);
+    ctx.say?.(`${m.captures.length ? `أكلٌ ${li(ctx.playerName(by))}: ${pieces(m.captures.length)}` : `حركة من ${ctx.playerName(by)}`}${crowned ? ' — وصارت القطعة ملكاً' : ''}`, by);
     ctx.fx(m.captures.length ? 'correct' : 'card', by);
     s.turn = s.turn === 1 ? -1 : 1;
     finishIfOver(ctx, s);

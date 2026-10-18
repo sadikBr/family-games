@@ -34,8 +34,11 @@ interface State {
 }
 
 const idOf = (s: State, side: Side) => (side === 1 ? s.attacker : s.defender);
-/** «قطعة», «قطعتين», «3 قطع»… */
-const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتين' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
+/** «قطعة», «قطعتان», «3 قطع»… */
+const pieces = (n: number) => (n === 1 ? 'قطعة' : n === 2 ? 'قطعتان' : n <= 10 ? `${n} قطع` : `${n} قطعة`);
 /** While placing, `last` marks the pieces put down in the latest turn (from = first, to = last). */
 const markPlaced = (s: State) => {
   const p = s.placedThisTurn;
@@ -79,7 +82,7 @@ function passTurn(ctx: GameCtx, s: State) {
     return end(ctx, s, a === d ? 'draw' : a > d ? 1 : 2, 'blocked');
   }
   s.feed.push(`${ctx.playerName(idOf(s, next))} محاصر — ${ctx.playerName(idOf(s, s.turn))} يلعب مرة أخرى`);
-  ctx.say?.(`${ctx.playerName(idOf(s, next))} محاصر — ${ctx.playerName(idOf(s, s.turn))} يلعب مرة أخرى`);
+  ctx.say?.(`لا حركة ${li(ctx.playerName(idOf(s, next)))} — دور إضافي ${li(ctx.playerName(idOf(s, s.turn)))}`);
 }
 
 export const kharbga: GameModule<State, KharbgaSettings> = {
@@ -116,7 +119,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     const side: Side | null = by === s.attacker ? 1 : by === s.defender ? 2 : null;
     if (!side) return;
     if (a.type === 'resign') {
-      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
       return end(ctx, s, other(side), 'resign');
     }
     if (side !== s.turn) throw new GameError('ليس دورك');
@@ -129,7 +132,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
         s.toPlace[side] += 1;
         s.moves += 1;
         markPlaced(s);
-        ctx.say?.(`${ctx.playerName(by)} رفع قطعة وضعها`, by);
+        ctx.say?.(`تراجع من ${ctx.playerName(by)} عن قطعة`, by);
         ctx.fx('card', by);
         return;
       }
@@ -140,7 +143,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
         s.toPlace[side] = 0;
         s.moves += 1;
         s.feed.push(`${ctx.playerName(by)} وزّع قطعه الباقية عشوائياً`, { by });
-        ctx.say?.(`${ctx.playerName(by)} وزّع قطعه الباقية عشوائياً`, by);
+        ctx.say?.(`توزيع عشوائي لباقي قطع ${ctx.playerName(by)}`, by);
         s.placedThisTurn = [];
         s.last = null;
         ctx.fx('card', by);
@@ -153,7 +156,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
       s.placedThisTurn.push(a.cell);
       s.moves += 1;
       markPlaced(s);
-      ctx.say?.(`${ctx.playerName(by)} وضع قطعة (بقي ${s.toPlace[side]})`, by);
+      ctx.say?.(`قطعة جديدة ${li(ctx.playerName(by))} (الباقي: ${s.toPlace[side]})`, by);
       ctx.fx('card', by);
       afterPlace(s, side);
       return;
@@ -170,21 +173,21 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     s.last = { from: m.from, to: m.to, captured };
     if (captured.length) {
       s.quiet = 0;
-      s.feed.push(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, { by });
+      s.feed.push(`${ctx.playerName(by)} أكل ${captured.length === 1 ? 'قطعة' : `${captured.length} قطع`}`, { by });
       ctx.fx('throw', by);
       if (!count(s, other(side))) {
-        ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, by);
+        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by);
         return end(ctx, s, side, 'captured');
       }
       if (movesFor(s.board, side, m.to).length) {
-        ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)} ويواصل الأكل`, by);
+        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)} — والأكل مستمر`, by);
         s.chainFrom = m.to; // keep capturing with the same piece
         return;
       }
-      ctx.say?.(`${ctx.playerName(by)} أكل ${pieces(captured.length)}`, by);
+      ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by);
     } else {
       s.quiet += 1;
-      ctx.say?.(`${ctx.playerName(by)} حرّك قطعة`, by);
+      ctx.say?.(`حركة من ${ctx.playerName(by)}`, by);
       ctx.fx('card', by);
       if (s.quiet >= QUIET_LIMIT) {
         const a1 = count(s, 1), d = count(s, 2);

@@ -33,8 +33,11 @@ function finishByBoard(ctx: GameCtx, s: State) {
   if (s.winner !== 'draw') duelWin(ctx, s.score, s.seats[s.winner]);
 }
 
-/** «حبة واحدة», «حبتين», «5 حبات», «12 حبة» */
-const seedsText = (n: number) => (n === 1 ? 'حبة واحدة' : n === 2 ? 'حبتين' : n <= 10 ? `${n} حبات` : `${n} حبة`);
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
+/** «حبة واحدة», «حبتان», «5 حبات», «12 حبة» */
+const seedsText = (n: number) => (n === 1 ? 'حبة واحدة' : n === 2 ? 'حبتان' : n <= 10 ? `${n} حبات` : `${n} حبة`);
 
 /** How long the phones take to show a move (seeds land one by one, then a capture pauses): see mancala.tsx. */
 export function sowingMs(m: MancalaMove | null) {
@@ -72,7 +75,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     const side = s.seats.indexOf(by);
     if (side < 0) return;
     if (a.type === 'resign') {
-      ctx.say?.(`${ctx.playerName(by)} انسحب`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
       return forfeit(ctx, s, by);
     }
     if (a.type !== 'sow') return;
@@ -85,7 +88,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     s.board = r.board;
     s.moves += 1;
     s.last = { seq: s.moves, side: s.turn, from: pit, path: r.path, before, capture: r.capture, extra: r.extra };
-    ctx.say?.(`${ctx.playerName(by)} وزّع ${seedsText(before[pit])}${r.capture ? ` وأكل ${seedsText(r.capture.seeds)}` : ''}${r.extra && !r.over ? ' ويلعب مرة أخرى' : ''}`, by);
+    ctx.say?.(`توزيع من ${ctx.playerName(by)}: ${seedsText(before[pit])}${r.capture ? ` — أكلٌ: ${seedsText(r.capture.seeds)}` : ''}${r.extra && !r.over ? ' — ودور إضافي' : ''}`, by);
     if (r.capture) ctx.fx('correct', by);
     else if (r.extra) ctx.fx('reveal', by);
     else ctx.fx('card', by);

@@ -21,6 +21,9 @@ interface State {
   feed: Feed;
 }
 
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
 const cur = (s: State) => s.players[s.turnIdx];
 
 /** Finishing order: furthest along first; on the same square, whoever got there first. */
@@ -73,10 +76,10 @@ export const ladders: GameModule<State, LaddersSettings> = {
       ctx.fx(jump.kind === 'ladder' ? 'correct' : 'buzz', by);
     }
     if (p.pos !== from) p.since = s.rollId;
-    const name = ctx.playerName(by);
-    if (jump) ctx.say?.(`${name} رمى ${d} — ${jump.deed.title}: ${jump.kind === 'ladder' ? 'صعد' : 'نزل'} إلى ${p.pos}`, by);
-    else if (p.pos === from) ctx.say?.(`${name} رمى ${d} — يحتاج ${100 - from} بالضبط`, by);
-    else ctx.say?.(`${name} رمى ${d} ووصل إلى الخانة ${p.pos}`, by);
+    const name = li(ctx.playerName(by));
+    if (jump) ctx.say?.(`رمية ${name}: ${d} — ${jump.deed.title}: ${jump.kind === 'ladder' ? 'صعود' : 'نزول'} إلى ${p.pos}`, by);
+    else if (p.pos === from) ctx.say?.(`رمية ${name}: ${d} — المطلوب ${100 - from} بالضبط`, by);
+    else ctx.say?.(`رمية ${name}: ${d} — إلى الخانة ${p.pos}`, by);
     if (p.pos === 100) {
       s.winner = by;
       s.phase = 'final';

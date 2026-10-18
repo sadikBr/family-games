@@ -35,6 +35,9 @@ const SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 /** The dice land after ~1.2 s; a moment later a single legal move is played for the player. */
 export const AUTO_MOVE_MS = 2000 * SPEED;
 
+/** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
+const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
 const colorOf = (s: State, id: string) => s.seats.find((x) => x.id === id)!.color;
 const current = (s: State) => s.seats[s.turnIdx].id;
 
@@ -110,15 +113,15 @@ function moveToken(s: State, id: string, t: number): { captured: string[]; finis
 
 /** One short line for the turn bar: what the move did. */
 function sayMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }) {
-  const name = ctx.playerName(id);
+  const name = li(ctx.playerName(id));
   const lm = s.lastMove!;
   let text: string;
-  if (res.captured.length) text = `${name} رمى ${s.dice} وأكل قطعة ${res.captured.map((c) => ctx.playerName(c)).join(' و')}`;
-  else if (res.finished) text = `${name} أدخل قطعة إلى البيت`;
-  else if (lm.from < 0) text = `${name} رمى ${s.dice} وأخرج قطعة`;
-  else text = `${name} رمى ${s.dice} وحرّك قطعة`;
+  if (res.captured.length) text = `رمية ${name}: ${s.dice} — قطعة ${res.captured.map((c) => ctx.playerName(c)).join(' و')} عادت إلى القاعدة`;
+  else if (res.finished) text = `قطعة ${name} وصلت إلى البيت`;
+  else if (lm.from < 0) text = `رمية ${name}: ${s.dice} — خروج قطعة`;
+  else text = `رمية ${name}: ${s.dice} — حركة قطعة`;
   const again = s.dice === 6 || res.captured.length > 0 || res.finished;
-  if (again && s.tokens[id].some((p) => p < FINISH)) text += ' ويلعب مرة أخرى';
+  if (again && s.tokens[id].some((p) => p < FINISH)) text += ' — ودور إضافي';
   ctx.say?.(text, id);
 }
 
@@ -189,7 +192,7 @@ export const ludo: GameModule<State, LudoSettings> = {
         s.sixes += 1;
         if (s.sixes === 3) {
           s.feed.push(`${ctx.playerName(by)}: ثلاث رميات من 6 متتالية! ضاع الدور`, { by });
-          ctx.say?.(`${ctx.playerName(by)} رمى 6 ثلاث مرات — ضاع الدور`, by);
+          ctx.say?.(`ثلاث رميات من 6 ${li(ctx.playerName(by))} — ضاع الدور`, by);
           nextTurn(s);
           s.dice = d;
           return;
@@ -198,12 +201,12 @@ export const ludo: GameModule<State, LudoSettings> = {
       const can = movableTokens(s.tokens[by], d, s.settings.exitOnOne);
       if (!can.length) {
         s.feed.push(`${ctx.playerName(by)} رمى ${d} — لا توجد حركة`, { by });
-        ctx.say?.(`${ctx.playerName(by)} رمى ${d} — لا توجد حركة`, by);
+        ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d} — لا حركة ممكنة`, by);
         nextTurn(s);
         s.dice = d; // keep showing the roll
         return;
       }
-      ctx.say?.(`${ctx.playerName(by)} رمى ${d}`, by);
+      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}`, by);
       s.phase = 'move';
       s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + AUTO_MOVE_MS : null;
       return;
