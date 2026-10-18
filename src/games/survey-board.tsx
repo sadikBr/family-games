@@ -6,14 +6,16 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequ
 import { Icon } from '@/art/icons';
 import type { SurveySlot, SurveyView } from '@/shared/games/survey';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Row } from '@/ui/bits';
-import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { TEAM } from './helpers';
+import { TeamStrip } from './taboo-teams';
 
 export const BOARD_BG = '#14183D';
 const TILE = '#2B3170';
+/** gold for the ranks and the points (the frames take the game's own colour) */
 const GOLD = '#F2B33D';
 
 /** One answer slot: a numbered tile that flips (around its horizontal axis) to show the answer. */
@@ -94,6 +96,7 @@ function BigStrike({ id, count }: { id: number | null; count: number }) {
 }
 
 export function Board({ view, width, compact }: { view: SurveyView; width: number; compact?: boolean }) {
+  const accent = useAccent();
   const n = view.slots.length;
   const height = compact ? 34 : width < 340 ? 40 : 44;
   const miss = view.last && (view.last.kind === 'miss' || view.last.kind === 'timeout') ? view.last.id : null;
@@ -102,7 +105,7 @@ export function Board({ view, width, compact }: { view: SurveyView; width: numbe
   // in the face-off a miss is a single ✗; in play it shows how many strikes there are now
   const shownStrikes = view.phase === 'play' || view.phase === 'steal' ? view.strikes || 3 : 1;
   return (
-    <View style={styles.board}>
+    <View style={[styles.board, { borderColor: alpha(accent, 0.55) }]}>
       <View style={{ gap: compact ? 4 : 6 }}>
         {view.slots.map((slot, i) => (
           <Slot key={`${view.round}-${i}`} slot={slot} rank={i + 1} height={height} hot={hot === i} />
@@ -131,9 +134,10 @@ export function Board({ view, width, compact }: { view: SurveyView; width: numbe
 
 /** The question, with the «أشهر الأجوبة» label (the answers are the game's own estimates, not a poll). */
 export function QuestionCard({ question, width }: { question: string | null; width: number }) {
+  const accent = useAccent();
   return (
-    <View style={styles.question}>
-      <Txt v="tiny" center color={GOLD}>
+    <View style={[styles.question, { borderColor: alpha(accent, 0.45) }]}>
+      <Txt v="tiny" center color={accent}>
         أشهر الأجوبة
       </Txt>
       <Txt v="h2" center style={{ fontSize: width < 340 ? 18 : 20, lineHeight: width < 340 ? 28 : 31 }}>
@@ -143,32 +147,20 @@ export function QuestionCard({ question, width }: { question: string | null; wid
   );
 }
 
-/** Both team scores; the team on the board gets a coloured frame. */
+/** Both team scores (the players' strip language); the team on the board — or stealing — is framed. */
 export function TeamScores({ view, myTeam }: { view: SurveyView; myTeam: 0 | 1 | null }) {
-  const narrow = useContentWidth() < 360;
   return (
-    <Row gap={8}>
-      {([0, 1] as const).map((t) => {
-        const active = view.control === t && (view.phase === 'play' || view.phase === 'steal');
-        const stealing = view.phase === 'steal' && view.control !== null && view.control !== t;
-        return (
-          <View key={t} style={[styles.team, { borderColor: active || stealing ? TEAM[t].color : 'transparent' }]}>
-            <View style={[styles.dot, { backgroundColor: TEAM[t].color }]} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Txt v="tiny" numberOfLines={1}>
-                {narrow ? TEAM[t].name.replace('الفريق ', '') : TEAM[t].name}
-              </Txt>
-              {myTeam === t ? (
-                <Txt v="tiny" color={C.dim} numberOfLines={1}>
-                  فريقك
-                </Txt>
-              ) : null}
-            </View>
-            <Txt style={{ fontFamily: F.display, fontSize: 24, lineHeight: 34 }}>{num(view.scores[t])}</Txt>
-          </View>
-        );
-      })}
-    </Row>
+    <TeamStrip
+      teams={([0, 1] as const).map((t) => ({
+        name: TEAM[t].name,
+        color: TEAM[t].color,
+        score: view.scores[t],
+        sub: myTeam === t ? 'فريقك' : undefined,
+        active:
+          (view.control === t && (view.phase === 'play' || view.phase === 'steal')) ||
+          (view.phase === 'steal' && view.control !== null && view.control !== t),
+      }))}
+    />
   );
 }
 
@@ -177,7 +169,6 @@ const styles = StyleSheet.create({
     backgroundColor: BOARD_BG,
     borderRadius: 22,
     borderWidth: 2,
-    borderColor: alpha(GOLD, 0.55),
     padding: 12,
     gap: 10,
     overflow: 'hidden',
@@ -204,8 +195,6 @@ const styles = StyleSheet.create({
   strikeOn: { backgroundColor: C.red, borderColor: C.red },
   bigStrike: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(11,14,36,0.35)' },
   bigX: { width: 74, height: 74, borderRadius: 16, backgroundColor: C.red, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  question: { backgroundColor: BOARD_BG, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: alpha(GOLD, 0.35) },
+  question: { backgroundColor: BOARD_BG, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1.5 },
   mult: { backgroundColor: GOLD, borderRadius: 8, paddingHorizontal: 6 },
-  team: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: C.surface, borderWidth: 2 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
 });

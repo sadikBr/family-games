@@ -2,39 +2,38 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Icon } from '@/art/icons';
 import type { RoomView, TabooView } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
+import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti, PopIn, Shake, TimerBar } from '@/ui/fun';
+import { Confetti, PopIn, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { TEAM, helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { TeamCard, TeamResult, TeamStrip } from './taboo-teams';
 
-function ScoreHeader({ view }: { view: TabooView }) {
+function ScoreHeader({ view, myTeam }: { view: TabooView; myTeam: number }) {
   return (
-    <Row gap={10}>
-      {[0, 1].map((t) => {
-        const active = view.activeTeam === t && view.phase !== 'teams' && view.phase !== 'final';
-        return (
-          <View key={t} style={[styles.teamScore, { borderColor: active ? TEAM[t].color : 'transparent' }]}>
-            <View style={[styles.teamDot, { backgroundColor: TEAM[t].color }]} />
-            <Txt v="small" style={{ flex: 1 }} numberOfLines={1}>
-              {TEAM[t].name}
-            </Txt>
-            <Txt style={{ fontFamily: F.display, fontSize: 24, lineHeight: 34 }}>{num(view.teamScores[t])}</Txt>
-          </View>
-        );
-      })}
-    </Row>
+    <TeamStrip
+      teams={[0, 1].map((t) => ({
+        name: TEAM[t].name,
+        color: TEAM[t].color,
+        score: view.teamScores[t],
+        sub: myTeam === t ? 'فريقك' : undefined,
+        active: view.activeTeam === t && view.phase !== 'teams' && view.phase !== 'final',
+      }))}
+    />
   );
 }
 
 function TabooCardView({ card }: { card: NonNullable<TabooView['card']> }) {
+  const accent = useAccent();
   return (
     <PopIn k={card.index}>
       <View style={styles.card}>
-        <View style={styles.cardTop}>
+        <View style={[styles.cardTop, { backgroundColor: accent }]}>
           <Txt v="display" size={40} center color="#FFFFFF" adjustsFontSizeToFit numberOfLines={1}>
             {card.word}
           </Txt>
@@ -67,7 +66,6 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
   const onActiveTeam = myTeam === view.activeTeam;
   const active = TEAM[view.activeTeam];
   const okCount = view.history.filter((h) => h.result === 'ok').length;
-  const lastBuzz = view.history.filter((h) => h.result === 'buzz').length;
   const notice = view.notice ? (
     <Card color={alpha(C.yellow, 0.18)}>
       <Txt v="bold" center>
@@ -93,17 +91,11 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
         <>
           <PhaseTitle icon="users" title="الفرق" sub={isHost ? 'اضغط على لاعب لنقله للفريق الآخر' : 'المضيف يجهّز الفرق'} />
           {[0, 1].map((t) => (
-            <Card key={t} outline={alpha(TEAM[t].color, 0.7)}>
-              <Row gap={8}>
-                <View style={[styles.teamDot, { backgroundColor: TEAM[t].color }]} />
-                <Txt v="h2">{TEAM[t].name}</Txt>
-              </Row>
-              <Row wrap gap={6} center>
-                {view.teams[t].map((id) => (
-                  <PlayerTag key={id} player={player(id)} size={52} badge={id === me ? 'star' : undefined} onPress={isHost ? () => act('swap', { id }) : undefined} />
-                ))}
-              </Row>
-            </Card>
+            <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
+              {view.teams[t].map((id) => (
+                <PlayerTag key={id} player={player(id)} size={52} sub={id === me ? '(أنت)' : undefined} onPress={isHost ? () => act('swap', { id }) : undefined} />
+              ))}
+            </TeamCard>
           ))}
           {isHost ? (
             <>
@@ -119,20 +111,17 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
     case 'ready':
       return (
         <>
-          <ScoreHeader view={view} />
+          <RoundHeader label={`الدور ${num(view.turn)} من ${num(view.totalTurns)}`} round={0} rounds={0} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           {notice}
-          <PhaseTitle
-            art={<Avatar player={describer} size={88} ring={active.color} />}
-            title={isDescriber ? 'أنت الشارح' : `${describer.name} سيشرح`}
-            sub={`دور ${active.name}`}
-          />
+          <PhaseTitle art={<Avatar player={describer} size={88} ring={active.color} />} title={isDescriber ? 'أنت الشارح' : `الشرح: ${describer.name}`} />
           <Card>
             <Txt center>
               {isDescriber
                 ? 'اشرح الكلمة لفريقك بدون أن تقول الكلمات الممنوعة. ممنوع الإشارة أو التهجئة.'
                 : onActiveTeam
                   ? 'استعد للتخمين، وقل الجواب بصوت عالٍ.'
-                  : 'أنت تراقب: إذا قال كلمة ممنوعة اضغط الزر الأحمر.'}
+                  : 'أنت تراقب: عند سماع كلمة ممنوعة اضغط الزر الأحمر.'}
             </Txt>
           </Card>
           {isDescriber || isHost ? (
@@ -140,16 +129,13 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
           ) : (
             <HostNote>في انتظار {describer.name}</HostNote>
           )}
-          <Txt v="tiny" center color={C.dim}>
-            الدور {view.turn} من {view.totalTurns}
-          </Txt>
         </>
       );
 
     case 'play':
       return (
         <>
-          <ScoreHeader view={view} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           <TimerBar endsAt={view.endsAt} total={room.settings.taboo.seconds * 1000} onTick={isDescriber} />
           {notice}
           {undo}
@@ -162,16 +148,16 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
               </Row>
             </>
           ) : onActiveTeam ? (
-            <Shake trigger={lastBuzz || null}>
-              <Card style={{ alignItems: 'center', paddingVertical: 28, gap: 8 }}>
-                <Avatar player={describer} size={80} />
-                <Txt v="display">خمّن</Txt>
-                <Txt center color={C.muted}>
-                  {describer.name} يشرح لك الكلمة
-                </Txt>
-                <Pill label={`${okCount} كلمات صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
-              </Card>
-            </Shake>
+            <Card style={{ alignItems: 'center', paddingVertical: 28, gap: 8 }}>
+              <Avatar player={describer} size={80} ring={active.color} />
+              <Txt v="display">خمّن</Txt>
+              <Txt center color={C.muted}>
+                الشرح من {describer.name}: قل الجواب بصوت عالٍ
+              </Txt>
+              <View style={{ alignSelf: 'center' }}>
+                <Pill label={`${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+              </View>
+            </Card>
           ) : view.card ? (
             <>
               <Row gap={8} center>
@@ -184,7 +170,7 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
               <Pressable onPress={() => act('buzz', { index: view.card!.index })} style={({ pressed }) => [styles.buzzer, pressed && { opacity: 0.85, transform: [{ translateY: 3 }] }]}>
                 <Icon name="siren" size={44} color="#FFFFFF" />
                 <Txt v="title">قالها</Txt>
-                <Txt v="tiny">إذا قال كلمة ممنوعة (‎-1)</Txt>
+                <Txt v="tiny">عند سماع كلمة ممنوعة ({num(-1)})</Txt>
               </Pressable>
             </>
           ) : null}
@@ -196,8 +182,8 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
       const pts = view.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'buzz' ? -1 : 0), 0);
       return (
         <>
-          <PhaseTitle icon="clock" title="انتهى الوقت" sub={`${active.name}: ${num(pts)}`} />
-          <ScoreHeader view={view} />
+          <PhaseTitle icon="clock" title="انتهى الوقت" sub={`${active.name}: ${num(pts)} في هذا الدور`} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           {notice}
           <Card>
             <Row wrap gap={6}>
@@ -223,8 +209,12 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
       return (
         <>
           {iWon ? <Confetti /> : null}
-          <ResultBanner tone={winner === -1 ? 'neutral' : iWon ? 'good' : 'bad'} title={winner === -1 ? 'تعادل' : `فاز ${TEAM[winner].name}`} />
-          <ScoreHeader view={view} />
+          <ResultBanner tone={winner === -1 ? 'neutral' : iWon ? 'good' : 'bad'} title={winner === -1 ? 'تعادل!' : `فاز ${TEAM[winner].name}`} sub={`${num(a)} مقابل ${num(b)}`} />
+          <TeamResult
+            me={me}
+            winner={winner}
+            teams={[0, 1].map((t) => ({ name: TEAM[t].name, color: TEAM[t].color, score: view.teamScores[t], players: view.teams[t].map(player) }))}
+          />
           <PlayAgain room={room} />
         </>
       );
@@ -233,24 +223,12 @@ export function TabooGame({ room, view }: { room: RoomView; view: TabooView }) {
 }
 
 const styles = StyleSheet.create({
-  teamScore: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 16,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    backgroundColor: C.surface,
-    borderWidth: 2,
-  },
-  teamDot: { width: 12, height: 12, borderRadius: 6 },
   card: {
     backgroundColor: '#FBF7EC',
     borderRadius: 22,
     overflow: 'hidden',
   },
-  cardTop: { backgroundColor: C.orange, paddingVertical: 14, paddingHorizontal: 10 },
+  cardTop: { paddingVertical: 14, paddingHorizontal: 10 },
   buzzer: {
     backgroundColor: C.red,
     borderRadius: 999,

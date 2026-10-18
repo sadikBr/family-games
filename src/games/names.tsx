@@ -1,47 +1,53 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { GameArt } from '@/art/game-art';
 import { Icon, type IconName } from '@/art/icons';
-
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { useCountdown } from '@/lib/time';
 import { GAME_LETTERS, displayLetter, firstLetter, startsWithLetter } from '@/shared/arabic';
 import { NAMES_CATEGORIES, type NamesCell, type NamesView, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
-import { Confetti, Podium, PopIn, Scoreboard, Shake, TimerBar } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Confetti, Podium, PopIn, Scoreboard, TimerBar } from '@/ui/fun';
+import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const CATS = NAMES_CATEGORIES;
-const CAT_ICON: Record<string, { icon: IconName; color: string }> = {
-  boy: { icon: 'user', color: C.blue },
-  girl: { icon: 'user', color: C.pink },
-  animal: { icon: 'paw', color: C.orange },
-  plant: { icon: 'leaf', color: C.green },
-  thing: { icon: 'box', color: C.purple },
-  country: { icon: 'globe', color: C.cyan },
-  job: { icon: 'hand', color: C.yellow },
+const CAT_ICON: Record<string, IconName> = {
+  boy: 'user',
+  girl: 'user',
+  animal: 'paw',
+  plant: 'leaf',
+  thing: 'box',
+  country: 'globe',
+  job: 'hand',
 };
 
+/** The category's icon, in the game's colour (one calm colour for all of them). */
 function CatMark({ k }: { k: string }) {
-  const m = CAT_ICON[k] ?? { icon: 'star', color: C.surfaceStrong };
+  const accent = useAccent();
   return (
-    <View style={[styles.catMark, { backgroundColor: m.color }]}>
-      <Icon name={m.icon} size={16} color="#FFFFFF" />
+    <View style={[styles.catMark, { backgroundColor: alpha(accent, 0.18) }]}>
+      <Icon name={CAT_ICON[k] ?? 'star'} size={16} color={accent} />
     </View>
   );
 }
 
+/** The round's letter on a disc of the game's colour. */
 function LetterBadge({ letter, size = 84 }: { letter: string; size?: number }) {
+  const accent = useAccent();
   return (
-    <View style={[styles.letter, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Txt style={{ fontFamily: F.display, fontSize: size * 0.62, lineHeight: size * 0.95, color: C.ink }}>{letter}</Txt>
+    <View style={[styles.letter, { width: size, height: size, borderRadius: size / 2, backgroundColor: accent }]}>
+      <Txt style={{ fontFamily: F.display, fontSize: size * 0.62, lineHeight: size * 0.95, color: '#FFFFFF' }}>{letter}</Txt>
     </View>
   );
 }
@@ -56,8 +62,8 @@ function Spin({ view }: { view: NamesView }) {
   const shown = landed ? view.letter : displayLetter(GAME_LETTERS[Math.floor(left / 85) % GAME_LETTERS.length]);
   return (
     <View style={{ alignItems: 'center', gap: 16, paddingTop: 30 }}>
-      <Txt v="h2">الجولة {view.round} من {view.totalRounds}</Txt>
-      <Txt v="title">ما هو الحرف؟</Txt>
+      <RoundHeader label={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} round={0} rounds={0} />
+      <Txt v="display">ما هو الحرف؟</Txt>
       {landed ? (
         <PopIn k="landed">
           <LetterBadge letter={shown} size={190} />
@@ -111,23 +117,21 @@ function Write({ room, view, h }: { room: RoomView; view: NamesView; h: Helpers 
         <LetterBadge letter={view.letter} size={70} />
         <View style={{ flex: 1, gap: 4 }}>
           <Txt v="tiny" color={C.muted}>
-            الجولة {view.round} من {view.totalRounds} · كل الأجوبة تبدأ بـ «{view.letter}»
+            الجولة {num(view.round)} من {num(view.totalRounds)} · كل الأجوبة تبدأ بـ «{view.letter}»
           </Txt>
           {locked ? null : <TimerBar endsAt={view.endsAt} total={room.settings.names.seconds * 1000} onTick />}
         </View>
       </Row>
 
       {/* live progress of the others */}
-      <Row wrap gap={10} center>
-        {others.map((id) => (
-          <View key={id} style={{ alignItems: 'center' }}>
-            <Avatar player={h.player(id)} size={36} badge={view.done.includes(id) ? 'check' : undefined} />
-            <Txt v="tiny" color={view.progress[id] === CATS.length ? C.green : C.muted}>
-              {view.progress[id]}/{CATS.length}
-            </Txt>
-          </View>
-        ))}
-      </Row>
+      <PlayerStrip
+        room={room}
+        entries={others.map((id) => ({
+          id,
+          score: num(`${view.progress[id] ?? 0}/${CATS.length}`),
+          sub: view.done.includes(id) ? 'اكتملت الأجوبة' : undefined,
+        }))}
+      />
 
       {locked ? (
         <ResultBanner tone="bad" title="ستوب" sub={`${stopper ? `${stopper.name} قال «ستوب»` : 'انتهى الوقت'} · ارفعوا الأقلام`} />
@@ -288,7 +292,7 @@ function CategoryBoard({ view, h, cat }: { view: NamesView; h: Helpers; cat: (ty
                 {cell.points !== null ? (
                   <View style={[styles.points, { backgroundColor: cell.points === 10 ? C.green : cell.points === 5 ? C.yellow : C.surfaceStrong }]}>
                     <Txt v="tiny" color={cell.points ? C.ink : C.muted}>
-                      +{cell.points}
+                      {num(`+${cell.points}`)}
                     </Txt>
                   </View>
                 ) : (
@@ -315,11 +319,9 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
     case 'write':
     case 'stopping':
       return (
-        <Shake trigger={view.phase === 'stopping' ? view.round : null}>
-          <View style={{ gap: 14 }}>
-            <Write key={view.round} room={room} view={view} h={h} />
-          </View>
-        </Shake>
+        <View style={{ gap: 14 }}>
+          <Write key={view.round} room={room} view={view} h={h} />
+        </View>
       );
 
     case 'review':
@@ -327,13 +329,13 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
         <>
           <PhaseTitle art={<LetterBadge letter={view.letter} size={64} />} title="المراجعة" sub={view.dict === 'strict' ? 'اضغط على جواب تراه خاطئاً للتصويت ضده — وعلى كلمة «؟» لقبولها رغم القاموس' : 'اضغط على جواب تراه خاطئاً للتصويت ضده'} />
           <Txt v="small" center color={C.dim}>
-            جواب فريد = 10 · مكرر = 5
+            جواب فريد = {num(10)} · مكرر = {num(5)}
           </Txt>
           {CATS.map((c) => (
             <CategoryBoard key={c.key} view={view} h={h} cat={c} />
           ))}
           {h.isHost ? (
-            <Btn size="xl" icon="calc" label="احسب النقاط" color={C.green} onPress={() => client.act({ type: 'score' })} />
+            <Btn size="xl" icon="calc" label="احسب النقاط" onPress={() => client.act({ type: 'score' })} />
           ) : (
             <HostNote>المضيف يحسب النقاط عندما تنتهون من المراجعة</HostNote>
           )}
@@ -346,20 +348,17 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
       return (
         <>
           {iWon ? <Confetti burst={view.round} /> : null}
-          <PhaseTitle icon="trophy" title={`نتيجة الجولة ${view.round}`} />
-          <Card>
-            <Txt v="h3">نقاط هذه الجولة</Txt>
-            <Scoreboard players={room.players} scores={view.roundPoints ?? {}} highlight={h.me} />
-          </Card>
+          <PhaseTitle icon="trophy" title={`نتيجة الجولة ${num(view.round)}`} sub="المجموع، وتحت كل اسم نقاط هذه الجولة" />
+          <PlayerStrip
+            room={room}
+            entries={view.participants.map((id) => ({ id, score: view.scores[id] ?? 0, sub: num(`+${view.roundPoints?.[id] ?? 0}`) }))}
+            active={best > 0 ? view.participants.filter((id) => (view.roundPoints?.[id] ?? 0) === best) : []}
+          />
           {CATS.map((c) => (
             <CategoryBoard key={c.key} view={view} h={h} cat={c} />
           ))}
-          <Card>
-            <Txt v="h3">المجموع</Txt>
-            <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-          </Card>
           {h.isHost ? (
-            <Btn size="xl" icon="play" label={view.round >= view.totalRounds ? 'النتيجة النهائية' : 'الجولة التالية'} color={C.green} onPress={() => client.act({ type: 'next' })} />
+            <Btn size="xl" icon={view.round >= view.totalRounds ? 'trophy' : 'play'} label={view.round >= view.totalRounds ? 'النتيجة النهائية' : 'الجولة التالية'} onPress={() => client.act({ type: 'next' })} />
           ) : (
             <HostNote>المضيف يبدأ الجولة التالية</HostNote>
           )}
@@ -367,24 +366,31 @@ export function NamesGame({ room, view }: { room: RoomView; view: NamesView }) {
       );
     }
 
-    case 'final':
+    case 'final': {
+      const scores = Object.fromEntries(view.participants.map((id) => [id, view.scores[id] ?? 0]));
+      const best = Math.max(0, ...Object.values(scores));
+      const winners = Object.keys(scores).filter((id) => scores[id] === best);
+      const won = winners.includes(h.me);
       return (
         <>
-          <Confetti />
-          <PhaseTitle icon="trophy" title="أبطال الحروف" />
-          <Podium players={room.players} scores={view.scores} />
-          <Card>
-            <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-          </Card>
+          {won ? <Confetti /> : null}
+          <ResultBanner
+            tone={won ? 'good' : 'neutral'}
+            art={<GameArt id="names" size={84} />}
+            title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
+            sub="أبطال الحروف"
+          />
+          <Podium players={room.players} scores={scores} />
+          <Scoreboard players={room.players} scores={scores} highlight={h.me} />
           <PlayAgain room={room} />
         </>
       );
+    }
   }
 }
 
 const styles = StyleSheet.create({
   letter: {
-    backgroundColor: C.yellow,
     alignItems: 'center',
     justifyContent: 'center',
   },

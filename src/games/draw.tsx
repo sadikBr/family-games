@@ -7,14 +7,17 @@ import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import type { DrawStroke, DrawView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Avatar, Card, Row } from '@/ui/bits';
+import { useAccent } from '@/ui/accent';
+import { Avatar, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
-import { PhaseTitle, PlayAgain, Spectator } from './common';
+import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const COLORS = ['#1B1830', '#E2475F', '#F08A3E', '#F2B33D', '#2FB67C', '#2D9CDB', '#7B61D9', '#8A5A2B'];
 const WIDTHS = [6, 14, 30];
@@ -160,37 +163,63 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
   const size = Math.min(width - 32, 440);
+  const accent = useAccent();
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
   const isDrawer = view.drawer === h.me;
   const drawer = h.player(view.drawer);
   const iGuessed = view.guessed.includes(h.me);
 
   if (view.phase === 'final') {
+    const scores = Object.fromEntries(view.participants.map((id) => [id, view.scores[id] ?? 0]));
+    const best = Math.max(0, ...Object.values(scores));
+    const winners = Object.keys(scores).filter((id) => scores[id] === best);
+    const won = winners.includes(h.me);
     return (
       <>
-        <Confetti />
-        <PhaseTitle art={<GameArt id="draw" size={84} />} title="أبطال الرسم" />
-        <Podium players={room.players} scores={view.scores} />
-        <Card>
-          <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-        </Card>
+        {won ? <Confetti /> : null}
+        <ResultBanner
+          tone={won ? 'good' : 'neutral'}
+          art={<GameArt id="draw" size={84} />}
+          title={winners.length === 1 ? `فاز ${h.player(winners[0]).name}` : 'تعادل!'}
+          sub="أبطال الرسم"
+        />
+        <Podium players={room.players} scores={scores} />
+        <Scoreboard players={room.players} scores={scores} highlight={h.me} />
         <PlayAgain room={room} />
       </>
     );
   }
 
   const header = (
-    <Row gap={10}>
-      <Avatar player={drawer} size={34} badge="mic" />
-      <View style={{ flex: 1 }}>
-        <Txt v="bold" numberOfLines={1}>
-          {isDrawer ? 'أنت ترسم' : `${drawer.name} يرسم`}
+    <RoundHeader
+      label={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`}
+      round={0}
+      rounds={0}
+      right={
+        <Txt v="tiny" color={C.muted}>
+          أصاب {num(view.guessed.length)} من {num(view.participants.length - 1)}
         </Txt>
-        <Txt v="tiny" color={C.dim}>
-          الجولة {view.round} من {view.totalRounds} · خمّن {view.guessed.length} من {view.participants.length - 1}
-        </Txt>
-      </View>
-    </Row>
+      }
+    />
+  );
+  // everyone's score; the drawer framed, a tick line for those who found the word
+  const strip = (
+    <PlayerStrip
+      room={room}
+      active={[view.drawer]}
+      entries={view.participants.map((id) => ({
+        id,
+        score: view.scores[id] ?? 0,
+        sub:
+          view.phase === 'reveal' && view.roundPoints
+            ? num(`+${view.roundPoints[id] ?? 0}`)
+            : id === view.drawer
+              ? 'الرسم'
+              : view.guessed.includes(id)
+                ? 'إصابة ✓'
+                : undefined,
+      }))}
+    />
   );
 
   if (view.phase === 'choose') {
@@ -203,13 +232,14 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
             <PhaseTitle icon="edit" title="اختر كلمة لترسمها" sub="لا تكتب حروفاً ولا أرقاماً في الرسم" />
             <View style={{ gap: 10 }}>
               {view.options.map((w) => (
-                <Btn key={w} size="lg" label={w} color={C.surfaceStrong} textColor={C.text} onPress={() => h.act('choose', { word: w })} />
+                <Btn key={w} size="lg" label={w} ghost onPress={() => h.act('choose', { word: w })} />
               ))}
             </View>
           </>
         ) : (
-          <PhaseTitle art={<Avatar player={drawer} size={84} />} title={`${drawer.name} يختار كلمة…`} sub="استعدوا للتخمين" />
+          <PhaseTitle art={<Avatar player={drawer} size={84} ring={drawer.color} />} title="اختيار الكلمة…" sub={`الرسم الآن من ${drawer.name}. استعدوا للتخمين`} />
         )}
+        {strip}
       </>
     );
   }
@@ -219,7 +249,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
     <>
       {header}
       {view.phase === 'draw' || view.phase === 'reveal' ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={isDrawer && view.phase === 'draw'} /> : null}
-      <View style={styles.wordBox}>
+      <View style={[styles.wordBox, { borderColor: alpha(accent, 0.5) }]}>
         {view.phase === 'reveal' ? (
           <Txt v="tiny" center color={C.muted}>
             الكلمة كانت
@@ -259,12 +289,14 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
       ) : null}
       {isDrawer && view.phase === 'draw' && !view.guessed.length ? <Btn size="sm" ghost icon="skip" label="تخطَّ هذه الكلمة" onPress={() => h.act('giveup')} /> : null}
 
-      {view.phase === 'reveal' && view.roundPoints ? (
-        <Card>
-          <Txt v="h3">نقاط هذا الدور</Txt>
-          <Scoreboard players={room.players} scores={view.roundPoints} highlight={h.me} />
-          {h.isHost ? <Btn size="md" icon="next" label="التالي" onPress={() => h.act('next')} /> : null}
-        </Card>
+      {view.phase === 'reveal' ? (
+        <>
+          <Txt v="small" center color={C.muted}>
+            المجموع، وتحت كل اسم نقاط هذا الدور
+          </Txt>
+          {strip}
+          {h.isHost ? <Btn size="lg" icon="next" label="التالي" onPress={() => h.act('next')} /> : <HostNote>المضيف ينتقل إلى الدور التالي</HostNote>}
+        </>
       ) : null}
 
       {view.feed.length && view.phase === 'draw' ? (
@@ -276,12 +308,13 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
               <Row key={f.id} gap={6}>
                 <Avatar player={h.player(f.by)} size={20} />
                 <Txt v="small" color={f.ok ? C.green : C.text} style={{ flex: 1 }} numberOfLines={1}>
-                  {f.ok ? `${h.player(f.by).name} خمّن الكلمة!` : f.text}
+                  {f.ok ? `${h.player(f.by).name} — إصابة!` : f.text}
                 </Txt>
               </Row>
             ))}
         </ScrollView>
       ) : null}
+      {view.phase === 'draw' ? strip : null}
     </>
   );
 }
@@ -293,7 +326,7 @@ const styles = StyleSheet.create({
   eraser: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   width: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   widthOn: { borderColor: C.yellow },
-  wordBox: { backgroundColor: C.surface, borderRadius: 16, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' },
+  wordBox: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1.5, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' },
   hint: { fontFamily: F.display, fontSize: 24, lineHeight: 36, color: C.text, letterSpacing: 2, writingDirection: 'rtl', textAlign: 'center' },
   input: {
     flex: 1,

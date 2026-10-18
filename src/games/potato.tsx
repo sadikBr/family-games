@@ -1,32 +1,35 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { play } from '@/lib/sfx';
 import { useElapsed } from '@/lib/time';
 import type { PotatoView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, Podium, Scoreboard } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
-import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
+import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 
-/** The potato. On the holder's phone it trembles a little, more as time passes. */
+/** The potato. On the holder's phone it breathes gently (up to 5 % bigger), faster as time passes. */
 function Potato({ size = 120, heat = 0, tremble }: { size?: number; heat?: number; tremble?: boolean }) {
-  const r = useSharedValue(0);
-  const amp = 1 + heat * 2; // a gentle tremble (at most 3°)
+  const r = useSharedValue(1);
+  const beat = Math.round(520 - heat * 300);
   useEffect(() => {
     if (!tremble) {
-      r.set(0);
+      r.set(1);
       return;
     }
-    r.set(withRepeat(withSequence(withTiming(-amp, { duration: 140 }), withTiming(amp, { duration: 140 })), -1, true));
-  }, [r, amp, tremble]);
-  const st = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
+    const ease = Easing.inOut(Easing.quad);
+    r.set(withRepeat(withSequence(withTiming(1.05, { duration: beat, easing: ease }), withTiming(1, { duration: beat, easing: ease })), -1));
+  }, [r, beat, tremble]);
+  const st = useAnimatedStyle(() => ({ transform: [{ scale: r.get() }] }));
   return (
     <Animated.View style={[styles.potato, { width: size, height: size }, st]}>
       <GameArt id="potato" size={size} />
@@ -52,19 +55,20 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
   const heat = Math.min(1, elapsed / 40000);
   useTicking(view.phase === 'play' && iHold, Math.round(elapsed / 2000) * 2000);
 
+  const accent = useAccent();
   if (!view.participants.includes(me)) return <Spectator room={room} />;
 
   const topic = (
-    <View style={styles.topic}>
+    <View style={[styles.topic, { borderColor: alpha(accent, 0.5) }]}>
       <Txt v="tiny" color={C.muted}>
         الموضوع
       </Txt>
       <Txt v="title" center>
         {view.category}
       </Txt>
-      <Txt v="tiny" color={C.dim}>
-        الجولة {view.round} من {view.totalRounds}
-        {view.phase === 'play' ? ` · ${view.passes} رمية` : ''}
+      <Txt v="tiny" color={C.muted}>
+        الجولة {num(view.round)} من {num(view.totalRounds)}
+        {view.phase === 'play' ? ` · ${num(view.passes)} رمية` : ''}
       </Txt>
     </View>
   );
@@ -86,7 +90,7 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
           <Card style={{ alignItems: 'center' }}>
             <Potato size={110} />
             <Txt v="h2" center>
-              {iHold ? 'البطاطا معك، أنت تبدأ' : `${holder.name} يبدأ`}
+              {iHold ? 'البطاطا معك، أنت تبدأ' : `البداية مع ${holder.name}`}
             </Txt>
             <Txt v="small" center color={C.muted}>
               قل كلمة من الموضوع، ثم ارمِ البطاطا لهاتف لاعب آخر. لا تكرروا الكلمات.
@@ -139,7 +143,7 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
           {topic}
           {botSaid}
           <Card style={{ alignItems: 'center', gap: 8, paddingVertical: 22 }}>
-            <Avatar player={holder} size={96} ring={C.orange} />
+            <Avatar player={holder} size={96} ring={holder.color} />
             <Txt v="title" center>
               البطاطا عند {holder.name}
             </Txt>
@@ -156,14 +160,13 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
       const meLost = view.loserId === me;
       return (
         <>
-          <ResultBanner tone="bad" art={<Avatar player={loser} size={72} />} title={meLost ? 'انفجرت فيك' : 'بوم'} sub={`${loser.name} احترق`} />
-          <Card>
-            <Txt v="h3">الحروق</Txt>
-            <Txt v="tiny" color={C.dim}>
-              الأقل أفضل
+          <ResultBanner tone="bad" art={<Avatar player={loser} size={72} />} title={meLost ? 'انفجرت فيك' : 'بوم'} sub={`انفجرت البطاطا في يد ${loser.name}`} />
+          <View style={{ gap: 6 }}>
+            <Txt v="small" center color={C.muted}>
+              الحروق (الأقل أفضل)
             </Txt>
-            <Scoreboard players={room.players} scores={view.burns} lowIsBetter highlight={view.loserId ?? undefined} />
-          </Card>
+            <PlayerStrip room={room} entries={view.participants.map((id) => ({ id, score: view.burns[id] ?? 0 }))} active={view.loserId ? [view.loserId] : []} />
+          </View>
           {isHost ? (
             <Btn size="xl" icon="play" label={view.round >= view.totalRounds ? 'النتيجة النهائية' : 'الجولة التالية'} onPress={() => act('next')} />
           ) : (
@@ -173,23 +176,31 @@ export function PotatoGame({ room, view }: { room: RoomView; view: PotatoView })
       );
     }
 
-    case 'final':
+    case 'final': {
+      const burns = Object.fromEntries(view.participants.map((id) => [id, view.burns[id] ?? 0]));
+      const least = Math.min(...Object.values(burns));
+      const winners = Object.keys(burns).filter((id) => burns[id] === least);
+      const won = winners.includes(me);
       return (
         <>
-          <Confetti />
-          <PhaseTitle icon="trophy" title="الأبطال المقاومون للحرارة" />
-          <Podium players={room.players} scores={view.burns} lowIsBetter />
-          <Card>
-            <Scoreboard players={room.players} scores={view.burns} lowIsBetter highlight={me} />
-          </Card>
+          {won ? <Confetti /> : null}
+          <ResultBanner
+            tone={won ? 'good' : 'neutral'}
+            art={<GameArt id="potato" size={84} />}
+            title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
+            sub="الفوز لأقل الحروق"
+          />
+          <Podium players={room.players} scores={burns} lowIsBetter />
+          <Scoreboard players={room.players} scores={burns} lowIsBetter unit="حروق" highlight={me} />
           <PlayAgain room={room} />
         </>
       );
+    }
   }
 }
 
 const styles = StyleSheet.create({
-  topic: { alignItems: 'center', gap: 0, paddingVertical: 10, borderRadius: 18, backgroundColor: C.surface },
+  topic: { alignItems: 'center', gap: 0, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1.5, backgroundColor: C.surface },
   potato: { alignItems: 'center', justifyContent: 'center' },
   said: {
     flexDirection: 'row',

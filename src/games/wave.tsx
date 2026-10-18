@@ -6,6 +6,7 @@ import Svg, { Circle, G, Line, Path, Text as SvgText } from 'react-native-svg';
 import { haptic } from '@/lib/sfx';
 import type { RoomView, WaveView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
@@ -15,6 +16,7 @@ import { Txt, num } from '@/ui/txt';
 import { Spectator } from './common';
 import { helpers } from './helpers';
 import { McqFinal, RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const INK = '#151726';
 const REVEAL_MS = 11_000; // keep in sync with WAVE_REVEAL_MS in server/games/wave.ts
@@ -116,6 +118,7 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
   const size = Math.min(width - 24, 420);
   const [clue, setClue] = useState('');
   const [dial, setDial] = useState<{ round: number; v: number }>({ round: view.round, v: 50 });
+  const accent = useAccent();
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="wave" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
   const iAmPsychic = view.psychic === h.me;
@@ -128,11 +131,11 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
       <RoundHeader label={`الجولة ${num(view.round)} من ${num(view.rounds)}`} round={0} rounds={0} />
       <Row gap={8} center>
         <Avatar player={psychic} size={30} />
-        <Txt v="bold">{iAmPsychic ? 'أنت من يعطي التلميح' : `${psychic.name} يعطي التلميح`}</Txt>
+        <Txt v="bold">{iAmPsychic ? 'أنت من يعطي التلميح' : `التلميح من ${psychic.name}`}</Txt>
       </Row>
 
       {view.clue ? (
-        <View style={styles.clue}>
+        <View style={[styles.clue, { borderColor: alpha(accent, 0.6) }]}>
           <Txt v="tiny" color={C.muted} center>
             التلميح
           </Txt>
@@ -183,7 +186,7 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
         </View>
       ) : view.phase === 'clue' ? (
         <Txt v="bold" center color={C.muted}>
-          {psychic.name} يفكر في تلميح…
+          في انتظار التلميح…
         </Txt>
       ) : null}
 
@@ -216,19 +219,19 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
 
       {view.phase === 'reveal' && view.results ? (
         <View style={{ gap: 6 }}>
-          {[...view.results]
-            .sort((a, b) => b.points - a.points)
-            .map((r) => (
-              <Row key={r.id} gap={8} style={styles.result}>
-                <View style={[styles.swatch, { backgroundColor: colorOf(r.id) }]} />
-                <Avatar player={h.player(r.id)} size={24} />
-                <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                  {h.player(r.id).name}
-                  {r.id === view.psychic ? ' (التلميح)' : ''}
-                </Txt>
-                <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 22, color: r.points ? C.green : C.dim }}>{r.points ? `+${num(r.points)}` : '0'}</Txt>
-              </Row>
-            ))}
+          <Txt v="small" center color={C.muted}>
+            لون المؤشر بلون صاحبه · تحت الاسم نقاط الجولة
+          </Txt>
+          <PlayerStrip
+            room={room}
+            entries={[...view.results]
+              .sort((a, b) => b.points - a.points)
+              .map((r) => ({
+                id: r.id,
+                score: view.scores[r.id] ?? 0,
+                sub: num(`+${r.points}`),
+              }))}
+          />
         </View>
       ) : null}
     </>
@@ -238,8 +241,6 @@ export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
 const styles = StyleSheet.create({
   end: { position: 'absolute', bottom: 0, maxWidth: '42%' },
   endTxt: { backgroundColor: alpha('#151726', 0.75), color: '#FFF4DA', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden', textAlign: 'center' },
-  clue: { backgroundColor: C.surface, borderRadius: 18, padding: 10, borderWidth: 2, borderColor: alpha(C.yellow, 0.5) },
+  clue: { backgroundColor: C.surface, borderRadius: 18, padding: 10, borderWidth: 2 },
   input: { flex: 1, backgroundColor: C.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.border },
-  result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
-  swatch: { width: 10, height: 24, borderRadius: 4 },
 });
