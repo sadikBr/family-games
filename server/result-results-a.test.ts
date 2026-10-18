@@ -424,17 +424,8 @@ test('kdab: the first with an empty hand, then by cards left', () => {
 
 test('konkan: the winner, then the others by points (fewer is better)', () => {
   const nudge = (ctx: any, s: any) => konkan.act(ctx, s, 'a', { type: 'next' });
-  // bots can reshuffle the discards for ever: after a long hand, empty the piles so the next draw ends it
-  let mark = { hand: 0, actions: 0 };
-  const each = (s: any) => {
-    if (s.hand !== mark.hand) mark = { hand: s.hand, actions: s.actions };
-    if (s.actions - mark.actions > 400 && s.step === 'draw') {
-      s.stock = [];
-      s.discard = [];
-      s.throwers = [];
-    }
-  };
-  const { s, r } = botGame(konkan, P3, { limit: 50 }, { steps: 100000, nudge, each });
+  // no workaround needed: a hand ends with no winner after the discards went back into the stock twice
+  const { s, r } = botGame(konkan, P3, { limit: 50 }, { steps: 100000, nudge });
   covers(r, P3);
   expect(r.places[0]).toEqual([s.winner!]);
   rankedBy({ places: r.places.slice(1) }, (id) => s.scores[id], true);

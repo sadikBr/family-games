@@ -16,6 +16,8 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 
 const DEAL: Record<number, number> = { 2: 10, 3: 8, 4: 7 };
+/** The discard pile goes back into the stock at most this many times per hand. */
+const MAX_RESHUFFLES = 2;
 
 export const cardValue = (c: Card) => (c.rank <= 7 ? c.rank : 10);
 
@@ -38,6 +40,8 @@ interface State {
   /** card taken from the discard pile this turn: it may not be thrown straight back */
   takenDiscard: string | null;
   stock: Card[];
+  /** times the discard pile went back into the stock this hand (capped: a hand can't go on forever) */
+  reshuffles?: number;
   discard: Card[];
   hands: Record<string, Card[]>;
   melds: KonkanMeld[];
@@ -65,6 +69,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.hand += 1;
   s.phase = 'play';
   s.stock = freshDeck();
+  s.reshuffles = 0;
   const per = DEAL[s.active.length] ?? 7;
   s.hands = Object.fromEntries(s.seats.map((id) => [id, s.active.includes(id) ? s.stock.splice(0, per) : []]));
   s.discard = [s.stock.pop()!];
@@ -220,7 +225,14 @@ export const konkan: GameModule<State, KonkanSettings> = {
     switch (a.type) {
       case 'drawStock': {
         if (s.step !== 'draw') return;
+        if (!s.stock.length && (s.reshuffles ?? 0) >= MAX_RESHUFFLES) {
+          // nobody could go out after going through the cards three times: end the hand
+          s.feed.push('انتهت الأوراق ثلاث مرات — لا فائز في هذه اليد');
+          endHand(ctx, s, null);
+          return;
+        }
         if (!s.stock.length) {
+          s.reshuffles = (s.reshuffles ?? 0) + 1;
           const top = s.discard.pop();
           s.stock = shuffle(s.discard);
           s.discard = top ? [top] : [];
