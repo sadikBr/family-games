@@ -202,7 +202,7 @@ export function MaHandBreakdown({ v, h }: { v: BalootView; h: Helpers }) {
         ))}
       </Row>
       {line('نقاط الأكلات', (s) => num(r.abnat[s]))}
-      {line('منها ديكس دي دير', (s) => (r.ground === s ? num(MA_LAST) : '—'))}
+      {line('ديكس دي دير', (s) => (r.ground === s ? num(MA_LAST) : '—'))}
       {line('الأكلات', (s) => num(r.tricks[s]))}
       {line('الإعلانات', (s) => plus(r.projects[s]))}
       {r.baloot.A + r.baloot.B ? line('بلوط-ريبلوط', (s) => plus(r.baloot[s])) : null}

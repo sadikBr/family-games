@@ -433,7 +433,8 @@ export function ScoreSheet({ v, h, compact }: { v: BalootView; h: Helpers; compa
           {cols.map((s) => (
             <View key={s} style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
               <Txt style={{ fontFamily: F.black, fontSize: 16, lineHeight: 24, color: r[s] ? C.ink : alpha(C.ink, 0.35) }}>{num(r[s])}</Txt>
-              {r.tag && r[s] ? (
+              {/* Moroccan rules: the taker keeps its belote in a دخل, so the tag goes with the bigger score only */}
+              {r.tag && r[s] && (v.rules !== 'morocco' || r[s] >= r[s === 'A' ? 'B' : 'A']) ? (
                 <Txt style={{ fontFamily: F.bold, fontSize: 10, lineHeight: 16, color: C.red }}>{r.tag}</Txt>
               ) : null}
             </View>
