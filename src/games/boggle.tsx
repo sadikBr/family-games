@@ -20,6 +20,7 @@ import { LetterGrid } from './boggle-board';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const nameOf = (h: Helpers, view: BoggleView, id: string) => (h.players.some((p) => p.id === id) ? h.player(id).name : (view.names[id] ?? '؟'));
 
@@ -134,7 +135,6 @@ function Final({ room, view, h, width }: { room: RoomView; view: BoggleView; h: 
       <ResultBanner tone={won ? 'good' : 'neutral'} art={<BoggleArt size={64} />} title={title} sub={`${num(best)} نقطة — أحسنتم جميعاً`} />
       {ids.length > 1 ? <Podium players={room.players} scores={view.scores} /> : null}
       <Scoreboard players={room.players} scores={view.scores} highlight={h.me} />
-      <PlayAgain room={room} />
       {view.results ? (
         <>
           <Txt v="h3" center color={C.muted}>
@@ -143,11 +143,12 @@ function Final({ room, view, h, width }: { room: RoomView; view: BoggleView; h: 
           <RoundWords view={view} h={h} width={width} />
         </>
       ) : null}
+      <PlayAgain room={room} />
     </>
   );
 }
 
-function Play({ view, h, width }: { view: BoggleView; h: Helpers; width: number }) {
+function Play({ room, view, h, width }: { room: RoomView; view: BoggleView; h: Helpers; width: number }) {
   const [sel, setSel] = useState<{ round: number; path: number[] }>({ round: 0, path: [] });
   const [confirm, setConfirm] = useState(false);
   const path = sel.round === view.round ? sel.path : [];
@@ -205,7 +206,7 @@ function Play({ view, h, width }: { view: BoggleView; h: Helpers; width: number 
 
       {playing ? (
         <Row gap={8}>
-          <Btn flex size="md" icon="close" label="مسح" color={C.surfaceStrong} disabled={!path.length} onPress={() => setSel({ round: view.round, path: [] })} />
+          <Btn flex size="md" icon="close" label="مسح" ghost disabled={!path.length} onPress={() => setSel({ round: view.round, path: [] })} />
           <Btn flex size="md" icon="check" label="أرسل" color={C.green} disabled={path.length < 3} onPress={() => send(path)} />
         </Row>
       ) : null}
@@ -239,21 +240,7 @@ function Play({ view, h, width }: { view: BoggleView; h: Helpers; width: number 
       </Card>
 
       {view.others.length ? (
-        <Row gap={8} wrap center>
-          {view.others.map((o) => (
-            <View key={o.id} style={styles.other}>
-              <Avatar player={h.player(o.id)} size={24} badge={o.done ? 'check' : undefined} />
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 70 }}>
-                {nameOf(h, view, o.id)}
-              </Txt>
-              <View style={styles.count}>
-                <Txt v="tiny" color={C.ink}>
-                  {num(o.count)}
-                </Txt>
-              </View>
-            </View>
-          ))}
-        </Row>
+        <PlayerStrip room={room} entries={view.others.map((o) => ({ id: o.id, score: o.count, sub: o.done ? 'انتهى البحث ✓' : 'كلمات' }))} />
       ) : null}
 
       {playing ? <Btn size="sm" ghost icon="stop" label="انتهيت" onPress={() => setConfirm(true)} /> : null}
@@ -292,10 +279,10 @@ export function BoggleGame({ room, view }: { room: RoomView; view: BoggleView })
       />
       <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick={view.phase === 'play'} />
       {view.phase === 'play' ? (
-        <Play view={view} h={h} width={width} />
+        <Play room={room} view={view} h={h} width={width} />
       ) : (
         <Animated.View entering={FadeIn.duration(220)} style={{ gap: 12 }}>
-          <Txt v="title" center color={C.yellow}>
+          <Txt v="title" center>
             انتهى الوقت!
           </Txt>
           {h.isHost ? <Btn size="md" icon="next" label="الجولة التالية" color={C.yellow} onPress={() => h.act('next')} /> : null}
@@ -370,6 +357,4 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: C.yellow },
   strike: { textDecorationLine: 'line-through' },
   missed: { gap: 0, paddingVertical: 10, borderWidth: 1.5, borderColor: alpha(C.yellow, 0.5) },
-  other: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 6 },
-  count: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, backgroundColor: C.yellow },
 });

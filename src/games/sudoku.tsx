@@ -7,6 +7,7 @@ import { haptic } from '@/lib/sfx';
 import { useElapsed } from '@/lib/time';
 import type { RoomView, SudokuView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
@@ -34,6 +35,7 @@ const sameUnit = (a: number, b: number) => {
 export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
+  const accent = useAccent();
   const W = Math.min(width - 24, 440);
   const cell = W / 9;
   const [sel, setSel] = useState<number | null>(null);
@@ -77,7 +79,7 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
   return (
     <>
       <Row gap={8} style={{ justifyContent: 'space-between' }}>
-        <View style={styles.chip}>
+        <View style={[styles.chip, { backgroundColor: alpha(accent, 0.22) }]}>
           <Txt v="tiny">{LEVEL[view.level]}</Txt>
         </View>
         <Txt style={styles.clock}>{num(clock(mine ? mine.ms : elapsed))}</Txt>
@@ -86,7 +88,7 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
         </View>
       </Row>
 
-      <View style={[styles.grid, { width: W + 6, height: W + 6 }]}>
+      <View style={[styles.grid, { width: W + 6, height: W + 6, borderColor: accent }]}>
         {grid.map((v, i) => {
           const r = Math.floor(i / 9), c = i % 9;
           const given = !!view.givens[i];
@@ -183,16 +185,17 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
             const f = view.finished.find((x) => x.id === id);
             const ratio = view.empty ? view.progress[id] / view.empty : 1;
             return (
-              <Row key={id} gap={8} style={styles.racer}>
+              <Row key={id} gap={8} style={[styles.racer, id === h.me && { borderColor: alpha(h.player(id).color, 0.7) }]}>
                 <Avatar player={h.player(id)} size={24} badge={f && f.ms >= 0 ? 'check' : undefined} />
-                <Txt v="tiny" numberOfLines={1} style={{ width: 80 }}>
+                <Txt v="tiny" numberOfLines={1} style={{ width: 84 }}>
                   {h.player(id).name}
+                  {id === h.me ? ' (أنت)' : ''}
                 </Txt>
                 <View style={styles.track}>
                   <View style={[styles.fill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: f && f.ms >= 0 ? C.green : h.player(id).color }]} />
                 </View>
                 <Txt v="tiny" color={C.muted} style={{ minWidth: 40, textAlign: 'center' }}>
-                  {f ? (f.ms >= 0 ? num(clock(f.ms)) : 'انسحب') : `${num(Math.round(ratio * 100))}%`}
+                  {f ? (f.ms >= 0 ? num(clock(f.ms)) : 'انسحاب') : `${num(Math.round(ratio * 100))}%`}
                 </Txt>
               </Row>
             );
@@ -220,7 +223,7 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
 const styles = StyleSheet.create({
   chip: { backgroundColor: C.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 3 },
   clock: { fontFamily: F.black, fontSize: 20, lineHeight: 28, color: C.text },
-  grid: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 12, borderWidth: 3, borderColor: INK, overflow: 'hidden' },
+  grid: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 12, borderWidth: 3, overflow: 'hidden' },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   num: { fontFamily: F.black, textAlign: 'center' },
   note: { position: 'absolute', fontFamily: F.black, textAlign: 'center', color: '#6B7390' },
@@ -229,7 +232,7 @@ const styles = StyleSheet.create({
   key: { height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.surfaceStrong },
   keyNote: { borderWidth: 2, borderColor: C.yellow, borderStyle: 'dashed' },
   keyNum: { fontFamily: F.black, fontSize: 22, lineHeight: 28, color: C.text },
-  racer: { backgroundColor: C.surface, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 8 },
+  racer: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
   track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: C.bg3, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
 });

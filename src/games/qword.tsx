@@ -8,7 +8,7 @@ import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
-import { client, useClient } from '@/lib/client';
+import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import type { QwordSettings as Settings, QwordView } from '@/shared/games/qword';
 import type { RoomView, WordleMark } from '@/shared/protocol';
@@ -16,20 +16,28 @@ import { KEY_ROWS } from '@/shared/wordle';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Stepper, Toggle } from '@/ui/controls';
-import { Shake, TimerBar } from '@/ui/fun';
+import { TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { Spectator } from './common';
 import { helpers } from './helpers';
 import { McqFinal, RoundHeader } from './islamic-ui';
+import { useRefusedFlash } from './wordle-ui';
 
 const MARK_BG: Record<WordleMark, string> = { g: '#2FB67C', y: '#F2B33D', x: '#5B6080' };
 const RANK: Record<WordleMark, number> = { g: 3, y: 2, x: 1 };
 
-function Tile({ ch, mark, size, active }: { ch: string; mark?: WordleMark; size: number; active?: boolean }) {
+function Tile({ ch, mark, size, active, bad }: { ch: string; mark?: WordleMark; size: number; active?: boolean; bad?: boolean }) {
   return (
-    <View style={[styles.tile, { width: size, height: size }, mark ? { backgroundColor: MARK_BG[mark], borderColor: MARK_BG[mark] } : ch ? styles.tileFilled : null, active && !ch && styles.tileActive]}>
+    <View
+      style={[
+        styles.tile,
+        { width: size, height: size },
+        mark ? { backgroundColor: MARK_BG[mark], borderColor: MARK_BG[mark] } : ch ? styles.tileFilled : null,
+        active && !ch && styles.tileActive,
+        bad && styles.tileBad,
+      ]}>
       <Txt style={{ fontFamily: F.display, fontSize: size * 0.5, lineHeight: size * 0.75, color: mark ? '#FFFFFF' : C.text }}>{ch}</Txt>
     </View>
   );
@@ -40,7 +48,7 @@ export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
   const contentWidth = useContentWidth();
   const { height } = useWindowDimensions();
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
-  const { error } = useClient();
+  const refused = useRefusedFlash();
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="qword" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
 
@@ -105,17 +113,11 @@ export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
           const tiles = (
             <Row gap={6}>
               {Array.from({ length: view.length }, (_, i) => (
-                <Tile key={i} size={tile} ch={row ? [...row.guess][i] : current ? (letters[i] ?? '') : ''} mark={row?.marks[i]} active={current && i === letters.length} />
+                <Tile key={i} size={tile} ch={row ? [...row.guess][i] : current ? (letters[i] ?? '') : ''} mark={row?.marks[i]} active={current && i === letters.length} bad={current && refused} />
               ))}
             </Row>
           );
-          return current ? (
-            <Shake key={r} trigger={error?.id}>
-              {tiles}
-            </Shake>
-          ) : (
-            <View key={r}>{tiles}</View>
-          );
+          return <View key={r}>{tiles}</View>;
         })}
       </View>
 
@@ -129,7 +131,7 @@ export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
 
       {view.phase === 'reveal' ? (
         <Animated.View entering={FadeIn.duration(220)} style={{ gap: 8 }}>
-          <Txt v="title" center color={C.yellow}>
+          <Txt v="title" center>
             الكلمة: «{view.answer}»
           </Txt>
           {view.verse ? (
@@ -150,7 +152,7 @@ export function QwordGame({ room, view }: { room: RoomView; view: QwordView }) {
                       {h.player(r.id).name}
                     </Txt>
                     <Txt v="tiny" color={C.muted}>
-                      {r.tries === null ? 'لم يجدها' : `${num(r.tries)} محاولات`}
+                      {r.tries === null ? 'لم يُعثر عليها' : `${num(r.tries)} محاولات`}
                     </Txt>
                     <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 22, color: r.points ? C.green : C.dim, minWidth: 48, textAlign: 'center' }}>
                       {r.points ? `+${num(r.points)}` : '0'}
@@ -230,9 +232,10 @@ const styles = StyleSheet.create({
   tile: { alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 2, borderColor: C.borderStrong, backgroundColor: C.surface },
   tileFilled: { borderColor: alpha('#FFFFFF', 0.55) },
   tileActive: { borderColor: C.yellow },
+  tileBad: { borderColor: C.red, backgroundColor: alpha(C.red, 0.18) },
   keyboard: { gap: 5, backgroundColor: C.bg3, borderRadius: 16, padding: 6 },
   key: { height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
-  other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 12, padding: 6 },
+  other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 14, padding: 6, borderWidth: 1.5, borderColor: C.border },
   result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
   mini: { width: 9, height: 9, borderRadius: 2, backgroundColor: C.surfaceStrong },
   verseCard: { backgroundColor: '#0F4D3A', borderRadius: 18, padding: 12, gap: 4, borderWidth: 2, borderColor: alpha('#F4C02E', 0.5) },

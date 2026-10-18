@@ -5,14 +5,29 @@ import { GameArt } from '@/art/game-art';
 import { RANKS, rankIndex, type Card } from '@/shared/cards';
 import type { RondaView, RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
-import { Card as Panel, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
-import { Txt, num } from '@/ui/txt';
+import { num } from '@/ui/txt';
 
-import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
+import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { AnnounceBanner, CardRow, DOUBLE_TAP_MS, FeedList, Felt, FeltFeed, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
+import {
+  AnnounceBanner,
+  CardRow,
+  DOUBLE_TAP_MS,
+  FeedList,
+  Felt,
+  HandRows,
+  LastPlay,
+  SidesResult,
+  TableStrip,
+  TurnLine,
+  cardsWord,
+  sideLabel,
+  sideScore,
+  stripOrder,
+  tapClock,
+} from './card-ui';
 
 /** Cards a play would take: the match + the following sequence. */
 function preview(table: Card[], card: Card): string[] {
@@ -48,7 +63,17 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
       setSelAt(now);
     } else if (now - selAt >= DOUBLE_TAP_MS) play(id);
   };
-  const strip = <ScoreStrip sides={view.sides} scores={view.scores} h={h} target={view.target} />;
+  const order = stripOrder(view.sides, view.participants, h.me);
+  const score = (id: string) => sideScore(view.sides, view.scores, id);
+  const summary = view.handSummary ? (
+    <HandRows
+      title={`اليد ${num(view.hand)} — كل ورقة فوق ${num(view.base)} = نقطة`}
+      rows={view.handSummary.map((r) => {
+        const side = view.sides.find((x) => x.key === r.side)!;
+        return { key: r.side, players: side.members.map((m) => h.player(m)), name: sideLabel(side, h), detail: cardsWord(r.cards), points: num(`+${r.points}`), tone: r.points ? 'good' : 'dim' };
+      })}
+    />
+  ) : null;
 
   if (view.phase === 'final') {
     const won = view.winner === mySide;
@@ -61,12 +86,8 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
           art={<GameArt id="ronda" size={72} />}
           title={winnerSide ? `فاز ${sideLabel(winnerSide, h)}` : 'انتهت اللعبة'}
         />
-        {strip}
-        {view.lastPlay ? (
-          <Felt minHeight={0}>
-            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
-          </Felt>
-        ) : null}
+        <SidesResult sides={view.sides} scores={view.scores} h={h} winner={view.winner} />
+        {summary}
         <PlayAgain room={room} />
       </>
     );
@@ -75,55 +96,34 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   if (view.phase === 'handEnd') {
     return (
       <>
-        <Txt v="display" center>
-          نهاية اليد {view.hand}
-        </Txt>
-        <Panel>
-          <Txt v="small" color={C.muted}>
-            كل ورقة فوق {num(view.base)} = نقطة
-          </Txt>
-          {view.handSummary?.map((r) => (
-            <Row key={r.side} gap={8}>
-              <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                {sideLabel(view.sides.find((x) => x.key === r.side)!, h)}
-              </Txt>
-              <Txt color={C.muted}>{r.cards} ورقة</Txt>
-              <Txt v="h3" color={r.points ? C.green : C.dim}>
-                +{r.points}
-              </Txt>
-            </Row>
-          ))}
-        </Panel>
-        {strip}
-        {view.lastPlay ? (
-          <Felt minHeight={0}>
-            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
-          </Felt>
-        ) : null}
+        <PhaseTitle art={<GameArt id="ronda" size={60} />} title={`نهاية اليد ${num(view.hand)}`} />
+        {summary}
+        <TableStrip room={room} ids={order} turn={null} score={score} note={`الهدف ${num(view.target)} نقطة`} />
         <FeedList feed={view.feed} h={h} />
         {h.isHost ? <Btn size="xl" icon="cards" label="اليد التالية" onPress={() => h.act('next')} /> : <HostNote>المضيف يوزّع اليد التالية</HostNote>}
       </>
     );
   }
 
-  const others = view.participants.filter((id) => id !== h.me);
   // the card the last player dropped stays ringed in their colour until the next play
   const lp = view.lastPlay;
   const rings = lp && !lp.took.length && view.table.some((c) => c.id === lp.card.id) ? { [lp.card.id]: h.player(lp.by).color } : undefined;
   return (
     <>
-      {strip}
-      <Seats seats={others} turn={view.turn} counts={view.handCounts} h={h} />
+      <TableStrip
+        room={room}
+        ids={order}
+        turn={view.turn}
+        score={score}
+        sub={(id) => cardsWord(view.handCounts[id] ?? 0)}
+        note={`الهدف ${num(view.target)} · اليد ${num(view.hand)} · في الكومة ${num(view.deckLeft)}`}
+      />
       <Felt active={myTurn}>
         <CardRow cards={view.table} size="sm" glow={glow} rings={rings} empty="الطاولة فارغة" />
         <LastPlay play={view.lastPlay} h={h} />
-        <FeltFeed feed={view.feed} h={h} />
         <AnnounceBanner announce={view.announce} h={h} />
       </Felt>
-      <Txt v="tiny" center color={C.dim}>
-        اليد {view.hand} · في الكومة {view.deckLeft}
-      </Txt>
-      <TurnLine myTurn={myTurn} text="دورك — اختر ورقة" />
+      <TurnLine myTurn={myTurn} text="اختر ورقة من يدك" />
       <View style={{ gap: 10, paddingTop: 6 }}>
         <CardRow
           cards={view.myHand}

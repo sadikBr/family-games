@@ -10,6 +10,7 @@ import { P10_HAND_END_MS, phaseLabel, reqLabel, type P10Card, type P10Group, typ
 import { arrangeGroup, canHit, fitsExactly, groupOk, isSkip, phaseReqs, solvePhase, sortP10 } from '@/shared/phase10-rules';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card as Panel, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Toggle } from '@/ui/controls';
@@ -17,7 +18,7 @@ import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-import { AnnounceBanner, FeltFeed, TurnLine } from './cards/card-ui';
+import { AnnounceBanner, Felt, TableStrip, TurnLine } from './cards/card-ui';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { P10CardView } from './phase10-card';
@@ -30,54 +31,13 @@ const phaseOf = (view: Phase10View, id: string): number | null => view.phases[vi
 /** «المرحلة 3» (and «2 من 5» in a short game). */
 function phaseTag(view: Phase10View, id: string): string {
   const p = phaseOf(view, id);
-  if (p === null) return 'أنهى المراحل';
+  if (p === null) return 'المراحل مكتملة';
   return `المرحلة ${num(p)}`;
 }
 
 /* ------------------------------------------------------------------ */
 /* Players                                                             */
 /* ------------------------------------------------------------------ */
-
-function Players({ view, h, width }: { view: Phase10View; h: Helpers; width: number }) {
-  const chipW = Math.floor((width - 8) / 2);
-  return (
-    <Row wrap gap={8}>
-      {view.participants
-        .filter((id) => view.active.includes(id))
-        .map((id) => {
-          const p = h.player(id);
-          const active = view.phase === 'play' && view.turn === id;
-          const laid = view.laid.includes(id);
-          const skipped = view.skipped.includes(id);
-          const fg = active ? C.ink : C.text;
-          return (
-            <View key={id} style={[styles.chip, { width: chipW }, active && styles.chipActive, id === h.me && !active && styles.chipMe]}>
-              <Avatar player={p} size={30} badge={laid ? 'check' : undefined} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Txt v="tiny" numberOfLines={1} color={fg}>
-                  {id === h.me ? 'أنت' : p.name}
-                </Txt>
-                <Txt v="tiny" numberOfLines={1} color={active ? alpha(C.ink, 0.75) : laid ? C.green : C.muted}>
-                  {phaseTag(view, id)}
-                  {laid ? ' ✓' : ''}
-                </Txt>
-              </View>
-              {skipped ? (
-                <View style={styles.skipTag} accessibilityLabel="سيفقد دوره">
-                  <Icon name="skip" size={13} color="#fff" />
-                </View>
-              ) : null}
-              <View style={[styles.count, active && { backgroundColor: alpha(C.ink, 0.2) }]}>
-                <Txt v="tiny" color={fg} style={{ fontFamily: F.black }}>
-                  {num(view.counts[id] ?? 0)}
-                </Txt>
-              </View>
-            </View>
-          );
-        })}
-    </Row>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Table                                                               */
@@ -135,7 +95,7 @@ function SkipPicker({ view, h, onPick, onCancel }: { view: Phase10View; h: Helpe
                   {h.player(id).name}
                 </Txt>
                 <Txt v="tiny" color={C.muted}>
-                  {phaseTag(view, id)} · {num(view.counts[id] ?? 0)} أوراق{view.laid.includes(id) ? ' · وضع مرحلته' : ''}
+                  {phaseTag(view, id)} · {num(view.counts[id] ?? 0)} أوراق{view.laid.includes(id) ? ' · المرحلة على الطاولة' : ''}
                 </Txt>
               </View>
               <Icon name="skip" size={22} color={C.yellow} />
@@ -172,7 +132,7 @@ function Standings({ view, h }: { view: Phase10View; h: Helpers }) {
               {h.player(id).name}
             </Txt>
             <Txt v="tiny" color={C.muted}>
-              {phaseOf(view, id) === null ? 'أكمل كل المراحل' : `التالي: ${phaseTag(view, id)}`}
+              {phaseOf(view, id) === null ? 'كل المراحل مكتملة' : `التالي: ${phaseTag(view, id)}`}
             </Txt>
           </View>
           <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 26 }}>{num(view.scores[id] ?? 0)}</Txt>
@@ -193,7 +153,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
       ? `فاز ${h.player(view.winner).name}`
       : 'انتهت اللعبة'
     : view.handWinner
-      ? `${h.player(view.handWinner).name} أنهى أوراقه`
+      ? `نفدت أوراق ${h.player(view.handWinner).name}`
       : 'انتهت الأوراق';
   const mine = view.handSummary?.find((r) => r.id === h.me);
   const sub = final
@@ -226,12 +186,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
         title={title}
         sub={sub}
       />
-      {final ? (
-        <>
-          <Standings view={view} h={h} />
-          <PlayAgain room={room} />
-        </>
-      ) : null}
+      {final ? <Standings view={view} h={h} /> : null}
       {view.handSummary ? (
         <Panel>
           <Txt v="small" color={C.muted}>
@@ -246,7 +201,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
                     {h.player(r.id).name}
                   </Txt>
                   <Txt v="tiny" color={r.done ? C.green : C.muted}>
-                    {r.done ? `أكمل المرحلة ${num(r.phase)} ✓` : `يعيد المرحلة ${num(r.phase)}`}
+                    {r.done ? `المرحلة ${num(r.phase)} مكتملة ✓` : `إعادة المرحلة ${num(r.phase)}`}
                   </Txt>
                 </View>
                 <Txt v="h3" color={r.points ? C.red : C.green}>
@@ -264,6 +219,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
           ))}
         </Panel>
       ) : null}
+      {final ? <PlayAgain room={room} /> : null}
       {final ? null : (
         <View style={{ gap: 10 }}>
           <Standings view={view} h={h} />
@@ -282,6 +238,7 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
 export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View }) {
   const h = helpers(room);
   const width = useContentWidth();
+  const accent = useAccent();
   const [sortBy, setSortBy] = useState<'number' | 'color'>('number');
   // selections and the staged phase belong to one hand (card ids come back in the next deal)
   const [picked, setPicked] = useState<{ hand: number; ids: string[] }>({ hand: 0, ids: [] });
@@ -371,10 +328,16 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
 
   return (
     <>
-      <Players view={view} h={h} width={width} />
+      <TableStrip
+        room={room}
+        ids={view.participants.filter((id) => view.active.includes(id))}
+        turn={view.turn}
+        score={(id) => view.counts[id] ?? 0}
+        sub={(id) => `${phaseTag(view, id)}${view.laid.includes(id) ? ' ✓' : ''}${view.skipped.includes(id) ? ' · تخطَّ' : ''}`}
+      />
 
-      {/* the table: piles, last event, groups laid down */}
-      <View style={[styles.table, myTurn && { borderColor: alpha(C.yellow, 0.7) }]}>
+      {/* the table: piles, groups laid down */}
+      <Felt active={myTurn} minHeight={0}>
         <Row center gap={18}>
           <Pressable
             disabled={!drawing}
@@ -410,7 +373,6 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
             </Txt>
           </Pressable>
         </Row>
-        <FeltFeed feed={view.feed} h={h} />
         {owners.map((o) => (
           <View key={o} style={styles.owner}>
             <View style={{ alignItems: 'center', width: 34 }} accessibilityLabel={`${h.player(o).name} — ${phaseTag(view, o)}`}>
@@ -444,10 +406,10 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
           </Txt>
         ) : null}
         <AnnounceBanner
-          announce={skip ? { id: skip.id, by: skip.target, text: skip.target === h.me ? 'أنت تفقد دورك!' : `${h.player(skip.target).name} يفقد دوره!` } : null}
+          announce={skip ? { id: skip.id, by: skip.target, text: skip.target === h.me ? 'أنت تفقد دورك!' : `«تخطَّ» لـ${h.player(skip.target).name}!` } : null}
           h={h}
         />
-      </View>
+      </Felt>
 
       <TurnLine
         myTurn={myTurn}
@@ -463,8 +425,8 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
       {myPhase !== null && !laid ? (
         <Panel style={{ gap: 8 }}>
           <Row gap={8}>
-            <View style={styles.phaseNum}>
-              <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 24, color: C.ink }}>{num(myPhase)}</Txt>
+            <View style={[styles.phaseNum, { backgroundColor: accent }]}>
+              <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 24, color: '#FFFFFF' }}>{num(myPhase)}</Txt>
             </View>
             <View style={{ flex: 1 }}>
               <Txt v="tiny" color={C.muted}>
@@ -523,7 +485,7 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
               size="md"
               icon="sparkle"
               label="مرحلتك في يدك! جهّزها لي"
-              color={C.cyan}
+              ghost
               onPress={() => {
                 setStaged({ hand: view.hand, slots: suggestion.map((g) => g.map((c) => c.id)) });
                 setSel([]);
@@ -577,7 +539,6 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
               size="md"
               icon="trash"
               label={selCards.length === 1 && isSkip(selCards[0]) ? 'ارمِ «تخطَّ»' : 'ارمِ الورقة'}
-              color={C.orange}
               disabled={sel.length !== 1}
               onPress={() => discard()}
             />
@@ -616,29 +577,6 @@ export function Phase10Settings({ room, editable }: { room: RoomView; editable: 
 }
 
 const styles = StyleSheet.create({
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingStart: 4,
-    paddingEnd: 6,
-    borderRadius: 16,
-    backgroundColor: C.surface,
-    minHeight: 44,
-  },
-  chipActive: { backgroundColor: C.yellow },
-  chipMe: { borderWidth: 1, borderColor: alpha(C.yellow, 0.5) },
-  count: { minWidth: 26, height: 30, borderRadius: 6, backgroundColor: C.surfaceStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  skipTag: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
-  table: {
-    backgroundColor: C.felt,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: C.feltDark,
-    padding: 10,
-    gap: 10,
-  },
   pile: { alignItems: 'center', gap: 2, padding: 4, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   pileActive: { borderColor: C.yellow, backgroundColor: alpha(C.yellow, 0.12) },
   thrower: { position: 'absolute', top: -9, right: -9 },
@@ -646,7 +584,7 @@ const styles = StyleSheet.create({
   group: { padding: 4, borderRadius: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.14)', maxWidth: '100%' },
   addBadge: { position: 'absolute', top: -9, alignSelf: 'center', backgroundColor: C.yellow, borderRadius: 999, paddingHorizontal: 6 },
   groupFits: { borderColor: C.yellow, backgroundColor: alpha(C.yellow, 0.15) },
-  phaseNum: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center' },
+  phaseNum: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   slot: { gap: 4, padding: 8, borderRadius: 14, borderWidth: 2, borderStyle: 'dashed', borderColor: C.borderStrong, minHeight: 48, flexBasis: '100%', flexGrow: 1 },
   slotHalf: { flexBasis: '40%' },
   slotOk: { borderStyle: 'solid', borderColor: C.green, backgroundColor: alpha(C.green, 0.1) },

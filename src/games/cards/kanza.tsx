@@ -5,14 +5,14 @@ import { GameArt } from '@/art/game-art';
 import type { Card } from '@/shared/cards';
 import type { KanzaView, RoomView } from '@/shared/protocol';
 import { C, F } from '@/theme';
-import { Card as Panel, Row } from '@/ui/bits';
+import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
-import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
+import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, Felt, FeedList, FeltFeed, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
+import { CardRow, Felt, FeedList, HandRows, LastPlay, SidesResult, TableStrip, TurnLine, cardsWord, sideLabel, sideScore, stripOrder } from './card-ui';
 
 const TARGET = 15;
 
@@ -45,7 +45,8 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
   const total = (selected?.rank ?? 0) + takeCards.reduce((t, c) => t + c.rank, 0);
   const canTake = !!selected && takeCards.length > 0 && total === TARGET;
   const glow = selected ? usable(view.table, selected).filter((id) => !take.includes(id)) : [];
-  const strip = <ScoreStrip sides={view.sides} scores={view.scores} h={h} />;
+  const order = stripOrder(view.sides, view.participants, h.me);
+  const score = (id: string) => sideScore(view.sides, view.scores, id);
 
   const submit = (withTake: boolean) => {
     if (!selected) return;
@@ -64,36 +65,28 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
         {final ? (
           <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="kanza" size={72} />} title={winnerSide ? `فاز ${sideLabel(winnerSide, h)}` : 'تعادل'} />
         ) : (
-          <Txt v="display" center>
-            نهاية اليد {view.hand}
-          </Txt>
+          <PhaseTitle art={<GameArt id="kanza" size={60} />} title={`نهاية اليد ${num(view.hand)} من ${num(view.totalHands)}`} />
         )}
-        <Panel>
-          <Txt v="small" color={C.muted}>
-            كل ورقة = 1 · الذهب = رقمه · 1 ذهب = 20
-          </Txt>
-          {view.handSummary?.map((r) => (
-            <View key={r.side} style={{ gap: 6 }}>
-              <Row gap={8}>
-                <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                  {sideLabel(view.sides.find((x) => x.key === r.side)!, h)}
-                </Txt>
-                <Txt color={C.muted}>{r.cards} ورقة</Txt>
-                <Txt v="h3" color={C.yellow}>
-                  +{r.points}
-                </Txt>
-              </Row>
-              {r.golds.length ? <CardRow cards={r.golds} size="xs" gap={3} /> : null}
-            </View>
-          ))}
-        </Panel>
-        {strip}
-        {view.lastPlay ? (
-          <Felt minHeight={0}>
-            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
-          </Felt>
+        {final ? <SidesResult sides={view.sides} scores={view.scores} h={h} winner={view.winner} /> : null}
+        {view.handSummary ? (
+          <HandRows
+            title={`اليد ${num(view.hand)} — كل ورقة = 1 · الذهب = رقمه · 1 ذهب = 20`}
+            rows={view.handSummary.map((r) => {
+              const side = view.sides.find((x) => x.key === r.side)!;
+              return {
+                key: r.side,
+                players: side.members.map((m) => h.player(m)),
+                name: sideLabel(side, h),
+                detail: cardsWord(r.cards),
+                points: num(`+${r.points}`),
+                tone: r.points ? 'good' : 'dim',
+                extra: r.golds.length ? <CardRow cards={r.golds} size="xs" gap={3} /> : undefined,
+              };
+            })}
+          />
         ) : null}
-        <FeedList feed={view.feed} h={h} />
+        {final ? null : <TableStrip room={room} ids={order} turn={null} score={score} />}
+        {final ? null : <FeedList feed={view.feed} h={h} />}
         {final ? (
           <PlayAgain room={room} />
         ) : h.isHost ? (
@@ -105,14 +98,19 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
     );
   }
 
-  const others = view.participants.filter((id) => id !== h.me);
   // the card the last player dropped stays ringed in their colour until the next play
   const lp = view.lastPlay;
   const rings = lp && !lp.took.length && view.table.some((c) => c.id === lp.card.id) ? { [lp.card.id]: h.player(lp.by).color } : undefined;
   return (
     <>
-      {strip}
-      <Seats seats={others} turn={view.turn} counts={view.handCounts} h={h} />
+      <TableStrip
+        room={room}
+        ids={order}
+        turn={view.turn}
+        score={score}
+        sub={(id) => cardsWord(view.handCounts[id] ?? 0)}
+        note={`اليد ${num(view.hand)} من ${num(view.totalHands)} · في الكومة ${num(view.deckLeft)}`}
+      />
       <Felt active={myTurn}>
         <CardRow
           cards={view.table}
@@ -128,22 +126,18 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           }
         />
         <LastPlay play={view.lastPlay} h={h} />
-        <FeltFeed feed={view.feed} h={h} />
       </Felt>
-      <Txt v="tiny" center color={C.dim}>
-        اليد {view.hand} من {view.totalHands} · في الكومة {view.deckLeft}
-      </Txt>
       {myTurn && selected ? (
         <View style={{ alignItems: 'center', gap: 2 }}>
           <Txt style={{ fontFamily: F.black, fontSize: 22, lineHeight: 32, color: total === TARGET ? C.green : total > TARGET ? C.red : C.text, writingDirection: 'ltr' }}>
-            {[selected, ...takeCards].map((c) => c.rank).join(' + ')} = {total}
+            {num(`${[selected, ...takeCards].map((c) => c.rank).join(' + ')} = ${total}`)}
           </Txt>
           <Txt v="small" color={C.muted}>
             اختر من الطاولة ورقة أو ورقتين ليصبح المجموع 15
           </Txt>
         </View>
       ) : (
-        <TurnLine myTurn={myTurn} text="دورك — اختر ورقة" />
+        <TurnLine myTurn={myTurn} text="اختر ورقة من يدك" />
       )}
       <View style={{ gap: 10, paddingTop: 6 }}>
         <CardRow

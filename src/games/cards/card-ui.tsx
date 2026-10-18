@@ -6,13 +6,16 @@ import { Icon } from '@/art/icons';
 import { SpanishCard } from '@/art/spanish-card';
 import { haptic } from '@/lib/sfx';
 import { SUIT_INFO, type Card } from '@/shared/cards';
-import type { CardSide, FeedItem } from '@/shared/protocol';
+import type { CardSide, FeedItem, PlayerPublic, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
+import { useAccent } from '@/ui/accent';
+import { Avatar, Card as Panel, Row } from '@/ui/bits';
+import { Podium } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from '../helpers';
+import { PlayerStrip, type StripEntry } from '../player-strip';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 const WIDTH: Record<Size, number> = { xs: 30, sm: 46, md: 58, lg: 68 };
@@ -125,94 +128,137 @@ export function CardRow({
 /** «ورقة» / «ورقتان» / «3 أوراق» / «11 ورقة» */
 export const cardsWord = (k: number) => (k === 1 ? 'ورقة' : k === 2 ? 'ورقتان' : k <= 10 ? `${num(k)} أوراق` : `${num(k)} ورقة`);
 
-/** The green table. */
-export function Felt({ children, minHeight = 130, active }: { children: ReactNode; minHeight?: number; active?: boolean }) {
-  return <View style={[styles.felt, { minHeight }, active && { borderColor: alpha(C.yellow, 0.7) }]}>{children}</View>;
-}
-
-export function sideLabel(side: CardSide, h: Helpers): string {
-  return side.members.map((m) => h.player(m).name).join(' و ');
-}
-
-/** One compact line of scores. */
-export function ScoreStrip({
-  sides,
-  scores,
-  h,
-  target,
-  lowIsBetter,
-}: {
-  sides: CardSide[];
-  scores: Record<string, number>;
-  h: Helpers;
-  target?: number;
-  lowIsBetter?: boolean;
-}) {
-  const mine = sides.find((x) => x.members.includes(h.me))?.key;
-  const values = sides.map((x) => scores[x.key] ?? 0);
-  const best = lowIsBetter ? Math.min(...values) : Math.max(...values);
+/**
+ * The green table, framed in the game's own colour; the frame turns saffron while it's my turn.
+ * `bg` replaces the felt (UNO FLIP's dark side).
+ */
+export function Felt({ children, minHeight = 130, active, bg }: { children: ReactNode; minHeight?: number; active?: boolean; bg?: string }) {
+  const accent = useAccent();
   return (
-    <View style={styles.strip}>
-      {sides.map((x) => {
-        const v = scores[x.key] ?? 0;
-        const lead = v === best && v !== 0;
-        return (
-          <View key={x.key} style={[styles.stripItem, x.key === mine && styles.stripMine]}>
-            <Row gap={-8}>
-              {x.members.map((m) => (
-                <Avatar key={m} player={h.player(m)} size={22} />
-              ))}
-            </Row>
-            <Txt style={{ fontFamily: F.black, fontSize: 16, lineHeight: 22, color: lead ? C.yellow : C.text }}>{num(v)}</Txt>
-          </View>
-        );
-      })}
-      {target ? (
-        <Txt v="tiny" color={C.dim}>
-          الهدف {target}
+    <View style={[styles.felt, { minHeight, borderColor: alpha(accent, 0.6) }, bg ? { backgroundColor: bg } : null, active && { borderColor: alpha(C.yellow, 0.85) }]}>
+      {children}
+    </View>
+  );
+}
+
+/**
+ * The players around the table as one strip of chips (the house PlayerStrip): whose turn it is is
+ * framed in their colour. Team games list the players team by team, so partners sit side by side and
+ * share their team's score. `note` is one small line under the strip (the target…).
+ */
+export function TableStrip({
+  room,
+  ids,
+  turn,
+  score,
+  sub,
+  out = [],
+  note,
+}: {
+  room: RoomView;
+  ids: string[];
+  turn: string | null;
+  score?: (id: string) => number | string | undefined;
+  sub?: (id: string) => string | undefined;
+  out?: string[];
+  note?: string;
+}) {
+  const entries: StripEntry[] = ids.map((id) => ({ id, score: score?.(id), sub: sub?.(id), out: out.includes(id) }));
+  return (
+    <View style={{ gap: 4 }}>
+      <PlayerStrip room={room} entries={entries} active={turn ? [turn] : []} />
+      {note ? (
+        <Txt v="tiny" center color={C.dim}>
+          {note}
         </Txt>
       ) : null}
     </View>
   );
 }
 
-/** Opponents / partner around the table: avatar, name, card count; the active one is highlighted. */
-export function Seats({
-  seats,
-  turn,
-  counts,
-  h,
-  out = [],
-  label,
-}: {
-  seats: string[];
-  turn: string | null;
-  counts: Record<string, number>;
-  h: Helpers;
-  out?: string[];
-  label?: (id: string) => string | null;
-}) {
+/** Seat order for a strip: team by team (my team first), or the table order when everyone plays alone. */
+export function stripOrder(sides: CardSide[], participants: string[], me: string): string[] {
+  if (sides.every((x) => x.members.length === 1)) return participants;
+  const mine = sides.find((x) => x.members.includes(me));
+  const rest = sides.filter((x) => x !== mine);
+  return [...(mine ? [mine] : []), ...rest].flatMap((x) => (mine === x ? [me, ...x.members.filter((m) => m !== me)] : x.members));
+}
+
+/**
+ * The final standings of the sides: a podium when everyone played alone, the teams' totals otherwise
+ * (the winning team framed in green).
+ */
+export function SidesResult({ sides, scores, h, winner, lowIsBetter }: { sides: CardSide[]; scores: Record<string, number>; h: Helpers; winner: string | null; lowIsBetter?: boolean }) {
+  if (sides.every((x) => x.members.length === 1)) {
+    const players = sides.map((x) => h.player(x.members[0]));
+    return <Podium players={players} scores={Object.fromEntries(sides.map((x) => [x.members[0], scores[x.key] ?? 0]))} lowIsBetter={lowIsBetter} />;
+  }
+  const sorted = [...sides].sort((a, b) => (lowIsBetter ? -1 : 1) * ((scores[b.key] ?? 0) - (scores[a.key] ?? 0)));
   return (
-    <Row gap={8} center wrap>
-      {seats.map((id) => {
-        const p = h.player(id);
-        const active = id === turn;
+    <View style={{ gap: 8 }}>
+      {sorted.map((x) => {
+        const won = x.key === winner;
         return (
-          <View key={id} style={[styles.seat, active && styles.seatActive, out.includes(id) && { opacity: 0.35 }]}>
-            <Avatar player={p} size={30} />
-            <View>
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 72 }} color={active ? C.ink : C.text}>
-                {p.name}
-              </Txt>
-              <Txt v="tiny" color={active ? alpha(C.ink, 0.7) : C.dim}>
-                {label?.(id) ?? `${counts[id] ?? 0} أوراق`}
-              </Txt>
-            </View>
+          <View key={x.key} style={[styles.teamRow, won && { borderColor: C.green, backgroundColor: alpha(C.green, 0.14) }]}>
+            <Row gap={-10}>
+              {x.members.map((m) => (
+                <Avatar key={m} player={h.player(m)} size={34} crown={won} />
+              ))}
+            </Row>
+            <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
+              {sideLabel(x, h)}
+              {x.members.includes(h.me) ? ' (أنت)' : ''}
+            </Txt>
+            <Txt style={{ fontFamily: F.black, fontSize: 22, lineHeight: 30, color: won ? C.green : C.text }}>{num(scores[x.key] ?? 0)}</Txt>
           </View>
         );
       })}
-    </Row>
+    </View>
   );
+}
+
+/** The score of the side a player belongs to. */
+export const sideScore = (sides: CardSide[], scores: Record<string, number>, id: string) => scores[sides.find((x) => x.members.includes(id))?.key ?? ''] ?? 0;
+
+/** A hand's results as rows: who, a detail (cards, tricks…), the points; `extra` goes under the row. */
+export function HandRows({ rows, title }: { rows: { key: string; players: PlayerPublic[]; name: string; detail?: string; points: string; tone: 'good' | 'bad' | 'plain' | 'dim'; extra?: ReactNode }[]; title?: string }) {
+  return (
+    <Panel style={{ gap: 10 }}>
+      {title ? (
+        <Txt v="small" color={C.muted}>
+          {title}
+        </Txt>
+      ) : null}
+      {rows.map((r) => (
+        <View key={r.key} style={{ gap: 4 }}>
+          <Row gap={8}>
+            <Row gap={-8}>
+              {r.players.map((p) => (
+                <Avatar key={p.id} player={p} size={26} />
+              ))}
+            </Row>
+            <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
+              {r.name}
+            </Txt>
+            {r.detail ? (
+              <Txt v="small" color={C.muted}>
+                {r.detail}
+              </Txt>
+            ) : null}
+            <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 26, minWidth: 40, textAlign: 'center', color: r.tone === 'good' ? C.green : r.tone === 'bad' ? C.red : r.tone === 'dim' ? C.dim : C.text }}>
+              {r.points}
+            </Txt>
+          </Row>
+          {r.extra}
+        </View>
+      ))}
+    </Panel>
+  );
+}
+
+
+export function sideLabel(side: CardSide, h: Helpers): string {
+  return side.members.map((m) => h.player(m).name).join(' و ');
 }
 
 /**
@@ -290,32 +336,6 @@ export function LastPlay({ play, h, title }: { play: { by: string; card: Card; t
   );
 }
 
-/** The last few lines of the game's log on the felt, newest at the bottom (older ones dimmer). */
-export function FeltFeed({ feed, h, max = 2 }: { feed: FeedItem[]; h: Helpers; max?: number }) {
-  const items = feed.slice(-max);
-  if (!items.length) return null;
-  return (
-    <View style={{ gap: 2, alignItems: 'center' }}>
-      {items.map((f, i) => {
-        const latest = i === items.length - 1;
-        return (
-          <Animated.View key={f.id} entering={latest ? FadeIn.duration(180) : undefined} style={[styles.feedLine, !latest && { opacity: 0.6 }]}>
-            {f.by ? <Avatar player={h.player(f.by)} size={16} /> : null}
-            <Txt v="tiny" numberOfLines={1} color="#FFFFFF" style={{ flexShrink: 1 }}>
-              {f.text}
-            </Txt>
-            {f.points && f.text !== `+${f.points}` ? (
-              <Txt v="tiny" color={C.yellow}>
-                +{f.points}
-              </Txt>
-            ) : null}
-          </Animated.View>
-        );
-      })}
-    </View>
-  );
-}
-
 /**
  * Tap again on the selected card to play it — but a second tap this soon after selecting
  * is an accidental double tap and is ignored.
@@ -381,6 +401,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  teamRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface },
   felt: {
     backgroundColor: C.felt,
     borderRadius: 22,
@@ -390,28 +411,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: C.feltDark,
   },
-  strip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' },
-  stripItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: C.surface,
-  },
-  stripMine: { borderWidth: 1, borderColor: alpha(C.yellow, 0.6) },
-  seat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingStart: 4,
-    paddingEnd: 10,
-    borderRadius: 999,
-    backgroundColor: C.surface,
-  },
-  seatActive: { backgroundColor: C.yellow },
   lastPlay: {
     gap: 4,
     alignSelf: 'center',
@@ -423,7 +422,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     maxWidth: '100%',
   },
-  feedLine: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%' },
   announceWrap: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'flex-start', padding: 8, zIndex: 20 },
   announce: {
     flexDirection: 'row',

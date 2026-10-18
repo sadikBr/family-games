@@ -6,13 +6,15 @@ import { AvatarArt } from '@/art/avatars';
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
 import type { GameId, MemoryView, RoomView } from '@/shared/protocol';
-import { C, alpha } from '@/theme';
-import { Avatar, Row } from '@/ui/bits';
-import { Confetti, Podium } from '@/ui/fun';
-import { Txt, num } from '@/ui/txt';
+import { C, shade } from '@/theme';
+import { useAccent } from '@/ui/accent';
+import { Avatar } from '@/ui/bits';
+import { Confetti, Podium, Scoreboard } from '@/ui/fun';
+import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 
 const INK = '#151726';
 const COLS: Record<number, number> = { 16: 4, 20: 4, 24: 4, 30: 5 };
@@ -25,6 +27,7 @@ function Face({ face, size }: { face: string; size: number }) {
 export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
+  const accent = useAccent();
   const cols = COLS[view.size] ?? 5;
   const rows = Math.ceil(view.size / cols);
   const W = Math.min(width - 24, 460);
@@ -47,28 +50,11 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
             sub="ذاكرة من حديد!"
           />
           <Podium players={room.players} scores={view.pairs} />
+          {view.order.length > 3 ? <Scoreboard players={room.players} scores={view.pairs} unit="زوج" highlight={h.me} /> : null}
         </>
-      ) : null}
-
-      <Row gap={8} wrap center>
-        {view.order.map((id) => {
-          const on = view.phase === 'play' && view.turn === id;
-          const p = h.player(id);
-          return (
-            <View key={id} style={[styles.player, on && { borderColor: p.color, backgroundColor: alpha(p.color, 0.2) }]}>
-              <Avatar player={p} size={26} />
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 70 }}>
-                {p.name}
-              </Txt>
-              <View style={[styles.count, { backgroundColor: p.color }]}>
-                <Txt v="tiny" color="#FFFFFF">
-                  {num(view.pairs[id] ?? 0)}
-                </Txt>
-              </View>
-            </View>
-          );
-        })}
-      </Row>
+      ) : (
+        <PlayerStrip room={room} entries={view.order.map((id) => ({ id, score: view.pairs[id] ?? 0 }))} active={view.phase === 'play' ? [view.turn] : []} />
+      )}
 
       {view.phase === 'play' ? (
         <Txt v="bold" center color={view.peek ? C.orange : matched ? C.green : C.yellow} style={{ minHeight: 26 }}>
@@ -120,8 +106,8 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
                   ) : null}
                 </Animated.View>
               ) : (
-                <View key={`b${i}`} style={[styles.card, styles.back]}>
-                  <View style={[styles.diamond, { width: Math.min(cw, ch) * 0.34, height: Math.min(cw, ch) * 0.34 }]} />
+                <View key={`b${i}`} style={[styles.card, { backgroundColor: accent }]}>
+                  <View style={[styles.diamond, { backgroundColor: shade(accent, 0.6), width: Math.min(cw, ch) * 0.34, height: Math.min(cw, ch) * 0.34 }]} />
                 </View>
               )}
             </Pressable>
@@ -135,12 +121,9 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
 }
 
 const styles = StyleSheet.create({
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 2, borderColor: 'transparent' },
-  count: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: INK },
   table: { alignSelf: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   card: { flex: 1, borderRadius: 14, borderWidth: 3, borderColor: INK, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   front: { backgroundColor: '#FFF4DA' },
-  back: { backgroundColor: '#D0457A' },
-  diamond: { backgroundColor: '#FFC2D8', borderWidth: 2.5, borderColor: INK, borderRadius: 4, transform: [{ rotate: '45deg' }] },
+  diamond: { borderWidth: 2.5, borderColor: INK, borderRadius: 4, transform: [{ rotate: '45deg' }] },
   ownerDot: { position: 'absolute', top: 2, right: 2 },
 });

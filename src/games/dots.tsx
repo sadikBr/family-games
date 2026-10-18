@@ -8,6 +8,7 @@ import { haptic } from '@/lib/sfx';
 import { DOTS_SIZES, dotsBoxLines, type DotsLevel, type DotsView } from '@/shared/games/dots';
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
@@ -70,7 +71,7 @@ function Players({ view, h }: { view: DotsView; h: Helpers }) {
                 {id === h.me ? ' (أنت)' : ''}
               </Txt>
               <Txt v="tiny" color={C.yellow} numberOfLines={1}>
-                {out ? 'خرج' : `الفوز: ${num(view.score[id] ?? 0)}`}
+                {out ? 'خارج اللعبة' : `الفوز: ${num(view.score[id] ?? 0)}`}
               </Txt>
             </View>
             <View style={[styles.count, { backgroundColor: DOTS_COLORS[i] }]}>
@@ -101,6 +102,7 @@ function lineAt(n: number, s: number, pad: number, x: number, y: number) {
 function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolean }) {
   const { width } = useWindowDimensions();
   const n = view.n;
+  const accent = useAccent();
   const W = Math.min(width - 16, 460);
   const s = W / (n + 0.9);
   const pad = (W - n * s) / 2;
@@ -140,7 +142,7 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
 
   return (
     <View
-      style={[styles.board, { width: W, height: W }]}
+      style={[styles.board, { width: W, height: W, borderColor: accent }]}
       onStartShouldSetResponder={() => myTurn}
       onMoveShouldSetResponder={() => myTurn}
       onResponderTerminationRequest={() => false}
@@ -210,10 +212,9 @@ export function DotsGame({ room, view }: { room: RoomView; view: DotsView }) {
   return (
     <>
       {won ? <Confetti /> : null}
+      {view.phase === 'final' ? <ResultBanner tone={won ? 'good' : 'neutral'} art={<DotsArt size={64} />} title={title} sub={sub} /> : null}
       <Players view={view} h={h} />
-      {view.phase === 'final' ? (
-        <ResultBanner tone={won ? 'good' : view.winners?.includes(meId) ? 'neutral' : 'bad'} art={<DotsArt size={64} />} title={title} sub={sub} />
-      ) : myTurn || !playing || justScored ? (
+      {view.phase === 'final' ? null : myTurn || !playing || justScored ? (
         <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
           {myTurn
             ? justScored
@@ -221,7 +222,7 @@ export function DotsGame({ room, view }: { room: RoomView; view: DotsView }) {
               : 'المس بين نقطتين لترسم خطاً'
             : !playing
               ? 'خرجت من هذه اللعبة… تابع الآخرين'
-              : `${nameOf(h, view, view.turn!)} أغلق مربعاً ويلعب مرة أخرى…`}
+              : `مربع لـ${nameOf(h, view, view.turn!)} ودورٌ آخر…`}
         </Txt>
       ) : null}
 
@@ -279,14 +280,14 @@ export function DotsSettings({ room, editable }: { room: RoomView; editable: boo
 }
 
 const styles = StyleSheet.create({
-  board: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 22, borderWidth: 3, borderColor: INK },
+  board: { alignSelf: 'center', direction: 'ltr', backgroundColor: PAPER, borderRadius: 22, borderWidth: 3 },
   box: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
   boxNew: { borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.9)' },
   ghost: { position: 'absolute', backgroundColor: 'rgba(21,23,38,0.14)', borderRadius: 1 },
   line: { position: 'absolute', borderRadius: 6, borderWidth: 1.5, borderColor: INK },
   halo: { position: 'absolute', backgroundColor: 'rgba(242,179,61,0.75)' },
   dot: { position: 'absolute', backgroundColor: INK, borderWidth: 2, borderColor: '#3A3D5C' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 2, borderColor: 'transparent' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
   swatch: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: INK },
   count: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: INK },
 });

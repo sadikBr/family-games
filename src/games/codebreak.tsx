@@ -3,15 +3,16 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { client, useClient } from '@/lib/client';
+import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { CODEBREAK_TRIES, type CodebreakLevel, type CodebreakResult, type CodebreakView } from '@/shared/games/codebreak';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
-import { Confetti, Podium, Scoreboard, Shake, TimerBar } from '@/ui/fun';
+import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
@@ -19,6 +20,7 @@ import { KeyLine, KeyPegs, PEGS, Peg } from './codebreak-pegs';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { RoundHeader } from './islamic-ui';
+import { useRefusedFlash } from './wordle-ui';
 
 const nameOf = (h: Helpers, view: CodebreakView, id: string) => (h.players.some((p) => p.id === id) ? h.player(id).name : (view.names[id] ?? '؟'));
 
@@ -29,8 +31,9 @@ const secs = (ms: number) => {
 
 /** The secret code in a little frame (reveal, final, my own finish). */
 function CodeShow({ code, size }: { code: number[]; size: number }) {
+  const accent = useAccent();
   return (
-    <Row gap={6} center style={styles.codeFrame}>
+    <Row gap={6} center style={[styles.codeFrame, { borderColor: alpha(accent, 0.8) }]}>
       {code.map((c, i) => (
         <Peg key={i} c={c} size={size} />
       ))}
@@ -44,7 +47,7 @@ function Others({ view, h }: { view: CodebreakView; h: Helpers }) {
   return (
     <Row gap={8} wrap center>
       {view.others.map((o) => (
-        <View key={o.id} style={[styles.other, o.solved && { borderColor: C.green }]}>
+        <View key={o.id} style={[styles.other, o.solved && { borderColor: C.green, backgroundColor: alpha(C.green, 0.12) }]}>
           <View style={{ alignItems: 'center', gap: 2 }}>
             <Avatar player={h.player(o.id)} size={26} badge={o.solved ? 'check' : undefined} dim={o.done && !o.solved} />
             <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 64 }}>
@@ -86,7 +89,7 @@ function Results({ results, view, h }: { results: CodebreakResult[]; view: Codeb
               </View>
             ) : null}
             <Txt v="tiny" color={C.muted}>
-              {r.tries === null ? 'لم يفكّه' : `${num(r.tries)} محاولات · ${num(secs(r.ms ?? 0))}`}
+              {r.tries === null ? 'لم يُفكّ' : `${num(r.tries)} محاولات · ${num(secs(r.ms ?? 0))}`}
             </Txt>
             <Txt style={{ fontFamily: F.black, fontSize: 15, lineHeight: 22, color: r.points ? C.green : C.dim, minWidth: 48, textAlign: 'center' }}>
               {r.points ? `+${num(r.points)}` : '0'}
@@ -99,7 +102,8 @@ function Results({ results, view, h }: { results: CodebreakResult[]; view: Codeb
 
 /** My board: past tries with their clues, then the row I'm filling. */
 function Board({ view, draft, playing, onClear, width }: { view: CodebreakView; draft: (number | null)[]; playing: boolean; onClear: (i: number) => void; width: number }) {
-  const { error } = useClient();
+  const refused = useRefusedFlash();
+  const accent = useAccent();
   const keyW = view.pegs <= 4 ? 26 : 38;
   // row: number (22) + pegs + clue dots, with 6px gaps and 10px padding each side
   const peg = Math.floor(Math.min(46, (width - 20 - 22 - keyW - 6 * (view.pegs + 1)) / view.pegs));
@@ -107,7 +111,7 @@ function Board({ view, draft, playing, onClear, width }: { view: CodebreakView; 
   const big = Math.max(peg, Math.floor(Math.min(42, (width - 20 - 22 - 6 * view.pegs) / view.pegs)));
   const firstEmpty = draft.indexOf(null);
   return (
-    <View style={styles.board}>
+    <View style={[styles.board, { borderColor: alpha(accent, 0.5) }]}>
       {view.myRows.map((r, i) => (
         <Animated.View key={i} entering={i === view.myRows.length - 1 ? FadeInDown.duration(220) : undefined}>
           <Row gap={6} style={styles.boardRow}>
@@ -126,8 +130,8 @@ function Board({ view, draft, playing, onClear, width }: { view: CodebreakView; 
         </Animated.View>
       ))}
       {playing ? (
-        <Shake trigger={error?.id}>
-          <Row gap={6} style={[styles.boardRow, styles.current]}>
+        <View>
+          <Row gap={6} style={[styles.boardRow, styles.current, refused && styles.refused]}>
             <Txt v="tiny" color={C.yellow} style={{ width: 22, textAlign: 'center' }}>
               {num(view.myRows.length + 1)}
             </Txt>
@@ -146,7 +150,7 @@ function Board({ view, draft, playing, onClear, width }: { view: CodebreakView; 
             </Row>
             {big > peg ? null : <View style={{ width: keyW }} />}
           </Row>
-        </Shake>
+        </View>
       ) : null}
     </View>
   );
@@ -280,7 +284,7 @@ export function CodebreakGame({ room, view }: { room: RoomView; view: CodebreakV
 
       {view.phase === 'reveal' ? (
         <Animated.View entering={FadeIn.duration(220)} style={{ gap: 10 }}>
-          <Txt v="title" center color={C.yellow}>
+          <Txt v="title" center>
             الرمز السري
           </Txt>
           {view.code ? <CodeShow code={view.code} size={40} /> : null}
@@ -371,11 +375,12 @@ export function CodebreakSettings({ room, editable }: { room: RoomView; editable
 }
 
 const styles = StyleSheet.create({
-  board: { backgroundColor: C.bg3, borderRadius: 18, padding: 10, gap: 6, borderWidth: 1, borderColor: C.border },
+  board: { backgroundColor: C.bg3, borderRadius: 18, padding: 10, gap: 6, borderWidth: 1.5 },
   boardRow: { paddingVertical: 2 },
-  current: { backgroundColor: alpha(C.yellow, 0.08), borderRadius: 12, paddingVertical: 6 },
-  codeFrame: { alignSelf: 'center', backgroundColor: C.bg3, borderRadius: 16, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 2, borderColor: alpha(C.yellow, 0.6), direction: 'ltr' },
-  other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 12, padding: 6, borderWidth: 1.5, borderColor: 'transparent' },
+  current: { backgroundColor: alpha(C.yellow, 0.08), borderRadius: 12, paddingVertical: 6, borderWidth: 1.5, borderColor: 'transparent' },
+  refused: { borderColor: C.red, backgroundColor: alpha(C.red, 0.14) },
+  codeFrame: { alignSelf: 'center', backgroundColor: C.bg3, borderRadius: 16, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 2, direction: 'ltr' },
+  other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 14, padding: 6, borderWidth: 1.5, borderColor: C.border },
   result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
   firstChip: { backgroundColor: C.yellow, borderRadius: 999, paddingHorizontal: 8 },
 });

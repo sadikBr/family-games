@@ -6,25 +6,25 @@
  */
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Icon } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
-import { client, useClient } from '@/lib/client';
+import { client } from '@/lib/client';
 import type { ScrabbleMove, ScrabbleTile, ScrabbleView } from '@/shared/games/scrabble';
 import type { RoomView } from '@/shared/protocol';
 import { CENTER, LETTERS, RACK, SIZE, analyse, colOf, rowOf } from '@/shared/scrabble-rules';
-import { C, F } from '@/theme';
-import { Avatar, Card, Pill, Row } from '@/ui/bits';
+import { C, F, alpha } from '@/theme';
+import { Card, Pill, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
-import { Confetti, Podium, Scoreboard, Shake, TimerBar } from '@/ui/fun';
+import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 import { Board, Legend, TileFace, type BoardWindow } from './scrabble-board';
+import { useRefusedFlash } from './wordle-ui';
 
 interface Pend {
   id: number;
@@ -70,42 +70,12 @@ function moveText(m: ScrabbleMove, h: Helpers): string {
     case 'play':
       return `${name}: ${m.words.map((w) => `«${w.w}»`).join(' + ')}  ${num(`+${m.score}`)}${m.bingo ? ' (الأحرف السبعة!)' : ''}`;
     case 'swap':
-      return `${name}: بدّل ${num(m.count)} ${m.count === 1 ? 'حرفاً' : 'أحرف'}`;
+      return `${name}: تبديل ${num(m.count)} ${m.count === 1 ? 'حرف' : 'أحرف'}`;
     case 'pass':
-      return `${name}: مرّر الدور`;
+      return `${name}: تمرير الدور`;
     case 'timeout':
       return `${name}: انتهى الوقت`;
   }
-}
-
-function Players({ view, h, width }: { view: ScrabbleView; h: Helpers; width: number }) {
-  const n = view.order.length;
-  const per = n === 3 ? 3 : 2;
-  const w = (width - (per - 1) * 6) / per;
-  return (
-    <Row gap={6} wrap center>
-      {view.order.map((id) => {
-        const on = view.turn === id;
-        return (
-          <View key={id} style={[styles.player, { width: w }, on && styles.playerOn]}>
-            <Avatar player={h.player(id)} size={26} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Txt v="tiny" numberOfLines={1}>
-                {id === h.me ? 'أنت' : h.player(id).name}
-              </Txt>
-              <Row gap={3}>
-                <Icon name="layers" size={11} color={C.dim} />
-                <Txt v="tiny" color={C.dim} numberOfLines={1}>
-                  {num(view.rackCounts[id] ?? 0)}
-                </Txt>
-              </Row>
-            </View>
-            <Txt style={{ fontFamily: F.black, fontSize: 17, lineHeight: 24, color: on ? C.yellow : C.text }}>{num(view.scores[id] ?? 0)}</Txt>
-          </View>
-        );
-      })}
-    </Row>
-  );
 }
 
 function BlankPicker({ visible, onPick, onCancel }: { visible: boolean; onPick: (l: string) => void; onCancel: () => void }) {
@@ -141,9 +111,9 @@ function Final({ room, view, h, width }: { room: RoomView; view: ScrabbleView; h
     <>
       {winner === h.me ? <Confetti /> : null}
       <ResultBanner
-        tone={winner === h.me ? 'good' : winner ? 'bad' : 'neutral'}
+        tone={winner === h.me ? 'good' : 'neutral'}
         title={winner ? (winner === h.me ? 'فزت!' : `فاز ${h.player(winner).name}`) : 'تعادل!'}
-        sub={f?.out ? `${f.out === h.me ? 'أنهيت' : `${h.player(f.out).name} أنهى`} كل أحرفه` : view.order.length <= 1 ? 'غادر باقي اللاعبين' : 'لا أحد يستطيع اللعب'}
+        sub={f?.out ? (f.out === h.me ? 'أنهيت كل أحرفك' : `نفدت أحرف ${h.player(f.out).name}`) : view.order.length <= 1 ? 'غادر باقي اللاعبين' : 'لا أحد يستطيع اللعب'}
       />
       <Podium players={players} scores={view.scores} />
       <Scoreboard players={players} scores={view.scores} highlight={h.me} />
@@ -176,7 +146,7 @@ function Final({ room, view, h, width }: { room: RoomView; view: ScrabbleView; h
 export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleView }) {
   const h = helpers(room);
   const width = useContentWidth();
-  const { error } = useClient();
+  const refused = useRefusedFlash();
   const [pend, setPend] = useState<{ since: number; list: Pend[] }>({ since: 0, list: [] });
   const [sel, setSel] = useState<number | null>(null);
   const [order, setOrder] = useState<number[]>([]);
@@ -266,7 +236,11 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
 
   return (
     <>
-      <Players view={view} h={h} width={width} />
+      <PlayerStrip
+        room={room}
+        entries={view.order.map((id) => ({ id, score: view.scores[id] ?? 0, sub: `${num(view.rackCounts[id] ?? 0)} أحرف` }))}
+        active={view.turn ? [view.turn] : []}
+      />
       {view.total > 0 ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={myTurn} /> : null}
       <View style={{ gap: 2 }}>
         <Row gap={8} style={{ justifyContent: 'space-between' }}>
@@ -275,13 +249,8 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
           </Txt>
           <Pill icon="box" label={`في الكيس: ${num(view.bag)}`} />
         </Row>
-        {view.last ? (
-          <Animated.View key={view.turnNo} entering={FadeIn.duration(200)}>
-            <Txt v="small" center color={view.last.kind === 'play' ? C.text : C.muted} numberOfLines={2}>
-              {moveText(view.last, h)}
-            </Txt>
-          </Animated.View>
-        ) : (
+        {/* the latest move is in the room's last-move line; before the first one, where to start */}
+        {view.last ? null : (
           <Txt v="small" center color={C.muted}>
             الكلمة الأولى تمر بالنجمة ★ في الوسط
           </Txt>
@@ -315,8 +284,8 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
           ) : null}
         </Row>
         {playing ? (
-          <Shake trigger={error?.id}>
-            <View style={[styles.rack, { direction: 'rtl' }]}>
+          <View>
+            <View style={[styles.rack, { direction: 'rtl' }, refused && styles.rackRefused]}>
               {shown.map((t) => {
                 const placed = placedIds.has(t.id);
                 const on = swapSel ? swapSel.includes(t.id) : selected === t.id;
@@ -329,7 +298,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
                 );
               })}
             </View>
-          </Shake>
+          </View>
         ) : null}
       </View>
 
@@ -347,7 +316,6 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
                   flex
                   size="md"
                   icon="swap"
-                  color={C.cyan}
                   disabled={!myTurn || !swapSel.length}
                   label={swapSel.length ? `بدّل ${num(swapSel.length)}` : 'بدّل'}
                   onPress={() => {
@@ -484,9 +452,8 @@ export function ScrabbleSettings({ room, editable }: { room: RoomView; editable:
 }
 
 const styles = StyleSheet.create({
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 6, borderWidth: 2, borderColor: 'transparent' },
-  playerOn: { borderColor: C.yellow, backgroundColor: 'rgba(242,179,61,0.14)' },
   rack: { flexDirection: 'row', justifyContent: 'center', gap: 4, backgroundColor: '#5A3A1E', borderRadius: 12, paddingTop: 10, paddingBottom: 6, paddingHorizontal: 4, borderBottomWidth: 4, borderColor: '#3B2512' },
+  rackRefused: { backgroundColor: alpha(C.red, 0.55), borderColor: C.red },
   arrow: { width: 40, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderStrong },
   backdrop: { flex: 1, backgroundColor: 'rgba(8,9,24,0.72)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   picker: { width: '100%', maxWidth: 380, backgroundColor: C.bg2, borderRadius: 20, padding: 14, gap: 12, borderWidth: 1, borderColor: C.borderStrong },
