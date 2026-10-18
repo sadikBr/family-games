@@ -416,7 +416,7 @@ function finish(ctx: GameCtx, s: State, side: BSide | null) {
   s.turn = null;
   s.deadline = null;
   if (side) {
-    ctx.say?.(`الفوز لـ${teamName(ctx, s, side)}`);
+    ctx.say?.(`الفوز ل${teamName(ctx, s, side)}`);
     ctx.fx('win');
   }
 }
