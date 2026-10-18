@@ -84,6 +84,12 @@ export function memoryNames(ctx: GameCtx, pairs: number): number[] {
   return out;
 }
 
+/** Places by score, best first; equal scores share a place. */
+function placesBy(ids: string[], score: (id: string) => number): string[][] {
+  const vals = [...new Set(ids.map(score))].sort((a, b) => b - a);
+  return vals.map((v) => ids.filter((id) => score(id) === v));
+}
+
 function memoryStart(ctx: GameCtx, participants: string[], pairs: number): MemoryState {
   const names = memoryNames(ctx, pairs);
   const deck = shuffle(names.flatMap((idx) => [{ idx, kind: 'name' as const }, { idx, kind: 'meaning' as const }]));
@@ -272,6 +278,17 @@ export const asma: GameModule<State, AsmaSettings> = {
       return;
     }
     g.turnIdx %= g.order.length;
+  },
+
+  result(s) {
+    if (s.mode === 'match') {
+      const m = s.m;
+      // ended early because everyone left: no result
+      if (m.phase !== 'final' || !m.results || m.round < m.items.length) return null;
+      return { places: placesBy(m.participants, (p) => m.scores[p] ?? 0) };
+    }
+    if (s.phase !== 'final' || !s.g.order.length) return null;
+    return { places: placesBy(s.g.order, (p) => s.g.pairs[p] ?? 0) };
   },
 
   patchSettings(settings, patch) {

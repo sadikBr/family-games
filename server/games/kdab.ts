@@ -299,4 +299,14 @@ export const kdab: GameModule<State, KdabSettings> = {
     if (wasTurn) nextTurn(s, s.turnIdx - 1);
     s.turnIdx %= s.order.length;
   },
+
+  /** The one who emptied their hand first, then the others by cards left (fewer is better). */
+  result(s) {
+    const winner = s.winner;
+    if (s.phase !== 'final' || !winner) return null;
+    const rest = s.order.filter((id) => id !== winner);
+    const left = (id: string) => s.hands[id]?.length ?? 0;
+    const vals = [...new Set(rest.map(left))].sort((a, b) => a - b);
+    return { places: [[winner], ...vals.map((v) => rest.filter((id) => left(id) === v))] };
+  },
 };

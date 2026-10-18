@@ -820,6 +820,17 @@ export const catan: GameModule<State, CatanSettings> = {
     if (s.phase === 'steal' && !s.victims.length) afterRobber(s);
   },
 
+  /** The winner first, then the others still in the game by points (leavers are left out). */
+  result(s) {
+    const f = s.final;
+    if (s.phase !== 'final' || !f?.winner) return null;
+    const winner = f.winner;
+    const rest = s.order.filter((id) => id !== winner && !s.gone.includes(id));
+    const vp = (id: string) => f.rows[id]?.total ?? 0;
+    const vals = [...new Set(rest.map(vp))].sort((a, b) => b - a);
+    return { places: [[winner], ...vals.map((v) => rest.filter((id) => vp(id) === v))] };
+  },
+
   /** Validate a settings change from the lobby (only the keys this game knows). */
   patchSettings(settings, patch) {
     if (patch.layout === 'beginner' || patch.layout === 'random') settings.layout = patch.layout;

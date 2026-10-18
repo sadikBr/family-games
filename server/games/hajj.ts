@@ -463,4 +463,11 @@ export const hajj: GameModule<State, HajjSettings> = {
       endTurn(s);
     }
   },
+
+  /** The finishing order of the final screen: furthest along first (same square: whoever got there first). */
+  result(s) {
+    const winner = s.winner;
+    if (s.phase !== 'final' || !winner) return null;
+    return { places: [winner, ...hajjOrder(s).filter((id) => id !== winner)].map((id) => [id]) };
+  },
 };

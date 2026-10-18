@@ -390,4 +390,14 @@ export const konkan: GameModule<State, KonkanSettings> = {
       s.takenDiscard = null;
     }
   },
+
+  /** The winner, then the others by points like the podium (fewer is better); leavers are left out. */
+  result(s) {
+    const winner = s.winner;
+    if (s.phase !== 'final' || !winner) return null;
+    // still playing, or knocked out by reaching the limit (a player below it who isn't active left the game)
+    const rest = s.seats.filter((id) => id !== winner && (s.active.includes(id) || s.scores[id] >= s.settings.limit));
+    const vals = [...new Set(rest.map((id) => s.scores[id]))].sort((a, b) => a - b);
+    return { places: [[winner], ...vals.map((v) => rest.filter((id) => s.scores[id] === v))] };
+  },
 };

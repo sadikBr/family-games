@@ -146,5 +146,11 @@ export const chess: GameModule<State, ChessSettings> = {
     s.reason = 'left';
     duelWin(ctx, s.score, c === 'w' ? s.black : s.white);
   },
+
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    if (s.winner === 'draw') return { places: [[s.white, s.black]] };
+    return { places: s.winner === 'w' ? [[s.white], [s.black]] : [[s.black], [s.white]] };
+  },
 };
 

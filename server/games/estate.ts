@@ -905,4 +905,16 @@ export const estate: GameModule<State, EstateSettings> = {
     bankrupt(ctx, s, id, null);
     if (wasTurn && (s.phase as EstateView['phase']) !== 'final') nextTurn(ctx, s);
   },
+
+  /** The winner, then the other players still standing by worth, then the bankrupt ones (and leavers) together. */
+  result(s) {
+    const winner = s.winner;
+    if (s.phase !== 'final' || !winner) return null;
+    const rest = s.players.filter((p) => !p.bankrupt && p.id !== winner).map((p) => p.id);
+    const worth = (id: string) => worthOf(s, id);
+    const vals = [...new Set(rest.map(worth))].sort((a, b) => b - a);
+    const broke = s.players.filter((p) => p.bankrupt && p.id !== winner).map((p) => p.id);
+    const places = [[winner], ...vals.map((v) => rest.filter((id) => worth(id) === v))];
+    return { places: broke.length ? [...places, broke] : places };
+  },
 };

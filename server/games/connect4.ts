@@ -108,4 +108,10 @@ export const connect4: GameModule<State, Connect4Settings> = {
   onLeave(ctx, s, id) {
     if (s.phase === 'play') forfeit(ctx, s, id);
   },
+
+  result(s) {
+    if (s.phase !== 'final' || s.winner === null) return null;
+    if (s.winner === 'draw') return { places: [[s.red, s.yellow]] };
+    return { places: s.winner === 1 ? [[s.red], [s.yellow]] : [[s.yellow], [s.red]] };
+  },
 };

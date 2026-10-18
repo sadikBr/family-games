@@ -175,4 +175,12 @@ export const headsup: GameModule<State, HeadsUpSettings> = {
       s.turn = before;
     }
   },
+
+  /** By words guessed (each player is the guesser in turn). */
+  result(s) {
+    if (s.phase !== 'final' || !s.participants.length) return null;
+    const pts = (id: string) => s.scores[id] ?? 0;
+    const vals = [...new Set(s.participants.map(pts))].sort((a, b) => b - a);
+    return { places: vals.map((v) => s.participants.filter((id) => pts(id) === v)) };
+  },
 };

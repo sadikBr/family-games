@@ -656,6 +656,12 @@ export const baloot: GameModule<State, BalootSettings> = {
     if (!lead) ctx.say?.('انتهت اللعبة: مقعد فارغ');
   },
 
+  result(s) {
+    if (s.phase !== 'final' || !s.winner) return null;
+    const team = (side: BSide) => s.sides.find((x) => x.key === side)!.members.slice();
+    return { places: [team(s.winner), team(other(s.winner))] };
+  },
+
   patchSettings(settings, patch) {
     if (patch.target === 100 || patch.target === 152) settings.target = patch.target;
     if (patch.timer === 0 || patch.timer === 20 || patch.timer === 30 || patch.timer === 45) settings.timer = patch.timer;
