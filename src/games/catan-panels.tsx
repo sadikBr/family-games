@@ -15,6 +15,7 @@ import { Btn, IconBtn } from '@/ui/btn';
 import { Txt, num } from '@/ui/txt';
 
 import { MiniIcon, RES_COLOR, ResIcon, SEAT_COLORS, SEAT_OUTLINE } from './catan-art';
+import { li } from './duel';
 import type { Helpers } from './helpers';
 
 export type Namer = (id: string | null | undefined) => string;
@@ -40,45 +41,46 @@ export function resList(m: Partial<CatanResMap>): string {
 /* Log                                                                 */
 /* ------------------------------------------------------------------ */
 
+/** One line per event. Nouns, not verbs: we don't know whether a player is a man or a woman («رمية لماما: 8»). */
 export function logText(e: CatanLog, view: CatanView, me: string, nm: Namer): string {
   const you = (id: string) => id === me;
-  const w = (id: string, third: string, second: string) => (you(id) ? second : `${nm(id)} ${third}`);
+  const who = (id: string) => (you(id) ? 'أنت' : nm(id));
+  const of = (id: string) => (you(id) ? 'لك' : li(nm(id)));
+  const from = (id: string) => (you(id) ? 'منك' : `من ${nm(id)}`);
   switch (e.t) {
     case 'roll':
-      return `${w(e.p, 'رمى', 'رميتَ')} ${num(e.d[0] + e.d[1])}`;
+      return `${you(e.p) ? 'رميتك' : `رمية ${li(nm(e.p))}`}: ${num(e.d[0] + e.d[1])}`;
     case 'gain':
-      return `${w(e.p, 'حصل على', 'حصلتَ على')} ${resList(e.r)}`;
+      return `${resList(e.r)} ${of(e.p)}`;
     case 'nothing':
       return 'لم ينتج أحد شيئاً';
     case 'short':
       return `البنك لا يكفي من ${RES_NAME[e.r]}: لم يأخذه أحد`;
     case 'build':
-      return e.b === 'dev'
-        ? `${w(e.p, 'اشترى', 'اشتريتَ')} بطاقة تطوير`
-        : `${w(e.p, 'بنى', 'بنيتَ')} ${e.b === 'road' ? 'طريقاً' : e.b === 'settlement' ? 'قرية' : 'مدينة'}`;
+      return `${e.b === 'dev' ? 'بطاقة تطوير جديدة' : e.b === 'road' ? 'طريق جديد' : e.b === 'settlement' ? 'قرية جديدة' : 'مدينة جديدة'} ${of(e.p)}`;
     case 'dev':
-      if (e.k === 'knight') return `${w(e.p, 'لعب', 'لعبتَ')} فارساً`;
-      if (e.k === 'roads') return `${w(e.p, 'لعب', 'لعبتَ')} بناء الطرق`;
-      if (e.k === 'plenty') return `${w(e.p, 'أخذ', 'أخذتَ')} ${RES_NAME[e.r!]} و${RES_NAME[e.r2!]} (الوفرة)`;
-      return `${w(e.p, 'احتكر', 'احتكرتَ')} ${RES_NAME[e.r!]}: ${num(e.n ?? 0)} بطاقة`;
+      if (e.k === 'knight') return `بطاقة فارس ${from(e.p)}`;
+      if (e.k === 'roads') return `بطاقة بناء الطرق ${from(e.p)}`;
+      if (e.k === 'plenty') return `الوفرة ${from(e.p)}: ${RES_NAME[e.r!]} و${RES_NAME[e.r2!]}`;
+      return `احتكار ${RES_NAME[e.r!]} ${from(e.p)}: ${num(e.n ?? 0)} بطاقة`;
     case 'robber':
-      return `${w(e.p, 'نقل', 'نقلتَ')} اللص إلى ${HEX_NAME[view.hexes[e.h]]}${view.nums[e.h] ? ` ${num(view.nums[e.h]!)}` : ''}`;
+      return `نقل اللص إلى ${HEX_NAME[view.hexes[e.h]]}${view.nums[e.h] ? ` ${num(view.nums[e.h]!)}` : ''}: ${who(e.p)}`;
     case 'steal':
-      return `${w(e.p, 'سرق', 'سرقتَ')} بطاقة ${you(e.from) ? 'منك' : `من ${nm(e.from)}`}${e.r ? ` (${RES_NAME[e.r]})` : ''}`;
+      return `سرقة بطاقة ${from(e.from)}${e.r ? ` (${RES_NAME[e.r]})` : ''}: ${who(e.p)}`;
     case 'discard':
-      return `${w(e.p, 'أعاد', 'أعدتَ')} ${num(e.n)} بطاقات إلى البنك`;
+      return `إعادة ${num(e.n)} بطاقات إلى البنك: ${who(e.p)}`;
     case 'bank':
-      return `${w(e.p, 'بادل', 'بادلتَ')} ${num(e.n)} ${RES_NAME[e.give]} بـ ${RES_NAME[e.get]} مع البنك`;
+      return `مبادلة ${num(e.n)} ${RES_NAME[e.give]} بـ ${RES_NAME[e.get]} مع البنك: ${who(e.p)}`;
     case 'trade':
-      return `${w(e.p, 'بادل', 'بادلتَ')} ${resList(e.give)} بـ ${resList(e.get)} ${you(e.with) ? 'معك' : `مع ${nm(e.with)}`}`;
+      return `مبادلة ${resList(e.give)} بـ ${resList(e.get)} ${you(e.with) ? 'معك' : `مع ${nm(e.with)}`}: ${who(e.p)}`;
     case 'longest':
-      return e.p ? `${w(e.p, 'أخذ', 'أخذتَ')} أطول طريق` : 'لا أحد يملك أطول طريق الآن';
+      return e.p ? `أطول طريق ${of(e.p)}` : 'لا أحد يملك أطول طريق الآن';
     case 'army':
-      return `${w(e.p, 'أخذ', 'أخذتَ')} أكبر جيش`;
+      return `أكبر جيش ${of(e.p)}`;
     case 'timeout':
-      return you(e.p) ? 'انتهى وقتك: لُعب دورك تلقائياً' : `انتهى وقت ${nm(e.p)}: لُعب دوره تلقائياً`;
+      return you(e.p) ? 'انتهى وقتك: لُعب دورك تلقائياً' : `انتهى وقت ${nm(e.p)}: دور تلقائي`;
     case 'left':
-      return `${nm(e.p)} غادر اللعبة`;
+      return `مغادرة ${nm(e.p)} للعبة`;
   }
 }
 
@@ -114,15 +116,16 @@ export function PlayersPanel({ view, h, nm, width }: { view: CatanView; h: Helpe
         const on = view.turn === id;
         const vp = id === h.me && view.me ? view.me.vp : p.vp;
         return (
-          <View key={id} style={[styles.player, { width: w, borderColor: on ? C.yellow : 'transparent' }, on && { backgroundColor: alpha(C.yellow, 0.12) }, p.gone && { opacity: 0.45 }]}>
+          <View key={id} style={[styles.player, { width: w }, on && { borderColor: h.player(id).color, backgroundColor: alpha(h.player(id).color, 0.2) }, p.gone && { opacity: 0.45 }]}>
             <Row gap={5}>
               <View>
                 <Avatar player={h.player(id)} size={24} ring={SEAT_COLORS[seat]} />
               </View>
-              <Txt v="tiny" style={{ flex: 1 }} numberOfLines={1}>
-                {id === h.me ? 'أنت' : nm(id)}
+              <Txt v="tiny" style={{ flex: 1, fontSize: 13 }} numberOfLines={1}>
+                {nm(id)}
+                {id === h.me ? ' (أنت)' : ''}
               </Txt>
-              <Txt style={{ fontFamily: F.black, fontSize: 17, lineHeight: 22, color: on ? C.yellow : C.text }}>{num(vp)}</Txt>
+              <Txt style={{ fontFamily: F.bold, fontSize: 17, lineHeight: 22, color: on ? C.text : C.yellow }}>{num(vp)}</Txt>
             </Row>
             <Row gap={7} style={{ marginTop: 1 }}>
               <SeatDot seat={seat} size={10} />
@@ -608,7 +611,7 @@ export function BuildRow({ view, mode, onMode, onBuy, width }: { view: CatanView
 
 const styles = StyleSheet.create({
   log: { gap: 2, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 8 },
-  player: { backgroundColor: C.surface, borderRadius: 12, paddingVertical: 4, paddingHorizontal: 6, borderWidth: 2 },
+  player: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 5, paddingHorizontal: 7, borderWidth: 1.5, borderColor: C.border },
   card: { borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', gap: 0, paddingVertical: 2 },
   badge: { position: 'absolute', top: -6, end: -6, backgroundColor: C.yellow, borderRadius: 9, minWidth: 22, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   choice: { minWidth: 48, minHeight: 50, borderRadius: 10, borderWidth: 2, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },

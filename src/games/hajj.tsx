@@ -11,16 +11,18 @@ import { haptic } from '@/lib/sfx';
 import { HAJJ_COLS, HAJJ_STATIONS, ZAD_INFO, hajjCell, type ZadKind } from '@/shared/islamic';
 import type { HajjView, HajjZad, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ThrownDice } from '@/ui/dice3d';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { EventCard, FinishOrder, RaceStrip, RaceToken, stackOffsets } from './dice-race';
+import { EventCard, FinishOrder, RaceToken, stackOffsets } from './dice-race';
+import { winLine } from './duel';
 import { helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 import { AnsweredRow, OptionGrid, useMyResultFx } from './islamic-ui';
 
 const ASPECT = 70 / 90; // board image height / width
@@ -68,6 +70,7 @@ const stationName = (pos: number) => {
 
 export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const { width } = useWindowDimensions();
   const W = Math.min(width - 16, 560);
   const H = W * ASPECT;
@@ -104,13 +107,13 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="hajj" size={84} />}
-            title={view.winner ? `${h.player(view.winner).name} أتمّ الرحلة أولاً` : 'انتهت الرحلة'}
+            title={view.winner ? (won ? 'فزت!' : winLine(h.player(view.winner).name)) : 'انتهت الرحلة'}
             sub="حجّاً مبروراً وسعياً مشكوراً"
           />
           {view.order ? <FinishOrder order={view.order} players={view.players} h={h} label={stationName} /> : null}
         </>
       ) : (
-        <RaceStrip players={view.players} turn={view.turn} h={h} label={stationName} />
+        <PlayerStrip room={room} active={[view.turn]} entries={view.players.map((p) => ({ id: p.id, sub: stationName(p.pos) }))} />
       )}
       <View style={{ width: W, height: H, alignSelf: 'center', direction: 'ltr', borderRadius: 14, overflow: 'hidden' }}>
         <Image source={BOARD_IMG['hajj-board']} style={StyleSheet.absoluteFill} contentFit="fill" />
@@ -138,8 +141,8 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
           <PlayAgain room={room} />
         </>
       ) : quiz && !rolling ? (
-        <Animated.View key={quiz.text} entering={FadeIn.duration(220)} style={[styles.panel, styles.quiz]}>
-          <Txt v="tiny" color={C.yellow}>
+        <Animated.View key={quiz.text} entering={FadeIn.duration(220)} style={[styles.panel, styles.quiz, { borderColor: alpha(accent, 0.6) }]}>
+          <Txt v="tiny" color={accent}>
             سؤال محطة {quiz.station} — للجميع: الإجابة الصحيحة تعطيك بطاقة زاد، والأسرع يتقدّم خطوة
           </Txt>
           <Txt v="h3">{quiz.text}</Txt>
@@ -161,8 +164,8 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
           )}
         </Animated.View>
       ) : q && !rolling ? (
-        <View style={styles.panel}>
-          <Txt v="tiny" color={C.yellow}>
+        <View style={[styles.panel, styles.quiz, { borderColor: alpha(accent, 0.6) }]}>
+          <Txt v="tiny" color={accent}>
             {q.for === h.me ? 'سؤال لك — أجب صحيحاً وتقدّم خطوة وخذ بطاقة زاد' : `سؤال لـ${h.player(q.for).name}`}
           </Txt>
           <Txt v="h3">{q.text}</Txt>
@@ -241,14 +244,13 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
       ) : null}
 
       {!final && view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
-      {final ? null : <LastEvent feed={view.feed} h={h} />}
     </>
   );
 }
 
 const styles = StyleSheet.create({
   panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10 },
-  quiz: { borderWidth: 2, borderColor: alpha(C.yellow, 0.6) },
+  quiz: { borderWidth: 1.5 },
   result: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 2, borderRadius: 999, paddingVertical: 2, paddingStart: 2, paddingEnd: 8 },
   zad: { flex: 1, maxWidth: 130, minWidth: 0, alignItems: 'center', gap: 2, borderWidth: 2, borderRadius: 16, paddingVertical: 8, paddingHorizontal: 6 },
   zadIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#151726' },

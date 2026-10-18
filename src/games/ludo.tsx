@@ -8,15 +8,17 @@ import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
 import { cellOf } from '@/shared/ludo';
 import type { LudoColor, LudoView, RoomView } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
-import { Avatar } from '@/ui/bits';
+import { C, alpha } from '@/theme';
+import { Row } from '@/ui/bits';
 import { ThrownDice } from '@/ui/dice3d';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
+import { RankList } from './dice-race';
+import { winLine } from './duel';
 import { helpers } from './helpers';
-import { LastEvent } from './cards/card-ui';
+import { PlayerStrip } from './player-strip';
 
 // board image: viewBox -6..156 → the 15×15 grid spans 6/162 … 156/162
 const INSET = 6 / 162;
@@ -71,7 +73,6 @@ export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
   if (!mySeat && !final) return <Spectator room={room} />;
 
   const myTurn = !final && view.turn === h.me;
-  const turnSeat = view.seats.find((x) => x.id === view.turn);
 
   // tokens grouped by cell so stacked pieces fan out a little
   const items: { key: string; color: LudoColor; id: string; t: number; p: number; slot: number; x: number; y: number; canMove: boolean }[] = [];
@@ -123,48 +124,35 @@ export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
             art={<GameArt id="ludo" size={84} />}
-            title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'}
+            title={view.winner ? (won ? 'فزت!' : winLine(h.player(view.winner).name)) : 'انتهت اللعبة'}
             sub={ranked ? 'ترتيب الوصول' : undefined}
           />
           {ranked ? (
-            <View style={styles.ranking}>
-              {view.ranking.map((id, k) => {
+            <RankList
+              rows={view.ranking.map((id) => {
                 const seat = view.seats.find((x) => x.id === id);
-                return (
-                  <View key={id} style={[styles.rankRow, id === h.me && { backgroundColor: alpha(C.yellow, 0.16) }]}>
-                    <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 26, minWidth: 28, textAlign: 'center', color: k === 0 ? C.yellow : C.muted }}>{num(k + 1)}</Txt>
-                    <Avatar player={h.player(id)} size={28} ring={seat ? HEX[seat.color] : undefined} />
-                    <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                      {h.player(id).name}
-                    </Txt>
-                  </View>
-                );
+                return { id, color: seat ? HEX[seat.color] : undefined, label: seat ? NAME[seat.color] : undefined };
               })}
-            </View>
+              h={h}
+            />
           ) : null}
         </>
       ) : null}
-      <View style={styles.seats}>
-        {view.seats.map((s) => {
-          const active = !final && s.id === view.turn;
-          const toks = view.tokens[s.id] ?? [];
-          const home = toks.filter((p) => p === 56).length;
-          const place = view.ranking.indexOf(s.id);
-          return (
-            <View key={s.id} style={[styles.seat, { borderColor: active ? HEX[s.color] : 'transparent' }, active && { backgroundColor: alpha(HEX[s.color], 0.22) }]}>
-              <Avatar player={h.player(s.id)} size={26} ring={HEX[s.color]} />
-              <View>
-                <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 70 }}>
-                  {h.player(s.id).name}
-                </Txt>
-                <Txt v="tiny" color={place >= 0 ? C.yellow : C.dim}>
-                  {place >= 0 ? `المركز ${num(place + 1)}` : `${num(home)}/${num(toks.length)} في البيت`}
-                </Txt>
-              </View>
-            </View>
-          );
-        })}
-      </View>
+      {final && ranked ? null : (
+        <PlayerStrip
+          room={room}
+          active={final ? [] : [view.turn]}
+          entries={view.seats.map((s) => {
+            const toks = view.tokens[s.id] ?? [];
+            const place = view.ranking.indexOf(s.id);
+            return {
+              id: s.id,
+              color: HEX[s.color],
+              sub: place >= 0 ? `المركز ${num(place + 1)}` : `${num(toks.filter((p) => p === 56).length)}/${num(toks.length)} في البيت`,
+            };
+          })}
+        />
+      )}
 
       <View style={{ width: boardW, height: boardW, alignSelf: 'center', direction: 'ltr' }}>
         <Image source={BOARD_IMG['ludo-board']} style={StyleSheet.absoluteFill} contentFit="contain" />
@@ -233,46 +221,36 @@ export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
               </View>
             )}
           </Pressable>
-          <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flex: 1, gap: 6 }}>
             {myTurn ? (
               <Txt v="bold" color={C.yellow}>
                 {view.phase === 'roll' ? 'اضغط على النرد' : view.autoAt ? 'حركة واحدة ممكنة — ستتحرك قطعتك' : 'اختر قطعة لتحريكها'}
               </Txt>
             ) : null}
-            {turnSeat ? (
-              <View style={[styles.colorTag, { backgroundColor: HEX[turnSeat.color] }]}>
-                <Txt v="tiny" color="#fff">
-                  {NAME[turnSeat.color]}
-                </Txt>
-              </View>
-            ) : null}
             {mySeat ? (
-              <Txt style={{ fontFamily: F.bold, fontSize: 12, color: C.dim }}>
-                لونك: {NAME[mySeat.color]}
-              </Txt>
+              <Row gap={6}>
+                <Image source={BOARD_IMG[`pawn-${mySeat.color}`]} style={{ width: 22, height: 22 }} contentFit="contain" />
+                <Txt v="small" color={C.muted}>
+                  لونك: {NAME[mySeat.color]}
+                </Txt>
+              </Row>
             ) : null}
           </View>
         </View>
       )}
-      {final ? null : <LastEvent feed={view.feed} h={h} />}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  seats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  seat: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2 },
   token: { position: 'absolute', left: 0, top: 0 },
   tokenHit: { borderRadius: 999, borderWidth: 2.5, borderColor: 'transparent' },
   tokenLast: { borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'rgba(255,255,255,0.18)' },
   fromDot: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.35)', borderWidth: 1.5, borderColor: 'rgba(21,23,38,0.5)' },
   capture: { position: 'absolute', borderWidth: 2.5, borderColor: alpha(C.red, 0.85), backgroundColor: alpha(C.red, 0.18) },
   tokenTap: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
-  ranking: { backgroundColor: C.surface, borderRadius: 18, padding: 8, gap: 4 },
-  rankRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12 },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.surface, borderRadius: 20, padding: 12 },
   diceBtn: { padding: 2, borderRadius: 20, borderWidth: 3, borderColor: 'transparent', overflow: 'visible' },
   rollHint: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: C.borderStrong },
   diceReady: { borderColor: C.yellow, backgroundColor: alpha(C.yellow, 0.15) },
-  colorTag: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 1, borderWidth: 2, borderColor: '#151726' },
 });

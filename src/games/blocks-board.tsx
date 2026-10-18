@@ -4,6 +4,7 @@ import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
 
 import { orient } from '@/shared/blocks-rules';
 import { alpha, shade } from '@/theme';
+import { useAccent } from '@/ui/accent';
 
 /** One colour per seat (our own palette: saffron, sky, rose, teal). */
 export const BLOCKS_COLORS = ['#F2B33D', '#3D9BE9', '#E86FA6', '#22B8B0'];
@@ -78,6 +79,7 @@ export function Board({
   const cell = Math.floor(((width - pad * 2 - BORDER * 2) / win.size) * 10) / 10;
   const side = cell * win.size + pad * 2 + BORDER * 2;
   const down = useRef<{ x: number; y: number } | null>(null);
+  const accent = useAccent();
   const inWin = (i: number) => {
     const r = Math.floor(i / n), c = i % n;
     return r >= win.r0 && r < win.r0 + win.size && c >= win.c0 && c < win.c0 + win.size;
@@ -108,7 +110,7 @@ export function Board({
 
   return (
     <View
-      style={[styles.board, { width: side, height: side }]}
+      style={[styles.board, { width: side, height: side, borderColor: alpha(accent, 0.75) }]}
       onStartShouldSetResponder={() => !!onCell}
       onResponderGrant={grant}
       onResponderRelease={release}

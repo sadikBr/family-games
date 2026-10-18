@@ -15,7 +15,7 @@ import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar, SlideIn } from './duel';
+import { DuelBar, SlideIn, winLine } from './duel';
 import { helpers } from './helpers';
 
 // the board image has a frame: squares span 9/98 … 89/98 of its width
@@ -76,7 +76,7 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
   };
 
   const won = final && view.winner === view.myColor;
-  const reason = { pieces: 'أكل كل القطع', blocked: 'لم تبق له حركة', resign: 'استسلم الخصم', draw: '50 حركة بدون أكل', left: 'غادر الخصم' }[view.reason ?? 'pieces'];
+  const reason = { pieces: 'أُكلت كل القطع', blocked: 'لا حركة باقية', resign: 'استسلام الخصم', draw: '50 حركة بدون أكل', left: 'مغادرة الخصم' }[view.reason ?? 'pieces'];
 
   return (
     <>
@@ -86,8 +86,7 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
         active={final ? null : view[view.turn]}
         slots={(['white', 'black'] as const).map((c) => ({
           id: view[c],
-          color: C.yellow,
-          mark: <Image source={BOARD_IMG[`dama-${c}`]} style={{ width: 22, height: 22 }} contentFit="contain" />,
+          mark: <Image source={BOARD_IMG[`dama-${c}`]} style={{ width: 16, height: 16 }} contentFit="contain" />,
           sub: `${num(view.counts[c])} قطعة`,
           score: view.score[view[c]] ?? 0,
         }))}
@@ -96,7 +95,7 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
         <ResultBanner
           tone={view.winner === 'draw' ? 'neutral' : won ? 'good' : 'bad'}
           art={<GameArt id="dama" size={72} />}
-          title={view.winner === 'draw' ? 'تعادل' : `فاز ${h.player(view[view.winner as 'white' | 'black']).name}`}
+          title={view.winner === 'draw' ? 'تعادل' : won ? 'فزت!' : winLine(h.player(view[view.winner as 'white' | 'black']).name)}
           sub={reason}
         />
       ) : myTurn ? (

@@ -13,10 +13,9 @@ import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal, Stepper } from '@/ui/controls';
 import { ThrownDice } from '@/ui/dice3d';
-import { Confetti, Scoreboard, TimerBar } from '@/ui/fun';
+import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { EstateBoard, INK, PAPER, shortName, squareIcon } from './estate-board';
 import { helpers, type Helpers } from './helpers';
@@ -48,7 +47,8 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
           title={view.winner ? `${h.player(view.winner).name} ملك العقار` : 'انتهت اللعبة'}
           sub={view.maxRounds && view.round > view.maxRounds ? 'انتهت الجولات — الفائز هو الأغنى' : 'آخر من بقي في اللعبة'}
         />
-        <Scoreboard players={room.players} scores={view.worth} unit="درهم" highlight={view.winner ?? undefined} />
+        <Podium players={room.players} scores={view.worth} />
+        <Scoreboard players={room.players} scores={view.worth} unit="درهم" highlight={h.me} />
         <PlayAgain room={room} />
       </>
     );
@@ -100,7 +100,6 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
       </EstateBoard>
 
       <ActionPanel view={view} h={h} myTurn={myTurn} rolling={rolling} onSheet={setSheet} onBankrupt={() => setConfirmBk(true)} />
-      <LastEvent feed={view.feed} h={h} />
 
       <SquareSheet i={detail} view={view} h={h} onClose={() => setDetail(null)} />
       <MineSheet visible={sheet === 'mine'} view={view} h={h} onClose={() => setSheet(null)} onOpen={(i) => setDetail(i)} />
@@ -125,6 +124,10 @@ export function EstateGame({ room, view }: { room: RoomView; view: EstateView })
 
 /* ---------------- players ---------------- */
 
+/**
+ * Everyone's cash, in the style of the shared PlayerStrip (the player on turn framed and tinted in their
+ * colour, «(أنت)» for me) but sized to its content: the amounts need the room more than equal chips.
+ */
 function PlayersStrip({ view, h }: { view: EstateView; h: Helpers }) {
   return (
     <View style={styles.players}>
@@ -132,13 +135,16 @@ function PlayersStrip({ view, h }: { view: EstateView; h: Helpers }) {
         const pl = h.player(p.id);
         const active = p.id === view.turn;
         return (
-          <View key={p.id} style={[styles.player, active && { borderColor: pl.color, backgroundColor: alpha(pl.color, 0.2) }, p.bankrupt && { opacity: 0.4 }]}>
-            <Avatar player={pl} size={28} ring={pl.color} badge={p.jail !== null ? 'bars' : undefined} />
-            <View>
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 76 }}>
+          <View key={p.id} style={[styles.player, active && { borderColor: pl.color, backgroundColor: alpha(pl.color, 0.2) }, p.bankrupt && { opacity: 0.45 }]}>
+            <Avatar player={pl} size={28} badge={p.jail !== null ? 'bars' : undefined} />
+            <View style={{ flexShrink: 1, minWidth: 0 }}>
+              <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13, maxWidth: 96 }}>
                 {pl.name}
+                {p.id === h.me ? ' (أنت)' : ''}
               </Txt>
-              <Txt style={{ fontFamily: F.black, fontSize: 13, lineHeight: 18, color: p.bankrupt ? C.red : C.yellow }}>{p.bankrupt ? 'أفلس' : money(p.cash)}</Txt>
+              <Txt v="bold" color={p.bankrupt ? C.red : active ? C.text : C.yellow} style={{ fontSize: 14, lineHeight: 19 }}>
+                {p.bankrupt ? 'إفلاس' : money(p.cash)}
+              </Txt>
             </View>
           </View>
         );
@@ -184,7 +190,7 @@ function ActionPanel({ view, h, myTurn, rolling, onSheet, onBankrupt }: {
   if (rolling) {
     body = (
       <Txt v="bold" center color={C.muted}>
-        {myTurn ? 'النرد يتدحرج…' : `${h.player(view.turn).name} يرمي النرد…`}
+        النرد يتدحرج…
       </Txt>
     );
   } else if (view.phase === 'auction' && view.auction) {
@@ -639,7 +645,7 @@ function OfferModal({ h, trade, onHide }: { h: Helpers; trade: EstateView['trade
           <Row gap={8}>
             <Avatar player={from} size={36} />
             <Txt v="h2" style={{ flex: 1 }}>
-              {from.name} يقترح صفقة
+              صفقة مقترحة من {from.name}
             </Txt>
           </Row>
           <Txt v="bold" color={C.green}>
@@ -664,7 +670,7 @@ function OfferModal({ h, trade, onHide }: { h: Helpers; trade: EstateView['trade
 
 const styles = StyleSheet.create({
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
+  player: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
   panel: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 10 },
   waitTrade: { backgroundColor: alpha(C.yellow, 0.1), borderRadius: 12, padding: 8 },
   auction: { gap: 8, borderRadius: 16, borderWidth: 2, borderColor: alpha(C.yellow, 0.5), backgroundColor: alpha(C.yellow, 0.06), padding: 10 },
