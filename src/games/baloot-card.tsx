@@ -2,17 +2,22 @@
  * «البلوط» cards, drawn with react-native-svg: classic French cards with a corner index (A K Q J 10 9
  * 8 7, as the cards are printed in the Gulf), big pips, simple court figures of our own, red ♥ ♦ and
  * black ♠ ♣. Below ~46 px wide a card keeps only its index and one big suit, so it stays readable.
+ * In the Moroccan mode (`MoroccoDeck`) the same cards are shown with the Moroccan deck's images.
  */
-import { memo } from 'react';
+import { createContext, memo, use } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 
+import { CARD_RATIO, SpanishCard } from '@/art/spanish-card';
 import { haptic } from '@/lib/sfx';
+import { maCardLabel, toSpanish } from '@/shared/baloot-morocco';
 import { SUIT_NAME } from '@/shared/baloot-rules';
 import type { BCard, BSuit } from '@/shared/games/baloot';
 import { C, alpha } from '@/theme';
 
 export const CARD_H = 1.4;
+/** true inside a Moroccan game: every card is drawn from the Moroccan deck */
+export const MoroccoDeck = createContext(false);
 const RED = '#C9283E';
 const BLACK = '#1E2238';
 const PAPER = '#FFFDF7';
@@ -156,7 +161,10 @@ export const BalootCard = memo(function BalootCard({
   ring?: string;
   onPress?: () => void;
 }) {
-  const r = width * 0.09 + 2;
+  const ma = use(MoroccoDeck);
+  // a Moroccan card is a little taller (1.5): it keeps the same height, so the layout doesn't move
+  const w = ma ? Math.round((width * CARD_H) / CARD_RATIO) : width;
+  const r = w * 0.09 + 2;
   const face = (
     <View
       style={{
@@ -171,10 +179,11 @@ export const BalootCard = memo(function BalootCard({
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
       }}>
-      {card ? <Face card={card} width={width} /> : <Back width={width} />}
+      {ma ? <SpanishCard card={card && toSpanish(card)} width={w} /> : card ? <Face card={card} width={width} /> : <Back width={width} />}
     </View>
   );
-  if (!onPress) return face;
+  const box = ma ? <View style={{ width, alignItems: 'center' }}>{face}</View> : face;
+  if (!onPress) return box;
   return (
     <Pressable
       onPress={() => {
@@ -182,8 +191,8 @@ export const BalootCard = memo(function BalootCard({
         onPress();
       }}
       accessibilityRole="button"
-      accessibilityLabel={card ? `${card.rank} ${SUIT_NAME[card.suit]}` : 'ورقة'}>
-      {face}
+      accessibilityLabel={card ? (ma ? maCardLabel(card) : `${card.rank} ${SUIT_NAME[card.suit]}`) : 'ورقة'}>
+      {box}
     </Pressable>
   );
 });

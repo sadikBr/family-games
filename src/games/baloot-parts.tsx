@@ -7,6 +7,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { haptic } from '@/lib/sfx';
+import { ANN_NAME, maSuitName } from '@/shared/baloot-morocco';
 import { PROJECT_NAME, SUIT_SYM, suitLabel } from '@/shared/baloot-rules';
 import type { BalootContract, BalootOption, BalootRaise, BalootView, BCard, BProjectView, BSide, BSuit } from '@/shared/games/baloot';
 import { C, F, alpha } from '@/theme';
@@ -16,15 +17,19 @@ import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from './helpers';
 import { BalootCard, CARD_H, suitColor } from './baloot-card';
+import { SuitIcon } from './baloot-suit';
 
 export const RAISE_LABEL: Record<BalootRaise, string> = { double: 'دبل', triple: 'ثري', four: 'فور', gahwa: 'قهوة' };
 const MULT_LABEL: Record<number, string> = { 2: 'دبل ×2', 3: 'ثري ×3', 4: 'فور ×4' };
+/** a Saudi project's or a Moroccan announcement's name */
+export const projName = (kind: BProjectView['kind']) => (kind in ANN_NAME ? ANN_NAME[kind as keyof typeof ANN_NAME] : PROJECT_NAME[kind as keyof typeof PROJECT_NAME]);
 
 export function contractText(c: BalootContract) {
   return c.mode === 'sun' ? 'صن' : `حكم ${suitLabel(c.trump!)}`;
 }
 
 function callText(v: BalootView, call: { call: string; suit?: BSuit }) {
+  if (v.rules === 'morocco') return call.call === 'pass' ? 'تمرير' : call.call === 'hokm2' ? maSuitName(call.suit ?? 'S') : 'شراء';
   if (call.call === 'pass') return 'بس';
   if (call.call === 'sun') return 'صن';
   if (call.call === 'ashkal') return 'أشكل';
@@ -33,11 +38,14 @@ function callText(v: BalootView, call: { call: string; suit?: BSuit }) {
 }
 
 /** A small label on a seat (a call, a role, a project). */
-function Chip({ text, tone = 'light' }: { text: string; tone?: 'light' | 'gold' | 'dark' }) {
+function Chip({ text, tone = 'light', suit }: { text: string; tone?: 'light' | 'gold' | 'dark'; suit?: BSuit }) {
   const bg = tone === 'gold' ? C.yellow : tone === 'dark' ? 'rgba(0,0,0,0.35)' : '#FFFDF7';
   const fg = tone === 'dark' ? '#FFFFFF' : C.ink;
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={{ backgroundColor: bg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 0 }}>
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      style={[{ backgroundColor: bg, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 0 }, suit ? { flexDirection: 'row', alignItems: 'center', gap: 3 } : null]}>
+      {suit ? <SuitIcon suit={suit} size={12} /> : null}
       <Txt numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 11, lineHeight: 18, color: fg }}>
         {text}
       </Txt>
@@ -48,14 +56,15 @@ function Chip({ text, tone = 'light' }: { text: string; tone?: 'light' | 'gold' 
 function SeatTag({ v, id, h, width, me, row }: { v: BalootView; id: string; h: Helpers; width: number; me?: boolean; row?: boolean }) {
   const p = h.player(id);
   const active = v.turn === id;
-  const chips: { text: string; tone?: 'light' | 'gold' | 'dark' }[] = [];
+  const ma = v.rules === 'morocco';
+  const chips: { text: string; tone?: 'light' | 'gold' | 'dark'; suit?: BSuit }[] = [];
   const call = v.phase === 'bid' ? v.calls[id] : undefined;
-  if (call) chips.push({ text: callText(v, call) });
+  if (call) chips.push({ text: callText(v, call), suit: ma && call.call === 'hokm2' ? call.suit : undefined });
   const raise = v.phase === 'double' ? v.raises[id] : undefined;
   if (raise) chips.push({ text: raise === 'pass' ? 'بس' : RAISE_LABEL[raise], tone: raise === 'pass' ? 'light' : 'gold' });
-  if (v.contract?.buyer === id) chips.push({ text: 'المشتري', tone: 'gold' });
-  for (const d of v.declared.filter((x) => x.by === id)) chips.push({ text: PROJECT_NAME[d.kind] });
-  if (v.baloot.includes(id)) chips.push({ text: 'بلوت', tone: 'gold' });
+  if (v.contract?.buyer === id) chips.push({ text: ma ? 'الشاري' : 'المشتري', tone: 'gold' });
+  for (const d of v.declared.filter((x) => x.by === id)) chips.push({ text: projName(d.kind) });
+  if (v.baloot.includes(id)) chips.push({ text: ma ? 'بلوط' : 'بلوت', tone: 'gold' });
   if (v.dealer === id && (v.phase === 'bid' || v.phase === 'double')) chips.push({ text: 'الموزّع', tone: 'dark' });
   const maxChips = v.phase === 'bid' || v.phase === 'double' ? 3 : 2;
   return (
@@ -75,7 +84,7 @@ function SeatTag({ v, id, h, width, me, row }: { v: BalootView; id: string; h: H
       )}
       <View style={{ flexDirection: row ? 'row' : 'column', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
         {chips.slice(0, maxChips).map((c, i) => (
-          <Chip key={`${c.text}${i}`} text={c.text} tone={c.tone} />
+          <Chip key={`${c.text}${i}`} text={c.text} tone={c.tone} suit={c.suit} />
         ))}
       </View>
     </View>
@@ -379,7 +388,7 @@ export function ProjectLine({ p, h, on, onPress }: { p: BProjectView; h: Helpers
       }}>
       <Avatar player={h.player(p.by)} size={20} />
       <Txt v="tiny" color="#FFFFFF">
-        {PROJECT_NAME[p.kind]} {num(`+${p.points}`)}
+        {projName(p.kind)} {num(`+${p.points}`)}
       </Txt>
       <Row gap={2} style={{ direction: 'ltr' }}>
         {(p.cards ?? []).map((c) => (
@@ -508,7 +517,13 @@ export function InfoRow({ v, mine }: { v: BalootView; mine: BSide }) {
   const theirs: BSide = mine === 'A' ? 'B' : 'A';
   return (
     <Txt v="tiny" center color={C.dim} numberOfLines={1}>
-      الأكلة {num(Math.min(v.trickNo, 8))} من {num(8)} · أبناطنا {num(v.abnat[mine])} · أبناطهم {num(v.abnat[theirs])}
+      {v.rules === 'morocco' ? (
+        `الأكلة ${num(Math.min(v.trickNo, 8))} من ${num(8)} · نقاطنا ${num(v.abnat[mine])} · نقاطهم ${num(v.abnat[theirs])}`
+      ) : (
+        <>
+          الأكلة {num(Math.min(v.trickNo, 8))} من {num(8)} · أبناطنا {num(v.abnat[mine])} · أبناطهم {num(v.abnat[theirs])}
+        </>
+      )}
     </Txt>
   );
 }

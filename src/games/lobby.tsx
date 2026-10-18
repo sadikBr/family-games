@@ -70,6 +70,7 @@ function EmptySeat({ kind, onPress, accent }: { kind: 'bot' | 'invite' | 'wait';
 export function Lobby({ room }: { room: RoomView }) {
   const { isHost, me } = helpers(room);
   const meta = GAMES[room.game];
+  const variant = meta.variant?.(room.settings) ?? null;
   const accent = meta.color;
   const [howTo, setHowTo] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -108,7 +109,7 @@ export function Lobby({ room }: { room: RoomView }) {
               {meta.title}
             </Txt>
             <Txt v="small" color={C.text} style={{ opacity: 0.85 }}>
-              {meta.tagline}
+              {variant?.tagline ?? meta.tagline}
             </Txt>
             <Row gap={6} wrap>
               <Pill label={seatsLabel(meta.minPlayers, maxSeats)} icon="users" color={alpha('#000000', 0.25)} />
@@ -122,7 +123,7 @@ export function Lobby({ room }: { room: RoomView }) {
         </Row>
         {howTo ? (
           <Animated.View entering={FadeIn.duration(160)} style={{ gap: 6 }}>
-            {meta.howTo.map((line, i) => (
+            {(variant?.howTo ?? meta.howTo).map((line, i) => (
               <Row key={i} gap={8} style={{ alignItems: 'flex-start' }}>
                 <View style={[styles.stepNum, { backgroundColor: accent }]}>
                   <Txt v="tiny" color={C.ink}>

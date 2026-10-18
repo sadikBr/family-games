@@ -9,7 +9,7 @@ import { BLOCKS_INFO } from '@/shared/games/blocks';
 import { CODEBREAK_INFO } from '@/shared/games/codebreak';
 import { CATAN_INFO } from '@/shared/games/catan';
 import { CARCA_INFO } from '@/shared/games/carca';
-import { BALOOT_INFO } from '@/shared/games/baloot';
+import { BALOOT_INFO, BALOOT_MA_INFO } from '@/shared/games/baloot';
 import { TELEDRAW_INFO } from '@/shared/games/teledraw';
 import { ONEWORD_INFO } from '@/shared/games/oneword';
 import { BOGGLE_INFO } from '@/shared/games/boggle';
@@ -22,7 +22,7 @@ import { MAPQUIZ_INFO } from '@/shared/games/mapquiz';
 import { PROPHETS_INFO } from '@/shared/games/prophets';
 import { MOSQUE_INFO } from '@/shared/games/mosque';
 import type { IconName } from '@/art/icons';
-import type { GameId } from '@/shared/protocol';
+import type { AllSettings, GameId } from '@/shared/protocol';
 import { MIN_PLAYERS } from '@/shared/protocol';
 
 export interface GameMeta {
@@ -34,6 +34,8 @@ export interface GameMeta {
   minPlayers: number;
   maxPlayers?: number;
   howTo: string[];
+  /** the cover text for the room's settings, when they change the game's rules (e.g. Moroccan Baloot) */
+  variant?: (settings: AllSettings) => { tagline: string; howTo: string[] } | null;
 }
 
 export const GAMES: Record<GameId, GameMeta> = {
@@ -48,7 +50,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   codebreak: { id: 'codebreak', minPlayers: MIN_PLAYERS.codebreak, ...CODEBREAK_INFO },
   catan: { id: 'catan', minPlayers: MIN_PLAYERS.catan, ...CATAN_INFO },
   carca: { id: 'carca', minPlayers: MIN_PLAYERS.carca, ...CARCA_INFO },
-  baloot: { id: 'baloot', minPlayers: MIN_PLAYERS.baloot, ...BALOOT_INFO },
+  baloot: { id: 'baloot', minPlayers: MIN_PLAYERS.baloot, ...BALOOT_INFO, variant: (s) => (s.baloot?.mode === 'morocco' ? BALOOT_MA_INFO : null) },
   teledraw: { id: 'teledraw', minPlayers: MIN_PLAYERS.teledraw, ...TELEDRAW_INFO },
   oneword: { id: 'oneword', minPlayers: MIN_PLAYERS.oneword, ...ONEWORD_INFO },
   boggle: { id: 'boggle', minPlayers: MIN_PLAYERS.boggle, ...BOGGLE_INFO },

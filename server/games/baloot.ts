@@ -5,6 +5,7 @@
  * duties in حكم. Projects declared on the first trick and shown on the second; «بلوت»; doubling in
  * حكم (دبل ← ثري ← فور ← قهوة) and in صن (دبل only, when the buyers are over 100 and the defenders
  * under). The first team to the target (152) wins. Play goes anticlockwise: seat i+1 sits on seat i's right.
+ * With `settings.mode === 'morocco'` the Moroccan rules apply instead (see ../baloot-morocco.ts).
  */
 import type {
   BalootCall,
@@ -20,6 +21,8 @@ import type {
   BSide,
   BSuit,
 } from '../../src/shared/games/baloot';
+import { BALOOT_TARGETS } from '../../src/shared/games/baloot';
+import { maCardLabel, type Ann } from '../../src/shared/baloot-morocco';
 import {
   B_SUITS,
   GROUND,
@@ -43,6 +46,20 @@ import {
 } from '../../src/shared/baloot-rules';
 import type { CardSide, GameAction } from '../../src/shared/protocol';
 import { botBid, botPlay, botRaise } from '../baloot-bot';
+import {
+  isMorocco,
+  maBelote,
+  maBidCall,
+  maBidOptions,
+  maBotDeclare,
+  maDecideBid,
+  maDeclare,
+  maEndHand,
+  maIllegal,
+  maPlayable,
+  maShowAnnouncements,
+  maViewAnn,
+} from '../baloot-morocco';
 import { makeSides, randDelay } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
@@ -112,6 +129,14 @@ export interface State {
   nextAt: number | null;
   winner: BSide | null;
   deadline: number | null;
+  /** Moroccan rules: the announcements each player could declare, those declared (2nd trick) and the best team's */
+  maAvail: Record<string, Ann[]>;
+  maDeclared: Record<string, Ann[]>;
+  maShown: { side: BSide; items: { by: string; ann: Ann }[] } | null;
+  /** Moroccan rules — ليتيج: points waiting for the winner of the next decided hand */
+  pot: number;
+  /** Moroccan rules — البيل: level at or above the target, a deciding hand */
+  bel: boolean;
   /** bumps on every change (bot keys, timer) */
   seq: number;
 }
@@ -164,12 +189,16 @@ function startHand(ctx: GameCtx, s: State) {
   s.baloot = [];
   s.result = null;
   s.nextAt = null;
+  s.maAvail = {};
+  s.maDeclared = {};
+  s.maShown = null;
   ctx.fx('card');
-  ctx.say?.(`اليد ${s.hand}: التوزيع من ${ctx.playerName(s.seats[s.dealer])} — الورقة المكشوفة ${cardLabel(s.faceUp)}`);
+  ctx.say?.(`اليد ${s.hand}: التوزيع من ${ctx.playerName(s.seats[s.dealer])} — الورقة المكشوفة ${(isMorocco(s) ? maCardLabel : cardLabel)(s.faceUp)}`);
 }
 
 /** What the player whose turn it is may say now. */
 export function bidOptions(s: State, id: string): BalootOption[] {
+  if (isMorocco(s)) return maBidOptions(s, id);
   const b = s.bid;
   if (s.phase !== 'bid' || !b || s.redealAt !== null || b.queue[0] !== id || !s.faceUp) return [];
   if (b.stage === 'confirm') return id === b.best?.by ? [{ call: 'confirm' }, { call: 'sun' }] : [{ call: 'pass' }, { call: 'sun' }];
@@ -188,6 +217,16 @@ export function bidOptions(s: State, id: string): BalootOption[] {
 }
 
 function bidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, suit: unknown) {
+  if (isMorocco(s)) {
+    const r = maBidCall(ctx, s, by, call, suit);
+    if (r === 'play') startPlay(s);
+    else if (r === 'redeal') {
+      s.redealAt = ctx.now + REDEAL_MS;
+      ctx.say?.('لا شراء — توزيع جديد');
+      ctx.fx('buzz');
+    }
+    return;
+  }
   const b = s.bid!;
   const opt = bidOptions(s, by).find((o) => o.call === call);
   if (!opt) throw new GameError(b.queue[0] === by ? 'لا يمكنك هذا الاختيار الآن' : 'ليس دورك');
@@ -309,6 +348,7 @@ function startPlay(s: State) {
 
 export function playable(s: State, id: string): BCard[] {
   if (s.phase !== 'play' || s.pauseUntil !== null || s.turn !== id) return [];
+  if (isMorocco(s)) return maPlayable(s, id);
   return legalCards(s.hands[id], s.trick, s.contract!.trump, s.leadBoss);
 }
 
@@ -318,11 +358,14 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown, declare: 
   if (!isStr(cardId)) return false;
   const c = s.contract!;
   const trump = c.trump;
+  const ma = isMorocco(s);
   if (!playable(s, by).some((x) => x.id === cardId)) {
+    if (ma) throw new GameError(maIllegal(s, by));
     throw new GameError(s.trick.length && s.hands[by].some((x) => x.suit === s.trick[0].card.suit) ? 'يجب أن تتبع الشكل المطلوب' : 'يجب أن تقطع بالحكم');
   }
   const notes: string[] = [];
-  if (s.trickNo === 1) {
+  if (ma) notes.push(...maDeclare(s, by, declare));
+  else if (s.trickNo === 1) {
     const keys = Array.isArray(declare) ? declare.filter(isStr) : [];
     s.declared[by] = (s.avail[by] ?? []).filter((p) => keys.includes(projectKey(p)));
     if (s.declared[by].length) notes.push(`مشروع: ${s.declared[by].map((p) => PROJECT_NAME[p.kind]).join(' و')}`);
@@ -332,14 +375,17 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown, declare: 
   const card = hand.splice(hand.findIndex((x) => x.id === cardId), 1)[0];
   s.trick.push({ by, card });
   ctx.fx('card');
-  if (trump && by === s.balootHolder && card.suit === trump && (card.rank === 'K' || card.rank === 'Q')) {
+  if (ma) {
+    const note = maBelote(s, by, card);
+    if (note) notes.push(note);
+  } else if (trump && by === s.balootHolder && card.suit === trump && (card.rank === 'K' || card.rank === 'Q')) {
     s.balootPlayed += 1;
     if (s.balootPlayed === 2 && !balootBlocked(s.declared[by] ?? [], trump)) {
       s.baloot.push(by);
       notes.push('بلوت!');
     }
   }
-  const head = `ورقة من ${ctx.playerName(by)}: ${cardLabel(card)}${notes.length ? ` — ${notes.join(' — ')}` : ''}`;
+  const head = `ورقة من ${ctx.playerName(by)}: ${(ma ? maCardLabel : cardLabel)(card)}${notes.length ? ` — ${notes.join(' — ')}` : ''}`;
   if (s.trick.length < 4) {
     s.turn = nextOf(s, by);
     ctx.say?.(head, by);
@@ -371,6 +417,15 @@ function showProjects(ctx: GameCtx, s: State) {
 }
 
 function endHand(ctx: GameCtx, s: State) {
+  if (isMorocco(s)) {
+    const won = maEndHand(ctx, s);
+    if (won) finish(ctx, s, won);
+    else {
+      s.nextAt = ctx.now + HAND_END_MS;
+      ctx.fx('reveal');
+    }
+    return;
+  }
   const c = s.contract!;
   const buyerSide = sideOf(s, c.buyer);
   const ground = sideOf(s, s.lastTrick?.winner ?? s.trickWinner!);
@@ -435,6 +490,7 @@ export function turnOf(s: State): string[] {
 /** The move a bot makes (also the move made for a player whose time ran out, with `timeout`). */
 export function decide(s: State, id: string, level: number, timeout = false): GameAction | null {
   if (turnOf(s)[0] !== id) return null;
+  if (s.phase === 'bid' && isMorocco(s)) return maDecideBid(s, id, level, timeout);
   if (s.phase === 'bid') {
     const options = bidOptions(s, id);
     if (timeout) return { type: 'bid', call: options.some((o) => o.call === 'confirm') ? 'confirm' : 'pass' };
@@ -458,6 +514,7 @@ export function decide(s: State, id: string, level: number, timeout = false): Ga
     level: timeout ? 2 : level,
     roll: Math.random(),
   });
+  if (isMorocco(s)) return { type: 'play', card: card.id, declare: maBotDeclare(s, id) };
   return { type: 'play', card: card.id, declare: s.trickNo === 1 ? (s.avail[id] ?? []).map(projectKey) : [] };
 }
 
@@ -496,6 +553,11 @@ export const baloot: GameModule<State, BalootSettings> = {
     if (participants.length !== 4) throw new GameError('البلوط يحتاج 4 لاعبين بالضبط — أضيفوا بوتات');
     const s: State = {
       settings: { ...settings },
+      maAvail: {},
+      maDeclared: {},
+      maShown: null,
+      pot: 0,
+      bel: false,
       seats: participants.slice(),
       sides: makeSides(participants, true),
       scores: { A: 0, B: 0 },
@@ -534,6 +596,7 @@ export const baloot: GameModule<State, BalootSettings> = {
       deadline: null,
       seq: 0,
     };
+    if (s.settings.mode === 'morocco' && !BALOOT_TARGETS.morocco.includes(s.settings.target)) s.settings.target = BALOOT_TARGETS.morocco[0];
     ctx.fx('start');
     startHand(ctx, s);
     armTimer(ctx, s);
@@ -560,7 +623,9 @@ export const baloot: GameModule<State, BalootSettings> = {
         s.trick = [];
         s.trickWinner = null;
         s.trickNo += 1;
-        if (s.trickNo === 2) showProjects(ctx, s);
+        if (isMorocco(s)) {
+          if (s.trickNo === 3) maShowAnnouncements(ctx, s);
+        } else if (s.trickNo === 2) showProjects(ctx, s);
       }
       armTimer(ctx, s);
       return true;
@@ -607,8 +672,10 @@ export const baloot: GameModule<State, BalootSettings> = {
     const projView = (by: string, p: Project, cards: boolean) => ({ by, kind: p.kind, points: projectPoints(p.kind, c?.mode ?? 'sun'), ...(cards ? { cards: p.cards } : {}) });
     const myTurnFirst = s.phase === 'play' && s.trickNo === 1 && s.turn === me && s.pauseUntil === null;
     const showShown = s.phase === 'play' && s.trickNo === 2;
+    const ma = isMorocco(s) ? maViewAnn(s, me) : null;
     return {
       game: 'baloot',
+      rules: ma ? 'morocco' : 'saudi',
       phase: s.phase,
       seats: s.seats,
       sides: s.sides,
@@ -635,9 +702,9 @@ export const baloot: GameModule<State, BalootSettings> = {
       lastTrick: s.lastTrick,
       abnat: s.abnat,
       tricks: s.tricks,
-      declared: s.phase === 'play' && s.trickNo === 1 ? s.firstOrder.flatMap((by) => (s.declared[by] ?? []).map((p) => projView(by, p, false))) : [],
-      shown: showShown && s.shown ? { side: s.shown.side, items: s.shown.items.map((d) => projView(d.by, d.project, true)) } : null,
-      myProjects: myTurnFirst ? (s.avail[me] ?? []).map((p) => ({ ...projView(me, p, true), key: projectKey(p) })) : [],
+      declared: ma ? ma.declared : s.phase === 'play' && s.trickNo === 1 ? s.firstOrder.flatMap((by) => (s.declared[by] ?? []).map((p) => projView(by, p, false))) : [],
+      shown: ma ? ma.shown : showShown && s.shown ? { side: s.shown.side, items: s.shown.items.map((d) => projView(d.by, d.project, true)) } : null,
+      myProjects: ma ? ma.myProjects : myTurnFirst ? (s.avail[me] ?? []).map((p) => ({ ...projView(me, p, true), key: projectKey(p) })) : [],
       baloot: s.baloot,
       scores: s.scores,
       target: s.settings.target,
@@ -645,6 +712,8 @@ export const baloot: GameModule<State, BalootSettings> = {
       result: s.result,
       nextAt: s.nextAt,
       winner: s.winner,
+      pot: s.pot,
+      bel: s.bel,
     };
   },
 
@@ -663,7 +732,12 @@ export const baloot: GameModule<State, BalootSettings> = {
   },
 
   patchSettings(settings, patch) {
-    if (patch.target === 100 || patch.target === 152) settings.target = patch.target;
+    // a new rule set starts from its own default target (152 / 1000)
+    if ((patch.mode === 'saudi' || patch.mode === 'morocco') && patch.mode !== (settings.mode ?? 'saudi')) {
+      settings.mode = patch.mode;
+      settings.target = BALOOT_TARGETS[patch.mode][0];
+    }
+    if (BALOOT_TARGETS[settings.mode === 'morocco' ? 'morocco' : 'saudi'].includes(patch.target as number)) settings.target = patch.target as number;
     if (patch.timer === 0 || patch.timer === 20 || patch.timer === 30 || patch.timer === 45) settings.timer = patch.timer;
     if (typeof patch.doubling === 'boolean') settings.doubling = patch.doubling;
     if (patch.level === 1 || patch.level === 2) settings.level = patch.level;

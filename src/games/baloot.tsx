@@ -6,8 +6,9 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { useCountdown } from '@/lib/time';
+import { maSuitName } from '@/shared/baloot-morocco';
 import { SUIT_SYM } from '@/shared/baloot-rules';
-import type { BalootView, BCard, BSide } from '@/shared/games/baloot';
+import { BALOOT_TARGETS, type BalootView, type BCard, type BSide } from '@/shared/games/baloot';
 import type { RoomView } from '@/shared/protocol';
 import { C, F } from '@/theme';
 import { Row } from '@/ui/bits';
@@ -17,7 +18,8 @@ import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-import { BalootCard } from './baloot-card';
+import { BalootCard, MoroccoDeck } from './baloot-card';
+import { MaBidPanel, MaContractBar, MaHandBreakdown } from './baloot-morocco';
 import { BidPanel, ContractBar, HandBreakdown, HandFan, InfoRow, ProjectLine, RaisePanel, ScoreSheet, Table } from './baloot-parts';
 import { DOUBLE_TAP_MS, tapClock } from './cards/card-ui';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
@@ -46,6 +48,21 @@ function playHint(v: BalootView, me: string): string {
   return me ? 'العب ورقة مضيئة' : '';
 }
 
+/** The Moroccan duties, in words. */
+function maPlayHint(v: BalootView): string {
+  if (!v.trick.length) return 'ابدأ الأكلة بأي ورقة';
+  const legal = v.myHand.filter((c) => v.playable.includes(c.id));
+  if (legal.length === v.myHand.length) return 'العب أي ورقة';
+  const led = v.trick[0].card.suit;
+  const trump = v.contract!.trump!;
+  const trumps = v.myHand.filter((c) => c.suit === trump).length;
+  if (legal.every((c) => c.suit === trump) && legal.length < trumps) return 'العب أتو أعلى من الأتو الموجود';
+  if (led === trump && legal.every((c) => c.suit === trump)) return 'اتبع الأتو';
+  if (legal.every((c) => c.suit === led)) return `اتبع الشكل المطلوب: ${maSuitName(led)}`;
+  if (legal.every((c) => c.suit === trump)) return `يجب أن تقطع بالأتو: ${maSuitName(trump)}`;
+  return 'العب ورقة مضيئة';
+}
+
 export function BalootGame({ room, view }: { room: RoomView; view: BalootView }) {
   const h = helpers(room);
   const cw = useContentWidth();
@@ -56,6 +73,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
   if (!view.seats.includes(h.me)) return <Spectator room={room} />;
 
   const v = view;
+  const ma = v.rules === 'morocco';
   const mySide = v.sides.find((x) => x.members.includes(h.me))!.key as BSide;
   const theirSide: BSide = mySide === 'A' ? 'B' : 'A';
 
@@ -63,7 +81,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
     const final = v.phase === 'final';
     const won = final && v.winner === mySide;
     return (
-      <>
+      <MoroccoDeck value={ma}>
         {won ? <Confetti /> : null}
         {final ? (
           <ResultBanner
@@ -82,10 +100,15 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
             نهاية اليد {num(v.hand)}
           </Txt>
         )}
-        <HandBreakdown v={v} h={h} />
+        {!final && v.bel ? (
+          <Txt v="bold" center color={C.orange}>
+            تعادل فوق الهدف — «البيل»: يد فاصلة
+          </Txt>
+        ) : null}
+        {ma ? <MaHandBreakdown v={v} h={h} /> : <HandBreakdown v={v} h={h} />}
         <ScoreSheet v={v} h={h} />
         {final ? <PlayAgain room={room} /> : <NextHand v={v} h={h} />}
-      </>
+      </MoroccoDeck>
     );
   }
 
@@ -107,9 +130,9 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
   };
 
   return (
-    <>
+    <MoroccoDeck value={ma}>
       <View style={{ gap: 6 }}>
-        <ContractBar v={v} h={h} />
+        {ma ? <MaContractBar v={v} h={h} /> : <ContractBar v={v} h={h} />}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="سجل النتائج"
@@ -141,7 +164,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
         {v.shown ? (
           <Animated.View entering={FadeIn.duration(200)} style={{ gap: 4, alignItems: 'center' }}>
             <Txt v="tiny" color={C.yellow}>
-              المشاريع {v.shown.side === mySide ? 'لنا' : 'لهم'}:
+              {ma ? 'الإعلانات' : 'المشاريع'} {v.shown.side === mySide ? 'لنا' : 'لهم'}:
             </Txt>
             {v.shown.items.map((p, k) => (
               <ProjectLine key={k} p={p} h={h} />
@@ -153,7 +176,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
       <View style={{ gap: 4 }}>
         {playing ? (
           <Txt v="bold" center color={C.yellow}>
-            {playHint(v, h.me)}
+            {ma ? maPlayHint(v) : playHint(v, h.me)}
           </Txt>
         ) : null}
         <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? tap : undefined} />
@@ -163,7 +186,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
       {playing && v.myProjects.length ? (
         <Animated.View entering={FadeIn.duration(200)} style={{ gap: 4, alignItems: 'center' }}>
           <Txt v="tiny" color={C.muted} center>
-            مشاريعك تُعلن مع ورقتك الأولى (اضغط مشروعاً لإلغاء إعلانه):
+            {ma ? 'إعلاناتك تُعلن مع ورقتك في هذه الأكلة (اضغط إعلاناً لإلغائه):' : 'مشاريعك تُعلن مع ورقتك الأولى (اضغط مشروعاً لإلغاء إعلانه):'}
           </Txt>
           {v.myProjects.map((p) => {
             const on = !offKeys.includes(p.key);
@@ -180,26 +203,44 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
         </Animated.View>
       ) : null}
 
-      {v.phase === 'bid' && myTurn ? <BidPanel v={v} width={cw} onCall={(call, suit) => h.act('bid', { call, suit })} /> : null}
+      {v.phase === 'bid' && myTurn && ma ? <MaBidPanel v={v} width={cw} onCall={(call, suit) => h.act('bid', { call, suit })} /> : null}
+      {v.phase === 'bid' && myTurn && !ma ? <BidPanel v={v} width={cw} onCall={(call, suit) => h.act('bid', { call, suit })} /> : null}
       {v.phase === 'double' && myTurn ? <RaisePanel v={v} width={cw} onRaise={(raise) => h.act('raise', { raise })} /> : null}
-    </>
+    </MoroccoDeck>
   );
 }
 
-/** Lobby settings: target, timer, doubling, bots. */
+/** Lobby settings: the rules (Saudi / Moroccan), target, timer, doubling, bots. */
 export function BalootSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.baloot;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'baloot', patch });
+  const ma = s.mode === 'morocco';
+  const targets = BALOOT_TARGETS[ma ? 'morocco' : 'saudi'];
   return (
     <View style={{ gap: 10 }}>
+      <Txt v="bold">القواعد</Txt>
+      <ChipPicker
+        editable={editable}
+        value={ma ? 'morocco' : 'saudi'}
+        onChange={(x) => change({ mode: x })}
+        options={[
+          { key: 'saudi', label: 'سعودية' },
+          { key: 'morocco', label: 'مغربية' },
+        ]}
+      />
+      <Txt v="tiny" color={C.muted}>
+        {ma
+          ? 'البلوط المغربي بالورق المغربي: الأتو والإعلانات وبلوط-ريبلوط، واللعب حتى 1000. القواعد في «كيف نلعب؟».'
+          : 'البلوط السعودي بالورق الفرنسي: صن وحكم وأشكل والمشاريع والدبل، واللعب حتى 152.'}
+      </Txt>
       <Txt v="bold">نهاية اللعبة</Txt>
       <ChipPicker
         editable={editable}
-        value={String(s.target) as '152' | '100'}
+        value={String(targets.includes(s.target) ? s.target : targets[0])}
         onChange={(x) => change({ target: Number(x) })}
         options={[
-          { key: '152', label: '152 نقطة' },
-          { key: '100', label: '100 (قصيرة)' },
+          { key: String(targets[0]), label: `${targets[0]} نقطة` },
+          { key: String(targets[1]), label: `${targets[1]} (قصيرة)` },
         ]}
       />
       <Txt v="bold">الوقت لكل قرار</Txt>
@@ -214,7 +255,7 @@ export function BalootSettings({ room, editable }: { room: RoomView; editable: b
           { key: '45', label: '45 ث' },
         ]}
       />
-      <Toggle label="السماح بالدبل (ثري، فور، قهوة)" value={s.doubling} editable={editable} onChange={(x) => change({ doubling: x })} />
+      {ma ? null : <Toggle label="السماح بالدبل (ثري، فور، قهوة)" value={s.doubling} editable={editable} onChange={(x) => change({ doubling: x })} />}
       <Txt v="bold">مستوى البوتات</Txt>
       <ChipPicker
         editable={editable}

@@ -24,8 +24,15 @@ export type BalootRaise = 'double' | 'triple' | 'four' | 'gahwa';
 
 /** سرا (3 in sequence) · خمسين (4) · مية (5 in sequence, or four K/Q/J/10 — four aces in حكم) · أربعمية (four aces in صن) */
 export type BProjKind = 'sira' | 'fifty' | 'hundred' | 'four100';
+/** Moroccan announcements (الإعلانات): تيرس (3 in sequence) · كارت (4) · سانك (5+) · كاري (four of a kind) */
+export type MAnnKind = 'tierce' | 'quarte' | 'quinte' | 'carre';
+
+/** 'saudi': Saudi Baloot (صن / حكم, French cards) · 'morocco': Moroccan Belote (الأتو, the Moroccan deck) */
+export type BalootRules = 'saudi' | 'morocco';
 
 export interface BalootSettings {
+  /** which rules (and which cards): Saudi Baloot (default) or Moroccan Belote */
+  mode?: BalootRules;
   /** the team that reaches this many points first wins */
   target: number;
   /** seconds per decision (0 = no limit); when it runs out the computer plays for you */
@@ -52,7 +59,7 @@ export interface BalootContract {
 
 export interface BProjectView {
   by: string;
-  kind: BProjKind;
+  kind: BProjKind | MAnnKind;
   /** the cards, once the projects are shown (2nd trick) */
   cards?: BCard[];
   /** game points it is worth in this contract */
@@ -80,12 +87,16 @@ export interface BalootHandResult {
   kaboot: BSide | null;
   /** the team that won the hand */
   winner: BSide;
+  /** Moroccan rules — ليتيج: equal totals, the taker's points wait for the next decided hand */
+  litige?: boolean;
+  /** Moroccan rules: points carried over from earlier ليتيج hands that this hand's winner took */
+  potWon?: number;
 }
 
 export interface BalootHistoryRow {
   A: number;
   B: number;
-  /** short tag: «خسرانة», «كبوت», «قهوة» */
+  /** short tag: «خسرانة», «كبوت», «قهوة» (Moroccan: «دخل», «كابو», «ليتيج») */
   tag?: string;
   mode: BMode;
   buyerSide: BSide;
@@ -99,6 +110,8 @@ export interface BalootOption {
 
 export interface BalootView {
   game: 'baloot';
+  /** Saudi Baloot or Moroccan Belote */
+  rules: BalootRules;
   phase: 'bid' | 'double' | 'play' | 'handEnd' | 'final';
   seats: string[];
   sides: CardSide[];
@@ -149,9 +162,15 @@ export interface BalootView {
   /** the next hand deals itself at this server time (the host can deal sooner) */
   nextAt: number | null;
   winner: BSide | null;
+  /** Moroccan rules — ليتيج: points waiting for the winner of the next decided hand */
+  pot: number;
+  /** Moroccan rules — البيل: both teams are level at or above the target, a deciding hand is played */
+  bel: boolean;
 }
 
-export const BALOOT_DEFAULTS: BalootSettings = { target: 152, timer: 0, doubling: true, level: 2 };
+export const BALOOT_DEFAULTS: BalootSettings = { mode: 'saudi', target: 152, timer: 0, doubling: true, level: 2 };
+/** the targets each rule set offers (the first is the default) */
+export const BALOOT_TARGETS: Record<BalootRules, number[]> = { saudi: [152, 100], morocco: [1000, 500] };
 
 export const BALOOT_INFO = {
   title: 'البلوط',
@@ -174,5 +193,24 @@ export const BALOOT_INFO = {
     'إن جمع المشترون أقل من الخصوم فهي «خسرانة»: يأخذ الخصوم كل نقاط اليد والمشاريع. وعند التعادل يفوز المشترون. «كبوت» = كل الأكلات الثماني: 44 في الصن و25 في الحكم.',
     'الدبل: في الحكم يحق للخصم «دبل» (×2)، ثم للمشتري «ثري» (×3)، ثم «فور» (×4)، ثم «قهوة» وفيها يربح الفائز باليد اللعبة كلها. في الصن «دبل» فقط، إذا تجاوز المشترون 100 والخصوم دونها. في اليد المضاعفة يأخذ الفائز كل شيء.',
     'يفوز الفريق الذي يصل أولاً إلى 152 نقطة (أو الهدف الذي تختارونه). سجل النتائج يعرض «لنا» و«لهم».',
+  ],
+};
+
+/** The Moroccan rules (النمط المغربي): shown in the lobby instead of the Saudi cover text when chosen. */
+export const BALOOT_MA_INFO = {
+  tagline: 'الأتو والإعلانات وبلوط-ريبلوط: العب مع شريكك بالورق المغربي حتى 1000.',
+  howTo: [
+    'أربعة لاعبين في فريقين، والشريك يجلس مقابلك، ويدور اللعب عكس عقارب الساعة. الورق المغربي بلا 2 و3: 32 ورقة (1، 4، 5، 6، 7، 10، 11، 12) من الأشكال الأربعة: شباضا، أوروص، الباسطوص، الكوباص.',
+    'الشرا: يوزَّع لكل لاعب 5 أوراق وتُكشف ورقة. يبدأ من على يمين الموزّع: «أشتري» تجعل شكل المكشوفة هو الأتو (الحكم)، أو «أمرّر». إن مرّر الجميع ففي الجولة الثانية يختار كل لاعب شكلاً آخر أو يمرّر، وإن مرّروا مرة ثانية يوزّع اللاعب التالي.',
+    'الفورص: إذا كانت المكشوفة ولداً (10) فعلى أول لاعب أن يشتريها. يأخذ الشاري المكشوفة وورقتين، ويأخذ كل لاعب آخر 3 أوراق، فتصير لكل واحد 8 أوراق.',
+    'الترتيب في الأتو: 10 (الولد) = 20، ثم 6 = 14، ثم 1 = 11، ثم 7 = 10، ثم 12 = 4، ثم 11 = 3، ثم 5 و4 = 0.',
+    'وفي الأشكال الأخرى: 1 = 11، ثم 7 = 10، ثم 12 = 4، ثم 11 = 3، ثم 10 = 2، ثم 6 و5 و4 = 0. آخر أكلة «ديكس دي دير» = 10، فمجموع اليد 162.',
+    'اتبع الشكل المطلوب. إن لم يكن معك: إذا كانت الأكلة لشريكك فالعب ما تشاء، وإلا فاقطع بالأتو واعلُ على الأتو الموجود إن استطعت. وإذا بُدئ بالأتو فالعب أتو أعلى إن استطعت.',
+    'بلوط-ريبلوط: 12 و11 من الأتو في يد واحدة = 20 نقطة لفريق صاحبهما، شاريًا كان أو لا، وتُحسب عند لعب الثانية.',
+    'الإعلانات في دورك في الأكلة الثانية: تيرس (3 متتالية من شكل واحد) = 20، كارت (4) = 50، سانك (5 فأكثر) = 100. التسلسل: 4 5 6 7 10 11 12 1.',
+    'كاري (أربع أوراق من رقم واحد): أربع 10 = 200، أربع 6 = 150، أربع 1 أو 7 أو 12 أو 11 = 100. تُحسب إعلانات الفريق صاحب أقوى إعلان فقط: الكاري أولاً، ثم الأطول، ثم الأعلى، ثم تسلسل الأتو، ثم الأقرب إلى يمين الموزّع.',
+    'إذا جمع فريق الشاري أكثر من الخصمين (الأكلات والإعلانات وبلوط) يأخذ كل فريق نقاطه. وإلا فهي «دخل»: يأخذ الخصمان 162 وكل الإعلانات، ولا يبقى لفريق الشاري إلا بلوط.',
+    'كابو: الأكلات الثماني كلها = 252 مع الإعلانات (بلا ديكس دي دير). ليتيج: عند التعادل تُعلَّق نقاط الشاري وتذهب إلى من يربح اليد التالية، وتتراكم إن تكرر التعادل.',
+    'يفوز أول فريق يصل إلى 1000 (أو 500 في اللعبة القصيرة). إن تجاوزها الفريقان في اليد نفسها فالأعلى يفوز، وعند التساوي تُلعب يد فاصلة: «البيل».',
   ],
 };
