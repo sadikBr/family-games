@@ -14,6 +14,7 @@ import { GameArt, HeroArt } from '@/art/game-art';
 import { Icon, type IconName } from '@/art/icons';
 import { GAMES, GAME_GROUPS, GAME_ORDER, type GameMeta } from '@/games/meta';
 import { GroupsSection } from '@/groups/group-card';
+import { JoinGroupModal } from '@/groups/group-forms';
 import { client, useClient } from '@/lib/client';
 import { toggleFavorite, useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
@@ -35,7 +36,8 @@ function startGame(id: GameId) {
   router.push('/room');
 }
 
-const playersLabel = (g: GameMeta) => num(g.maxPlayers && g.maxPlayers !== g.minPlayers ? `${g.minPlayers}–${g.maxPlayers}` : g.maxPlayers ? `${g.minPlayers}` : `${g.minPlayers}+`);
+// «3 فأكثر» rather than «3+», which flips to «+3» in right-to-left text
+const playersLabel = (g: GameMeta) => (g.maxPlayers && g.maxPlayers !== g.minPlayers ? num(`${g.minPlayers}–${g.maxPlayers}`) : g.maxPlayers ? num(`${g.minPlayers}`) : `${num(`${g.minPlayers}`)} فأكثر`);
 
 /** «كم عددكم؟»: does a game work for this many people (bots fill the missing seats)? */
 function fits(g: GameMeta, n: number | null) {
@@ -133,7 +135,7 @@ function Featured({ game }: { game: GameMeta }) {
           <Txt v="small" color={alpha('#FFFFFF', 0.82)} numberOfLines={2}>
             {game.tagline}
           </Txt>
-          <Row gap={8} style={{ marginTop: 6 }}>
+          <Row gap={8} wrap style={{ marginTop: 6 }}>
             <View style={[styles.playBtn, { backgroundColor: game.color }]}>
               <Icon name="play" size={14} color="#fff" />
               <Txt v="bold" color="#fff" style={{ fontSize: 14 }}>
@@ -196,6 +198,27 @@ function Chip({ label, icon, active, onPress }: { label: string; icon?: IconName
 
 const COUNTS: (number | null)[] = [null, 2, 3, 4, 5, 6, 8];
 
+/** One of the two quick ways in (room code / group code): a calm tile, the icon carries the colour. */
+function QuickTile({ icon, title, sub, onPress, compact }: { icon: IconName; title: string; sub: string; onPress: () => void; compact?: boolean }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.quick, pressed && styles.pressed]}>
+      <View style={styles.quickIcon}>
+        <Icon name={icon} size={20} color={C.yellow} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt v="bold" numberOfLines={2} style={{ lineHeight: 22 }}>
+          {title}
+        </Txt>
+        {compact ? null : (
+          <Txt v="tiny" color={C.dim} numberOfLines={1}>
+            {sub}
+          </Txt>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export default function Home() {
@@ -206,6 +229,7 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<string>('all'); // 'all' | 'fav' | group title
   const [count, setCount] = useState<number | null>(null);
+  const [joiningGroup, setJoiningGroup] = useState(false);
   // read once per visit: the greeting and the game of the day
   const [now] = useState(() => new Date());
   const contentWidth = useContentWidth();
@@ -258,27 +282,28 @@ export default function Home() {
         <HeroArt width={Math.min(120, contentWidth * 0.32)} />
       </View>
 
-      <View style={styles.ways}>
-        <Btn size="xl" icon="key" label="ادخل غرفة برمز" onPress={() => router.push('/join')} />
-        {lastCode ? (
-          <Pressable
-            onPress={() => {
-              client.joinRoom(lastCode);
-              router.push('/room');
-            }}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-            <Icon name="door" size={18} color={C.text} />
-            <Txt v="bold" style={{ flex: 1 }}>
-              ارجع إلى الغرفة {num(lastCode)}
-            </Txt>
-            <Icon name="chevron" size={16} color={C.dim} />
-          </Pressable>
-        ) : null}
-        <Txt v="tiny" center color={C.dim}>
-          أو اختر لعبة في الأسفل لتفتح غرفة جديدة وتدعو الآخرين
-        </Txt>
-      </View>
+      {lastCode ? (
+        <Pressable
+          onPress={() => {
+            client.joinRoom(lastCode);
+            router.push('/room');
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+          <Icon name="door" size={18} color={C.green} />
+          <Txt v="bold" style={{ flex: 1 }}>
+            ارجع إلى الغرفة {num(lastCode)}
+          </Txt>
+          <Icon name="chevron" size={16} color={C.dim} />
+        </Pressable>
+      ) : null}
+
+      {/* the two ways in with a code: a room (4 digits) or a group (6 letters) */}
+      <Row gap={GAP}>
+        <QuickTile icon="key" title="ادخل غرفة" sub="برمز من 4 أرقام" compact={contentWidth < 340} onPress={() => router.push('/join')} />
+        <QuickTile icon="users" title="انضم إلى مجموعة" sub="برمز من 6 حروف" compact={contentWidth < 340} onPress={() => setJoiningGroup(true)} />
+      </Row>
+      <JoinGroupModal visible={joiningGroup} onClose={() => setJoiningGroup(false)} />
 
       <GroupsSection />
 
@@ -405,7 +430,8 @@ const styles = StyleSheet.create({
   },
   hello: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   helloTitle: { fontFamily: F.display, fontSize: 25, lineHeight: 38, color: C.text },
-  ways: { gap: 8, padding: 12, borderRadius: 24, backgroundColor: C.bg2, borderWidth: 1, borderColor: C.border },
+  quick: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  quickIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
   back: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -413,9 +439,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 48,
     borderRadius: 16,
-    backgroundColor: C.surface,
+    backgroundColor: alpha(C.green, 0.12),
     borderWidth: 1,
-    borderColor: C.borderStrong,
+    borderColor: alpha(C.green, 0.5),
   },
   featured: {
     flexDirection: 'row',

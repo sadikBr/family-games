@@ -1,6 +1,5 @@
 /**
- * «مجموعاتي» on the home screen: one card per group (who is in it, who has the app open, «لنلعب»),
- * or an inviting card explaining groups when there is none yet.
+ * «مجموعاتي» on the home screen, and the faces used by the group screen.
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -13,11 +12,10 @@ import type { GroupInfo, PlayerInfo } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { onlineLabel, openGroup, playGroup } from './actions';
-import { CreateGroupModal, JoinGroupModal } from './group-forms';
+import { CreateGroupModal } from './group-forms';
 
 /** A member's face with a small green dot while their app is open. */
 export function Face({ player, online, size = 34 }: { player: Pick<PlayerInfo, 'avatar' | 'color'>; online: boolean; size?: number }) {
@@ -54,115 +52,129 @@ export function Faces({ members, width, size = 34 }: { members: GroupInfo['membe
   );
 }
 
-function LinkBtn({ icon, label, onPress }: { icon: 'plus' | 'key'; label: string; onPress: () => void }) {
+/** Up to four overlapping faces (online ones first) and «+N»: compact enough for one row. */
+function FaceStack({ members, size = 30 }: { members: GroupInfo['members']; size?: number }) {
+  const sorted = [...members].sort((a, b) => Number(b.online) - Number(a.online));
+  const shown = sorted.slice(0, members.length > 4 ? 3 : 4);
+  const more = members.length - shown.length;
+  const step = size * 0.62;
+  const width = size + step * (shown.length - 1 + (more > 0 ? 1 : 0));
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={4} style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
-      <Icon name={icon} size={15} color={C.yellow} />
-      <Txt v="small" color={C.yellow} style={{ fontFamily: F.bold }} numberOfLines={1}>
-        {label}
-      </Txt>
-    </Pressable>
+    <View style={{ width, height: size, direction: 'ltr' }}>
+      {shown.map((m, i) => (
+        <View key={m.id} style={[styles.stacked, { left: i * step, borderRadius: size / 2 }]}>
+          <Face player={m} online={m.online} size={size} />
+        </View>
+      ))}
+      {more > 0 ? (
+        <View style={[styles.more, styles.stacked, { left: shown.length * step, width: size, height: size, borderRadius: size / 2 }]}>
+          <Txt v="tiny" color={C.muted}>
+            +{num(more)}
+          </Txt>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
-function GroupCard({ group, me, width }: { group: GroupInfo; me: string; width: number }) {
+/** One group on one row: faces, name and who is online, and «لنلعب» (or «ادخل» while they play). */
+function GroupRow({ group, me }: { group: GroupInfo; me: string }) {
   const playing = !!group.playing;
   return (
     <Pressable
       onPress={() => openGroup(group.id)}
       accessibilityRole="button"
       accessibilityLabel={`مجموعة ${group.name}`}
-      style={({ pressed }) => [styles.card, playing && styles.cardPlaying, pressed && styles.pressed]}>
-      <Row gap={8}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Txt v="h3" numberOfLines={1}>
-            {group.name}
+      style={({ pressed }) => [styles.row, playing && styles.rowPlaying, pressed && styles.pressed]}>
+      <FaceStack members={group.members} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Txt v="bold" numberOfLines={1}>
+          {group.name}
+        </Txt>
+        <Row gap={5}>
+          {playing ? <View style={[styles.liveDot, { backgroundColor: C.green }]} /> : null}
+          <Txt v="tiny" color={playing ? C.green : C.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
+            {playing ? 'يلعبون الآن' : onlineLabel(group, me)}
           </Txt>
-          <Row gap={6}>
-            {playing ? <View style={[styles.liveDot, { backgroundColor: C.green }]} /> : null}
-            <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
-              {onlineLabel(group, me)}
-            </Txt>
-          </Row>
-        </View>
-        {/* «open»: the chevron points forward (left in RTL) */}
-        <View style={{ transform: [{ rotate: '90deg' }] }}>
-          <Icon name="chevron" size={18} color={C.dim} />
-        </View>
-      </Row>
-      <Faces members={group.members} width={width - 28} />
-      <Btn
-        size="md"
-        icon={playing ? 'door' : 'play'}
-        label={playing ? 'يلعبون الآن — ادخل' : 'لنلعب'}
-        color={playing ? C.green : C.yellow}
-        silent
+        </Row>
+      </View>
+      <Pressable
         onPress={() => playGroup(group.id)}
-      />
+        accessibilityRole="button"
+        accessibilityLabel={playing ? `ادخل إلى لعب «${group.name}»` : `لنلعب مع «${group.name}»`}
+        hitSlop={6}
+        style={({ pressed }) => [styles.play, { backgroundColor: playing ? C.green : C.yellow }, pressed && { opacity: 0.8 }]}>
+        <Icon name={playing ? 'door' : 'play'} size={15} color={playing ? '#FFFFFF' : C.ink} />
+        <Txt v="bold" color={playing ? '#FFFFFF' : C.ink} style={{ fontSize: 15 }}>
+          {playing ? 'ادخل' : 'لنلعب'}
+        </Txt>
+      </Pressable>
     </Pressable>
   );
 }
 
+/**
+ * «مجموعاتي» on the home screen: compact rows, one per group, with «مجموعة جديدة» in the title line.
+ * Joining a group by its code lives in the home screen's quick tiles.
+ */
 export function GroupsSection() {
   const { groups } = useClient();
   const { profile } = useProfile();
-  const width = useContentWidth();
   const [creating, setCreating] = useState(false);
-  const [joining, setJoining] = useState(false);
   const list = groups ?? [];
 
   return (
-    <View style={{ gap: 10 }}>
-      <Row gap={6}>
-        <Icon name="users" size={18} color={C.yellow} />
+    <View style={{ gap: 8 }}>
+      <Row gap={8}>
         <Txt v="h2" style={{ flex: 1 }}>
           مجموعاتي
         </Txt>
+        {list.length ? (
+          <Pressable onPress={() => setCreating(true)} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
+            <Icon name="plus" size={15} color={C.yellow} />
+            <Txt v="small" color={C.yellow} style={{ fontFamily: F.bold }}>
+              مجموعة جديدة
+            </Txt>
+          </Pressable>
+        ) : null}
       </Row>
 
       {list.length ? (
-        <Animated.View entering={FadeIn.duration(200)} style={{ gap: 10 }}>
+        <Animated.View entering={FadeIn.duration(200)} style={{ gap: 8 }}>
           {list.map((g) => (
-            <GroupCard key={g.id} group={g} me={profile.id} width={width} />
+            <GroupRow key={g.id} group={g} me={profile.id} />
           ))}
-          <View style={styles.actions}>
-            <LinkBtn icon="plus" label="مجموعة جديدة" onPress={() => setCreating(true)} />
-            <LinkBtn icon="key" label="انضم إلى مجموعة" onPress={() => setJoining(true)} />
-          </View>
         </Animated.View>
       ) : (
         <View style={styles.empty}>
-          <Row gap={12} style={{ alignItems: 'flex-start' }}>
-            <View style={styles.emptyIcon}>
-              <Icon name="users" size={26} color={C.yellow} />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt v="h3">العبوا معاً بضغطة واحدة</Txt>
-              <Txt v="small" color={C.muted}>
-                أنشئ مجموعة للعائلة مرة واحدة، ثم تكفي ضغطة على «لنلعب» لتُفتح غرفة للجميع وتصلهم الدعوة — دون مشاركة رمز في كل مرة.
-              </Txt>
-            </View>
-          </Row>
-          <Btn size="md" icon="plus" label="أنشئ مجموعة للعائلة" onPress={() => setCreating(true)} />
-          <LinkBtn icon="key" label="لديك رمز مجموعة؟ انضم إليها" onPress={() => setJoining(true)} />
+          <View style={styles.emptyIcon}>
+            <Icon name="users" size={22} color={C.yellow} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt v="bold">العبوا معاً بضغطة واحدة</Txt>
+            <Txt v="tiny" color={C.muted}>
+              ضغطة على «لنلعب» تفتح غرفة للجميع وتصلهم الدعوة.
+            </Txt>
+          </View>
+          <Btn size="sm" icon="plus" label="أنشئ" onPress={() => setCreating(true)} />
         </View>
       )}
 
       <CreateGroupModal visible={creating} onClose={() => setCreating(false)} />
-      <JoinGroupModal visible={joining} onClose={() => setJoining(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 10, padding: 14, borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  cardPlaying: { borderColor: alpha(C.green, 0.55), backgroundColor: alpha(C.green, 0.1) },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  rowPlaying: { borderColor: alpha(C.green, 0.55), backgroundColor: alpha(C.green, 0.1) },
+  stacked: { position: 'absolute', top: 0, borderWidth: 2, borderColor: C.surface },
+  play: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14, borderRadius: 20 },
   pressed: { opacity: 0.9 },
   dot: { position: 'absolute', bottom: -1, start: -1, backgroundColor: C.green, borderWidth: 2, borderColor: C.surface },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   more: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 22 },
-  empty: { gap: 12, padding: 14, borderRadius: 22, backgroundColor: C.surface, borderWidth: 1, borderColor: alpha(C.yellow, 0.3) },
-  emptyIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
-  link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, paddingHorizontal: 4 },
+  empty: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: alpha(C.yellow, 0.3) },
+  emptyIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
+  link: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36, paddingHorizontal: 2 },
 });

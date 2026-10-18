@@ -9,7 +9,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsModule from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { client } from './client';
@@ -21,8 +21,22 @@ export const CALL_CHANNEL = 'group-calls';
 let warned = false;
 const handled = new Set<string>();
 
+/**
+ * Loaded lazily: Expo Go and APKs built before groups don't have the notifications native module,
+ * and a plain import would crash the whole app at start. Without it, push is simply off.
+ */
+let mod: typeof NotificationsModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  mod = require('expo-notifications') as typeof NotificationsModule;
+} catch {
+  mod = null;
+}
+const Notifications = mod!;
+const available = mod !== null;
+
 async function ensureChannel() {
-  if (Platform.OS !== 'android') return;
+  if (!available || Platform.OS !== 'android') return;
   try {
     await Notifications.setNotificationChannelAsync(CALL_CHANNEL, {
       name: 'دعوات المجموعات',
@@ -36,6 +50,7 @@ async function ensureChannel() {
 }
 
 async function registerToken() {
+  if (!available) return;
   try {
     const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
@@ -48,7 +63,7 @@ async function registerToken() {
   }
 }
 
-function handleResponse(res: Notifications.NotificationResponse | null, onCall: (code: string) => void) {
+function handleResponse(res: NotificationsModule.NotificationResponse | null, onCall: (code: string) => void) {
   if (!res) return;
   const id = res.notification.request.identifier;
   if (handled.has(id)) return;
@@ -59,24 +74,31 @@ function handleResponse(res: Notifications.NotificationResponse | null, onCall: 
 }
 
 export function initPush(onCall: (code: string) => void): () => void {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
-  });
-  ensureChannel().then(async () => {
-    try {
-      const perm = await Notifications.getPermissionsAsync();
-      if (perm.granted) await registerToken();
-    } catch {}
-  });
-  const sub = Notifications.addNotificationResponseReceivedListener((res) => handleResponse(res, onCall));
-  // opened from a notification while the app was closed
-  Notifications.getLastNotificationResponseAsync()
-    .then((res) => handleResponse(res, onCall))
-    .catch(() => {});
-  return () => sub.remove();
+  if (!available) return () => {};
+  // a partly available module (Expo Go) must never take the app down
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+    });
+    ensureChannel().then(async () => {
+      try {
+        const perm = await Notifications.getPermissionsAsync();
+        if (perm.granted) await registerToken();
+      } catch {}
+    });
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => handleResponse(res, onCall));
+    // opened from a notification while the app was closed
+    Notifications.getLastNotificationResponseAsync()
+      .then((res) => handleResponse(res, onCall))
+      .catch(() => {});
+    return () => sub.remove();
+  } catch {
+    return () => {};
+  }
 }
 
 export async function askForPushOnce(): Promise<void> {
+  if (!available) return;
   try {
     const perm = await Notifications.getPermissionsAsync();
     if (perm.granted) return registerToken();
