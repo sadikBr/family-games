@@ -44,9 +44,10 @@ if ($root.Length -gt 40) {
 }
 try {
   $lp = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -ErrorAction Stop
-  if ($lp.LongPathsEnabled -ne 1) {
-    Write-Host 'Tip: Windows long paths are off. To turn them on (once, as administrator):' -ForegroundColor Yellow
-    Write-Host '     New-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force' -ForegroundColor Yellow
+  if ($lp.LongPathsEnabled -ne 1 -and $root.Length -gt 12) {
+    # with a short project path (like C:\fg) the build normally stays under the 260-character limit
+    Write-Host 'Note: Windows long paths are off. Usually fine with a short project path; if the build fails with' -ForegroundColor Yellow
+    Write-Host '      "path too long" errors, move the project to C:\fg (or, as administrator, enable LongPathsEnabled).' -ForegroundColor Yellow
   }
 } catch {}
 
