@@ -56,7 +56,9 @@ function Others({ view, h }: { view: CodebreakView; h: Helpers }) {
           </View>
           <View style={{ gap: 2 }}>
             {o.rows.map((r, i) => (
-              <KeyLine key={i} black={r.black} white={r.white} pegs={view.pegs} />
+              <Animated.View key={i} entering={i === o.rows.length - 1 ? FadeIn.duration(260) : undefined}>
+                <KeyLine black={r.black} white={r.white} pegs={view.pegs} />
+              </Animated.View>
             ))}
           </View>
         </View>

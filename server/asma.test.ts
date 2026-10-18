@@ -240,3 +240,24 @@ test('asma: settings are validated', () => {
   expect(st.pairs).toBe(10);
   expect(st.dir).toBe('meaning');
 });
+
+test('asma memory: a pair and a miss are announced; the found pair stays turned until the next flip', () => {
+  const { ctx } = fakeRoom();
+  const said: { text: string; by?: string }[] = [];
+  ctx.say = (text: string, by?: string) => said.push({ text, by });
+  const s = asma.start(ctx, ['a', 'b'], settings({ mode: 'memory', pairs: 6 })) as any;
+  const g = s.g;
+  const p = g.order[0];
+  const mate = g.deck.findIndex((c: any, j: number) => j !== 0 && c.idx === g.deck[0].idx);
+  asma.act(ctx, s, p, { type: 'flip', card: 0 });
+  asma.act(ctx, s, p, { type: 'flip', card: mate });
+  expect(said.at(-1)!.by).toBe(p);
+  expect(said.at(-1)!.text).toContain(ASMA_NAMES[g.deck[0].idx].name);
+  expect((asma.view(ctx, s, p) as AsmaMemoryView).flipped).toEqual([0, mate]);
+  const x = g.deck.findIndex((_: any, i: number) => !g.owners[i]);
+  const y = g.deck.findIndex((c: any, i: number) => !g.owners[i] && c.idx !== g.deck[x].idx);
+  asma.act(ctx, s, p, { type: 'flip', card: x });
+  expect(g.flipped).toEqual([x]);
+  asma.act(ctx, s, p, { type: 'flip', card: y });
+  expect(said.at(-1)!.text).toContain('غير متطابقتين');
+});

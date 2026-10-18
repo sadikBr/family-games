@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 
+import { Icon } from '@/art/icons';
 import { SpanishCard } from '@/art/spanish-card';
 import { haptic } from '@/lib/sfx';
 import { SUIT_INFO, type Card } from '@/shared/cards';
@@ -31,6 +32,7 @@ export function PlayingCard({
   selected,
   dim,
   glow,
+  ring,
   onPress,
 }: {
   card: Card | null;
@@ -38,6 +40,8 @@ export function PlayingCard({
   selected?: boolean;
   dim?: boolean;
   glow?: boolean;
+  /** a player's colour around the card (the card they just played) */
+  ring?: string;
   onPress?: () => void;
 }) {
   const w = WIDTH[size];
@@ -48,6 +52,7 @@ export function PlayingCard({
         { borderRadius: w * 0.09 + 3, transform: [{ translateY: selected ? -10 : 0 }] },
         selected && { borderColor: C.yellow },
         glow && !selected && { borderColor: alpha(C.yellow, 0.6) },
+        ring && !selected && { borderColor: ring, borderWidth: 3 },
         dim && { opacity: 0.38 },
       ]}>
       <SpanishCard card={card} width={w} />
@@ -74,6 +79,7 @@ export function CardRow({
   selected = [],
   glow = [],
   dim = [],
+  rings,
   onPress,
   empty,
   gap = 6,
@@ -83,6 +89,8 @@ export function CardRow({
   selected?: string[];
   glow?: string[];
   dim?: string[];
+  /** card id → a player's colour (the card that player just put down) */
+  rings?: Record<string, string>;
   onPress?: (c: Card) => void;
   empty?: string;
   gap?: number;
@@ -106,12 +114,16 @@ export function CardRow({
           selected={selected.includes(c.id)}
           glow={glow.includes(c.id)}
           dim={dim.includes(c.id)}
+          ring={rings?.[c.id]}
           onPress={onPress ? () => onPress(c) : undefined}
         />
       ))}
     </Row>
   );
 }
+
+/** «ورقة» / «ورقتان» / «3 أوراق» / «11 ورقة» */
+export const cardsWord = (k: number) => (k === 1 ? 'ورقة' : k === 2 ? 'ورقتان' : k <= 10 ? `${num(k)} أوراق` : `${num(k)} ورقة`);
 
 /** The green table. */
 export function Felt({ children, minHeight = 130, active }: { children: ReactNode; minHeight?: number; active?: boolean }) {
@@ -203,12 +215,16 @@ export function Seats({
   );
 }
 
-/** Whose turn it is, in one calm line. */
-export function TurnLine({ myTurn, name, text }: { myTurn: boolean; name: string; text?: string }) {
+/**
+ * What to do now, shown only on my turn: whose turn it is is already in the room's turn bar, so
+ * nothing is shown while another player plays.
+ */
+export function TurnLine({ myTurn, text }: { myTurn: boolean; name?: string; text?: string }) {
+  if (!myTurn) return null;
   return (
-    <Animated.View key={`${myTurn}-${name}`} entering={FadeIn.duration(180)}>
-      <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-        {myTurn ? (text ?? 'دورك') : `دور ${name}…`}
+    <Animated.View entering={FadeIn.duration(180)}>
+      <Txt v="bold" center color={C.yellow}>
+        {text ?? 'دورك'}
       </Txt>
     </Animated.View>
   );
@@ -233,30 +249,70 @@ export function LastEvent({ feed, h }: { feed: FeedItem[]; h: Helpers }) {
   );
 }
 
-/** What the previous player did: their avatar, the card, and what it took (or «رمى ورقة»). */
-export function LastPlay({ play, h }: { play: { by: string; card: Card; took: Card[] } | null; h: Helpers }) {
+/**
+ * What the last player did, big enough to follow from across the room: their avatar and name in
+ * their colour, the card they played, and the cards it took (or «رمى ورقة»). It stays until the
+ * next play. `title` replaces the verb line (e.g. «آخر لعبة» on the end-of-hand screen).
+ */
+export function LastPlay({ play, h, title }: { play: { by: string; card: Card; took: Card[] } | null; h: Helpers; title?: string }) {
   if (!play) return null;
+  const p = h.player(play.by);
+  const n = play.took.length;
+  // nouns, not verbs: we don't know whether the player is a man or a woman
+  const verb = n ? `أخذٌ: ${cardsWord(n + 1)}` : 'ورقة على الطاولة';
   return (
-    <Animated.View key={`${play.by}-${play.card.id}`} entering={FadeIn.duration(200)} style={styles.lastPlay}>
-      <Avatar player={h.player(play.by)} size={24} />
-      <PlayingCard card={play.card} size="xs" />
-      {play.took.length ? (
-        <>
-          <Txt v="tiny" color="rgba(255,255,255,0.8)">
-            أخذ
-          </Txt>
-          <Row wrap gap={2} style={{ flexShrink: 1 }}>
-            {play.took.map((c) => (
-              <PlayingCard key={c.id} card={c} size="xs" />
-            ))}
-          </Row>
-        </>
-      ) : (
-        <Txt v="tiny" color="rgba(255,255,255,0.8)">
-          رمى ورقة
+    <Animated.View
+      key={`${play.by}-${play.card.id}`}
+      entering={FadeInDown.duration(240)}
+      style={[styles.lastPlay, { borderColor: alpha(p.color, 0.85) }]}
+      accessibilityLiveRegion="polite">
+      <Row gap={6} center>
+        <Avatar player={p} size={22} />
+        <Txt v="tiny" numberOfLines={1} color="#FFFFFF" style={{ flexShrink: 1 }}>
+          {title ? `${title}: ${p.name}` : p.name}
         </Txt>
-      )}
+        <Txt v="tiny" color={n ? C.yellow : 'rgba(255,255,255,0.75)'}>
+          {verb}
+        </Txt>
+      </Row>
+      <Row gap={4} center wrap>
+        <PlayingCard card={play.card} size="sm" ring={p.color} />
+        {n ? (
+          <>
+            <Icon name="plus" size={14} color="rgba(255,255,255,0.8)" />
+            {play.took.map((c) => (
+              <PlayingCard key={c.id} card={c} size={n > 3 ? 'xs' : 'sm'} />
+            ))}
+          </>
+        ) : null}
+      </Row>
     </Animated.View>
+  );
+}
+
+/** The last few lines of the game's log on the felt, newest at the bottom (older ones dimmer). */
+export function FeltFeed({ feed, h, max = 2 }: { feed: FeedItem[]; h: Helpers; max?: number }) {
+  const items = feed.slice(-max);
+  if (!items.length) return null;
+  return (
+    <View style={{ gap: 2, alignItems: 'center' }}>
+      {items.map((f, i) => {
+        const latest = i === items.length - 1;
+        return (
+          <Animated.View key={f.id} entering={latest ? FadeIn.duration(180) : undefined} style={[styles.feedLine, !latest && { opacity: 0.6 }]}>
+            {f.by ? <Avatar player={h.player(f.by)} size={16} /> : null}
+            <Txt v="tiny" numberOfLines={1} color="#FFFFFF" style={{ flexShrink: 1 }}>
+              {f.text}
+            </Txt>
+            {f.points && f.text !== `+${f.points}` ? (
+              <Txt v="tiny" color={C.yellow}>
+                +{f.points}
+              </Txt>
+            ) : null}
+          </Animated.View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -285,7 +341,7 @@ export function AnnounceBanner({ announce, h }: { announce: { by: string | null;
   if (!announce || hiddenId === announce.id) return null;
   return (
     <View pointerEvents="none" style={styles.announceWrap}>
-      <Animated.View key={announce.id} entering={ZoomIn.springify().damping(12)} exiting={FadeOut.duration(250)} style={styles.announce}>
+      <Animated.View key={announce.id} entering={FadeIn.duration(220)} exiting={FadeOut.duration(250)} style={styles.announce}>
         {announce.by ? <Avatar player={h.player(announce.by)} size={34} /> : null}
         <Txt center style={[styles.announceText, announce.text.length > 22 && { fontSize: 18, lineHeight: 28 }]}>
           {announce.text}
@@ -357,18 +413,18 @@ const styles = StyleSheet.create({
   },
   seatActive: { backgroundColor: C.yellow },
   lastPlay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 4,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.22)',
     borderRadius: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderWidth: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     maxWidth: '100%',
   },
-  announceWrap: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', padding: 10, zIndex: 20 },
+  feedLine: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%' },
+  announceWrap: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'flex-start', padding: 8, zIndex: 20 },
   announce: {
     flexDirection: 'row',
     alignItems: 'center',

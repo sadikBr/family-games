@@ -5,6 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
 import { isKonkanMeld, type Card } from '@/shared/cards';
+import type { KonkanViewPlus } from '@/shared/games/konkan';
 import type { KonkanView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Card as Panel, Row } from '@/ui/bits';
@@ -14,10 +15,11 @@ import { Txt } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, LastEvent, PlayingCard, Seats, TurnLine } from './card-ui';
+import { CardRow, FeltFeed, PlayingCard, Seats, TurnLine } from './card-ui';
 
-export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView }) {
+export function KonkanGame({ room, view: base }: { room: RoomView; view: KonkanView }) {
   const h = helpers(room);
+  const view = base as KonkanViewPlus;
   const [sel, setSel] = useState<string[]>([]);
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
 
@@ -101,14 +103,26 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
             </Txt>
           </Pressable>
           <Pressable disabled={!drawing || !view.discardTop} onPress={() => h.act('drawDiscard')} style={[styles.pile, drawing && view.discardTop && styles.pileActive]}>
-            {view.discardTop ? <PlayingCard card={view.discardTop} size="md" /> : <View style={{ width: 58, height: 87 }} />}
-            <Txt v="tiny" center color="rgba(255,255,255,0.8)">
-              المرمية
+            {view.discardTop ? (
+              <Animated.View key={view.discardTop.id} entering={FadeIn.duration(200)}>
+                <PlayingCard card={view.discardTop} size="md" ring={view.discardBy ? h.player(view.discardBy).color : undefined} />
+                {view.discardBy ? (
+                  <View style={styles.thrower} pointerEvents="none">
+                    <Avatar player={h.player(view.discardBy)} size={20} />
+                  </View>
+                ) : null}
+              </Animated.View>
+            ) : (
+              <View style={{ width: 58, height: 87 }} />
+            )}
+            <Txt v="tiny" center color="rgba(255,255,255,0.8)" numberOfLines={1} style={{ maxWidth: 90 }}>
+              {view.discardBy ? `من ${h.player(view.discardBy).name}` : 'المرمية'}
             </Txt>
           </Pressable>
         </Row>
         {view.melds.map((m) => {
           const fits = playing && selected.length > 0 && isKonkanMeld([...m.cards, ...selected]);
+          const fresh = view.lastMeld?.id === m.id ? h.player(view.lastMeld.by).color : null;
           return (
             <Animated.View key={m.id} entering={FadeIn.duration(160)}>
               <Pressable
@@ -118,7 +132,7 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
                   h.act('layoff', { cards: sel, meld: m.id });
                   clear();
                 }}
-                style={[styles.meld, fits && styles.meldFits]}>
+                style={[styles.meld, fresh ? { borderColor: alpha(fresh, 0.9) } : null, fits && styles.meldFits]}>
                 <Avatar player={h.player(m.owner)} size={22} />
                 <View style={{ flex: 1 }}>
                   <CardRow cards={m.cards} size="xs" gap={3} />
@@ -132,7 +146,7 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
             </Animated.View>
           );
         })}
-        <LastEvent feed={view.feed} h={h} />
+        <FeltFeed feed={view.feed} h={h} />
       </View>
 
       {amOut ? (
@@ -142,7 +156,6 @@ export function KonkanGame({ room, view }: { room: RoomView; view: KonkanView })
       ) : (
         <TurnLine
           myTurn={myTurn}
-          name={h.player(view.turn).name}
           text={drawing ? 'دورك — اسحب من الكومة أو خذ المرمية' : 'نزّل مجموعاتك ثم ارمِ ورقة'}
         />
       )}
@@ -218,4 +231,5 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   meldFits: { borderColor: C.yellow },
+  thrower: { position: 'absolute', top: -8, right: -8 },
 });

@@ -106,6 +106,10 @@ export interface Phase10View {
   nextAt: number | null;
   /** id of the last skip played (for a one-shot call-out) */
   skipEvent: { id: number; by: string; target: string } | null;
+  /** who threw the face-up card (null: it turned up at the deal) */
+  discardBy: string | null;
+  /** the groups laid down or added to most recently, and by whom (kept until the next player has discarded) */
+  lastGroups: { ids: number[]; by: string } | null;
 }
 
 /** pause between hands before the next one deals itself (the host can deal sooner) */

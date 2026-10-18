@@ -17,7 +17,7 @@ import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-import { AnnounceBanner, LastEvent, TurnLine } from './cards/card-ui';
+import { AnnounceBanner, FeltFeed, TurnLine } from './cards/card-ui';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { P10CardView } from './phase10-card';
@@ -83,7 +83,7 @@ function Players({ view, h, width }: { view: Phase10View; h: Helpers; width: num
 /* Table                                                               */
 /* ------------------------------------------------------------------ */
 
-function GroupBox({ group, w, fits, onPress }: { group: P10Group; w: number; fits: boolean; onPress: () => void }) {
+function GroupBox({ group, w, fits, fresh, onPress }: { group: P10Group; w: number; fits: boolean; fresh?: string; onPress: () => void }) {
   const cards = arrangeGroup(group.kind, group.cards);
   return (
     <Pressable
@@ -94,7 +94,7 @@ function GroupBox({ group, w, fits, onPress }: { group: P10Group; w: number; fit
       }}
       accessibilityRole={fits ? 'button' : undefined}
       accessibilityLabel={fits ? `أضف إلى ${KIND_LABEL[group.kind]}` : KIND_LABEL[group.kind]}
-      style={[styles.group, fits && styles.groupFits]}>
+      style={[styles.group, fresh ? { borderColor: alpha(fresh, 0.95), backgroundColor: alpha(fresh, 0.14) } : null, fits && styles.groupFits]}>
       <Row gap={2} wrap style={{ direction: 'ltr' }}>
         {cards.map((x) => (
           <P10CardView key={x.card.id} card={x.card} w={w} value={x.value} />
@@ -354,6 +354,7 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
   const owners = view.participants.filter((id) => view.groups.some((g) => g.owner === id));
   const anyFits = playing && laid && selCards.length > 0 && view.groups.some((g) => canHit(g.kind, g.cards, selCards));
   const skip = view.skipEvent;
+  const thrower = view.discardBy ? h.player(view.discardBy) : null;
 
   let hint = laid ? 'انتظر دورك لتضيف أوراقاً أو ترمي ورقة' : 'يمكنك تجهيز مرحلتك وأنت تنتظر دورك';
   if (drawing) hint = 'اضغط على الكومة، أو على الورقة المكشوفة لتأخذها';
@@ -395,16 +396,21 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
             {top ? (
               <Animated.View key={top.id} entering={FadeIn.duration(160)}>
                 <P10CardView card={top} w={pileW} />
+                {thrower ? (
+                  <View style={styles.thrower} pointerEvents="none">
+                    <Avatar player={thrower} size={22} ring={thrower.color} />
+                  </View>
+                ) : null}
               </Animated.View>
             ) : (
               <View style={{ width: pileW + 4, height: Math.round(pileW * 1.42) + 4 }} />
             )}
-            <Txt v="tiny" center color="rgba(255,255,255,0.85)">
-              {top && isSkip(top) ? 'لا تُسحب' : 'المكشوفة'}
+            <Txt v="tiny" center color="rgba(255,255,255,0.85)" numberOfLines={1} style={{ maxWidth: pileW + 40 }}>
+              {top && isSkip(top) ? 'لا تُسحب' : thrower ? `من ${thrower.id === h.me ? 'عندك' : thrower.name}` : 'المكشوفة'}
             </Txt>
           </Pressable>
         </Row>
-        <LastEvent feed={view.feed} h={h} />
+        <FeltFeed feed={view.feed} h={h} />
         {owners.map((o) => (
           <View key={o} style={styles.owner}>
             <View style={{ alignItems: 'center', width: 34 }} accessibilityLabel={`${h.player(o).name} — ${phaseTag(view, o)}`}>
@@ -422,6 +428,7 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
                     group={g}
                     w={tableW}
                     fits={playing && laid && selCards.length > 0 && canHit(g.kind, g.cards, selCards)}
+                    fresh={view.lastGroups?.ids.includes(g.id) ? h.player(view.lastGroups.by).color : undefined}
                     onPress={() => {
                       h.act('hit', { group: g.id, cards: sel });
                       setSel([]);
@@ -444,7 +451,6 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
 
       <TurnLine
         myTurn={myTurn}
-        name={h.player(view.turn).name}
         text={drawing ? 'اسحب ورقة' : laid ? 'أضف أوراقاً على المجموعات ثم ارمِ ورقة' : 'ضع مرحلتك أو أضف أوراقاً ثم ارمِ ورقة'}
       />
       {view.skipped.includes(h.me) ? (
@@ -635,6 +641,7 @@ const styles = StyleSheet.create({
   },
   pile: { alignItems: 'center', gap: 2, padding: 4, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   pileActive: { borderColor: C.yellow, backgroundColor: alpha(C.yellow, 0.12) },
+  thrower: { position: 'absolute', top: -9, right: -9 },
   owner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.16)', borderRadius: 14, padding: 6 },
   group: { padding: 4, borderRadius: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.14)', maxWidth: '100%' },
   addBadge: { position: 'absolute', top: -9, alignSelf: 'center', backgroundColor: C.yellow, borderRadius: 999, paddingHorizontal: 6 },

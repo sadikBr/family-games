@@ -12,7 +12,7 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { AnnounceBanner, CardRow, DOUBLE_TAP_MS, FeedList, Felt, LastEvent, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
+import { AnnounceBanner, CardRow, DOUBLE_TAP_MS, FeedList, Felt, FeltFeed, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
 
 /** Cards a play would take: the match + the following sequence. */
 function preview(table: Card[], card: Card): string[] {
@@ -62,6 +62,11 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
           title={winnerSide ? `فاز ${sideLabel(winnerSide, h)}` : 'انتهت اللعبة'}
         />
         {strip}
+        {view.lastPlay ? (
+          <Felt minHeight={0}>
+            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
+          </Felt>
+        ) : null}
         <PlayAgain room={room} />
       </>
     );
@@ -90,6 +95,11 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
           ))}
         </Panel>
         {strip}
+        {view.lastPlay ? (
+          <Felt minHeight={0}>
+            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
+          </Felt>
+        ) : null}
         <FeedList feed={view.feed} h={h} />
         {h.isHost ? <Btn size="xl" icon="cards" label="اليد التالية" onPress={() => h.act('next')} /> : <HostNote>المضيف يوزّع اليد التالية</HostNote>}
       </>
@@ -97,20 +107,23 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   }
 
   const others = view.participants.filter((id) => id !== h.me);
+  // the card the last player dropped stays ringed in their colour until the next play
+  const lp = view.lastPlay;
+  const rings = lp && !lp.took.length && view.table.some((c) => c.id === lp.card.id) ? { [lp.card.id]: h.player(lp.by).color } : undefined;
   return (
     <>
       {strip}
       <Seats seats={others} turn={view.turn} counts={view.handCounts} h={h} />
       <Felt active={myTurn}>
-        <CardRow cards={view.table} size="sm" glow={glow} empty="الطاولة فارغة" />
+        <CardRow cards={view.table} size="sm" glow={glow} rings={rings} empty="الطاولة فارغة" />
         <LastPlay play={view.lastPlay} h={h} />
-        <LastEvent feed={view.feed} h={h} />
+        <FeltFeed feed={view.feed} h={h} />
         <AnnounceBanner announce={view.announce} h={h} />
       </Felt>
       <Txt v="tiny" center color={C.dim}>
         اليد {view.hand} · في الكومة {view.deckLeft}
       </Txt>
-      <TurnLine myTurn={myTurn} name={h.player(view.turn).name} text="دورك — اختر ورقة" />
+      <TurnLine myTurn={myTurn} text="دورك — اختر ورقة" />
       <View style={{ gap: 10, paddingTop: 6 }}>
         <CardRow
           cards={view.myHand}

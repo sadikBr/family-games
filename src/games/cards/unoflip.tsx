@@ -14,7 +14,7 @@ import { Txt } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers, type Helpers } from '../helpers';
-import { DOUBLE_TAP_MS, LastEvent, TurnLine, tapClock } from './card-ui';
+import { DOUBLE_TAP_MS, FeltFeed, TurnLine, tapClock } from './card-ui';
 import { UnoCard } from './uno-card';
 
 const FELT = { light: ['#1E6B4A', '#155238'], dark: ['#3A2466', '#24163F'] } as const;
@@ -166,7 +166,8 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
   }
 
   const felt = FELT[view.side];
-  const turnName = h.player(view.turn).name;
+  // who played the card on top of the pile (it stays marked until the next card is played)
+  const lastBy = view.lastPlay ? h.player(view.lastPlay.by) : null;
   let turnText = 'دورك — العب ورقة أو اسحب';
   if (view.drawn) turnText = 'سحبت ورقة تناسب — العبها أو مرّر';
   else if (!view.playable.length) turnText = 'دورك — لا توجد ورقة مناسبة، اسحب';
@@ -203,7 +204,17 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
           <View style={{ alignItems: 'center', gap: 6 }}>
             <Animated.View key={`${view.top.kind}${view.top.color}${view.top.n}${view.lastPlay?.by}`} entering={FadeIn.duration(160)}>
               <UnoCard face={view.top} side={view.side} width={88} />
+              {lastBy ? (
+                <View style={styles.playedBy} pointerEvents="none">
+                  <Avatar player={lastBy} size={24} ring={lastBy.color} />
+                </View>
+              ) : null}
             </Animated.View>
+            {lastBy ? (
+              <Txt v="tiny" color="rgba(255,255,255,0.85)" numberOfLines={1} style={{ maxWidth: 110 }}>
+                من {lastBy.id === h.me ? 'عندك' : lastBy.name}
+              </Txt>
+            ) : null}
             <View style={[styles.colorPill, { backgroundColor: UNO_COLOR_INFO[view.color].hex }]}>
               <Txt v="tiny" color="#fff">
                 اللون: {UNO_COLOR_INFO[view.color].name}
@@ -211,7 +222,7 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
             </View>
           </View>
         </Row>
-        <LastEvent feed={view.feed} h={h} />
+        <FeltFeed feed={view.feed} h={h} />
       </View>
 
       {canCatch ? <Btn size="md" icon="siren" color={C.red} label={`امسك ${h.player(view.catchable!).name}! لم يقل أونو`} onPress={() => h.act('catch')} /> : null}
@@ -221,7 +232,7 @@ export function UnoFlipGame({ room, view }: { room: RoomView; view: UnoView }) {
           {h.player(view.choosing).name} يختار لوناً…
         </Txt>
       ) : (
-        <TurnLine myTurn={myTurn} name={turnName} text={turnText} />
+        <TurnLine myTurn={myTurn} text={turnText} />
       )}
 
       {/* my hand */}
@@ -279,6 +290,7 @@ const styles = StyleSheet.create({
   sideTag: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
   pile: { alignItems: 'center', gap: 4, padding: 5, borderRadius: 14, borderWidth: 2, borderColor: 'transparent' },
   pileActive: { borderColor: C.yellow },
+  playedBy: { position: 'absolute', top: -10, right: -10 },
   colorPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 1, borderWidth: 2, borderColor: '#151726' },
   hand: { paddingTop: 18, paddingBottom: 4, paddingHorizontal: 4 },
   unoBtn: {

@@ -9,6 +9,7 @@
  * the last player standing wins.
  */
 import { cardName, isKonkanMeld, rankIndex, sortHand, type Card } from '../../src/shared/cards';
+import type { KonkanViewPlus } from '../../src/shared/games/konkan';
 import type { KonkanMeld, KonkanSettings, KonkanView } from '../../src/shared/protocol';
 import { Feed, freshDeck, randDelay } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
@@ -46,6 +47,9 @@ interface State {
   handSummary: KonkanView['handSummary'];
   winner: string | null;
   actions: number;
+  /** who threw each card of the discard pile (null: turned up at the deal) */
+  throwers: (string | null)[];
+  lastMeld: KonkanViewPlus['lastMeld'];
 }
 
 function nextActive(s: State, from: string): string {
@@ -74,8 +78,11 @@ function startHand(ctx: GameCtx, s: State) {
   s.takenDiscard = null;
   s.handWinner = null;
   s.handSummary = null;
+  s.throwers = [null];
+  s.lastMeld = null;
   s.feed.clear();
   s.feed.push(`اليد ${s.hand} — ${per} أوراق لكل لاعب`);
+  ctx.say?.(`اليد ${s.hand} — البداية لـ${ctx.playerName(s.turn)}`);
   ctx.fx('card');
 }
 
@@ -87,6 +94,7 @@ function endHand(ctx: GameCtx, s: State, winner: string | null) {
   });
   for (const row of s.handSummary) s.scores[row.id] += row.points;
   if (winner) s.feed.push(`${ctx.playerName(winner)}: كونكان!`, { by: winner });
+  ctx.say?.(winner ? `كونكان لـ${ctx.playerName(winner)}! انتهت اليد` : 'انتهت الأوراق — لا فائز في هذه اليد', winner ?? undefined);
   const out = s.active.filter((id) => s.scores[id] >= s.settings.limit);
   for (const id of out) s.feed.push(`${ctx.playerName(id)} خرج من اللعبة`, { by: id });
   s.active = s.active.filter((id) => !out.includes(id));
@@ -193,6 +201,8 @@ export const konkan: GameModule<State, KonkanSettings> = {
       handSummary: null,
       winner: null,
       actions: 0,
+      throwers: [],
+      lastMeld: null,
     };
     startHand(ctx, s);
     return s;
@@ -214,6 +224,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
           const top = s.discard.pop();
           s.stock = shuffle(s.discard);
           s.discard = top ? [top] : [];
+          s.throwers = top ? s.throwers.slice(-1) : [];
           s.feed.push('خلط الأوراق المرمية من جديد');
         }
         const card = s.stock.pop();
@@ -227,6 +238,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
         s.takenDiscard = null;
         s.actions += 1;
         s.feed.push(`${name} سحب من الكومة`, { by });
+        ctx.say?.(`سحب من الكومة: ${name}`, by);
         ctx.fx('card');
         return;
       }
@@ -234,10 +246,12 @@ export const konkan: GameModule<State, KonkanSettings> = {
         if (s.step !== 'draw' || !s.discard.length) return;
         const card = s.discard.pop()!;
         hand.push(card);
+        s.throwers.pop();
         s.step = 'play';
         s.takenDiscard = card.id;
         s.actions += 1;
         s.feed.push(`${name} أخذ ${cardName(card)} من المرمية`, { by });
+        ctx.say?.(`من المرمية إلى ${name}: ${cardName(card)}`, by);
         ctx.fx('card');
         return;
       }
@@ -249,8 +263,10 @@ export const konkan: GameModule<State, KonkanSettings> = {
         }
         for (const c of cards) hand.splice(hand.indexOf(c), 1);
         s.melds.push({ id: ++s.meldSeq, owner: by, cards: sortMeld(cards) });
+        s.lastMeld = { id: s.meldSeq, by };
         s.actions += 1;
         s.feed.push(`${name} نزّل ${cards.length} أوراق`, { by });
+        ctx.say?.(`مجموعة جديدة لـ${name}: ${cards.length} أوراق`, by);
         ctx.fx('correct', by);
         checkWin(ctx, s, by);
         return;
@@ -264,8 +280,13 @@ export const konkan: GameModule<State, KonkanSettings> = {
         }
         for (const c of cards) hand.splice(hand.indexOf(c), 1);
         meld.cards = sortMeld([...meld.cards, ...cards]);
+        s.lastMeld = { id: meld.id, by };
         s.actions += 1;
         s.feed.push(`${name} أضاف ${cards.length} ${cards.length === 1 ? 'ورقة' : 'أوراق'} إلى مجموعة`, { by });
+        ctx.say?.(
+          `إضافة من ${name}: ${cards.length === 1 ? cardName(cards[0]) : `${cards.length} أوراق`} إلى مجموعة ${ctx.playerName(meld.owner)}`,
+          by,
+        );
         ctx.fx('correct', by);
         checkWin(ctx, s, by);
         return;
@@ -278,9 +299,13 @@ export const konkan: GameModule<State, KonkanSettings> = {
         if (a.card === s.takenDiscard && hand.length > 1) throw new GameError('لا يمكنك رمي الورقة التي أخذتها للتو');
         const [card] = hand.splice(idx, 1);
         s.discard.push(card);
+        s.throwers.push(by);
+        // the highlight of the last group lasts until the next player has finished their turn
+        if (s.lastMeld && s.lastMeld.by !== by) s.lastMeld = null;
         s.takenDiscard = null;
         s.actions += 1;
         s.feed.push(`${name} رمى ${cardName(card)}`, { by });
+        ctx.say?.(`ورقة مرمية من ${name}: ${cardName(card)}`, by);
         ctx.fx('card');
         if (hand.length === 0) {
           endHand(ctx, s, by);
@@ -326,7 +351,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
     if (worst) ctx.bot(bot, key, delay, { type: 'discard', card: worst.id });
   },
 
-  view(ctx, s, me): KonkanView {
+  view(ctx, s, me): KonkanViewPlus {
     return {
       game: 'konkan',
       phase: s.phase,
@@ -347,6 +372,8 @@ export const konkan: GameModule<State, KonkanSettings> = {
       handWinner: s.handWinner,
       handSummary: s.handSummary,
       winner: s.winner,
+      discardBy: s.throwers[s.throwers.length - 1] ?? null,
+      lastMeld: s.lastMeld,
     };
   },
 

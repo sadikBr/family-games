@@ -115,6 +115,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.roundSummary = null;
   s.feed.clear();
   s.feed.push(`الجولة ${s.round} — ${HAND} أوراق لكل لاعب`);
+  ctx.say?.(`الجولة ${s.round} — البداية لـ${name(ctx, s.seats[s.turnIdx])}`);
   ctx.fx('card');
 }
 
@@ -129,6 +130,7 @@ function endRound(ctx: GameCtx, s: State, winner: string) {
   s.scores[winner] = (s.scores[winner] ?? 0) + points;
   s.roundSummary = { winner, points, hands };
   s.feed.push(`${name(ctx, winner)} أنهى أوراقه: +${points}`, { by: winner, points });
+  ctx.say?.(`الجولة لـ${name(ctx, winner)}: +${points}`, winner);
   if (s.scores[winner] >= s.settings.target) {
     s.phase = 'final';
     s.winner = winner;
@@ -139,9 +141,10 @@ function endRound(ctx: GameCtx, s: State, winner: string) {
   }
 }
 
-/** Apply the effect of a played face and move the turn on. */
-function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace) {
+/** Apply the effect of a played face and move the turn on; returns what happened, for the announcement. */
+function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace): string {
   const next = () => at(s, 1);
+  let said = '';
   switch (f.kind) {
     case 'num':
       advance(s);
@@ -152,21 +155,25 @@ function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace) {
       const k = f.kind === 'draw1' ? 1 : 5;
       drawN(s, victim, k);
       s.feed.push(`${name(ctx, victim)} يسحب ${k} ويُمنع`, { by: victim });
+      said = ` — ${k} للسحب على ${name(ctx, victim)}`;
       ctx.fx('buzz', victim);
       advance(s, 2);
       break;
     }
     case 'skip': {
       s.feed.push(`${name(ctx, next())} ممنوع من الدور`, { by: next() });
+      said = ` — منعٌ لـ${name(ctx, next())}`;
       advance(s, 2);
       break;
     }
     case 'skipAll':
       s.feed.push(`${name(ctx, by)} يمنع الجميع ويلعب مرة أخرى`, { by });
+      said = ' ودورٌ آخر';
       s.drawn = null;
       break;
     case 'reverse':
       s.dir = s.dir === 1 ? -1 : 1;
+      said = ' — انعكس الاتجاه';
       if (n(s) === 2) advance(s, 2);
       else advance(s);
       break;
@@ -175,10 +182,11 @@ function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace) {
       s.deck.reverse();
       const t = top(s);
       s.feed.push(`قلب! الجهة ${s.side === 'dark' ? 'المظلمة' : 'المضيئة'} — فوق: ${faceName(t)}`, { by });
+      said = ` — الجهة ${s.side === 'dark' ? 'المظلمة' : 'المضيئة'}`;
       ctx.fx('reveal');
       if (isWild(t)) {
         s.choosing = { by, then: 'next' };
-        return;
+        return said;
       }
       s.color = t.color!;
       advance(s);
@@ -194,15 +202,18 @@ function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace) {
       s.choosing = { by, then: 'drawColor' };
       break;
   }
+  return said;
 }
 
-function afterColor(ctx: GameCtx, s: State) {
+function afterColor(ctx: GameCtx, s: State): string {
   const c = s.choosing!;
   s.choosing = null;
   const victim = at(s, 1);
+  let said = '';
   if (c.then === 'draw2') {
     drawN(s, victim, 2);
     s.feed.push(`${name(ctx, victim)} يسحب 2 ويُمنع`, { by: victim });
+    said = ` — 2 للسحب على ${name(ctx, victim)}`;
     ctx.fx('buzz', victim);
     advance(s, 2);
   } else if (c.then === 'drawColor') {
@@ -214,11 +225,13 @@ function afterColor(ctx: GameCtx, s: State) {
       if (faceOf(got, s.side).color === s.color) break;
     }
     s.feed.push(`${name(ctx, victim)} سحب ${k} حتى وجد ${UNO_COLOR_INFO[s.color].name}`, { by: victim });
+    said = ` — ${k} مسحوبة على ${name(ctx, victim)}`;
     ctx.fx('buzz', victim);
     advance(s, 2);
   } else {
     advance(s);
   }
+  return said;
 }
 
 function playable(s: State, id: string): string[] {
@@ -282,6 +295,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       s.unoSaid.add(by);
       if (s.catchable === by) s.catchable = null;
       s.feed.push(`${name(ctx, by)}: أونو!`, { by });
+      ctx.say?.(`أونو من ${name(ctx, by)}!`, by);
       ctx.fx('correct', by);
       return;
     }
@@ -292,6 +306,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       drawN(s, target, CATCH_PENALTY);
       s.catchable = null;
       s.feed.push(`${name(ctx, by)} أمسك ${name(ctx, target)} بدون «أونو»: +${CATCH_PENALTY}`, { by: target });
+      ctx.say?.(`لا «أونو» من ${name(ctx, target)}: ${CATCH_PENALTY} للسحب (كشفٌ من ${name(ctx, by)})`, by);
       ctx.fx('buzz', target);
       return;
     }
@@ -303,7 +318,8 @@ export const unoflip: GameModule<State, UnoSettings> = {
       s.color = c;
       s.feed.push(`${name(ctx, by)} اختار ${UNO_COLOR_INFO[c].name}`, { by });
       s.moves += 1;
-      afterColor(ctx, s);
+      const effect = afterColor(ctx, s);
+      ctx.say?.(`اللون من اختيار ${name(ctx, by)}: ${UNO_COLOR_INFO[c].name}${effect}`, by);
       return;
     }
 
@@ -318,8 +334,10 @@ export const unoflip: GameModule<State, UnoSettings> = {
       ctx.fx('card', by);
       if (c && canPlayFace(faceOf(c, s.side), top(s), s.color)) {
         s.drawn = { by, id: c.id };
+        ctx.say?.(`سحب ورقة: ${name(ctx, by)}`, by);
       } else {
         s.feed.push(`${name(ctx, by)} سحب ورقة ومرّر`, { by });
+        ctx.say?.(`سحب ورقة ثم تمرير: ${name(ctx, by)}`, by);
         advance(s);
       }
       return;
@@ -328,6 +346,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
     if (a.type === 'pass') {
       if (s.drawn?.by !== by) throw new GameError('اسحب ورقة أولاً');
       s.feed.push(`${name(ctx, by)} سحب ورقة ومرّر`, { by });
+      ctx.say?.(`تمرير: ${name(ctx, by)}`, by);
       s.moves += 1;
       advance(s);
       return;
@@ -349,7 +368,8 @@ export const unoflip: GameModule<State, UnoSettings> = {
       ctx.fx('card', by);
       if (hand.length === 1 && !s.unoSaid.has(by)) s.catchable = by;
       if (hand.length !== 1) s.unoSaid.delete(by);
-      applyEffect(ctx, s, by, f);
+      const effect = applyEffect(ctx, s, by, f);
+      ctx.say?.(`ورقة من ${name(ctx, by)}: ${faceName(f)}${effect}${s.choosing ? ' — واختيار لون' : ''}`, by);
       if (hand.length === 0) {
         // a last Wild ends the round right away; draw penalties still land first
         const ch = s.choosing as State['choosing']; // set by applyEffect

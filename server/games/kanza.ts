@@ -43,6 +43,8 @@ interface State {
 }
 
 const n = (s: State) => s.seats.length;
+/** «ورقتين» / «3 أوراق» */
+const cardsWord = (k: number) => (k === 1 ? 'ورقة' : k === 2 ? 'ورقتان' : k <= 10 ? `${k} أوراق` : `${k} ورقة`);
 
 function dealRound(s: State) {
   const players = n(s);
@@ -69,6 +71,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.table = s.deck.splice(0, TABLE_START);
   s.feed.clear();
   s.feed.push(`اليد ${s.hand} من ${s.settings.hands} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
+  ctx.say?.(`اليد ${s.hand} من ${s.settings.hands} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
   dealRound(s);
   ctx.fx('card');
 }
@@ -174,10 +177,12 @@ export const kanza: GameModule<State, KanzaSettings> = {
       const pts = [card, ...take].reduce((t, c) => t + kanzaPoints(c), 0);
       const gold = [card, ...take].some((c) => c.suit === 'coins');
       s.feed.push(`${ctx.playerName(by)} جمع 15${gold ? ' بالذهب' : ''}`, { by, points: pts });
+      ctx.say?.(`أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(take.length + 1)} بـ ${cardName(card)} (+${pts})`, by);
       ctx.fx(take.some((c) => c.suit === 'coins' && c.rank === 1) || (card.suit === 'coins' && card.rank === 1) ? 'reveal' : 'correct', by);
     } else {
       s.table.push(card);
       s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
+      ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)}`, by);
       ctx.fx('card');
     }
     s.lastPlay = { by, card, took: take };

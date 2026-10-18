@@ -424,3 +424,19 @@ test('onLeave during the pause between hands keeps the game going', () => {
   expect(s.active.includes(s.turn)).toBe(true);
   expect(totalCards(s)).toBe(108); // the new hand is dealt to the two who stayed
 });
+
+test('phase10: draws and discards are announced; the view says who threw the face-up card', () => {
+  const f = fakeCtx(() => false);
+  const said: { text: string; by?: string }[] = [];
+  f.ctx.say = (text: string, by?: string) => said.push({ text, by });
+  const s = phase10.start(f.ctx, ['a', 'b', 'c'], { ...PHASE10_DEFAULTS });
+  const p = s.turn;
+  expect((phase10.view(f.ctx, s, p) as Phase10View).discardBy).toBeNull();
+  phase10.act(f.ctx, s, p, { type: 'drawDeck' });
+  expect(said.at(-1)).toEqual({ text: `سحب من الكومة: ${p}`, by: p });
+  const card = s.hands[p].find((c) => c.kind === 'num')!;
+  phase10.act(f.ctx, s, p, { type: 'discard', card: card.id });
+  expect(said.at(-1)!.by).toBe(p);
+  expect(said.at(-1)!.text).toContain('ورقة مرمية');
+  expect((phase10.view(f.ctx, s, p) as Phase10View).discardBy).toBe(p);
+});

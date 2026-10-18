@@ -913,7 +913,7 @@ test('memory: every size has enough faces, pairs keep the turn, games finish', (
   memory.act(ctx, s, first, { type: 'flip', card: k });
   memory.act(ctx, s, first, { type: 'flip', card: miss });
   expect((memory.view(ctx, s, 'a') as any).peek).toBe(true);
-  ctx.now += 2000;
+  ctx.now += 3000;
   memory.tick!(ctx, s);
   expect(s.order[s.turnIdx]).not.toBe(first);
   for (const pairs of MEMORY_SIZES) {

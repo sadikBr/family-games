@@ -247,3 +247,14 @@ test('settings are validated and clamped', () => {
   codebreak.patchSettings!(st, { pegs: 5, colors: 8, maxTries: 3, rounds: 4.4, level: 'hard', repeats: true });
   expect(st).toEqual({ rounds: 4, pegs: 5, colors: 8, repeats: true, maxTries: 8, level: 'hard' });
 });
+
+test('codebreak: cracking the code is announced (without the code), and so is the end of the round', () => {
+  const ctx = fakeCtx();
+  const said: { text: string; by?: string }[] = [];
+  ctx.say = (text, by) => said.push({ text, by });
+  const s = codebreak.start(ctx, ['a', 'b'], { ...CODEBREAK_DEFAULTS }) as CodebreakState;
+  codebreak.act(ctx, s, 'a', { type: 'guess', code: s.code });
+  expect(said.at(-1)).toEqual({ text: 'فكّ الرمز أولاً: a في محاولة واحدة', by: 'a' });
+  codebreak.act(ctx, s, 'b', { type: 'guess', code: s.code });
+  expect(said.at(-1)!.text).toContain('انتهى الرمز 1');
+});
