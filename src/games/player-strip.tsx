@@ -30,8 +30,11 @@ export function PlayerStrip({ room, entries, active = [] }: { room: RoomView; en
   const inner = Math.min(width - 32, 560);
   const n = entries.length;
   // chips per line: everyone on one line up to 4 (3 on narrow phones), then wrap evenly
-  const perLine = n <= (inner < 340 ? 3 : 4) ? n : Math.min(inner < 340 ? 2 : 3, n);
+  let perLine = n <= (inner < 340 ? 3 : 4) ? n : Math.min(inner < 340 ? 2 : 3, n);
   const gap = 6;
+  // a sub line needs room: keep chips at least ~150 px wide when there is one
+  const hasSub = entries.some((e) => !!e.sub);
+  while (hasSub && perLine > 2 && (inner - gap * (perLine - 1)) / perLine < 150) perLine--;
   const chipW = (inner - gap * (perLine - 1)) / perLine;
   const small = chipW < 100;
   return (
