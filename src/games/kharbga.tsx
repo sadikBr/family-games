@@ -1,7 +1,7 @@
 /** «الخربقة» — 7×7 board: place two pieces per turn, then move and capture by sandwiching. */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeOut, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
@@ -13,6 +13,7 @@ import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { MarkIn } from '@/ui/motion';
 
 import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
@@ -124,7 +125,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
           const piece = v ? (
             <Animated.View
               key={`${i}:${v}`}
-              entering={slide ? undefined : ZoomIn.duration(160)}
+              entering={slide ? undefined : MarkIn}
               style={[
                 styles.piece,
                 { width: cell * 0.72, height: cell * 0.72, borderRadius: cell, backgroundColor: PIECE[v as 1 | 2] },

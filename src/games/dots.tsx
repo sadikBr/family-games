@@ -1,7 +1,7 @@
 /** «المربعات» — touch between two dots to draw a line; close a box to take it and play again. */
 import { useState } from 'react';
 import { StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
@@ -13,6 +13,7 @@ import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Confetti, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { MarkIn } from '@/ui/motion';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -156,7 +157,7 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
           <Animated.View
             key={`b${b}`}
             pointerEvents="none"
-            entering={lastBoxes.has(b) ? ZoomIn.duration(240) : undefined}
+            entering={lastBoxes.has(b) ? MarkIn : undefined}
             style={[styles.box, { left: pad + c * s + t / 2, top: pad + r * s + t / 2, width: s - t, height: s - t, backgroundColor: alpha(DOTS_COLORS[o], 0.82) }, lastBoxes.has(b) && styles.boxNew]}>
             <Txt style={{ fontSize: s * 0.42, lineHeight: s * 0.6, color: '#FFFFFF' }}>{nameOf(h, view, owner).trim().charAt(0)}</Txt>
           </Animated.View>

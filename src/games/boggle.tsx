@@ -1,7 +1,7 @@
 /** «حروف مبعثرة» — find words in the same letter grid as everyone else before the timer runs out. */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic, play } from '@/lib/sfx';
@@ -14,6 +14,7 @@ import { ChipPicker, ConfirmModal, Stepper, Toggle } from '@/ui/controls';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { MarkIn } from '@/ui/motion';
 
 import { LetterGrid } from './boggle-board';
 import { PlayAgain, ResultBanner, Spectator } from './common';
@@ -222,7 +223,7 @@ function Play({ view, h, width }: { view: BoggleView; h: Helpers; width: number 
           <Row gap={6} wrap>
             {mine.map((w, i) =>
               i === 0 ? (
-                <Animated.View key={w.word} entering={ZoomIn.duration(200)}>
+                <Animated.View key={w.word} entering={MarkIn}>
                   <WordChip w={w} active />
                 </Animated.View>
               ) : (

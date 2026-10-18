@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { useCountdown } from '@/lib/time';
 import type { RoomView, WhoisView } from '@/shared/protocol';
@@ -14,6 +14,7 @@ import { Btn } from '@/ui/btn';
 import { Field } from '@/ui/field';
 import { Shake } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { SoftIn } from '@/ui/motion';
 
 import { Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -97,7 +98,7 @@ function TypedAnswer({ view, h, worth, lastClue }: { view: WhoisView; h: Helpers
 
   if (view.phase !== 'ask') {
     return view.answerName ? (
-      <Animated.View entering={ZoomIn.duration(220)} style={styles.answer}>
+      <Animated.View entering={SoftIn} style={styles.answer}>
         <Txt v="tiny" color={C.muted}>
           الجواب
         </Txt>
@@ -109,7 +110,7 @@ function TypedAnswer({ view, h, worth, lastClue }: { view: WhoisView; h: Helpers
   }
   if (view.myGuess !== null) {
     return (
-      <Animated.View entering={ZoomIn.duration(220)} style={[styles.answer, { borderColor: C.green }]}>
+      <Animated.View entering={SoftIn} style={[styles.answer, { borderColor: C.green }]}>
         <Txt v="bold" center color={C.green}>
           أصبت! 🎉
         </Txt>

@@ -1,6 +1,6 @@
 /** «ابنِ المسجد» — the screen: the growing mosque, the question, the bricks, the finished mosque. */
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
@@ -12,6 +12,7 @@ import { ChipPicker, Stepper } from '@/ui/controls';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
+import { SoftIn } from '@/ui/motion';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
@@ -93,7 +94,7 @@ function Reveal({ view, h }: { view: MosqueView; h: Helpers }) {
   return (
     <Animated.View entering={FadeInDown.duration(240)} style={{ gap: 8 }}>
       {built.length ? (
-        <Animated.View entering={ZoomIn.duration(500)} style={styles.built}>
+        <Animated.View entering={SoftIn} style={styles.built}>
           <Icon name="sparkle" size={22} color="#FFFFFF" />
           <Txt v="h2" color="#FFFFFF" center style={{ flexShrink: 1 }}>
             تمّ بناء {built.join(' و')}!

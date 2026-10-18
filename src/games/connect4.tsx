@@ -67,8 +67,9 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
           const drop = isLast
             ? new Keyframe({
                 0: { transform: [{ translateY: -(r + 1) * cell }] },
-                100: { transform: [{ translateY: 0 }], easing: Easing.bounce },
-              }).duration(260 + r * 60)
+                // falls and settles, no bounce
+                100: { transform: [{ translateY: 0 }], easing: Easing.in(Easing.quad) },
+              }).duration(220 + r * 45)
             : undefined;
           return (
             <View key={i} style={[styles.hole, { left: 6 + c * cell, top: 6 + r * cell, width: cell, height: cell }]}>

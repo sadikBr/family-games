@@ -1,7 +1,7 @@
 /** «معركة السفن» — your fleet stays on your phone; fire at the other sea until every ship sinks. */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
@@ -13,6 +13,7 @@ import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+import { MarkIn } from '@/ui/motion';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
@@ -36,7 +37,7 @@ function Ship({ cells, cell, color, dim }: { cells: number[]; cell: number; colo
 
 function Shot({ r, size }: { r: ShotResult; size: number }) {
   return r === 'hit' ? (
-    <Animated.View entering={ZoomIn.duration(220)} style={[styles.hit, { width: size * 0.62, height: size * 0.62, borderRadius: size }]}>
+    <Animated.View entering={MarkIn} style={[styles.hit, { width: size * 0.62, height: size * 0.62, borderRadius: size }]}>
       <View style={[styles.hitIn, { width: size * 0.26, height: size * 0.26, borderRadius: size }]} />
     </Animated.View>
   ) : (
