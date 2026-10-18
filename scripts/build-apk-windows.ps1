@@ -5,7 +5,8 @@
   Build the Android APK on Windows (EAS local builds don't run on Windows).
 
   Needs, once:
-    - Bun (https://bun.sh) or Node.js
+    - Bun (https://bun.sh) or Node.js (Node itself is needed by the build: the script downloads a
+      portable copy to C:\Android if it isn't installed)
     - JDK 17 unzipped somewhere (default C:\Android\jdk-17)            -> or set JAVA_HOME / -JavaHome
     - Android command-line tools unzipped as <sdk>\cmdline-tools\latest  -> default C:\Android\sdk, or ANDROID_HOME / -AndroidHome
   The script installs the SDK packages it needs (platform 36, build-tools 36, NDK, CMake) and accepts the licences.
@@ -16,6 +17,7 @@
 
   Options:
     -JavaHome C:\path\to\jdk-17     -AndroidHome C:\path\to\sdk
+    -NodeHome C:\path\to\node       the folder with node.exe (or node.exe itself), if Node isn't installed
     -AllAbis       build for every CPU type (slower; default: arm64-v8a, which every recent phone uses)
     -SkipInstall   don't run bun/npm install
     -Debug         a debug APK (needs the dev server) instead of a release one
@@ -23,6 +25,7 @@
 param(
   [string]$JavaHome = '',
   [string]$AndroidHome = '',
+  [string]$NodeHome = '',
   [switch]$AllAbis,
   [switch]$SkipInstall,
   [switch]$Debug
@@ -94,9 +97,55 @@ Step 'Installing the SDK packages the build needs (first time takes a while)'
 & $sdkmanager "--sdk_root=$AndroidHome" 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
 if ($LASTEXITCODE -ne 0) { Fail 'sdkmanager could not install the SDK packages.' }
 
+# --- Node.js: expo prebuild runs npm (to fetch the Android template) and Gradle runs node (to bundle
+# the JavaScript), so Bun alone is not enough. Without Node on PATH, a portable copy (zip, no admin)
+# is downloaded once to C:\Android\node-*.
+# Nothing is changed on the PC: the folder is only added to PATH inside this script's own window.
+Step 'Checking Node.js'
+if ($NodeHome) {
+  if ($NodeHome -like '*.exe') { $NodeHome = Split-Path -Parent $NodeHome }
+  if (-not (Test-Path (Join-Path $NodeHome 'node.exe'))) { Fail "node.exe not found in $NodeHome" }
+  if (-not (Test-Path (Join-Path $NodeHome 'npm.cmd'))) { Fail "npm.cmd not found in $NodeHome (use the Node.js .zip, it has both)" }
+  $env:Path = "$NodeHome;$env:Path"
+}
+if (-not (Get-Command node -ErrorAction SilentlyContinue) -or -not (Get-Command npm -ErrorAction SilentlyContinue)) {
+  $nodeDir = $null
+  if (Test-Path 'C:\Android') {
+    # any folder under C:\Android with node.exe + npm.cmd (node-v22.x-win-x64, node, ...)
+    $nodeDir = Get-ChildItem 'C:\Android' -Directory -Filter 'node*' -ErrorAction SilentlyContinue |
+      Where-Object { (Test-Path (Join-Path $_.FullName 'node.exe')) -and (Test-Path (Join-Path $_.FullName 'npm.cmd')) } |
+      Select-Object -First 1
+  }
+  if (-not $nodeDir) {
+    Write-Host 'Node.js not found: downloading a portable copy (about 30 MB) to C:\Android'
+    $ProgressPreference = 'SilentlyContinue'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $base = 'https://nodejs.org/dist/latest-v22.x'
+    try {
+      $sums = (Invoke-WebRequest "$base/SHASUMS256.txt" -UseBasicParsing).Content
+      $line = ($sums -split "`n") | Where-Object { $_ -match 'node-v[\d.]+-win-x64\.zip' } | Select-Object -First 1
+      if (-not ($line -match '(node-v[\d.]+-win-x64\.zip)')) { throw 'no Windows zip listed in SHASUMS256.txt' }
+      $zipName = $Matches[1]
+      $expected = ($line -split '\s+')[0]
+      New-Item -ItemType Directory -Force -Path 'C:\Android' | Out-Null
+      $zip = Join-Path 'C:\Android' $zipName
+      Invoke-WebRequest "$base/$zipName" -OutFile $zip -UseBasicParsing
+      $actual = (Get-FileHash $zip -Algorithm SHA256).Hash
+      if ($actual -ne $expected.ToUpper()) { Remove-Item $zip -Force; Fail 'The Node.js download is corrupted, run the script again.' }
+      Expand-Archive $zip -DestinationPath 'C:\Android' -Force
+      Remove-Item $zip -Force
+    } catch {
+      Fail ("Could not download Node.js: $_`n" +
+            "Download the 'Windows Binary (.zip)' x64 from https://nodejs.org/en/download and unzip it to C:\Android")
+    }
+    $nodeDir = Get-ChildItem 'C:\Android' -Directory -Filter 'node-v*-win-x64' | Select-Object -First 1
+  }
+  $env:Path = "$($nodeDir.FullName);$env:Path"
+}
+Write-Host "Node: $(& node --version)  ($((Get-Command node).Source))"
+
 # --- JavaScript dependencies
 $useBun = [bool](Get-Command bun -ErrorAction SilentlyContinue)
-if (-not $useBun -and -not (Get-Command npx -ErrorAction SilentlyContinue)) { Fail 'Install Bun (https://bun.sh) or Node.js first.' }
 if (-not $SkipInstall) {
   Step 'Installing JavaScript dependencies'
   if ($useBun) { bun install } else { npm install }

@@ -297,7 +297,8 @@ after 15 minutes without players (about a minute to wake) and may ask for a card
 EAS local builds don't run on Windows, so `scripts/build-apk-windows.ps1` builds with Gradle directly
 (same app and server address as the EAS «preview» build).
 
-1. Install [Bun](https://bun.sh) (or Node.js).
+1. Install [Bun](https://bun.sh). The build also needs Node.js (Expo runs `npm`, Gradle runs `node`); if it
+   isn't installed, the script downloads a portable copy (zip, no admin) to `C:\Android\node-v22…`.
 2. JDK 17, as a zip: [Microsoft Build of OpenJDK 17](https://learn.microsoft.com/java/openjdk/download#openjdk-17)
    (or [Eclipse Temurin 17](https://adoptium.net/temurin/releases/?version=17&os=windows&arch=x64&package=jdk) → `.zip`).
    Unzip to `C:\Android\jdk-17`.
@@ -307,7 +308,7 @@ EAS local builds don't run on Windows, so `scripts/build-apk-windows.ps1` builds
 4. Put the project in a short path (e.g. `C:\fg`) — the native build breaks on long Windows paths.
 5. Double-click `scripts\build-apk-windows.cmd` (or `bun run build:apk-windows`). The first run installs the
    SDK packages and takes 10–30 minutes; the APK ends up as `family-games.apk` in the project folder.
-   Other locations: `-JavaHome …` / `-AndroidHome …` (or the `JAVA_HOME` / `ANDROID_HOME` variables).
+   Other locations: `-JavaHome …` / `-AndroidHome …` / `-NodeHome …` (folder with `node.exe`) (or the `JAVA_HOME` / `ANDROID_HOME` variables).
 
 The APK is signed with a local key, so a phone that has the GitLab-built APK must uninstall it first.
 
