@@ -28,6 +28,7 @@ import { BlocksGame } from './blocks';
 import { CodebreakGame } from './codebreak';
 import { CatanGame } from './catan';
 import { CarcaGame } from './carca';
+import { BalootGame } from './baloot';
 import { BoggleGame } from './boggle';
 import { QquoteGame } from './qquote';
 import { TajweedGame } from './tajweed';
@@ -138,6 +139,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <CatanGame room={room} view={view} />;
     case 'carca':
       return <CarcaGame room={room} view={view} />;
+    case 'baloot':
+      return <BalootGame room={room} view={view} />;
     case 'boggle':
       return <BoggleGame room={room} view={view} />;
     case 'qquote':
