@@ -8,13 +8,14 @@ import { haptic } from '@/lib/sfx';
 import { COLS, ROWS } from '@/shared/connect4';
 import type { Connect4View, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { DuelBar, winLine } from './duel';
 import { helpers, type Helpers } from './helpers';
 
 const DISC = { 1: '#E2475F', 2: '#F2C23D' } as const;
@@ -42,23 +43,24 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
   if (view.myDisc === null && view.phase === 'play') return <Spectator room={room} />;
   const myTurn = view.phase === 'play' && view.turn === view.myDisc;
   const line = new Set(view.line ?? []);
+  const won = view.phase === 'final' && view.winner === view.myDisc;
 
   return (
     <>
-      {view.phase === 'final' && view.winner === view.myDisc ? <Confetti /> : null}
+      {won ? <Confetti /> : null}
       <Players view={view} h={h} />
       {view.phase === 'final' ? (
         <ResultBanner
-          tone={view.winner === view.myDisc ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
+          tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="connect4" size={72} />}
-          title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(view.winner === 1 ? view.red : view.yellow).name}`}
-          sub={view.winner === 'draw' ? 'امتلأت اللوحة' : view.line ? 'أربعة في صف!' : 'انسحب الخصم'}
+          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : winLine(h.player(view.winner === 1 ? view.red : view.yellow).name)}
+          sub={view.winner === 'draw' ? 'امتلأت اللوحة' : view.line ? 'أربعة في صف!' : 'انسحاب الخصم'}
         />
-      ) : (
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? `اختر عموداً (أنت ${NAME[view.myDisc!]})` : `أنت ${NAME[view.myDisc!]}`}
+      ) : myTurn ? (
+        <Txt v="bold" center color={C.yellow}>
+          اختر عموداً
         </Txt>
-      )}
+      ) : null}
 
       <View style={[styles.board, { width: W + 12, height: cell * ROWS + 12 }]}>
         {view.board.map((v, i) => {
@@ -108,7 +110,13 @@ export function Connect4Game({ room, view }: { room: RoomView; view: Connect4Vie
           : null}
       </View>
 
-      {view.phase === 'final' ? <PlayAgain room={room} /> : <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />}
+      {view.phase === 'final' ? (
+        <PlayAgain room={room} />
+      ) : (
+        <Row center>
+          <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
+        </Row>
+      )}
       <ConfirmModal
         visible={resign}
         danger

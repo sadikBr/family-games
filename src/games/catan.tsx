@@ -26,6 +26,7 @@ import { SEAT_NAMES } from './catan-art';
 import { CatanBoard, boardHeight, type Target, type TargetKind } from './catan-board';
 import { BankSheet, BuildRow, DevPanel, DiscardPanel, Hand, LogList, OfferSheet, PlayersPanel, SeatDot, TradeIn, TradeOut, namer, type BuildKind, type Namer } from './catan-panels';
 import { PlayAgain, ResultBanner, Spectator } from './common';
+import { winLine } from './duel';
 import { helpers, type Helpers } from './helpers';
 
 const ZOOM = 1.7;
@@ -51,23 +52,23 @@ function instruction(view: CatanView, h: Helpers, nm: Namer, mode: BuildKind | n
     case 'setup': {
       const s = view.setup!;
       if (mine) return s.need === 'settlement' ? `ضع قريتك ${s.round === 1 ? 'الأولى' : 'الثانية'}: اختر تقاطعاً مضيئاً` : 'ضع طريقاً بجانب قريتك';
-      return `${who} يضع ${s.need === 'settlement' ? 'قرية' : 'طريقاً'}`;
+      return `${who}: وضع ${s.need === 'settlement' ? 'قرية' : 'طريق'}`;
     }
     case 'roll':
-      return mine ? 'دورك: ارمِ النرد' : `${who} سيرمي النرد`;
+      return mine ? 'ارمِ النرد' : `${who}: رمي النرد`;
     case 'discard': {
       if (view.discard[h.me]) return 'ظهر 7: أعِد نصف بطاقاتك';
       const names = Object.keys(view.discard).map((id) => nm(id));
       return `ظهر 7: ننتظر ${names.join(' و')}`;
     }
     case 'robber':
-      return mine ? 'انقل اللص: اختر أرضاً مضيئة' : `${who} ينقل اللص`;
+      return mine ? 'انقل اللص: اختر أرضاً مضيئة' : `${who}: نقل اللص`;
     case 'steal':
-      return mine ? 'اختر من تسرق منه بطاقة' : `${who} يختار من يسرق`;
+      return mine ? 'اختر من تسرق منه بطاقة' : `${who}: اختيار بطاقة للسرقة`;
     case 'roads':
-      return mine ? `ضع ${view.freeRoads === 1 ? 'طريقاً مجانياً' : `${num(view.freeRoads)} طرق مجانية`}` : `${who} يبني طرقاً مجانية`;
+      return mine ? `ضع ${view.freeRoads === 1 ? 'طريقاً مجانياً' : `${num(view.freeRoads)} طرق مجانية`}` : `${who}: بناء طرق مجانية`;
     case 'main':
-      if (!mine) return `دور ${who}`;
+      if (!mine) return `${who}: تجارة وبناء`;
       if (mode) return `اختر مكان ${mode === 'road' ? 'الطريق' : mode === 'settle' ? 'القرية' : 'المدينة'} على الخريطة`;
       return 'تاجر وابنِ بأي ترتيب، ثم أنهِ دورك';
     default:
@@ -85,8 +86,8 @@ function Final({ room, view, h, nm, width }: { room: RoomView; view: CatanView; 
       {f.winner === h.me ? <Confetti /> : null}
       <ResultBanner
         tone={f.winner === h.me ? 'good' : f.winner ? 'bad' : 'neutral'}
-        title={f.winner ? (f.winner === h.me ? 'فزت!' : `فاز ${nm(f.winner)}`) : 'انتهت اللعبة'}
-        sub={f.reason === 'left' ? 'غادر باقي اللاعبين' : `بلغ ${num(scores[f.winner ?? ''] ?? view.target)} نقاط في دوره`}
+        title={f.winner ? (f.winner === h.me ? 'فزت!' : winLine(nm(f.winner))) : 'انتهت اللعبة'}
+        sub={f.reason === 'left' ? 'مغادرة باقي اللاعبين' : `الوصول إلى ${num(scores[f.winner ?? ''] ?? view.target)} نقاط`}
       />
       <Podium players={players} scores={scores} />
       <View style={{ gap: 8 }}>
@@ -106,7 +107,8 @@ function Final({ room, view, h, nm, width }: { room: RoomView; view: CatanView; 
                 <Avatar player={h.player(id)} size={30} ring={undefined} />
                 <SeatDot seat={seat} />
                 <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
-                  {id === h.me ? 'أنت' : nm(id)}
+                  {nm(id)}
+                  {id === h.me ? ' (أنت)' : ''}
                 </Txt>
                 <Txt style={{ fontFamily: F.black, fontSize: 22, lineHeight: 30, color: f.winner === id ? C.yellow : C.text }}>{num(r.total)}</Txt>
               </Row>
@@ -211,7 +213,7 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
           <Txt v="bold" color={waitingOnMe ? C.yellow : C.text} style={{ flex: 1 }} numberOfLines={2}>
             {instruction(view, h, nm, mode)}
           </Txt>
-          {mine && view.phase === 'roll' ? <Btn size="sm" icon="refresh" color={C.yellow} label="ارمِ" onPress={() => h.act('roll')} /> : <DiceFaces dice={view.dice} dim={view.phase === 'roll'} />}
+          <DiceFaces dice={view.dice} dim={view.phase === 'roll'} />
         </Row>
         {view.total > 0 && view.endsAt ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={waitingOnMe} /> : null}
       </View>
@@ -321,7 +323,7 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
               />
             </Row>
           )}
-          <Btn size="md" icon="next" color={C.cyan} label="أنهِ دورك" onPress={() => h.act('end')} />
+          <Btn size="md" icon="next" label="أنهِ دورك" onPress={() => h.act('end')} />
         </View>
       ) : null}
 

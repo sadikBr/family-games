@@ -27,16 +27,18 @@ import {
 import type { BlocksLevel, BlocksView } from '@/shared/games/blocks';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Avatar, Card, Row } from '@/ui/bits';
+import { Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker } from '@/ui/controls';
-import { Confetti } from '@/ui/fun';
+import { Confetti, Podium } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { BLOCKS_COLORS, Board, OK_GREEN, PieceMini, type BoardWindow } from './blocks-board';
 import { PlayAgain, ResultBanner, Spectator } from './common';
+import { winLine } from './duel';
 import { helpers, type Helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 
 /** below this cell size the whole board is for looking, a zoomed window for placing */
 const SMALL_CELL = 24;
@@ -62,27 +64,18 @@ function orientationsFrom(t: number) {
   return out;
 }
 
-function Players({ view, h }: { view: BlocksView; h: Helpers }) {
+function Players({ room, view }: { room: RoomView; view: BlocksView }) {
   return (
-    <Row gap={6}>
-      {view.seats.map((id, i) => {
-        const on = view.phase === 'play' && view.turn === id;
-        const color = BLOCKS_COLORS[i];
-        const status = view.gone[i] ? 'خرج' : view.phase === 'play' && view.done[i] ? (view.left[i].length ? 'لا مكان' : 'أنهى!') : pieces(view.left[i].length);
-        return (
-          <View key={id} style={[styles.chip, { borderColor: on ? color : alpha(color, 0.35) }, on && { backgroundColor: alpha(color, 0.22) }, (view.gone[i] || (view.phase === 'play' && view.done[i])) && { opacity: 0.55 }]}>
-            <View style={[styles.colorBar, { backgroundColor: color }]} />
-            <Avatar player={h.player(id)} size={26} />
-            <Txt v="tiny" numberOfLines={1} center>
-              {id === h.me ? 'أنت' : nameOf(h, view, id)}
-            </Txt>
-            <Txt v="tiny" color={on ? color : C.muted} numberOfLines={1} center>
-              {status}
-            </Txt>
-          </View>
-        );
-      })}
-    </Row>
+    <PlayerStrip
+      room={room}
+      active={view.phase === 'play' && view.turn ? [view.turn] : []}
+      entries={view.seats.map((id, i) => ({
+        id,
+        color: BLOCKS_COLORS[i],
+        sub: view.gone[i] ? 'خارج اللعبة' : view.phase === 'play' && view.done[i] ? (view.left[i].length ? 'لا مكان' : 'انتهت القطع') : pieces(view.left[i].length),
+        out: view.gone[i] || (view.phase === 'play' && view.done[i]),
+      }))}
+    />
   );
 }
 
@@ -117,7 +110,7 @@ function FinalScores({ view, h }: { view: BlocksView; h: Helpers }) {
               {view.winners?.includes(id) ? ' 👑' : ''}
             </Txt>
             <Txt v="tiny" color={C.muted} numberOfLines={1}>
-              {view.gone[i] ? 'خرج من اللعبة' : s.squares ? `بقي ${squares(s.squares)} (${pieces(view.left[i].length)})` : s.bonus === 20 ? 'وضع كل قطعه، وآخرها المربع الواحد' : 'وضع كل قطعه'}
+              {view.gone[i] ? 'خارج اللعبة' : s.squares ? `بقي ${squares(s.squares)} (${pieces(view.left[i].length)})` : s.bonus === 20 ? 'كل القطع على اللوحة، وآخرها المربع الواحد' : 'كل القطع على اللوحة'}
               {s.bonus ? `  ${num(`+${s.bonus}`)}` : ''}
             </Txt>
           </View>
@@ -137,14 +130,18 @@ function Final({ room, view, h, width }: { room: RoomView; view: BlocksView; h: 
   const meId = view.seats[view.me];
   const ws = view.winners ?? [];
   const won = ws.length === 1 && ws[0] === meId;
-  const title = ws.length === 1 ? (won ? 'فزت!' : `فاز ${nameOf(h, view, ws[0])}`) : ws.length ? 'تعادل!' : 'انتهت اللعبة';
+  const title = ws.length === 1 ? (won ? 'فزت!' : winLine(nameOf(h, view, ws[0]))) : ws.length ? 'تعادل!' : 'انتهت اللعبة';
   const best = ws.length ? view.scores[view.seats.indexOf(ws[0])].total : 0;
-  const sub = view.reason === 'forfeit' ? 'خرج الآخرون من اللعبة' : ws.length ? `${num(best)} نقطة — لا أحد يستطيع اللعب` : '';
+  const sub = view.reason === 'forfeit' ? 'خروج الآخرين من اللعبة' : ws.length ? `${num(best)} نقطة — لا أحد يستطيع اللعب` : '';
   const boardW = Math.min(width, MAX_BOARD);
+  // the podium: everyone still in the game, by score
+  const podium = h.players.filter((p) => view.seats.some((id, i) => id === p.id && !view.gone[i]));
+  const scores = Object.fromEntries(view.seats.map((id, i) => [id, view.scores[i].total]));
   return (
     <>
       {won ? <Confetti /> : null}
       <ResultBanner tone={won ? 'good' : ws.includes(meId) ? 'neutral' : view.me < 0 ? 'neutral' : 'bad'} art={<BlocksArt size={52} />} title={title} sub={sub} />
+      {podium.length > 1 ? <Podium players={podium} scores={scores} /> : null}
       <FinalScores view={view} h={h} />
       <Board n={view.n} board={view.board} starts={view.starts} last={view.last?.cells ?? []} width={boardW} win={{ r0: 0, c0: 0, size: view.n }} />
       <PlayAgain room={room} />
@@ -309,7 +306,7 @@ export function BlocksGame({ room, view }: { room: RoomView; view: BlocksView })
   if (out) status = view.gone[me] ? 'خرجت من هذه اللعبة' : left.length ? 'لا مكان لأي قطعة من قطعك — تابع الآخرين' : 'وضعت كل قطعك! 🎉';
   else if (myTurn) {
     statusColor = C.yellow;
-    if (!sel) status = x.first ? 'دورك — اختر قطعة: الأولى تغطي الدائرة بلونك' : 'دورك — اختر قطعة من قطعك';
+    if (!sel) status = x.first ? 'اختر قطعة: الأولى تغطي الدائرة بلونك' : 'اختر قطعة من قطعك';
     else if (!pos) status = 'المس مكاناً على اللوحة (النقاط = أركان مسموحة)';
     else if (err) {
       status = PLACE_ERRORS[err];
@@ -332,7 +329,7 @@ export function BlocksGame({ room, view }: { room: RoomView; view: BlocksView })
 
   return (
     <>
-      <Players view={view} h={h} />
+      <Players room={room} view={view} />
       <View style={{ gap: 2 }}>
         <Txt v="bold" center color={statusColor} numberOfLines={2}>
           {status}
@@ -340,7 +337,7 @@ export function BlocksGame({ room, view }: { room: RoomView; view: BlocksView })
         {passedNames.length ? (
           <Animated.View key={`p${view.moveNo}`} entering={FadeIn.duration(200)}>
             <Txt v="small" center color={C.muted} numberOfLines={2}>
-              {passedNames.join(' و')} {passedNames.length > 1 ? 'لا مكان لقطعهم' : 'لا مكان لقطعه'} — يتجاوزه الدور
+              لا مكان لقطع {passedNames.join(' و')} — الدور للتالي
             </Txt>
           </Animated.View>
         ) : null}
@@ -475,10 +472,8 @@ export function BlocksSettings({ room, editable }: { room: RoomView; editable: b
 }
 
 const styles = StyleSheet.create({
-  chip: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: C.surface, borderRadius: 14, paddingTop: 7, paddingBottom: 3, paddingHorizontal: 4, borderWidth: 2, overflow: 'hidden' },
   miniMap: { width: 24, height: 24, borderRadius: 4, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: '#262B63', direction: 'ltr' },
   miniWin: { position: 'absolute', borderWidth: 2, borderRadius: 2 },
-  colorBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
   swatch: { width: 10, height: 10, borderRadius: 3, borderWidth: 1.5, borderColor: '#151726' },
   arrow: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.borderStrong },
   trayItem: { borderRadius: 12, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },

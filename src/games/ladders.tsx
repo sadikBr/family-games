@@ -15,10 +15,11 @@ import { ThrownDice } from '@/ui/dice3d';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { EventCard, FinishOrder, RaceStrip, RaceToken, stackOffsets } from './dice-race';
+import { EventCard, FinishOrder, RaceToken, stackOffsets } from './dice-race';
+import { winLine } from './duel';
 import { helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
 
 export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView }) {
   const h = helpers(room);
@@ -48,11 +49,11 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
       {final && !rolling ? (
         <>
           {won ? <Confetti /> : null}
-          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="ladders" size={84} />} title={view.winner ? `فاز ${h.player(view.winner).name}` : 'انتهت اللعبة'} sub="الحسنات ترفع صاحبها" />
+          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="ladders" size={84} />} title={view.winner ? (won ? 'فزت!' : winLine(h.player(view.winner).name)) : 'انتهت اللعبة'} sub="الحسنات ترفع صاحبها" />
           {view.order ? <FinishOrder order={view.order} players={view.players} h={h} label={square} /> : null}
         </>
       ) : (
-        <RaceStrip players={view.players} turn={view.turn} h={h} label={square} />
+        <PlayerStrip room={room} active={[view.turn]} entries={view.players.map((p) => ({ id: p.id, sub: square(p.pos) }))} />
       )}
       <View style={{ width: W, height: W, alignSelf: 'center', direction: 'ltr', borderRadius: 12, overflow: 'visible' }}>
         <Image source={BOARD_IMG['ladders-board']} style={[StyleSheet.absoluteFill, { borderRadius: 12 }]} contentFit="fill" />
@@ -108,7 +109,6 @@ export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView 
             </Txt>
           </View>
           {view.card && !rolling ? <EventCard card={view.card} h={h} /> : null}
-          <LastEvent feed={view.feed} h={h} />
         </>
       )}
     </>

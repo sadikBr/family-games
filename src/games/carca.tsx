@@ -15,7 +15,7 @@ import { haptic } from '@/lib/sfx';
 import { TILES, legalRotations, legalSpots, makeBoard, rotatePoint, type CarcaKind } from '@/shared/carca-tiles';
 import type { CarcaBreakdown, CarcaEvent, CarcaView } from '@/shared/games/carca';
 import type { RoomView } from '@/shared/protocol';
-import { C, F } from '@/theme';
+import { C, alpha } from '@/theme';
 import { Card, Pill, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { ChipPicker, Toggle } from '@/ui/controls';
@@ -24,8 +24,9 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { CarcaBoard, type BoardOptions } from './carca-board';
-import { Meeple, MeepleIcon, TileView, colorOf } from './carca-tile';
+import { Meeple, MeepleIcon, TileView } from './carca-tile';
 import { PlayAgain, ResultBanner, Spectator } from './common';
+import { winLine } from './duel';
 import { helpers, type Helpers } from './helpers';
 
 const ROLE: Record<CarcaKind, string> = { city: 'فارس في المدينة', road: 'قاطع طريق على الطريق', monastery: 'راهب في الدير', field: 'مزارع في الحقل' };
@@ -54,6 +55,11 @@ function eventText(e: CarcaEvent, h: Helpers): string {
 /* Score track                                                         */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The score track: a chip per player in the same style as the shared PlayerStrip (the player on turn
+ * framed and tinted in their colour, «(أنت)» for me), with what this game needs on it: the colour of
+ * their followers, the score and the followers left.
+ */
 function Players({ view, h, width }: { view: CarcaView; h: Helpers; width: number }) {
   const n = view.order.length;
   const per = n === 3 || n === 5 ? 3 : 2;
@@ -62,16 +68,20 @@ function Players({ view, h, width }: { view: CarcaView; h: Helpers; width: numbe
     <Row gap={6} wrap center>
       {view.order.map((id) => {
         const on = view.turn === id;
+        const p = h.player(id);
         return (
-          <View key={id} style={[styles.player, { width: w }, on && styles.playerOn]}>
+          <View key={id} style={[styles.player, { width: w }, on && { borderColor: p.color, backgroundColor: alpha(p.color, 0.2) }]}>
             <Row gap={4}>
               <MeepleIcon color={view.colors[id] ?? 0} size={16} />
-              <Txt v="tiny" numberOfLines={1} style={{ flex: 1 }}>
-                {id === h.me ? 'أنت' : h.player(id).name}
+              <Txt v="tiny" numberOfLines={1} style={{ flex: 1, fontSize: 13 }}>
+                {p.name}
+                {id === h.me ? ' (أنت)' : ''}
               </Txt>
             </Row>
             <Row gap={4} style={{ justifyContent: 'space-between' }}>
-              <Txt style={{ fontFamily: F.black, fontSize: 17, lineHeight: 22, color: on ? C.yellow : C.text }}>{num(view.scores[id] ?? 0)}</Txt>
+              <Txt v="bold" color={on ? C.text : C.yellow} style={{ fontSize: 17 }}>
+                {num(view.scores[id] ?? 0)}
+              </Txt>
               <View accessibilityLabel={`الأتباع الباقون: ${view.supply[id] ?? 0}`} style={styles.supply}>
                 <Txt v="tiny" color={C.muted}>
                   {num(view.supply[id] ?? 0)}
@@ -141,8 +151,8 @@ function Final({ room, view, h, width, boardH }: { room: RoomView; view: CarcaVi
   const ids = view.order.slice().sort((a, b) => (view.scores[b] ?? 0) - (view.scores[a] ?? 0));
   const players = ids.map((id) => h.player(id)).filter((p) => room.players.some((x) => x.id === p.id));
   const iWon = winners.includes(h.me);
-  const title = winners.length === 1 ? (winners[0] === h.me ? 'فزت!' : `فاز ${h.player(winners[0]).name}`) : winners.length > 1 ? (iWon ? 'فوز مشترك!' : 'تعادل في القمة') : 'انتهت اللعبة';
-  const sub = winners.length > 1 ? winners.map((id) => (id === h.me ? 'أنت' : h.player(id).name)).join(' و') : view.order.length <= 1 ? 'غادر باقي اللاعبين' : `${ptsText(view.scores[winners[0]] ?? 0)}`;
+  const title = winners.length === 1 ? (winners[0] === h.me ? 'فزت!' : winLine(h.player(winners[0]).name)) : winners.length > 1 ? (iWon ? 'فوز مشترك!' : 'تعادل في القمة') : 'انتهت اللعبة';
+  const sub = winners.length > 1 ? winners.map((id) => (id === h.me ? 'أنت' : h.player(id).name)).join(' و') : view.order.length <= 1 ? 'مغادرة باقي اللاعبين' : `${ptsText(view.scores[winners[0]] ?? 0)}`;
   const colW = width < 340 ? 34 : 44;
   return (
     <>
@@ -186,7 +196,7 @@ function Final({ room, view, h, width, boardH }: { room: RoomView; view: CarcaVi
         })}
         {view.final?.left.length ? (
           <Txt v="tiny" color={C.dim}>
-            {`غادر: ${view.final.left.map((id) => h.player(id).name).join('، ')}`}
+            {`مغادرة: ${view.final.left.map((id) => h.player(id).name).join('، ')}`}
           </Txt>
         ) : null}
       </Card>
@@ -295,10 +305,10 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
     ? view.step === 'place'
       ? mySel
         ? 'دوّر البلاطة أو ثبّتها'
-        : 'دورك: اختر مكاناً مضيئاً'
+        : 'اختر مكاناً مضيئاً'
       : 'ضع تابعاً أو تابع بدونه'
     : view.turn
-      ? `دور ${turnName}: ${view.step === 'follower' ? 'اختيار التابع' : 'وضع البلاطة'}`
+      ? `${turnName}: ${view.step === 'follower' ? 'اختيار التابع' : 'وضع البلاطة'}`
       : '';
 
   const tileSize = placing ? (width < 340 ? 92 : 104) : 72;
@@ -348,7 +358,7 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
       ) : tile ? (
         <Card style={{ padding: 10 }}>
           <Row gap={10}>
-            <View style={[styles.tileBox, { borderColor: myTurn ? C.yellow : colorOf(view.colors[view.turn ?? ''] ?? 0).fill }]}>
+            <View style={[styles.tileBox, { borderColor: myTurn ? C.yellow : view.turn ? h.player(view.turn).color : C.border }]}>
               <TileView t={tile} r={shownR} size={tileSize} />
             </View>
             {placing ? (
@@ -417,12 +427,11 @@ export function CarcaSettings({ room, editable }: { room: RoomView; editable: bo
 }
 
 const styles = StyleSheet.create({
-  player: { gap: 0, backgroundColor: C.surface, borderRadius: 12, paddingVertical: 3, paddingHorizontal: 7, borderWidth: 2, borderColor: 'transparent' },
-  supply: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  playerOn: { borderColor: C.yellow, backgroundColor: 'rgba(242,179,61,0.14)' },
   tileBox: { borderWidth: 3, borderRadius: 8, overflow: 'hidden' },
   bigTile: { borderRadius: 10, overflow: 'hidden' },
   spot: { position: 'absolute', width: 40, height: 40, borderRadius: 20 },
   spotOn: { borderWidth: 2, borderColor: '#FFFFFF' },
+  player: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
+  supply: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   scoreRow: { paddingVertical: 4, paddingHorizontal: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.04)' },
 });

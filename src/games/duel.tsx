@@ -11,38 +11,60 @@ import type { Helpers } from './helpers';
 
 export interface DuelSlot {
   id: string;
-  color: string;
+  /** the frame and tint when it's this player's turn (a mark colour like X/O); defaults to the player's colour */
+  color?: string;
+  /** what this player plays with (a piece image, a mark); without it, a dot in `swatch` (or `color`) */
   mark?: ReactNode;
+  swatch?: string;
   sub?: string;
-  /** Games won in this series (shown as «الفوز: n»). */
+  /** Games won in this series (shown once someone has won one). */
   score?: number;
 }
 
+/** «لماما»، «للجدّ»، «لـ Sam»: a name after the preposition لـ, so lines about a player need no verb. */
+export const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
+
+/** «الفوز لماما» — the winner's line without a verb conjugated for them. */
+export const winLine = (name: string) => `الفوز ${li(name)}`;
+
+/**
+ * The two players of a 1-vs-1 game, styled like the shared PlayerStrip: same chips, the player on
+ * turn framed and tinted in their colour, «(أنت)» for me, plus what each one plays with (a piece,
+ * a mark) and the series score once someone has won a game.
+ */
 export function DuelBar({ slots, active, h }: { slots: DuelSlot[]; active: string | null; h: Helpers }) {
+  const series = slots.some((s) => (s.score ?? 0) > 0);
   return (
-    <Row gap={8} style={{ justifyContent: 'center', width: '100%' }}>
+    <Row gap={6} style={{ justifyContent: 'center', width: '100%' }}>
       {slots.map((s) => {
+        const p = h.player(s.id);
+        const color = s.color ?? p.color;
         const on = active === s.id;
         return (
-          <View key={s.id} style={[styles.player, on && { borderColor: s.color, backgroundColor: alpha(s.color, 0.18) }]}>
-            {s.mark ?? <View style={[styles.dot, { backgroundColor: s.color }]} />}
-            <Avatar player={h.player(s.id)} size={30} />
-            <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Txt v="tiny" numberOfLines={1}>
-                {h.player(s.id).name}
+          <View
+            key={s.id}
+            accessibilityLabel={`${p.name}${s.sub ? ` — ${s.sub}` : ''}${series ? ` — الفوز: ${s.score ?? 0}` : ''}${on ? ' — دوره الآن' : ''}`}
+            style={[styles.player, on && { borderColor: color, backgroundColor: alpha(color, 0.2) }]}>
+            <Avatar player={p} size={30} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13 }}>
+                {p.name}
                 {s.id === h.me ? ' (أنت)' : ''}
               </Txt>
-              {s.sub ? (
-                <Txt v="tiny" color={C.dim} numberOfLines={1}>
-                  {s.sub}
-                </Txt>
-              ) : null}
-              {s.score !== undefined ? (
-                <Txt v="tiny" color={C.yellow} numberOfLines={1}>
-                  الفوز: {num(s.score)}
-                </Txt>
-              ) : null}
+              <Row gap={4}>
+                {s.mark ?? <View style={[styles.dot, { backgroundColor: s.swatch ?? color }]} />}
+                {s.sub ? (
+                  <Txt v="tiny" color={C.muted} numberOfLines={2} style={{ fontSize: 11, lineHeight: 15, flexShrink: 1 }}>
+                    {s.sub}
+                  </Txt>
+                ) : null}
+              </Row>
             </View>
+            {series ? (
+              <Txt v="bold" color={on ? C.text : C.yellow} style={{ fontSize: 17 }}>
+                {num(s.score ?? 0)}
+              </Txt>
+            ) : null}
           </View>
         );
       })}
@@ -72,6 +94,6 @@ export function SlideIn({ steps, ms = 190, children }: { steps: { x: number; y: 
 }
 
 const styles = StyleSheet.create({
-  player: { flexShrink: 1, minWidth: 0, maxWidth: '50%', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#151726' },
+  player: { flex: 1, minWidth: 0, maxWidth: 280, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
+  dot: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: '#151726' },
 });

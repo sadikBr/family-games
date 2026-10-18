@@ -9,15 +9,15 @@ import { haptic } from '@/lib/sfx';
 import { sqName } from '@/shared/chess';
 import type { ChessView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar, SlideIn } from './duel';
+import { DuelBar, SlideIn, winLine } from './duel';
 import { helpers } from './helpers';
 
 const LIGHT = '#F3E6C8';
@@ -29,7 +29,7 @@ const REASON: Record<string, string> = {
   repetition: 'تعادل — تكرار الوضعية',
   material: 'تعادل — لا تكفي القطع للفوز',
   resign: 'انسحاب',
-  left: 'غادر اللاعب',
+  left: 'مغادرة اللاعب',
 };
 const img = (pc: string) => BOARD_IMG[`chess-${pc === pc.toUpperCase() ? 'w' : 'b'}${pc.toLowerCase()}`];
 
@@ -46,9 +46,11 @@ function Taken({ pieces }: { pieces: string[] }) {
 
 export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 16, 480);
-  const sq = W / 8;
+  // the board fills the content width (inside the 16 px gutters); squares sit inside its 3 px frame
+  const W = Math.min(width - 32, 480);
+  const sq = (W - 6) / 8;
   const [sel, setSel] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: number; to: number } | null>(null);
   const [resign, setResign] = useState(false);
@@ -96,8 +98,7 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
         active={view.phase === 'play' ? (view.turn === 'w' ? view.white : view.black) : null}
         slots={(['w', 'b'] as const).map((c) => ({
           id: c === 'w' ? view.white : view.black,
-          color: C.yellow,
-          mark: <Image source={img(c === 'w' ? 'K' : 'k')} style={{ width: 20, height: 20 }} contentFit="contain" />,
+          mark: <Image source={img(c === 'w' ? 'K' : 'k')} style={{ width: 16, height: 16 }} contentFit="contain" />,
           sub: view.phase === 'play' && view.check && view.turn === c ? 'كش!' : c === 'w' ? 'الأبيض' : 'الأسود',
           score: view.score[c === 'w' ? view.white : view.black] ?? 0,
         }))}
@@ -106,13 +107,13 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
         <ResultBanner
           tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="chess" size={72} />}
-          title={view.winner === 'draw' ? 'تعادل' : `فاز ${h.player(view.winner === 'w' ? view.white : view.black).name}`}
+          title={view.winner === 'draw' ? 'تعادل' : won ? 'فزت!' : winLine(h.player(view.winner === 'w' ? view.white : view.black).name)}
           sub={REASON[view.reason ?? ''] ?? ''}
         />
       ) : null}
       <Taken pieces={view.captured[them]} />
 
-      <View style={[styles.board, { width: W, height: W }]}>
+      <View style={[styles.board, { width: W, height: W, borderColor: accent }]}>
         {Array.from({ length: 64 }, (_, k) => {
           const i = flip ? 63 - k : k;
           const r = Math.floor(k / 8), c = k % 8;
@@ -158,7 +159,6 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
       ) : (
         <PlayAgain room={room} />
       )}
-      <LastEvent feed={view.feed} h={h} />
 
       <Modal visible={!!promo} transparent animationType="fade" onRequestClose={() => setPromo(null)}>
         <View style={styles.backdrop}>

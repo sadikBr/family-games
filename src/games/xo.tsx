@@ -6,11 +6,12 @@ import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
 import type { RoomView, XoView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Confetti } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
 
 const INK = '#151726';
@@ -46,6 +47,7 @@ const MARK_IN = new Keyframe({
 
 export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const { width } = useWindowDimensions();
   const n = view.size ?? 3;
   // big boards use all the width they can get
@@ -64,13 +66,13 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
       <DuelBar
         h={h}
         active={view.phase === 'play' ? idOf(view.turn) : null}
-        slots={(['x', 'o'] as const).map((m) => ({ id: idOf(m), color: COLOR[m], mark: <Mark m={m} size={14} />, score: view.score[idOf(m)] ?? 0 }))}
+        slots={(['x', 'o'] as const).map((m) => ({ id: idOf(m), color: COLOR[m], mark: <Mark m={m} size={12} />, score: view.score[idOf(m)] ?? 0 }))}
       />
       {view.phase === 'final' ? (
         <ResultBanner
           tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="xo" size={72} />}
-          title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(idOf(view.winner as 'x' | 'o')).name}`}
+          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : winLine(h.player(idOf(view.winner as 'x' | 'o')).name)}
           sub={view.winner === 'draw' ? `لا أحد صفّ ${ROW_WORD[view.inRow] ?? view.inRow}` : `${ROW_WORD[view.inRow] ?? view.inRow} في خط!`}
         />
       ) : (
@@ -88,7 +90,7 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
         </View>
       )}
 
-      <View style={[styles.board, { width: W + 6, height: W + 6 }]}>
+      <View style={[styles.board, { width: W + 6, height: W + 6, borderColor: accent }]}>
         {view.board.map((m, i) => {
           const r = Math.floor(i / n), c = i % n;
           return (
@@ -103,9 +105,9 @@ export function XoGame({ room, view }: { room: RoomView; view: XoView }) {
               style={({ pressed }) => [
                 styles.cell,
                 { left: c * cell, top: r * cell, width: cell, height: cell, borderRadius: n > 3 ? cell * 0.22 : 18 },
-                view.last === i && !line.has(i) && { backgroundColor: alpha('#7B4BD0', 0.14) },
+                view.last === i && !line.has(i) && { backgroundColor: alpha(accent, 0.14) },
                 line.has(i) && { backgroundColor: alpha(C.yellow, 0.35) },
-                pressed && { backgroundColor: alpha('#7B4BD0', 0.18) },
+                pressed && { backgroundColor: alpha(accent, 0.18) },
               ]}>
               {m ? (
                 <Animated.View key={m} entering={MARK_IN}>

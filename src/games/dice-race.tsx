@@ -5,7 +5,7 @@ import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withDelay, withSequ
 
 import { Icon, type IconName } from '@/art/icons';
 import type { BoardCard, PlayerPublic } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
+import { C, alpha } from '@/theme';
 import { Avatar } from '@/ui/bits';
 import { DICE_THROW_MS } from '@/ui/dice3d';
 import { Txt, num } from '@/ui/txt';
@@ -102,58 +102,42 @@ export function stackOffsets<T extends { id: string; pos: number }>(players: T[]
   return out;
 }
 
-export function RaceStrip({ players, turn, h, label }: { players: { id: string; pos: number }[]; turn: string; h: Helpers; label: (pos: number) => string }) {
-  return (
-    <View style={styles.strip}>
-      {players.map((p) => {
-        const pl = h.player(p.id);
-        const active = p.id === turn;
-        return (
-          <View key={p.id} style={[styles.chip, active && { borderColor: pl.color, backgroundColor: alpha(pl.color, 0.2) }]}>
-            <Avatar player={pl} size={26} ring={pl.color} />
-            <View>
-              <Txt v="tiny" numberOfLines={1} style={{ maxWidth: 74 }}>
-                {pl.name}
-              </Txt>
-              <Txt style={{ fontFamily: F.bold, fontSize: 11, lineHeight: 16, color: C.dim }} numberOfLines={1}>
-                {label(p.pos)}
-              </Txt>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 const MEDAL = [C.yellow, '#C9CED8', '#D08A55'];
 
-/** End of a race: everyone in finishing order (furthest first; same square → who got there first). */
-export function FinishOrder({ order, players, h, label }: { order: string[]; players: { id: string; pos: number }[]; h: Helpers; label: (pos: number) => string }) {
-  const rows = order.flatMap((id) => players.filter((p) => p.id === id));
+/** A ranked list for the end of a game: medal, avatar framed in the player's game colour, name, a short line. */
+export function RankList({ rows, h }: { rows: { id: string; label?: string; color?: string }[]; h: Helpers }) {
   return (
     <Animated.View entering={FadeIn.duration(260)} style={{ gap: 6 }}>
-      {rows.map((p, i) => {
-        const pl = h.player(p.id);
+      {rows.map((r, i) => {
+        const pl = h.player(r.id);
         return (
-          <View key={p.id} style={[styles.place, p.id === h.me && { backgroundColor: alpha(C.yellow, 0.1) }]}>
+          <View key={r.id} style={[styles.place, r.id === h.me && { backgroundColor: alpha(C.yellow, 0.1) }]}>
             <View style={[styles.rank, { backgroundColor: MEDAL[i] ?? C.surfaceStrong }]}>
               <Txt v="tiny" color={i < 3 ? C.ink : C.text}>
                 {num(i + 1)}
               </Txt>
             </View>
-            <Avatar player={pl} size={32} ring={pl.color} />
+            <Avatar player={pl} size={32} ring={r.color ?? pl.color} />
             <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
               {pl.name}
+              {r.id === h.me ? ' (أنت)' : ''}
             </Txt>
-            <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 150 }}>
-              {label(p.pos)}
-            </Txt>
+            {r.label ? (
+              <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ maxWidth: 150 }}>
+                {r.label}
+              </Txt>
+            ) : null}
           </View>
         );
       })}
     </Animated.View>
   );
+}
+
+/** End of a race: everyone in finishing order (furthest first; same square → who got there first). */
+export function FinishOrder({ order, players, h, label }: { order: string[]; players: { id: string; pos: number }[]; h: Helpers; label: (pos: number) => string }) {
+  const rows = order.flatMap((id) => players.filter((p) => p.id === id)).map((p) => ({ id: p.id, label: label(p.pos) }));
+  return <RankList rows={rows} h={h} />;
 }
 
 const CARD_STYLE: Record<BoardCard['kind'], { color: string; icon: IconName }> = {
@@ -192,8 +176,6 @@ export function EventCard({ card, h, extra }: { card: BoardCard; h: Helpers; ext
 
 const styles = StyleSheet.create({
   token: { position: 'absolute', left: 0, top: 0 },
-  strip: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 2, borderColor: 'transparent' },
   card: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 2, overflow: 'hidden' },
   place: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)' },
   rank: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

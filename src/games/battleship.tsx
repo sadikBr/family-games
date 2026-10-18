@@ -15,8 +15,8 @@ import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { MarkIn } from '@/ui/motion';
 
-import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar } from './duel';
+import { PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
+import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
 
 const INK = '#151726';
@@ -128,12 +128,7 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
     const ready = view.ready.includes(h.me);
     return (
       <>
-        <Txt v="title" center>
-          رتّب أسطولك
-        </Txt>
-        <Txt v="small" center color={C.muted}>
-          خصمك لن يرى سفنك. اخلطها حتى يعجبك ترتيبها ثم اضغط «جاهز».
-        </Txt>
+        <PhaseTitle title="رتّب أسطولك" sub="خصمك لن يرى سفنك. اخلطها حتى يعجبك ترتيبها ثم اضغط «جاهز»." />
         <Sea size={big} ships={myFleet} shots={{}} />
         <Row gap={6} center wrap>
           {FLEET.map((n, k) => (
@@ -164,7 +159,9 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
             />
           </Row>
         )}
-        <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
+        <Row center>
+          <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
+        </Row>
         {resignModal}
       </>
     );
@@ -205,10 +202,6 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
     </View>
   );
 
-  const lastLine = view.last
-    ? `${view.last.by === h.me ? 'قذيفتك' : `قذيفة ${h.player(view.last.by).name}`}: ${view.last.result === 'sunk' ? 'أغرقت سفينة!' : view.last.result === 'hit' ? 'إصابة!' : 'في الماء'}`
-    : null;
-
   return (
     <>
       {won ? <Confetti /> : null}
@@ -216,27 +209,31 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
         h={h}
         active={view.phase === 'play' ? view.turn : null}
         slots={[
-          { id: h.me, color: '#9AA4C2', sub: `بقيت ${num(myLeft)} سفن`, score: view.score[h.me] ?? 0 },
-          { id: enemy, color: C.red, sub: `بقيت ${num(view.enemyFleetLeft)} سفن`, score: view.score[enemy] ?? 0 },
+          { id: h.me, swatch: '#9AA4C2', sub: `بقيت ${num(myLeft)} سفن`, score: view.score[h.me] ?? 0 },
+          { id: enemy, swatch: '#E58A9A', sub: `بقيت ${num(view.enemyFleetLeft)} سفن`, score: view.score[enemy] ?? 0 },
         ]}
       />
       {view.phase === 'final' ? (
-        <ResultBanner tone={won ? 'good' : 'bad'} art={<GameArt id="battleship" size={72} />} title={`فاز ${h.player(view.winner!).name}`} sub={view.resigned ? (won ? 'انسحب الخصم' : 'انسحبت') : 'أغرق كل السفن!'} />
+        <ResultBanner
+          tone={won ? 'good' : 'bad'}
+          art={<GameArt id="battleship" size={72} />}
+          title={won ? 'فزت!' : winLine(h.player(view.winner!).name)}
+          sub={view.resigned ? (won ? 'انسحاب الخصم' : 'انسحبت') : 'غرقت كل السفن!'}
+        />
       ) : myTurn ? (
         <Txt v="bold" center color={C.yellow}>
           اضغط على خانة في بحر {h.player(enemy).name}
         </Txt>
       ) : null}
-      {lastLine && view.phase === 'play' ? (
-        <Animated.View key={view.last!.id} entering={FadeIn.duration(180)}>
-          <Txt v="small" center color={view.last!.result === 'miss' ? C.muted : C.orange}>
-            {lastLine}
-          </Txt>
-        </Animated.View>
-      ) : null}
 
       {focus === 'enemy' ? [enemySea(big), mySea(small)] : [mySea(big), enemySea(small)]}
-      {view.phase === 'final' ? <PlayAgain room={room} /> : <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />}
+      {view.phase === 'final' ? (
+        <PlayAgain room={room} />
+      ) : (
+        <Row center>
+          <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
+        </Row>
+      )}
       {resignModal}
     </>
   );

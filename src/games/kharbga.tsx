@@ -8,6 +8,7 @@ import { haptic } from '@/lib/sfx';
 import { CENTER, N } from '@/shared/kharbga';
 import type { KharbgaView, RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
@@ -15,24 +16,24 @@ import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { MarkIn } from '@/ui/motion';
 
-import { LastEvent } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar, SlideIn } from './duel';
+import { DuelBar, SlideIn, winLine } from './duel';
 import { helpers } from './helpers';
 
 const INK = '#151726';
 const PIECE = { 1: '#F5ECD6', 2: '#B8323F' } as const;
 const SIDE_NAME = { 1: 'المهاجم', 2: 'المدافع' } as const;
 const REASON: Record<string, string> = {
-  captured: 'أكل كل القطع!',
-  blocked: 'لا توجد حركات — فاز الأكثر قطعاً',
-  limit: 'طال اللعب بلا أكل — فاز الأكثر قطعاً',
-  resign: 'انسحب الخصم',
-  left: 'غادر الخصم',
+  captured: 'أُكلت كل القطع!',
+  blocked: 'لا توجد حركات — الفوز للأكثر قطعاً',
+  limit: 'طال اللعب بلا أكل — الفوز للأكثر قطعاً',
+  resign: 'انسحاب الخصم',
+  left: 'مغادرة الخصم',
 };
 
 export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView }) {
   const h = helpers(room);
+  const accent = useAccent();
   const { width } = useWindowDimensions();
   const W = Math.min(width - 24, 440);
   const cell = W / N;
@@ -85,8 +86,8 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
         active={view.phase === 'final' ? null : idOf(view.turn)}
         slots={([1, 2] as const).map((s) => ({
           id: idOf(s),
-          color: PIECE[s],
-          sub: view.phase === 'place' ? `${SIDE_NAME[s]} — يضع ${num(view.toPlace[s])}` : `${SIDE_NAME[s]} — ${num(view.counts[s])} قطعة`,
+          swatch: PIECE[s],
+          sub: view.phase === 'place' ? `${SIDE_NAME[s]} — ${num(view.toPlace[s])} للوضع` : `${SIDE_NAME[s]} — ${num(view.counts[s])} قطعة`,
           score: view.score[idOf(s)] ?? 0,
         }))}
       />
@@ -95,7 +96,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
         <ResultBanner
           tone={won ? 'good' : view.winner === 'draw' ? 'neutral' : 'bad'}
           art={<GameArt id="kharbga" size={72} />}
-          title={view.winner === 'draw' ? 'تعادل!' : `فاز ${h.player(idOf(view.winner as 1 | 2)).name}`}
+          title={view.winner === 'draw' ? 'تعادل!' : won ? 'فزت!' : winLine(h.player(idOf(view.winner as 1 | 2)).name)}
           sub={view.reason ? REASON[view.reason] : undefined}
         />
       ) : hint ? (
@@ -104,7 +105,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
         </Txt>
       ) : null}
 
-      <View style={[styles.board, { width: W + 6, height: W + 6 }]}>
+      <View style={[styles.board, { width: W + 6, height: W + 6, borderColor: accent }]}>
         {/* grid lines through the centres of the squares */}
         {Array.from({ length: N }, (_, k) => (
           <View key={`h${k}`} pointerEvents="none" style={[styles.line, { left: cell / 2, right: cell / 2, top: cell * (k + 0.5) - 1, height: 2 }]} />
@@ -131,7 +132,6 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
                 { width: cell * 0.72, height: cell * 0.72, borderRadius: cell, backgroundColor: PIECE[v as 1 | 2] },
                 canPick && styles.pickable,
                 isChosen && styles.chosen,
-                lastTo && !isChosen && !canPick && styles.lastTo,
               ]}>
               <View style={[styles.pieceIn, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell }]} />
             </Animated.View>
@@ -142,7 +142,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
               onPress={() => tap(i)}
               accessibilityLabel={`الخانة ${r + 1}-${c + 1}`}
               style={[styles.cell, { left: c * cell, top: r * cell, width: cell, height: cell }, slide && { zIndex: 2 }]}>
-              {lastFrom ? <View style={[styles.fromDot, { width: cell * 0.24, height: cell * 0.24, borderRadius: cell }]} /> : null}
+              {lastTo || lastFrom ? <View style={[styles.lastSq, { width: cell * 0.9, height: cell * 0.9, borderRadius: cell * 0.2 }]} /> : null}
               {i === CENTER ? <View style={[styles.center, { width: cell * 0.5, height: cell * 0.5 }]} /> : null}
               {isTarget ? <View style={[styles.target, { width: cell * 0.42, height: cell * 0.42, borderRadius: cell }]} /> : null}
               {view.last?.captured.includes(i) && !v ? (
@@ -161,27 +161,23 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
       </View>
 
       {view.phase === 'place' && myTurn ? (
-        <Row gap={8}>
-          <Btn flex size="md" ghost icon="back" label="تراجع" disabled={!view.canUndo} onPress={() => h.act('undo')} />
-          <Btn
-            flex
-            size="md"
-            icon="shuffle"
-            label="وزّع الباقي عشوائياً"
-            onPress={() => {
-              haptic.medium();
-              h.act('placeRandom');
-            }}
-          />
-        </Row>
+        <Btn
+          size="md"
+          icon="shuffle"
+          label="وزّع الباقي عشوائياً"
+          onPress={() => {
+            haptic.medium();
+            h.act('placeRandom');
+          }}
+        />
       ) : null}
       {view.phase === 'final' ? (
         <PlayAgain room={room} />
       ) : (
-        <>
-          <LastEvent feed={view.feed} h={h} />
+        <Row center gap={8}>
+          {view.phase === 'place' && myTurn ? <Btn size="sm" ghost icon="back" label="تراجع" disabled={!view.canUndo} onPress={() => h.act('undo')} /> : null}
           <Btn size="sm" ghost icon="door" label="انسحب" onPress={() => setResign(true)} />
-        </>
+        </Row>
       )}
       <ConfirmModal
         visible={resign}
@@ -208,8 +204,7 @@ const styles = StyleSheet.create({
   ghost: { position: 'absolute', backgroundColor: alpha(C.red, 0.4), borderWidth: 2, borderColor: alpha(C.red, 0.8) },
   piece: { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: INK },
   pieceIn: { borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.18)' },
-  pickable: { borderColor: '#2E8B57', borderWidth: 3.5 },
-  chosen: { borderColor: C.yellow, borderWidth: 4, transform: [{ scale: 1.1 }] },
-  lastTo: { borderColor: '#3D7BE0', borderWidth: 3.5 },
-  fromDot: { position: 'absolute', backgroundColor: alpha('#3D7BE0', 0.45), borderWidth: 1.5, borderColor: alpha('#3D7BE0', 0.9) },
+  pickable: { borderColor: alpha(C.yellow, 0.75), borderWidth: 3.5 },
+  chosen: { borderColor: C.yellow, borderWidth: 4, transform: [{ scale: 1.06 }] },
+  lastSq: { position: 'absolute', backgroundColor: alpha(C.yellow, 0.32) },
 });
