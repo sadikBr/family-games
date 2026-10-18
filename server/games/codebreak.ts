@@ -101,6 +101,8 @@ function finishRound(ctx: GameCtx, s: State) {
     return { id, tries, ms: sv?.ms ?? null, first: sv?.order === 0, points };
   });
   s.hurried = false;
+  const cracked = s.results.filter((r) => r.tries !== null).length;
+  ctx.say?.(`انتهى الرمز ${s.round}: فُكّ عند ${cracked} من ${s.players.length}`);
   if (s.round >= s.settings.rounds || !s.players.length) {
     s.phase = 'final';
     s.endsAt = null;
@@ -161,10 +163,16 @@ export const codebreak: GameModule<State, CodebreakSettings> = {
     if (s.rows[by].some((r) => r.guess.join() === g.join())) throw new GameError('جرّبت هذا الرمز من قبل');
     const m = codebreakMarks(g, s.code);
     s.rows[by].push({ guess: g, ...m });
+    const tries = s.rows[by].length;
     if (m.black === s.settings.pegs) {
-      s.solved[by] = { order: Object.keys(s.solved).length, ms: ctx.now - s.startedAt };
+      const order = Object.keys(s.solved).length;
+      s.solved[by] = { order, ms: ctx.now - s.startedAt };
       ctx.fx('correct', by);
-    } else if (s.rows[by].length >= s.settings.maxTries) ctx.fx('buzz', by);
+      ctx.say?.(`فكّ الرمز${order === 0 ? ' أولاً' : ''}: ${ctx.playerName(by)} في ${tries === 1 ? 'محاولة واحدة' : tries === 2 ? 'محاولتين' : `${tries} محاولات`}`, by);
+    } else if (tries >= s.settings.maxTries) {
+      ctx.fx('buzz', by);
+      ctx.say?.(`نفدت محاولات ${ctx.playerName(by)}`, by);
+    }
     if (allDone(ctx, s)) {
       finishRound(ctx, s);
       return;

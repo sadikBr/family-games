@@ -15,6 +15,8 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const FINISH_MS = 5000; // time others get to challenge a player's last cards
+/** the cards shown by a «كذّاب!» stay face up at least this long, even if someone plays meanwhile */
+export const REVEAL_MS = 4500;
 const RANK_NAME: Record<number, string> = { 1: 'الآس', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 10: 'الخادم', 11: 'الفارس', 12: 'الملك' };
 const rankText = (r: number, n = 2) => (r <= 7 && r !== 1 ? `${n === 1 ? '' : `${n} × `}${r}` : `${n === 1 ? '' : `${n} × `}${RANK_NAME[r]}`);
 
@@ -38,6 +40,7 @@ interface State {
   playN: number;
   reveal: KdabView['reveal'];
   revealN: number;
+  revealUntil: number;
   finishing: { id: string; until: number } | null;
   winner: string | null;
   phase: KdabView['phase'];
@@ -64,6 +67,7 @@ function finishWin(ctx: GameCtx, s: State, id: string) {
   s.winner = id;
   s.phase = 'final';
   s.feed.push(`${ctx.playerName(id)} تخلّص من كل أوراقه!`, { by: id });
+  ctx.say?.(`الفوز لـ${ctx.playerName(id)}: لا أوراق باقية!`, id);
   ctx.fx('win', id);
 }
 
@@ -78,6 +82,13 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
   const taker = truthful ? caller : play.by;
   s.hands[taker].push(...s.pile);
   s.reveal = { id: ++s.revealN, caller, player: play.by, cards: play.cards, truthful, taker };
+  s.revealUntil = ctx.now + REVEAL_MS;
+  ctx.say?.(
+    truthful
+      ? `«كذّاب!» من ${ctx.playerName(caller)} في غير محلّه — الكومة لـ${ctx.playerName(caller)}`
+      : `«كذّاب!» من ${ctx.playerName(caller)} في محلّه — الكومة لـ${ctx.playerName(play.by)}`,
+    caller,
+  );
   s.feed.push(
     truthful ? `${ctx.playerName(caller)} قال «كذّاب» — لكن ${ctx.playerName(play.by)} كان صادقاً! ${ctx.playerName(caller)} يأخذ الكومة` : `${ctx.playerName(caller)} كشف ${ctx.playerName(play.by)}! الكذّاب يأخذ الكومة`,
     { by: caller },
@@ -122,6 +133,7 @@ export const kdab: GameModule<State, KdabSettings> = {
       playN: 0,
       reveal: null,
       revealN: 0,
+      revealUntil: 0,
       finishing: null,
       winner: null,
       phase: 'play',
@@ -150,12 +162,14 @@ export const kdab: GameModule<State, KdabSettings> = {
       s.moves += 1;
       s.passes += 1;
       s.feed.push(`${ctx.playerName(by)} مرّر`, { by });
+      ctx.say?.(`تمرير: ${ctx.playerName(by)}`, by);
       const others = active(s).filter((id) => id !== s.last?.by).length;
       if (s.passes >= others) {
         // everybody passed: the pile goes away and the last player to play starts afresh
         settleFinishing(ctx, s);
         if ((s.phase as KdabView['phase']) === 'final') return;
         s.feed.push('مرّر الجميع — تُبعَد الكومة', {});
+        ctx.say?.(`مرّر الجميع — تُبعَد الكومة، والبداية لـ${ctx.playerName(s.last!.by)}`);
         s.pile = [];
         s.rank = null;
         s.passes = 0;
@@ -184,9 +198,11 @@ export const kdab: GameModule<State, KdabSettings> = {
       s.last = { id: ++s.playN, by, cards, rank };
       s.called = false;
       s.passes = 0;
-      s.reveal = null;
+      // a reveal stays a moment longer, so the play right after a «كذّاب!» does not hide it
+      if (s.reveal && ctx.now >= s.revealUntil) s.reveal = null;
       s.moves += 1;
       s.feed.push(`${ctx.playerName(by)}: «${rankText(rank, cards.length)}»`, { by });
+      ctx.say?.(`${cards.length === 1 ? 'ورقة' : cards.length === 2 ? 'ورقتان' : `${cards.length} أوراق`} من ${ctx.playerName(by)}: «${RANK_NAME[rank]}»`, by);
       ctx.fx('card', by);
       if (s.hands[by].length === 0) s.finishing = { id: by, until: ctx.now + FINISH_MS };
       nextTurn(s);
@@ -195,6 +211,11 @@ export const kdab: GameModule<State, KdabSettings> = {
   },
 
   tick(ctx, s) {
+    // hide an old reveal once a new play has been made and its time is up
+    if (s.phase === 'play' && s.reveal && !s.called && ctx.now >= s.revealUntil) {
+      s.reveal = null;
+      return true;
+    }
     if (s.phase !== 'play' || !s.finishing || ctx.now < s.finishing.until) return false;
     if (!s.called) finishWin(ctx, s, s.finishing.id);
     else s.finishing = null;

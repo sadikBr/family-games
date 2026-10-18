@@ -1,24 +1,40 @@
 /** «الكذّاب» — play cards face down, claim a rank, and catch the liars. */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
 import { RANKS } from '@/shared/cards';
 import type { KdabView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
-import { Row } from '@/ui/bits';
+import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { CardRow, Felt, LastEvent, PlayingCard, Seats } from './cards/card-ui';
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { helpers } from './helpers';
+import { helpers, type Helpers } from './helpers';
 
 const RANK_NAME: Record<number, string> = { 1: 'الآس', 10: 'الخادم', 11: 'الفارس', 12: 'الملك' };
 const rankLabel = (r: number) => RANK_NAME[r] ?? String(r);
+
+/** The cards a «كذّاب!» turned over: were they what was claimed, and who takes the pile. */
+function RevealBox({ reveal, h }: { reveal: NonNullable<KdabView['reveal']>; h: Helpers }) {
+  return (
+    <Animated.View key={reveal.id} entering={FadeIn.duration(220)} style={[styles.reveal, { borderColor: reveal.truthful ? C.green : C.red }]}>
+      <Txt v="bold" numberOfLines={2} style={{ flex: 1 }}>
+        {reveal.truthful ? `${h.player(reveal.player).name} كان صادقاً — ${h.player(reveal.taker).name} يأخذ الكومة` : `${h.player(reveal.player).name} كذب! يأخذ الكومة`}
+      </Txt>
+      <Row gap={3}>
+        {reveal.cards.map((c) => (
+          <PlayingCard key={c.id} card={c} size="xs" />
+        ))}
+      </Row>
+    </Animated.View>
+  );
+}
 
 export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
   const h = helpers(room);
@@ -67,17 +83,24 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
             </View>
           </Row>
           {view.last ? (
-            <Txt v="small" center color="#FFF4DA">
-              {h.player(view.last.by).name} لعب {num(view.last.count)} {view.last.count === 1 ? 'ورقة' : 'أوراق'} وقال «{rankLabel(view.last.rank)}»
-            </Txt>
+            <Animated.View key={view.last.id} entering={FadeIn.duration(220)}>
+              <Row gap={6} center>
+                <Avatar player={h.player(view.last.by)} size={20} />
+                <Txt v="small" center color="#FFF4DA" style={{ flexShrink: 1 }}>
+                  {h.player(view.last.by).name} لعب {num(view.last.count)} {view.last.count === 1 ? 'ورقة' : 'أوراق'} وقال «{rankLabel(view.last.rank)}»
+                </Txt>
+              </Row>
+            </Animated.View>
           ) : null}
+          {/* the «كذّاب!» button holds the slot below: the cards of the last reveal stay visible here */}
+          {view.canCall && view.reveal ? <RevealBox reveal={view.reveal} h={h} /> : null}
         </View>
       </Felt>
 
       {/* fixed-height slot: the «كذّاب!» button or the reveal, so the hand below never jumps */}
       <View style={styles.slot}>
         {view.canCall && view.last ? (
-          <Animated.View key={view.last.id} entering={ZoomIn.duration(180)}>
+          <Animated.View key={view.last.id} entering={FadeIn.duration(180)}>
             <Btn
               size="xl"
               color={C.red}
@@ -90,25 +113,16 @@ export function KdabGame({ room, view }: { room: RoomView; view: KdabView }) {
             />
           </Animated.View>
         ) : view.reveal ? (
-          <Animated.View key={view.reveal.id} entering={FadeIn.duration(220)} style={[styles.reveal, { borderColor: view.reveal.truthful ? C.green : C.red }]}>
-            <Txt v="bold" numberOfLines={2} style={{ flex: 1 }}>
-              {view.reveal.truthful
-                ? `${h.player(view.reveal.player).name} كان صادقاً — ${h.player(view.reveal.taker).name} يأخذ الكومة`
-                : `${h.player(view.reveal.player).name} كذب! يأخذ الكومة`}
-            </Txt>
-            <Row gap={3}>
-              {view.reveal.cards.map((c) => (
-                <PlayingCard key={c.id} card={c} size="xs" />
-              ))}
-            </Row>
-          </Animated.View>
+          <RevealBox reveal={view.reveal} h={h} />
         ) : null}
       </View>
 
       <View style={{ gap: 8 }}>
-        <Txt v="bold" center color={myTurn ? C.yellow : C.muted}>
-          {myTurn ? (starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank!)}» — أو مرّر`) : `دور ${h.player(view.turn).name}…`}
-        </Txt>
+        {myTurn ? (
+          <Txt v="bold" center color={C.yellow}>
+            {starting ? `ابدأ كومة: اختر من 1 إلى ${num(max)} أوراق والرقم الذي تدّعيه` : `العب أوراقاً وقل «${rankLabel(view.rank!)}» — أو مرّر`}
+          </Txt>
+        ) : null}
         <CardRow
           cards={view.myHand}
           size="md"

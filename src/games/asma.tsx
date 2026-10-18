@@ -105,6 +105,8 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
   const ch = Math.max(64, Math.min(cw * 1.05, (Math.max(height, 560) * 0.62 - (rows - 1) * gap) / rows));
   if (!(h.me in view.pairs)) return <Spectator room={room} />;
   const myTurn = view.phase === 'play' && view.turn === h.me && !view.peek;
+  // the pair just found stays turned (and marked) until the next flip
+  const found = view.flipped.length === 2 && !view.peek;
   const nameSize = Math.round(Math.max(14, Math.min(24, cw / 4)));
   const meaningSize = Math.round(Math.max(11, Math.min(14, cw / 7)));
 
@@ -133,14 +135,18 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
               );
             })}
           </Row>
-          <Txt v="bold" center color={myTurn ? C.yellow : view.peek ? C.orange : C.muted}>
+          <Txt v="bold" center color={view.peek ? C.orange : found ? C.green : C.yellow} style={{ minHeight: 26 }}>
             {view.peek
               ? 'ليس هذا معناه…'
-              : myTurn
-                ? view.flipped.length
-                  ? 'اقلب بطاقة ثانية'
-                  : 'دورك: اقلب اسماً ومعناه'
-                : `دور ${h.player(view.turn).name}…`}
+              : found
+                ? view.turn === h.me
+                  ? 'أحسنت! اقلب بطاقتين من جديد'
+                  : `زوج لـ ${h.player(view.turn).name} ودورٌ آخر`
+                : myTurn
+                  ? view.flipped.length
+                    ? 'اقلب بطاقة ثانية'
+                    : 'دورك: اقلب اسماً ومعناه'
+                  : ''}
           </Txt>
         </>
       ) : null}
@@ -177,6 +183,7 @@ function MemoryGame({ room, view }: { room: RoomView; view: AsmaMemoryView }) {
                     styles.card,
                     card.kind === 'name' ? styles.nameCard : styles.meaningCard,
                     owner ? { borderColor: h.player(owner).color, borderWidth: 4 } : null,
+                    owner && found && view.flipped.includes(i) ? { borderWidth: 5, transform: [{ scale: 1.04 }] } : null,
                     wrong ? { borderColor: C.red, borderWidth: 3 } : null,
                   ]}>
                   {card.kind === 'name' ? (

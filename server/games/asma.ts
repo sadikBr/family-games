@@ -13,7 +13,8 @@ import { GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, shuffle } from '../util';
 import { makeMcq, mcqOptions, soleWinner, type McqItem, type McqState } from './mcq';
 
-const PEEK_MS = 2200;
+/** memory: a Name and a meaning that don't match stay face up this long */
+export const PEEK_MS = 2500;
 const BOT_SKILL = 0.7;
 /** memory bots remember each card they saw with this chance */
 const BOT_MEMORY = 0.7;
@@ -106,6 +107,8 @@ function memoryEnd(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>) {
   s.phase = 'final';
   s.g.peekUntil = null;
   ctx.fx('win', soleWinner(s.g.pairs));
+  const w = soleWinner(s.g.pairs);
+  ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)}` : 'انتهت اللعبة بالتعادل');
 }
 
 function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: string, card: unknown) {
@@ -113,6 +116,8 @@ function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: str
   if (s.phase !== 'play' || g.peekUntil !== null) return;
   if (g.order[g.turnIdx] !== by) throw new GameError('ليس دورك');
   if (!isNum(card) || card < 0 || card >= g.deck.length || g.owners[card] || g.flipped.includes(card)) return;
+  // the pair found just before stays marked until this flip
+  if (g.flipped.length === 2) g.flipped = [];
   g.flipped.push(card);
   if (!g.seen.includes(card)) g.seen.push(card);
   g.moves += 1;
@@ -122,11 +127,15 @@ function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: str
   if (isPair(g, x, y)) {
     g.owners[x] = g.owners[y] = by;
     g.pairs[by] = (g.pairs[by] ?? 0) + 1;
-    g.flipped = [];
+    // the pair stays in `flipped` (shown as just found) until the next flip
     g.last = { idx: g.deck[x].idx, by };
     ctx.fx('correct', by);
+    ctx.say?.(`زوج لـ${ctx.playerName(by)}: «${ASMA_NAMES[g.deck[x].idx].name}» ومعناه، ودورٌ آخر`, by);
     if (g.owners.every(Boolean)) memoryEnd(ctx, s);
-  } else g.peekUntil = ctx.now + PEEK_MS;
+  } else {
+    g.peekUntil = ctx.now + PEEK_MS;
+    ctx.say?.(`بطاقتان غير متطابقتين من ${ctx.playerName(by)}`, by);
+  }
 }
 
 /** A bot's pick: a known matching card if it remembers one, else an unseen card, else any. */

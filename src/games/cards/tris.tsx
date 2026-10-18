@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import type { RoomView, TrisView } from '@/shared/protocol';
@@ -13,6 +13,17 @@ import { Txt, num } from '@/ui/txt';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
 import { CardRow, DOUBLE_TAP_MS, Felt, PlayingCard, ScoreStrip, Seats, TurnLine, sideLabel, tapClock } from './card-ui';
+
+const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
+
+/** Who holds the trick so far: the strongest card of the suit that was led. */
+function leading(trick: TrisView['trick']): string | null {
+  if (!trick.length) return null;
+  const lead = trick[0].card.suit;
+  return trick
+    .filter((t) => t.card.suit === lead)
+    .reduce((best, t) => (STRENGTH.indexOf(t.card.rank) < STRENGTH.indexOf(best.card.rank) ? t : best)).by;
+}
 
 const thirdsText = (t: number) => num(`${Math.floor(t / 3) || (t % 3 ? '' : '0')}${['', '⅓', '⅔'][t % 3]}`);
 
@@ -72,6 +83,8 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
   }
 
   const order = [partner, ...view.participants.filter((id) => id !== h.me && id !== partner)];
+  // while the trick is open, the card that would take it glows softly
+  const holder = view.phase === 'play' && view.trick.length > 1 ? leading(view.trick) : null;
   return (
     <>
       {strip}
@@ -107,8 +120,13 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
         ) : (
           <Row center gap={10} wrap>
             {view.trick.map((t) => (
-              <Animated.View key={t.card.id} entering={FadeIn.duration(150)} style={{ alignItems: 'center', gap: 4 }}>
-                <PlayingCard card={t.card} size="md" selected={view.trickWinner === t.by} />
+              <Animated.View key={t.card.id} entering={FadeInDown.duration(220)} style={{ alignItems: 'center', gap: 4 }}>
+                <PlayingCard
+                  card={t.card}
+                  size="md"
+                  selected={view.trickWinner === t.by}
+                  glow={holder === t.by}
+                />
                 <Avatar player={h.player(t.by)} size={22} ring={view.trickWinner === t.by ? C.yellow : undefined} />
               </Animated.View>
             ))}
@@ -123,7 +141,7 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
       <Txt v="tiny" center color={C.dim}>
         اللمّة {view.trickNo} من 10 · نقاط فريقك في هذه اليد {thirdsText(view.handThirds[mySide] ?? 0)}
       </Txt>
-      <TurnLine myTurn={myTurn} name={h.player(view.turn).name} text={view.trick.length ? 'دورك — العب من النوع نفسه إن كان لديك' : 'دورك — ابدأ اللمّة'} />
+      <TurnLine myTurn={myTurn} text={view.trick.length ? 'دورك — العب من النوع نفسه إن كان لديك' : 'دورك — ابدأ اللمّة'} />
       <View style={{ gap: 10, paddingTop: 6 }}>
         <CardRow
           cards={view.myHand}

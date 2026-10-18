@@ -5,7 +5,8 @@ import { randDelay } from '../cardkit';
 import { GameError, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
-const PEEK_MS = 1600;
+/** two cards that don't match stay face up this long before turning back */
+export const PEEK_MS = 2400;
 
 interface State {
   settings: MemorySettings;
@@ -47,6 +48,8 @@ export const memory: GameModule<State, MemorySettings> = {
     if (s.phase !== 'play' || a.type !== 'flip' || s.peekUntil !== null) return;
     if (s.order[s.turnIdx] !== by) throw new GameError('ليس دورك');
     if (!isNum(a.card) || a.card < 0 || a.card >= s.deck.length || s.owners[a.card] || s.flipped.includes(a.card)) return;
+    // the pair found just before stays marked until this flip
+    if (s.flipped.length === 2) s.flipped = [];
     s.flipped.push(a.card);
     s.seen[a.card] = s.deck[a.card];
     s.moves += 1;
@@ -56,15 +59,20 @@ export const memory: GameModule<State, MemorySettings> = {
     if (s.deck[x] === s.deck[y]) {
       s.owners[x] = s.owners[y] = by;
       s.pairs[by] += 1;
-      s.flipped = [];
+      // the pair stays in `flipped` (shown as just found) until the next flip
       ctx.fx('correct', by);
+      ctx.say?.(`زوج لـ${ctx.playerName(by)} ودورٌ آخر`, by);
       if (s.owners.every(Boolean)) {
         s.phase = 'final';
         const best = Math.max(...Object.values(s.pairs));
         const top = Object.keys(s.pairs).filter((p) => s.pairs[p] === best);
         ctx.fx('win', top.length === 1 ? top[0] : undefined);
+        ctx.say?.(top.length === 1 ? `انتهت اللعبة: الفوز لـ${ctx.playerName(top[0])}` : 'انتهت اللعبة بالتعادل');
       }
-    } else s.peekUntil = ctx.now + PEEK_MS;
+    } else {
+      s.peekUntil = ctx.now + PEEK_MS;
+      ctx.say?.(`بطاقتان غير متطابقتين من ${ctx.playerName(by)}`, by);
+    }
   },
 
   tick(ctx, s) {

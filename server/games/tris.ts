@@ -4,16 +4,25 @@
  * Points: each 1 (as) = 1 point; 3, 2, 12, 11, 10 = ⅓ point each; last trick = 1 point.
  * A hand is worth 11 points (thirds are rounded down). First team to the target wins.
  */
-import { sortHand, type Card } from '../../src/shared/cards';
+import { cardName, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, TrisSettings, TrisView } from '../../src/shared/protocol';
 import { freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 
 const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
-const TRICK_PAUSE_MS = 1700;
+/** a full trick stays on the table this long before it is collected (everyone sees who took it) */
+export const TRICK_PAUSE_MS = 2500;
 
 export const strength = (rank: number) => STRENGTH.length - STRENGTH.indexOf(rank);
+/** «⅓ نقطة» / «نقطة و⅔» */
+function thirdsWord(t: number) {
+  const whole = Math.floor(t / 3);
+  const frac = ['', '⅓', '⅔'][t % 3];
+  if (!whole) return `${frac} نقطة`;
+  return `${whole === 1 ? 'نقطة' : whole === 2 ? 'نقطتان' : `${whole} نقاط`}${frac ? ` و${frac}` : ''}`;
+}
+
 export const thirds = (c: Card) => (c.rank === 1 ? 3 : [2, 3, 10, 11, 12].includes(c.rank) ? 1 : 0);
 
 interface State {
@@ -53,6 +62,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.handThirds = { A: 0, B: 0 };
   s.handSummary = null;
   ctx.fx('card');
+  ctx.say?.(`اليد ${s.hand} — البداية لـ${ctx.playerName(s.seats[s.turnIdx])}`);
 }
 
 export function trisPlayable(hand: Card[], trick: { card: Card }[]): Card[] {
@@ -72,6 +82,9 @@ function trickWinnerOf(trick: { by: string; card: Card }[]): string {
 function endHand(ctx: GameCtx, s: State) {
   s.handSummary = s.sides.map((x) => ({ side: x.key, points: Math.floor(s.handThirds[x.key] / 3) }));
   for (const row of s.handSummary) s.scores[row.side] += row.points;
+  ctx.say?.(
+    `انتهت اليد: ${s.sides.map((x) => `${x.members.map((m) => ctx.playerName(m)).join(' و')} +${s.handSummary!.find((r) => r.side === x.key)?.points ?? 0}`).join(' · ')}`,
+  );
   const [a, b] = [s.scores.A, s.scores.B];
   const t = s.settings.target;
   if ((a >= t || b >= t) && a !== b) {
@@ -132,6 +145,7 @@ export const tris: GameModule<State, TrisSettings> = {
     s.trick.push({ by, card });
     ctx.fx('card');
     if (s.trick.length < 4) {
+      ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)}`, by);
       s.turnIdx = (s.turnIdx + 1) % 4;
       return;
     }
@@ -140,6 +154,8 @@ export const tris: GameModule<State, TrisSettings> = {
     s.tricksWon[side] += 1;
     s.handThirds[side] += s.trick.reduce((t, x) => t + thirds(x.card), 0) + (s.trickNo === 10 ? 3 : 0);
     s.trickWinner = winner;
+    const won = s.trick.reduce((t, x) => t + thirds(x.card), 0) + (s.trickNo === 10 ? 3 : 0);
+    ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)} — اللمّة لـ${ctx.playerName(winner)}${won ? ` (${thirdsWord(won)})` : ''}`, winner);
     s.phase = 'trickEnd';
     s.pauseUntil = ctx.now + TRICK_PAUSE_MS;
     ctx.fx('correct', winner);

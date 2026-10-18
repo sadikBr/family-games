@@ -43,6 +43,9 @@ const n = (s: State) => s.seats.length;
 /** Cards a side must pass to score: 20 of the 40 with two sides, 13 with three. */
 export const rondaBase = (sides: number) => (sides === 2 ? 20 : 13);
 
+/** «ورقتين» / «3 أوراق» / «11 ورقة» */
+export const cardsWord = (k: number) => (k === 1 ? 'ورقة' : k === 2 ? 'ورقتان' : k <= 10 ? `${k} أوراق` : `${k} ورقة`);
+
 function setAnnounce(s: State, by: string | null, text: string) {
   s.announce = { by, text, id: ++s.announceN };
 }
@@ -159,7 +162,11 @@ function startHand(ctx: GameCtx, s: State) {
   s.turnIdx = (s.dealerIdx + 1) % n(s);
   s.feed.clear();
   s.feed.push(`اليد ${s.hand} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
+  ctx.say?.(`اليد ${s.hand} — التوزيع: ${ctx.playerName(s.seats[s.dealerIdx])}`);
   dealRound(ctx, s);
+  // a روندا / تريلا at the first deal: say it (the banner shows it on the felt too)
+  const call = s.announce as State['announce'];
+  if (call) ctx.say?.(call.text.replace(/\n/g, ' — '), call.by ?? undefined);
 }
 
 function endHand(ctx: GameCtx, s: State) {
@@ -241,6 +248,7 @@ export const ronda: GameModule<State, RondaSettings> = {
     const took = findCapture(s.table, card);
     let ended = false;
 
+    let said = '';
     if (took.length) {
       const wasEsti = s.lastPlayed?.by === prev && s.lastPlayed.cardId === took[0].id;
       s.table = s.table.filter((c) => !took.includes(c));
@@ -248,7 +256,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.lastCapturer = by;
       const lastCardOfHand = s.deck.length === 0 && s.seats.every((id) => s.hands[id].length === 0);
       const missa = s.table.length === 0 && !lastCardOfHand;
-      s.feed.push(`${ctx.playerName(by)} أخذ ${took.length + 1} أوراق`, { by });
+      s.feed.push(`أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}`, { by });
       let pts = 0;
       if (wasEsti) {
         pts += 1;
@@ -259,6 +267,7 @@ export const ronda: GameModule<State, RondaSettings> = {
         s.feed.push('مسّة! +1', { by, points: 1 });
       }
       if (pts) setAnnounce(s, by, wasEsti && missa ? 'إسطي ومسّة! +2' : wasEsti ? 'إسطي! +1' : 'مسّة! +1');
+      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasEsti && missa ? ' — إسطي ومسّة!' : wasEsti ? ' — إسطي!' : missa ? ' — مسّة!' : ''}`;
       ctx.fx(pts ? 'reveal' : 'correct', by);
       s.lastPlayed = null;
       ended = addPoints(ctx, s, side, pts);
@@ -267,14 +276,21 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.lastPlayed = { by, cardId: card.id };
       s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
       ctx.fx('card');
+      said = `ورقة من ${ctx.playerName(by)}: ${cardName(card)}`;
     }
     s.lastPlay = { by, card, took };
+    ctx.say?.(said, by);
     if (ended) return;
 
     s.turnIdx = (s.turnIdx + 1) % n(s);
     if (s.seats.every((id) => s.hands[id].length === 0)) {
       if (s.deck.length) {
-        if (dealRound(ctx, s, took.length > 0)) return;
+        const before = s.announceN;
+        const won = dealRound(ctx, s, took.length > 0);
+        // a روندا / تريلا at this deal scores: it replaces the play in the announcement line
+        // (the play itself stays on the felt)
+        if (s.announceN !== before && s.announce) ctx.say?.(s.announce.text.replace(/\n/g, ' — '), s.announce.by ?? undefined);
+        if (won) return;
         if (s.seats.every((id) => s.hands[id].length === 0)) endHand(ctx, s);
       } else endHand(ctx, s);
     }

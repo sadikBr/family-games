@@ -1,6 +1,6 @@
 /** «الذاكرة» — turn over two cards; matching pictures are yours and you play again. */
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FlipInEasyY, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FlipInEasyY } from 'react-native-reanimated';
 
 import { AvatarArt } from '@/art/avatars';
 import { GameArt } from '@/art/game-art';
@@ -71,8 +71,18 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
       </Row>
 
       {view.phase === 'play' ? (
-        <Txt v="bold" center color={myTurn ? C.yellow : view.peek ? C.orange : C.muted}>
-          {view.peek ? 'ليستا متطابقتين…' : myTurn ? (view.flipped.length ? 'اقلب البطاقة الثانية' : 'دورك — اقلب بطاقتين') : `دور ${h.player(view.turn).name}…`}
+        <Txt v="bold" center color={view.peek ? C.orange : matched ? C.green : C.yellow} style={{ minHeight: 26 }}>
+          {view.peek
+            ? 'ليستا متطابقتين…'
+            : matched
+              ? view.turn === h.me
+                ? 'زوج لك! اقلب بطاقتين من جديد'
+                : `زوج لـ ${h.player(view.turn).name} ودورٌ آخر`
+              : myTurn
+                ? view.flipped.length
+                  ? 'اقلب البطاقة الثانية'
+                  : 'دورك — اقلب بطاقتين'
+                : ''}
         </Txt>
       ) : null}
 
@@ -98,12 +108,13 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
                     styles.card,
                     styles.front,
                     owner ? { borderColor: h.player(owner).color, borderWidth: 4 } : null,
-                    owner && { opacity: view.phase === 'final' ? 1 : 0.75 },
+                    owner && { opacity: view.phase === 'final' || (matched && view.flipped.includes(i)) ? 1 : 0.75 },
+                    matched && view.flipped.includes(i) && owner ? { borderWidth: 5, transform: [{ scale: 1.04 }] } : null,
                     view.peek && view.flipped.includes(i) && { borderColor: C.red, borderWidth: 4 },
                   ]}>
                   <Face face={face} size={Math.min(cw, ch) * 0.82} />
-                  {owner && !matched ? (
-                    <Animated.View entering={ZoomIn.duration(200)} style={styles.ownerDot}>
+                  {owner ? (
+                    <Animated.View entering={FadeIn.duration(200)} style={styles.ownerDot}>
                       <Avatar player={h.player(owner)} size={18} />
                     </Animated.View>
                   ) : null}

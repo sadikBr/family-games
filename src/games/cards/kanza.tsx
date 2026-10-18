@@ -12,7 +12,7 @@ import { Txt } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers } from '../helpers';
-import { CardRow, Felt, FeedList, LastEvent, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
+import { CardRow, Felt, FeedList, FeltFeed, LastPlay, ScoreStrip, Seats, TurnLine, sideLabel } from './card-ui';
 
 const TARGET = 15;
 
@@ -88,6 +88,11 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           ))}
         </Panel>
         {strip}
+        {view.lastPlay ? (
+          <Felt minHeight={0}>
+            <LastPlay play={view.lastPlay} h={h} title="آخر لعبة" />
+          </Felt>
+        ) : null}
         <FeedList feed={view.feed} h={h} />
         {final ? (
           <PlayAgain room={room} />
@@ -101,6 +106,9 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
   }
 
   const others = view.participants.filter((id) => id !== h.me);
+  // the card the last player dropped stays ringed in their colour until the next play
+  const lp = view.lastPlay;
+  const rings = lp && !lp.took.length && view.table.some((c) => c.id === lp.card.id) ? { [lp.card.id]: h.player(lp.by).color } : undefined;
   return (
     <>
       {strip}
@@ -111,6 +119,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           size="sm"
           selected={take}
           glow={glow}
+          rings={rings}
           empty="الطاولة فارغة"
           onPress={
             myTurn && selected
@@ -119,7 +128,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           }
         />
         <LastPlay play={view.lastPlay} h={h} />
-        <LastEvent feed={view.feed} h={h} />
+        <FeltFeed feed={view.feed} h={h} />
       </Felt>
       <Txt v="tiny" center color={C.dim}>
         اليد {view.hand} من {view.totalHands} · في الكومة {view.deckLeft}
@@ -134,7 +143,7 @@ export function KanzaGame({ room, view }: { room: RoomView; view: KanzaView }) {
           </Txt>
         </View>
       ) : (
-        <TurnLine myTurn={myTurn} name={h.player(view.turn).name} text="دورك — اختر ورقة" />
+        <TurnLine myTurn={myTurn} text="دورك — اختر ورقة" />
       )}
       <View style={{ gap: 10, paddingTop: 6 }}>
         <CardRow
