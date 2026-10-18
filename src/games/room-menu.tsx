@@ -33,6 +33,8 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
   const isHost = room.hostId === room.me;
   const playing = room.status === 'playing';
   const target = room.players.find((p) => p.id === remove);
+  // a tournament under way (not its set-up, not its champion screen)
+  const tour = room.tournament && (room.tournament.stage === 'playing' || room.tournament.stage === 'standings') ? room.tournament : null;
 
   return (
     <>
@@ -89,12 +91,39 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
               })}
             </ScrollView>
 
-            {isHost && playing ? (
+            {isHost && tour && playing && !tour.done ? (
+              <Row gap={8}>
+                <Btn
+                  flex
+                  size="sm"
+                  ghost
+                  icon="refresh"
+                  label="أعد اللعبة"
+                  onPress={() => {
+                    onClose();
+                    client.roomAction({ type: 'tournamentReplay' });
+                  }}
+                />
+                <Btn
+                  flex
+                  size="sm"
+                  ghost
+                  icon="skip"
+                  label={tour.format === 'league' ? 'تخطَّ اللعبة' : 'تأهيل بالتصنيف'}
+                  onPress={() => {
+                    onClose();
+                    client.roomAction({ type: 'tournamentSkip' });
+                  }}
+                />
+              </Row>
+            ) : null}
+            {isHost && (playing || tour) ? (
               <Btn
                 size="md"
                 ghost
-                icon="home"
-                label="العودة إلى غرفة الانتظار"
+                icon={tour ? 'stop' : 'home'}
+                label={tour ? 'إنهاء البطولة' : 'العودة إلى غرفة الانتظار'}
+                textColor={tour ? C.red : undefined}
                 onPress={() => {
                   onClose();
                   onLobby();

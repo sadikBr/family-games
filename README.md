@@ -63,6 +63,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 
 ## Playing together
 
+- **Tournaments:** «بطولة» in the waiting room plays several games in a row with a family leaderboard (see [البطولات](#البطولات-tournaments)).
 - **Home screen:** join a room or go back to the last one, «مجموعاتي» (see [المجموعات](#المجموعات-groups)), «لعبة اليوم» (a different game each day), «لعبتم مؤخراً», and every game with search, a «كم عددكم؟» player-count filter (bot games count as playable with fewer people) and category chips. Tap the star on a game to keep it in «المفضلة» (saved on the phone).
 - **Invite:** tap the room code (or «ادعُ أحداً» in the room menu) to share a link that opens the app on the join screen with the code filled in.
 - **Room menu** (the people icon at the top of every room): who is connected, mute, and for the host: remove a player or go back to the waiting room.
@@ -108,6 +109,19 @@ On Railway: open the `family-games` service → **Settings → Volumes → Add v
 - Tokens Expo reports as `DeviceNotRegistered` are dropped; failures are logged and never slow the server.
 
 Code: `server/db.ts` (SQLite + migrations), `server/groups.ts` (presence, messages, «لنلعب», push), `Room.group` in `server/room.ts` (waiting list, «ابدأ بالموجودين»); `src/app/group.tsx`, `src/groups/` (home cards, forms, invitation sheet, waiting panel), `src/lib/push.native.ts`; tests in `server/groups.test.ts`.
+
+## البطولات (tournaments)
+
+One evening, several games in a row, a running family leaderboard and a final champion. In the waiting room the host switches «لعبة واحدة | بطولة» (everyone sees the set-up) and picks a format:
+
+- **«دوري» (league):** 3–10 games in order (repeats allowed): «أضف لعبة» opens the game grid, «اختيار عشوائي» fills the list with short games playable with the people here, each row can move up / down or go; tapping a row shows that game's settings below (each game is played with its own lobby settings). Every finished game gives points by place — **1st 5, 2nd 3, 3rd 2, 4th 1, everyone else who finished 1**; players sharing a place get its points in full; co-op games give everyone 3 if the family won, 1 if it lost. Between games, «الترتيب بعد اللعبة 2 من 5» shows the table (the last game's points fade in) and the next game; the host taps «ابدأ اللعبة التالية» (or «تخطَّ اللعبة»). Champion: the best total; a tie goes to the most first places, then the title is shared.
+- **«خروج المغلوب» (knockout):** a bracket of duels between the people present at the start (2–16, random draw, byes for the top seeds when the count isn't a power of two), on a game two people can play (X/O, chess, Connect 4, Dama, mancala…; optionally «لعبة مختلفة لكل دور»). Each duel starts the game with just its two players — the others watch («أنت تتفرّج»). A draw is played again (twice at most), then the higher seed goes on; someone who left the room loses their duel. The bracket screen shows every round and «التالي: ماما ضد بابا».
+- **Bots** can fill seats in league games but are never ranked: no points, no titles, never in a bracket (the places close up around them).
+- **During a game:** a chip under the turn bar («البطولة — اللعبة 2 من 5» / «نصف النهائي — ماما ضد بابا») opens the standings or the bracket. On the game's final screen «العب مجدداً» becomes the tournament actions: «+5 نقاط في البطولة» and everyone's points, then «ترتيب البطولة» (host). The room menu has «أعد اللعبة», «تخطَّ اللعبة» and «إنهاء البطولة» (ends it without saving). A game that ends without a result gives no points.
+- **Champion:** «بطل البطولة» with a crown, the podium (league) or the final (knockout), the full table; «بطولة جديدة» (same settings) or «العودة إلى الانتظار».
+- **«لوحة الشرف»:** tournaments finished in a group's room are saved with the group (table `tournaments`, migration 3) — the group screen shows titles per member (crowns), the last 10 champions with date and format, and points over all tournaments (a knockout counts 5 for the champion, 3 for the finalist, 2 for a semi-finalist, 1 for the others).
+
+Code: `src/shared/tournament.ts` (types, points, brackets, checks), `server/tournament.ts` (the tournament state, the honour board), the `tournament*` room actions and `GameModule.result()` in `server/room.ts`; `src/games/tournament-setup.tsx`, `src/games/tournament.tsx`, `src/groups/honor-board.tsx`; tests in `server/tournament.test.ts`.
 
 ## Voice chat
 
@@ -167,6 +181,7 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   index.ts           Rooms, connections, timers
   room.ts            Lobby, settings, sending each player only what they may see
   db.ts, groups.ts   Groups: SQLite storage (DATA_DIR / Railway volume), presence, «لنلعب», push notifications
+  tournament.ts      Tournaments (league / knockout) and the groups' honour board
   games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!

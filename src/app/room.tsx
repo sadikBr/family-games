@@ -1,6 +1,6 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
@@ -9,6 +9,7 @@ import { Lobby, LobbyFooter } from '@/games/lobby';
 import { TurnBar } from '@/games/turn-bar';
 import { VoiceButton, VoiceStrip } from '@/games/voice-ui';
 import { RoomMenu, shareRoom } from '@/games/room-menu';
+import { EndTournamentModal, TournamentChip, TournamentFallback, TournamentFooter, TournamentScreen, TournamentSlotProvider } from '@/games/tournament';
 import { GAMES } from '@/games/meta';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
@@ -16,6 +17,7 @@ import { notePlayed } from '@/lib/prefs';
 import { isRemoteServer } from '@/lib/server-url';
 import { alertTurn, playFx } from '@/lib/sfx';
 import { C } from '@/theme';
+import { Icon } from '@/art/icons';
 import { Card, IconBubble, Pill, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { ConfirmModal, ConnectionBanner, Header } from '@/ui/controls';
@@ -64,6 +66,9 @@ export default function RoomScreen() {
   const [confirmLobby, setConfirmLobby] = useState(false);
   const [menu, setMenu] = useState(false);
   const [staleError] = useState(() => client.snap.error?.id);
+  // games' final screens register their tournament actions; without any, the room shows a plain bar
+  const [slots, setSlots] = useState(0);
+  const registerSlot = useCallback((d: number) => setSlots((n) => n + d), []);
   const lastFx = useRef<number | null>(null);
   const fx = room?.fx;
   const me = room?.me;
@@ -112,19 +117,34 @@ export default function RoomScreen() {
   const meta = GAMES[room.game];
   const playing = room.status === 'playing';
   const night = room.game === 'werewolf' && playing;
+  const t = room.tournament ?? null;
+  // between the games of a tournament, and its champion: the room shows the tournament, not the game
+  const between = !playing && !!t && (t.stage === 'standings' || t.stage === 'final');
+  // the header says «البطولة» whenever the waiting room is about the tournament
+  const tourHeader = !playing && !!t;
+  const inTournament = !!t && t.stage !== 'setup';
+  const glow = night ? undefined : between && t?.stage === 'final' ? C.yellow : meta.color;
 
   return (
-    <AccentContext.Provider value={meta.color}>
+    <AccentContext.Provider value={between && t?.stage === 'final' ? C.yellow : meta.color}>
     <Screen
       bg={night ? C.night : C.bg}
-      glow={night ? undefined : meta.color}
-      scrollKey={`${room.status}|${room.game}`}
-      footer={playing ? undefined : <LobbyFooter room={room} />}
+      glow={glow}
+      scrollKey={`${room.status}|${room.game}|${t?.stage ?? ''}`}
+      footer={playing ? undefined : between ? <TournamentFooter room={room} /> : <LobbyFooter room={room} />}
       header={
         <>
           <Header
             onBack={() => setConfirmLeave(true)}
             title={
+              tourHeader ? (
+                <Row gap={8} style={{ maxWidth: '100%' }}>
+                  <Icon name="trophy" size={24} color={C.yellow} />
+                  <Txt v="h2" numberOfLines={1} style={{ flexShrink: 1 }} size={width < 360 ? 17 : undefined}>
+                    البطولة
+                  </Txt>
+                </Row>
+              ) : (
               <Row gap={8} style={{ maxWidth: '100%' }}>
                 {/* the emblem only when the title still fits next to it */}
                 {width >= 410 || meta.title.length <= (width >= 360 ? 8 : 6) ? <GameArt id={room.game} size={width >= 410 ? 34 : 28} /> : null}
@@ -132,6 +152,7 @@ export default function RoomScreen() {
                   {meta.title}
                 </Txt>
               </Row>
+              )
             }
             right={
               <Row gap={6}>
@@ -149,9 +170,19 @@ export default function RoomScreen() {
           <ConnectionBanner />
           <VoiceStrip room={room} />
           <TurnBar room={room} />
+          <TournamentChip room={room} />
         </>
       }>
-      {playing && room.view ? <GameView room={room} view={room.view} /> : <Lobby room={room} />}
+      {playing && room.view ? (
+        <TournamentSlotProvider value={registerSlot}>
+          <GameView room={room} view={room.view} />
+        </TournamentSlotProvider>
+      ) : between ? (
+        <TournamentScreen room={room} />
+      ) : (
+        <Lobby room={room} />
+      )}
+      {playing && t?.stage === 'playing' && t.done && slots === 0 ? <TournamentFallback room={room} /> : null}
 
       <RoomMenu room={room} visible={menu} onClose={() => setMenu(false)} onLobby={() => setConfirmLobby(true)} />
 
@@ -171,8 +202,9 @@ export default function RoomScreen() {
           goBack();
         }}
       />
+      <EndTournamentModal visible={confirmLobby && inTournament} onClose={() => setConfirmLobby(false)} />
       <ConfirmModal
-        visible={confirmLobby}
+        visible={confirmLobby && !inTournament}
         icon="home"
         title="إنهاء اللعبة؟"
         message="سيعود الجميع إلى غرفة الانتظار لاختيار لعبة أخرى"

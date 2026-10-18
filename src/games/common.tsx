@@ -12,6 +12,8 @@ import { ConfirmModal } from '@/ui/controls';
 import { useAccent } from '@/ui/accent';
 import { Txt } from '@/ui/txt';
 
+import { TournamentActions, TournamentWatching } from './tournament';
+
 /** Screen headline: optional illustration, a title and one line of help. */
 export function PhaseTitle({ icon, art, title, sub, color }: { icon?: IconName; art?: ReactNode; title: string; sub?: string; color?: string }) {
   const accent = useAccent();
@@ -48,6 +50,8 @@ export function WaitingFor({ players, label = 'في انتظار' }: { players: 
 
 export function Spectator({ room }: { room: RoomView }) {
   const [confirm, setConfirm] = useState(false);
+  // a tournament: watching a duel (or a game that started before I came in); no restart button
+  if (room.tournament && room.tournament.stage === 'playing') return <TournamentWatching room={room} />;
   return (
     <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
       <IconBubble icon="eye" size={60} iconColor={C.yellow} />
@@ -85,6 +89,8 @@ export function HostNote({ children }: { children: ReactNode }) {
 }
 
 export function PlayAgain({ room }: { room: RoomView }) {
+  // during a tournament: the points just earned and the way to the standings
+  if (room.tournament && room.tournament.stage === 'playing') return <TournamentActions room={room} />;
   if (room.hostId !== room.me) {
     return <HostNote>المضيف يختار: اللعب مجدداً أو لعبة أخرى</HostNote>;
   }

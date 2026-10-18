@@ -18,6 +18,7 @@ import { helpers } from './helpers';
 import { GAMES, GAME_ORDER } from './meta';
 import { shareRoom } from './room-menu';
 import { GameSettings } from './settings';
+import { ModeSwitch, TournamentSetup, TournamentSetupFooter } from './tournament-setup';
 
 function LinkBtn({ label, icon, onPress }: { label: string; icon: 'book' | 'shuffle'; onPress: () => void }) {
   return (
@@ -81,15 +82,24 @@ export function Lobby({ room }: { room: RoomView }) {
   const kickPlayer = room.players.find((p) => p.id === kick);
   // empty seats: the ones still needed, or one more if there is room
   const free = maxSeats ? Math.max(0, maxSeats - online) : 99;
-  const emptySeats = Math.min(free, Math.max(missing, 1));
-  const canBot = isHost && botsAllowed && botCount < MAX_BOTS;
+  const canBot = isHost && botsAllowed && botCount < MAX_BOTS && !(room.tournament?.stage === 'setup' && room.tournament.config.format === 'knockout');
+  const emptySeats = room.tournament?.stage === 'setup' && room.tournament.config.format === 'knockout' ? 1 : Math.min(free, Math.max(missing, 1));
+  const setup = room.tournament?.stage === 'setup';
+  const league = setup && room.tournament?.config.format === 'league';
+  // a knockout: everyone present is in the bracket (two at a time), bots stay out
+  const knockout = setup && !league;
 
   return (
     <>
       {/* a room opened from a group: who we are still waiting for */}
       <GroupWaiting room={room} />
 
+      {/* «لعبة واحدة | بطولة», and the tournament set-up in place of the cover */}
+      <ModeSwitch room={room} />
+      <TournamentSetup room={room} />
+
       {/* The game's cover */}
+      {setup ? null : (
       <View style={[styles.cover, { backgroundColor: alpha(accent, 0.16), borderColor: alpha(accent, 0.5) }]}>
         <Row gap={14} style={{ alignItems: 'center' }}>
           <GameArt id={room.game} size={96} />
@@ -151,6 +161,7 @@ export function Lobby({ room }: { room: RoomView }) {
           </Animated.View>
         ) : null}
       </View>
+      )}
 
       {/* The table: who is in, and the empty seats */}
       <Card>
@@ -159,8 +170,8 @@ export function Lobby({ room }: { room: RoomView }) {
             حول الطاولة
           </Txt>
           <Txt v="small" color={C.muted}>
-            {num(online)}
-            {maxSeats ? ` من ${num(maxSeats)}` : ''}
+            {knockout ? num(room.players.filter((p) => p.connected && !p.bot).length) : num(online)}
+            {maxSeats && !setup ? ` من ${num(maxSeats)}` : ''}
           </Txt>
         </Row>
         <Row wrap gap={6} center>
@@ -170,7 +181,7 @@ export function Lobby({ room }: { room: RoomView }) {
               player={p}
               crown={p.id === room.hostId}
               badge={p.id === me ? 'star' : undefined}
-              dim={p.bot && !botsAllowed}
+              dim={p.bot && (!botsAllowed || knockout)}
               onPress={isHost && p.id !== me ? () => setKick(p.id) : undefined}
             />
           ))}
@@ -225,8 +236,8 @@ export function Lobby({ room }: { room: RoomView }) {
       {/* Settings */}
       <Card>
         <Row>
-          <Txt v="h3" style={{ flex: 1 }}>
-            الإعدادات
+          <Txt v="h3" style={{ flex: 1 }} numberOfLines={1}>
+            {setup ? `إعدادات «${meta.title}»` : 'الإعدادات'}
           </Txt>
           {isHost ? null : (
             <Txt v="tiny" color={C.dim}>
@@ -234,6 +245,11 @@ export function Lobby({ room }: { room: RoomView }) {
             </Txt>
           )}
         </Row>
+        {league && isHost ? (
+          <Txt v="tiny" color={C.dim}>
+            كل لعبة في الدوري تُلعب بإعداداتها هنا — اضغط على لعبة في القائمة لتعديلها
+          </Txt>
+        ) : null}
         <GameSettings room={room} editable={isHost} />
       </Card>
 
@@ -256,6 +272,11 @@ export function Lobby({ room }: { room: RoomView }) {
 
 /** Stays at the bottom of the waiting room: start (host) or «waiting for the host». */
 export function LobbyFooter({ room }: { room: RoomView }) {
+  if (room.tournament?.stage === 'setup') return <TournamentSetupFooter room={room} />;
+  return <SingleGameFooter room={room} />;
+}
+
+function SingleGameFooter({ room }: { room: RoomView }) {
   const { isHost } = helpers(room);
   const meta = GAMES[room.game];
   const botsAllowed = BOT_GAMES.includes(room.game);

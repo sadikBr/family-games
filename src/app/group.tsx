@@ -1,6 +1,6 @@
 /**
  * A group: its name (any member renames it), the invite (code + link), who is in it and who has the
- * app open, «لنلعب», and leaving. Also opened by an invite link (familygames://group?code=XXXXXX):
+ * app open, its tournaments («لوحة الشرف»), «لنلعب», and leaving. Also opened by an invite link (familygames://group?code=XXXXXX):
  * the phone joins the group first (after choosing a name, on a first launch).
  */
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Icon } from '@/art/icons';
 import { onlineLabel, playGroup, shareGroup } from '@/groups/actions';
 import { Face } from '@/groups/group-card';
+import { HonorBoard } from '@/groups/honor-board';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
 import { useProfile } from '@/lib/profile';
@@ -73,6 +74,7 @@ function GroupView({ group }: { group: GroupInfo }) {
   const me = profile.id;
   const [remove, setRemove] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [year] = useState(() => new Date().getFullYear());
   const isCreator = group.createdBy === me;
   const target = group.members.find((m) => m.id === remove);
   const playing = !!group.playing;
@@ -171,6 +173,9 @@ function GroupView({ group }: { group: GroupInfo }) {
           </Txt>
         ) : null}
       </Card>
+
+      {/* the tournaments played in the group's rooms */}
+      <HonorBoard group={group} me={me} year={year} />
 
       <Btn size="md" ghost icon="door" label="مغادرة المجموعة" textColor={C.red} onPress={() => setLeaving(true)} />
 
