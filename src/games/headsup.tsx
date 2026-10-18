@@ -2,17 +2,21 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
+import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
 import { useTilt } from '@/lib/tilt';
 import type { HeadsUpView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Pill, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { Confetti, CountdownBig, Podium, PopIn, Scoreboard, TimerBar } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
-import { HostNote, PhaseTitle, PlayAgain, Spectator } from './common';
+import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 function FlashOnce({ ok }: { ok: boolean }) {
   const o = useSharedValue(0.9);
@@ -53,6 +57,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
   const isGuesser = view.guesserId === me;
   const card = view.card;
   const [tiltOn, setTiltOn] = useState(true);
+  const accent = useAccent();
 
   useTilt(view.phase === 'play' && isGuesser && tiltOn, (t) => {
     if (card) act('mark', { index: card.index, ok: t === 'down' });
@@ -61,10 +66,13 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
   if (!view.participants.includes(me)) return <Spectator room={room} />;
 
   const score = view.history.filter((h) => h.ok).length;
-  const header = (
-    <Txt v="small" center color={C.dim}>
-      {view.category.label} · الدور {view.turn} من {view.totalTurns}
-    </Txt>
+  const header = <RoundHeader label={view.category.label} round={view.turn} rounds={view.totalTurns} />;
+  const strip = (
+    <PlayerStrip
+      room={room}
+      entries={view.participants.map((id) => ({ id, score: view.scores[id] ?? 0 }))}
+      active={view.guesserId ? [view.guesserId] : []}
+    />
   );
   const mark = (ok: boolean) => card && act('mark', { index: card.index, ok });
 
@@ -87,10 +95,11 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
             </>
           ) : (
             <>
-              <PhaseTitle art={<Avatar player={guesser} size={96} />} title={`${guesser.name} سيخمّن`} sub="ستظهر الكلمة على هاتفك. مثّلها أو صفها بدون أن تقولها" />
+              <PhaseTitle art={<Avatar player={guesser} size={96} ring={guesser.color} />} title={`التخمين: ${guesser.name}`} sub="ستظهر الكلمة على هاتفك. مثّلها أو صفها بدون أن تقولها" />
               {isHost ? <Btn size="md" ghost icon="play" label="ابدأ الدور" onPress={() => act('start')} /> : null}
             </>
           )}
+          {strip}
         </>
       );
 
@@ -98,7 +107,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
       return (
         <View style={{ flex: 1, minHeight: 420, justifyContent: 'center', gap: 10 }}>
           <Txt v="h2" center>
-            {isGuesser ? 'ضع الهاتف على جبينك' : `استعدوا، ${guesser.name} يخمّن`}
+            {isGuesser ? 'ضع الهاتف على جبينك' : `استعدوا — التخمين لـ${guesser.name}`}
           </Txt>
           <CountdownBig endsAt={view.endsAt} />
         </View>
@@ -131,12 +140,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
       return (
         <View style={{ gap: 14 }}>
           <TimerBar endsAt={view.endsAt} total={room.settings.headsup.seconds * 1000} />
-          <Row gap={10} center>
-            <Avatar player={guesser} size={36} />
-            <Txt v="bold">{guesser.name} يخمّن</Txt>
-            <Pill label={`${score}`} icon="check" color={alpha(C.green, 0.25)} />
-          </Row>
-          <View style={styles.wordCard}>
+          <View style={[styles.wordCard, { borderColor: alpha(accent, 0.6) }]}>
             <Flash view={view} />
             {card ? (
               <PopIn k={card.index}>
@@ -148,6 +152,9 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
             <Txt v="small" center color={C.muted}>
               مثّلها أو صِفها بدون أن تقولها
             </Txt>
+            <View style={{ alignSelf: 'center' }}>
+              <Pill label={`${num(score)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+            </View>
           </View>
           <Row gap={10}>
             <Btn flex size="xl" icon="check" label="صحيح" color={C.green} silent onPress={() => mark(true)} />
@@ -160,7 +167,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
     case 'turnEnd':
       return (
         <>
-          <PhaseTitle art={<Avatar player={guesser} size={80} />} title={`${guesser.name}: +${score}`} sub="انتهى الوقت" />
+          <PhaseTitle art={<Avatar player={guesser} size={80} ring={guesser.color} />} title={`${guesser.name}: ${num(`+${score}`)}`} sub="انتهى الوقت" />
           <Card>
             {view.history.length === 0 ? (
               <Txt center color={C.muted}>
@@ -174,9 +181,7 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
               </Row>
             )}
           </Card>
-          <Card>
-            <Scoreboard players={room.players} scores={view.scores} highlight={view.guesserId} />
-          </Card>
+          {strip}
           {isHost || isGuesser ? (
             <Btn size="xl" icon="play" label={view.turn >= view.totalTurns ? 'النتيجة النهائية' : 'اللاعب التالي'} onPress={() => act('next')} />
           ) : (
@@ -185,18 +190,21 @@ export function HeadsUpGame({ room, view }: { room: RoomView; view: HeadsUpView 
         </>
       );
 
-    case 'final':
+    case 'final': {
+      const scores = Object.fromEntries(view.participants.map((id) => [id, view.scores[id] ?? 0]));
+      const best = Math.max(0, ...Object.values(scores));
+      const winners = Object.keys(scores).filter((id) => scores[id] === best);
+      const won = winners.includes(me);
       return (
         <>
-          <Confetti />
-          <PhaseTitle icon="trophy" title="النتيجة النهائية" />
-          <Podium players={room.players} scores={view.scores} />
-          <Card>
-            <Scoreboard players={room.players} scores={view.scores} highlight={me} />
-          </Card>
+          {won ? <Confetti /> : null}
+          <ResultBanner tone={won ? 'good' : 'neutral'} art={<GameArt id="headsup" size={84} />} title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'} sub="انتهت كل الأدوار" />
+          <Podium players={room.players} scores={scores} />
+          <Scoreboard players={room.players} scores={scores} highlight={me} />
           <PlayAgain room={room} />
         </>
       );
+    }
   }
 }
 
@@ -226,7 +234,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: C.surface,
     borderWidth: 2,
-    borderColor: alpha(C.cyan, 0.6),
     overflow: 'hidden',
   },
   tiltIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.surfaceStrong, alignItems: 'center', justifyContent: 'center' },

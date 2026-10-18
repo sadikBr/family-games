@@ -18,7 +18,9 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { TEAM, helpers, type Helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
 import { Board, QuestionCard, TeamScores } from './survey-board';
+import { TeamCard, TeamResult } from './taboo-teams';
 
 type Team = 0 | 1;
 
@@ -72,30 +74,6 @@ function Waiting({ h, id, text }: { h: Helpers; id: string; text: string }) {
   );
 }
 
-/** What just happened, in one line under the board. */
-function LastLine({ view, h }: { view: SurveyView; h: Helpers }) {
-  const e = view.last;
-  if (!e) return null;
-  const name = h.player(e.by).name;
-  const msg =
-    e.kind === 'hit'
-      ? `${name}: «${e.text}» ✓ ${num(`+${view.slots[e.slot ?? 0]?.points ?? 0}`)}`
-      : e.kind === 'dup'
-        ? `${name}: «${e.text}» — موجود على اللوحة`
-        : e.kind === 'timeout'
-          ? `انتهى وقت ${name} ✗`
-          : `${name}: «${e.text}» ✗`;
-  const color = e.kind === 'hit' ? C.green : e.kind === 'dup' ? C.yellow : C.red;
-  return (
-    <Animated.View key={e.id} entering={FadeIn.duration(180)} style={[styles.last, { borderColor: alpha(color, 0.6) }]}>
-      <Avatar player={h.player(e.by)} size={22} />
-      <Txt v="small" numberOfLines={2} style={{ flexShrink: 1 }}>
-        {msg}
-      </Txt>
-    </Animated.View>
-  );
-}
-
 function Buzzer({ onPress, size }: { onPress: () => void; size: number }) {
   return (
     <Pressable
@@ -116,17 +94,11 @@ function TeamsPhase({ room, view, h }: { room: RoomView; view: SurveyView; h: He
     <>
       <PhaseTitle icon="users" title="الفرق" sub={h.isHost ? 'اضغط على لاعب لنقله للفريق الآخر' : 'المضيف يجهّز الفرق'} />
       {([0, 1] as const).map((t) => (
-        <Card key={t} outline={alpha(TEAM[t].color, 0.7)}>
-          <Row gap={8}>
-            <View style={[styles.dot, { backgroundColor: TEAM[t].color }]} />
-            <Txt v="h2">{TEAM[t].name}</Txt>
-          </Row>
-          <Row wrap gap={6} center>
-            {view.teams[t].map((id) => (
-              <PlayerTag key={id} player={h.player(id)} size={50} badge={id === h.me ? 'star' : undefined} onPress={h.isHost ? () => h.act('swap', { id }) : undefined} />
-            ))}
-          </Row>
-        </Card>
+        <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
+          {view.teams[t].map((id) => (
+            <PlayerTag key={id} player={h.player(id)} size={50} sub={id === h.me ? '(أنت)' : undefined} onPress={h.isHost ? () => h.act('swap', { id }) : undefined} />
+          ))}
+        </TeamCard>
       ))}
       <Txt v="tiny" center color={C.dim}>
         {`${num(view.rounds)} جولات · ${num(room.settings.survey.seconds)} ثانية لكل جواب · الأجوبة تقديرات من اللعبة لأشهر ما يقوله الناس`}
@@ -160,10 +132,19 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
   ) : null;
   const header = (
     <>
+      <RoundHeader
+        label={`الجولة ${num(view.round)} من ${num(view.rounds)}`}
+        round={0}
+        rounds={0}
+        right={
+          view.multiplier > 1 ? (
+            <Txt v="tiny" color={C.muted}>
+              {`النقاط ${num(`×${view.multiplier}`)}`}
+            </Txt>
+          ) : undefined
+        }
+      />
       <TeamScores view={view} myTeam={myTeam} />
-      <Txt v="tiny" center color={C.muted}>
-        {`الجولة ${num(view.round)} من ${num(view.rounds)}${view.multiplier > 1 ? ` · النقاط ${num(`×${view.multiplier}`)}` : ''}`}
-      </Txt>
     </>
   );
 
@@ -178,16 +159,11 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
           title={w === -1 || w === null ? 'تعادل!' : `فاز ${TEAM[w].name}`}
           sub="أحسنتم جميعاً!"
         />
-        <TeamScores view={view} myTeam={myTeam} />
-        {([0, 1] as const).map((t) => (
-          <Card key={t} outline={alpha(TEAM[t].color, 0.6)} style={{ paddingVertical: 10 }}>
-            <Row wrap gap={6} center>
-              {view.teams[t].map((id) => (
-                <PlayerTag key={id} player={h.player(id)} size={40} crown={w === t} />
-              ))}
-            </Row>
-          </Card>
-        ))}
+        <TeamResult
+          me={h.me}
+          winner={w ?? -1}
+          teams={([0, 1] as const).map((t) => ({ name: TEAM[t].name, color: TEAM[t].color, score: view.scores[t], players: view.teams[t].map(h.player) }))}
+        />
         <PlayAgain room={room} />
       </>
     );
@@ -246,7 +222,7 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
         <View style={styles.waiting}>
           {vs}
           <Txt v="bold" center color={C.muted}>
-            {`${h.player(view.answerer).name} يكتب جوابه…`}
+            {`في انتظار جواب ${h.player(view.answerer).name}…`}
           </Txt>
         </View>
       );
@@ -310,9 +286,7 @@ export function SurveyGame({ room, view }: { room: RoomView; view: SurveyView })
       {timer}
       <QuestionCard question={view.question} width={width} />
       {mine ? panel : null}
-      {mine ? <LastLine view={view} h={h} /> : null}
       <Board view={view} width={width} compact={height < 700} />
-      {mine ? null : <LastLine view={view} h={h} />}
       {mine ? null : panel}
     </>
   );
@@ -340,11 +314,9 @@ export function SurveySettings({ room, editable }: { room: RoomView; editable: b
 }
 
 const styles = StyleSheet.create({
-  dot: { width: 12, height: 12, borderRadius: 6 },
   answerCard: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 8, borderWidth: 2, borderColor: alpha(C.yellow, 0.6) },
   input: { flex: 1, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, minHeight: 46, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.yellow },
   waiting: { backgroundColor: C.surface, borderRadius: 18, padding: 12, gap: 8 },
-  last: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, borderWidth: 1.5, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: C.bg2 },
   buzzer: { backgroundColor: C.red, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#151726', borderBottomWidth: 10 },
   buzzerDown: { borderBottomWidth: 4, transform: [{ translateY: 5 }] },
   buzzerText: { fontFamily: F.display, color: '#FFFFFF' },

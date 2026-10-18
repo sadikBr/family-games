@@ -10,10 +10,15 @@ import { Avatar, Card, IconBubble, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal } from '@/ui/controls';
 import { Confetti, HoldReveal } from '@/ui/fun';
-import { Txt } from '@/ui/txt';
+import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
+import { PlayerStrip } from './player-strip';
+
+/** The game's own night and day: the same two panels for the narrator's script and the players' screen. */
+const NIGHT = '#1B2160';
+const DAY = '#5A3F1E';
 
 export const ROLES: Record<WolfRole, { name: string; color: string; team: WolfWinner; desc: string }> = {
   wolf: {
@@ -118,8 +123,8 @@ function names(h: Helpers, ids: string[]) {
 function Collapsible({ title, icon, open, onToggle, children }: { title: string; icon: IconName; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <Card>
-      <Pressable onPress={onToggle}>
-        <Row>
+      <Pressable onPress={onToggle} style={{ minHeight: 40, justifyContent: 'center' }}>
+        <Row gap={8}>
           <Icon name={icon} size={18} color={C.muted} />
           <Txt v="h3" style={{ flex: 1 }}>
             {title}
@@ -194,7 +199,7 @@ function Narrator({ room, view }: { room: RoomView; view: WerewolfView }) {
 
   let announce = '';
   if (n.step === 'announce') {
-    announce = view.lastDeaths?.length ? `للأسف، ${names(h, view.lastDeaths)} لم يستيقظ هذا الصباح` : 'لم يمت أحد الليلة';
+    announce = view.lastDeaths?.length ? `للأسف، فقدت القرية هذا الصباح: ${names(h, view.lastDeaths)}` : 'لم يمت أحد الليلة';
   }
 
   const after = n.steps[n.steps.indexOf(n.step) + 1];
@@ -207,12 +212,14 @@ function Narrator({ room, view }: { room: RoomView; view: WerewolfView }) {
 
   return (
     <>
-      <Txt v="small" center color={C.muted}>
-        {night ? `الليلة ${view.day}` : `النهار ${view.day}`} · {wolvesAlive} ذئاب · {villageAlive} قرويين
-      </Txt>
+      <Row gap={6} center wrap>
+        <Pill icon={night ? 'moon' : 'sun'} label={night ? `الليلة ${num(view.day)}` : `النهار ${num(view.day)}`} color={night ? NIGHT : DAY} />
+        <Pill label={`${num(wolvesAlive)} ذئاب`} color={alpha(C.red, 0.25)} />
+        <Pill label={`${num(villageAlive)} قرويين`} color={alpha(C.green, 0.25)} />
+      </Row>
 
       {/* Script */}
-      <Animated.View key={n.step + view.day} entering={FadeIn.duration(200)} style={[styles.script, { backgroundColor: night ? '#232A6B' : '#5A3F1E' }]}>
+      <Animated.View key={n.step + view.day} entering={FadeIn.duration(200)} style={[styles.panel, night ? styles.night : styles.day]}>
         <Row gap={10}>
           {'role' in step.art ? <RoleBadge role={step.art.role} size={44} /> : <IconBubble icon={step.art.icon} size={44} color="rgba(255,255,255,0.12)" iconColor={C.yellow} />}
           <Txt v="small" color="rgba(255,255,255,0.75)" style={{ flex: 1 }}>
@@ -515,17 +522,17 @@ function PlayerScreen({ room, view }: { room: RoomView; view: WerewolfView }) {
       ) : null}
 
       {night ? (
-        <Animated.View entering={FadeIn.duration(400)} style={[styles.phase, { backgroundColor: '#0A0D22' }]}>
+        <Animated.View entering={FadeIn.duration(400)} style={[styles.panel, styles.night, styles.center]}>
           <Icon name="moon" size={44} color={C.yellow} />
-          <Txt v="display">الليلة {view.day}</Txt>
+          <Txt v="display">الليلة {num(view.day)}</Txt>
           <Txt center color={C.muted}>
             أغمض عينيك واستمع للراوي.{'\n'}افتحها فقط عندما يناديك.
           </Txt>
         </Animated.View>
       ) : (
-        <Animated.View entering={FadeIn.duration(300)} style={[styles.phase, { backgroundColor: '#5A3F1E' }]}>
+        <Animated.View entering={FadeIn.duration(300)} style={[styles.panel, styles.day, styles.center]}>
           <Icon name="sun" size={44} color={C.yellow} />
-          <Txt v="title">النهار {view.day}</Txt>
+          <Txt v="display">النهار {num(view.day)}</Txt>
           <Txt v="h3" center>
             {view.lastDeaths?.length ? `مات الليلة: ${names(h, view.lastDeaths)}` : 'لم يمت أحد الليلة'}
           </Txt>
@@ -549,19 +556,27 @@ function PlayerScreen({ room, view }: { room: RoomView; view: WerewolfView }) {
 
       <RoleCard view={view} h={h} height={night ? 200 : 230} />
 
-      <Card>
-        <Txt v="h3">القرية</Txt>
+      <View style={{ gap: 8 }}>
+        <Row gap={8}>
+          <Icon name="users" size={18} color={C.muted} />
+          <Txt v="h3" color={C.muted} style={{ flex: 1 }}>
+            القرية
+          </Txt>
+        </Row>
         <Row wrap gap={6} center>
           {(Object.keys(view.roleCounts) as WolfRole[]).map((r) => (
-            <Pill key={r} label={`${view.roleCounts[r]} ${ROLES[r].name}`} color={alpha(ROLES[r].color, 0.25)} />
+            <Pill key={r} label={`${num(view.roleCounts[r] ?? 0)} ${ROLES[r].name}`} color={alpha(ROLES[r].color, 0.25)} />
           ))}
         </Row>
-        <Row wrap gap={6} center>
-          {view.participants.map((id) => (
-            <PlayerTag key={id} player={h.player(id)} size={46} crown={view.mayorId === id && view.alive[id]} dim={!view.alive[id]} badge={!view.alive[id] ? 'skull' : id === h.me ? 'star' : undefined} />
-          ))}
-        </Row>
-      </Card>
+        <PlayerStrip
+          room={room}
+          entries={view.participants.map((id) => ({
+            id,
+            out: !view.alive[id],
+            sub: !view.alive[id] ? 'خارج اللعبة' : view.mayorId === id ? 'العمدة' : undefined,
+          }))}
+        />
+      </View>
       <Row gap={8} center>
         <Avatar player={narrator} size={26} badge="mic" />
         <Txt v="small" color={C.muted}>
@@ -579,6 +594,8 @@ export function WerewolfGame({ room, view }: { room: RoomView; view: WerewolfVie
 
 const styles = StyleSheet.create({
   roleRow: { borderRadius: 14, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: C.bg2 },
-  script: { borderRadius: 22, padding: 16, gap: 8 },
-  phase: { borderRadius: 22, padding: 22, alignItems: 'center', gap: 6 },
+  panel: { borderRadius: 22, padding: 18, gap: 8, borderWidth: 1.5 },
+  night: { backgroundColor: NIGHT, borderColor: 'rgba(170,185,255,0.22)' },
+  day: { backgroundColor: DAY, borderColor: alpha(C.yellow, 0.3) },
+  center: { alignItems: 'center' },
 });

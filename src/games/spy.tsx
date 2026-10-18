@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
@@ -18,6 +19,8 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
 import { helpers, type Helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const INK_SOFT = '#6B6488';
 const GUESS_MS = 30_000; // keep in sync with server/games/spy.ts
@@ -71,7 +74,7 @@ function LocationList({ view, isSpy, onReveal }: { view: SpyView; isSpy: boolean
           <Txt v="h3" style={{ flex: 1 }}>
             الأماكن الممكنة ({num(view.locations.length)})
           </Txt>
-          <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
+          <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
             <Icon name="chevron" size={18} color={C.muted} />
           </View>
         </Row>
@@ -136,15 +139,15 @@ function storyOf(view: SpyView, h: Helpers): string {
   const spyWord = r.spies.length > 1 ? 'الجاسوسان' : 'الجاسوس';
   switch (r.how) {
     case 'caught':
-      return `أمسكتم بـ${name(r.accused)}، وهو جاسوس!`;
+      return `أمسكتم بالجاسوس: ${name(r.accused)}!`;
     case 'wrongAccuse':
-      return `اتّهمتم ${name(r.accused)} وهو بريء`;
+      return `اتّهمتم ${name(r.accused)}، والجاسوس شخص آخر`;
     case 'tie':
       return `انتهى الوقت ولم تتّفقوا على أحد، فنجا ${spyWord}`;
     case 'guessRight':
-      return `كشف ${name(view.guesserId)} نفسه وخمّن المكان صحيحاً`;
+      return `انكشف الجاسوس ${name(view.guesserId)}، وتخمينه للمكان صحيح`;
     case 'guessWrong':
-      return r.guessed ? `كشف ${name(view.guesserId)} نفسه وخمّن «${r.guessed}» خطأً` : `كشف ${name(view.guesserId)} نفسه ولم يخمّن في الوقت`;
+      return r.guessed ? `انكشف الجاسوس ${name(view.guesserId)}، وتخمينه «${r.guessed}» خاطئ` : `انكشف الجاسوس ${name(view.guesserId)}، ولا تخمين في الوقت`;
     case 'spyLeft':
       return `غادر ${spyWord} اللعبة`;
   }
@@ -177,10 +180,18 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
     />
   );
   const header = (
-    <Txt v="small" center color={C.dim}>
-      الجولة {num(view.round)} من {num(view.totalRounds)}
-      {view.spyCount > 1 ? ' · جاسوسان' : ''}
-    </Txt>
+    <RoundHeader
+      label={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`}
+      round={0}
+      rounds={0}
+      right={
+        view.spyCount > 1 ? (
+          <Txt v="tiny" color={C.muted}>
+            جاسوسان
+          </Txt>
+        ) : undefined
+      }
+    />
   );
 
   switch (view.phase) {
@@ -189,7 +200,8 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle icon="eye" title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="انظر إلى سرّك دون أن يراك أحد" />
+          {header}
+          <PhaseTitle icon="eye" title="سرّك" sub="انظر إلى سرّك دون أن يراك أحد" />
           <SecretCard view={view} h={h} />
           <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'رأيت، أنا جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
           <WaitingFor players={notReady} />
@@ -215,12 +227,12 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
             </Card>
           ) : null}
           <Card style={{ alignItems: 'center', gap: 8 }}>
-            <Avatar player={asker} size={72} ring={C.yellow} badge="mic" />
+            <Avatar player={asker} size={72} ring={isAsker ? C.yellow : asker.color} badge="mic" />
             <Txt v="title" center>
-              {isAsker ? 'دورك في السؤال' : `دور ${asker.name} في السؤال`}
+              {isAsker ? 'دورك في السؤال' : `السؤال الآن: ${asker.name}`}
             </Txt>
             <Txt v="small" center color={C.muted}>
-              {isAsker ? 'اختر أي لاعب واسأله سؤالاً عن المكان' : 'يختار لاعباً ويسأله سؤالاً'}
+              {isAsker ? 'اختر أي لاعب واسأله سؤالاً عن المكان' : 'اختيار لاعب وسؤاله سؤالاً عن المكان'}
             </Txt>
             {isAsker ? (
               <Btn size="lg" icon="next" label="سألتُ، التالي" onPress={() => act('nextAsker', { idx: askIdx })} />
@@ -229,7 +241,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
             ) : null}
             <Row wrap gap={4} center style={{ direction: 'rtl' }}>
               {view.order.map((id) => (
-                <Avatar key={id} player={player(id)} size={26} ring={id === view.askerId ? C.yellow : undefined} />
+                <Avatar key={id} player={player(id)} size={26} ring={id === view.askerId ? (id === me ? C.yellow : player(id).color) : undefined} />
               ))}
             </Row>
           </Card>
@@ -289,7 +301,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
         <>
           {header}
           <RoundTimer endsAt={null} pausedLeft={view.pausedLeft} total={view.totalMs} />
-          <PhaseTitle icon="siren" color={C.red} title="اتّهام!" sub={`${by.name} يتّهم ${target.name} بأنه الجاسوس`} />
+          <PhaseTitle icon="siren" color={C.red} title="اتّهام!" sub={`اتّهام من ${by.name}: ${target.name} الجاسوس؟`} />
           <Card style={{ alignItems: 'center', gap: 8 }}>
             <Row gap={14} center>
               <PlayerTag player={by} size={56} />
@@ -301,11 +313,13 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
                 دافع عن نفسك بصوت عالٍ!
               </Txt>
             ) : view.myAccuseVote !== null ? (
-              <Pill label={view.myAccuseVote ? 'صوّتّ: نعم، هو الجاسوس' : 'صوّتّ: لا، ليس هو'} icon="check" color={view.myAccuseVote ? alpha(C.red, 0.3) : alpha(C.green, 0.25)} />
+              <View style={{ alignSelf: 'center' }}>
+                <Pill label={view.myAccuseVote ? 'صوّتّ: نعم، الجاسوس' : 'صوّتّ: لا، بريء'} icon="check" color={view.myAccuseVote ? alpha(C.red, 0.3) : alpha(C.green, 0.25)} />
+              </View>
             ) : (
               <>
                 <Txt v="h3" center>
-                  هل {target.name} هو الجاسوس؟
+                  هل {target.name} الجاسوس؟
                 </Txt>
                 <Row gap={10} style={{ alignSelf: 'stretch' }}>
                   <Btn flex size="xl" icon="check" label="نعم" color={C.red} onPress={() => act('accuseVote', { yes: true })} />
@@ -351,14 +365,11 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
       }
       return (
         <>
-          <PhaseTitle title={`${g.name} هو الجاسوس!`} sub="كشف نفسه، ويحاول تخمين المكان…" />
+          <PhaseTitle art={<Avatar player={g} size={96} ring={C.red} />} title={`الجاسوس: ${g.name}!`} sub="انكشف الجاسوس، والآن محاولة لتخمين المكان…" />
           <TimerBar endsAt={view.guessEndsAt} total={GUESS_MS} />
-          <Card style={{ alignItems: 'center', gap: 10 }}>
-            <Avatar player={g} size={96} ring={C.red} />
-            <Txt v="h3" center>
-              إن خمّن المكان فاز، وإن أخطأ فزتم
-            </Txt>
-          </Card>
+          <Txt v="bold" center color={C.muted}>
+            تخمين صحيح = فوز الجاسوس، وتخمين خاطئ = فوزكم
+          </Txt>
         </>
       );
     }
@@ -411,7 +422,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
             title={r.how === 'spyLeft' ? 'انتهت الجولة' : r.winners === 'civilians' ? 'فاز المواطنون' : r.spies.length > 1 ? 'فاز الجاسوسان' : 'فاز الجاسوس'}
             sub={storyOf(view, h)}
           />
-          <Card style={{ alignItems: 'center' }}>
+          <Card style={{ alignItems: 'center', gap: 8 }}>
             <Txt v="small" color={C.muted}>
               {r.spies.length > 1 ? 'الجاسوسان' : 'الجاسوس'}
             </Txt>
@@ -459,15 +470,12 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
               ))}
             </Card>
           ) : null}
-          <Card>
-            <Row gap={8}>
-              <Txt v="h3" style={{ flex: 1 }}>
-                النقاط
-              </Txt>
-              {r.points[me] ? <Pill label={`+${r.points[me]} لك`} icon="star" color={alpha(C.green, 0.25)} /> : null}
-            </Row>
-            <Scoreboard players={room.players} scores={Object.fromEntries(view.participants.map((id) => [id, view.scores[id] ?? 0]))} highlight={me} />
-          </Card>
+          <View style={{ gap: 6 }}>
+            <Txt v="small" center color={C.muted}>
+              النقاط، وتحت كل اسم نقاط هذه الجولة
+            </Txt>
+            <PlayerStrip room={room} entries={view.participants.map((id) => ({ id, score: view.scores[id] ?? 0, sub: num(`+${r.points[id] ?? 0}`) }))} />
+          </View>
           {isHost ? (
             <Btn size="xl" icon={last ? 'trophy' : 'refresh'} label={last ? 'النتيجة النهائية' : 'جولة جديدة'} onPress={() => act('next')} />
           ) : (
@@ -487,7 +495,7 @@ export function SpyGame({ room, view }: { room: RoomView; view: SpyView }) {
           {won ? <Confetti /> : null}
           <ResultBanner
             tone={won ? 'good' : 'neutral'}
-            art={<Icon name="trophy" size={56} color={C.yellow} />}
+            art={<GameArt id="spy" size={84} />}
             title={winners.length === 1 ? `فاز ${player(winners[0]).name}` : 'تعادل!'}
             sub="انتهت كل الجولات"
           />

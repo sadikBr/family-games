@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
@@ -7,6 +7,7 @@ import { Icon } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
 import type { CodeColor, CodenamesView, RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
@@ -15,6 +16,7 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
+import { TeamCard, TeamStrip } from './taboo-teams';
 
 const TEAM = {
   red: { name: 'الفريق الأحمر', color: '#E2475F', soft: '#F7B3BF' },
@@ -22,19 +24,18 @@ const TEAM = {
 } as const;
 const CARD_BG: Record<CodeColor, string> = { red: '#E2475F', blue: '#3D7BE0', neutral: '#D9CDB0', assassin: '#1E1E2A' };
 
+/** Words left to find for each team; the team playing now is framed. */
 function TeamScores({ view }: { view: CodenamesView }) {
   return (
-    <Row gap={8}>
-      {(['red', 'blue'] as const).map((t) => (
-        <View key={t} style={[styles.score, { borderColor: view.turn === t && view.phase !== 'final' ? TEAM[t].color : 'transparent' }]}>
-          <View style={[styles.dot, { backgroundColor: TEAM[t].color }]} />
-          <Txt v="small" style={{ flex: 1 }} numberOfLines={1}>
-            {TEAM[t].name}
-          </Txt>
-          <Txt style={{ fontFamily: F.display, fontSize: 22, lineHeight: 32 }}>{view.left[t]}</Txt>
-        </View>
-      ))}
-    </Row>
+    <TeamStrip
+      teams={(['red', 'blue'] as const).map((t) => ({
+        name: TEAM[t].name,
+        color: TEAM[t].color,
+        score: view.left[t],
+        sub: view.myTeam === t ? 'فريقك · متبقية' : 'كلمات متبقية',
+        active: view.turn === t && view.phase !== 'final',
+      }))}
+    />
   );
 }
 
@@ -51,8 +52,11 @@ function lastRevealed(view: CodenamesView): number | null {
 }
 
 function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; onCard?: (i: number) => void; picking: number | null }) {
+  const accent = useAccent();
+  const narrow = useWindowDimensions().width < 360;
   const last = view.phase === 'final' ? null : lastRevealed(view);
   return (
+    <View style={[styles.frame, { borderColor: alpha(accent, 0.35) }]}>
     <View style={styles.grid}>
       {view.words.map((w, i) => {
         const color = view.colors[i];
@@ -79,7 +83,7 @@ function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; o
             <Txt
               numberOfLines={1}
               adjustsFontSizeToFit
-              style={{ fontFamily: F.black, fontSize: 14, lineHeight: 20, textAlign: 'center' }}
+              style={{ fontFamily: F.black, fontSize: narrow ? 12.5 : 14, lineHeight: 20, textAlign: 'center' }}
               color={revealed ? (color === 'neutral' ? C.ink : '#FFFFFF') : spyView && color === 'assassin' ? '#FFFFFF' : C.ink}>
               {w}
             </Txt>
@@ -94,6 +98,7 @@ function Grid({ view, h, onCard, picking }: { view: CodenamesView; h: Helpers; o
           </Pressable>
         );
       })}
+    </View>
     </View>
   );
 }
@@ -143,20 +148,20 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           </Card>
         ) : null}
         {(['red', 'blue'] as const).map((t) => (
-          <Card key={t} outline={alpha(TEAM[t].color, 0.7)}>
-            <Row gap={8}>
-              <View style={[styles.dot, { backgroundColor: TEAM[t].color }]} />
-              <Txt v="h2">{TEAM[t].name}</Txt>
-            </Row>
-            <Row wrap gap={8} center>
-              {view.teams[t].map((id) => (
-                <View key={id} style={{ alignItems: 'center' }}>
-                  <PlayerTag player={h.player(id)} size={50} crown={view.spymasters[t] === id} sub={view.spymasters[t] === id ? 'القائد' : undefined} onPress={h.isHost ? () => h.act('swap', { id }) : undefined} />
-                  {h.isHost && view.spymasters[t] !== id ? <IconBtn icon="crown" size={28} label="اجعله قائداً" onPress={() => h.act('spymaster', { id })} /> : null}
-                </View>
-              ))}
-            </Row>
-          </Card>
+          <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
+            {view.teams[t].map((id) => (
+              <View key={id} style={{ alignItems: 'center' }}>
+                <PlayerTag
+                  player={h.player(id)}
+                  size={50}
+                  crown={view.spymasters[t] === id}
+                  sub={view.spymasters[t] === id ? (id === h.me ? 'القائد (أنت)' : 'القائد') : id === h.me ? '(أنت)' : undefined}
+                  onPress={h.isHost ? () => h.act('swap', { id }) : undefined}
+                />
+                {h.isHost && view.spymasters[t] !== id ? <IconBtn icon="crown" size={28} label="اجعله قائداً" onPress={() => h.act('spymaster', { id })} /> : null}
+              </View>
+            ))}
+          </TeamCard>
         ))}
         {h.isHost ? (
           <>
@@ -181,6 +186,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           title={view.winner ? `فاز ${TEAM[view.winner].name}` : 'انتهت اللعبة'}
           sub={view.reason === 'assassin' ? 'كشف الخصم الكلمة السوداء' : 'كشف كل كلماته'}
         />
+        <TeamScores view={view} />
         <Grid view={view} h={h} picking={null} />
         {h.isHost ? <Btn size="lg" icon="refresh" label="جولة جديدة (القيادة تنتقل)" onPress={() => h.act('again')} /> : null}
         <PlayAgain room={room} />
@@ -217,7 +223,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
               تلميح {TEAM[view.turn].name}
             </Txt>
             <Txt v="title">
-              «{view.clue.word}» {view.clue.n === 0 ? '∞' : view.clue.n}
+              «{view.clue.word}» {view.clue.n === 0 ? '∞' : num(view.clue.n)}
             </Txt>
           </>
         ) : (
@@ -240,7 +246,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           <Field value={clue} onChangeText={setClue} placeholder="كلمة واحدة" placeholderTextColor={C.dim} style={styles.input} maxLength={24} autoCorrect={false} />
           <Row gap={10}>
             <IconBtn icon="minus" size={40} label="أقل" onPress={() => setN(Math.max(0, n - 1))} />
-            <Txt style={{ fontFamily: F.display, fontSize: 26, lineHeight: 38, minWidth: 30, textAlign: 'center' }}>{n === 0 ? '∞' : n}</Txt>
+            <Txt style={{ fontFamily: F.display, fontSize: 26, lineHeight: 38, minWidth: 30, textAlign: 'center' }}>{n === 0 ? '∞' : num(n)}</Txt>
             <IconBtn icon="plus" size={40} label="أكثر" onPress={() => setN(Math.min(9, n + 1))} />
             <Btn
               flex
@@ -272,7 +278,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
             />
           ) : (
             <Txt v="small" center color={C.muted}>
-              اختر كلمة وتناقشوا، ثم اكشفها · محاولات متبقية: {view.guessesLeft >= 25 ? '∞' : view.guessesLeft}
+              اختر كلمة وتناقشوا، ثم اكشفها · محاولات متبقية: {view.guessesLeft >= 25 ? '∞' : num(view.guessesLeft)}
             </Txt>
           )}
           <Btn size="sm" ghost icon="skip" label={canPass ? 'أنهِ الدور' : 'اكشفوا كلمة قبل إنهاء الدور'} disabled={!canPass} onPress={() => h.act('pass')} />
@@ -289,11 +295,11 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
 }
 
 const styles = StyleSheet.create({
-  score: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderRadius: 16, paddingVertical: 3, paddingHorizontal: 12, borderWidth: 2 },
+  frame: { backgroundColor: C.bg3, borderRadius: 16, borderWidth: 1.5, padding: 4 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   banner: { borderRadius: 18, borderWidth: 2, padding: 12, alignItems: 'center', gap: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', direction: 'rtl' },
-  word: { flexBasis: '17%', flexGrow: 1, minWidth: 0, height: 58, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, overflow: 'hidden' },
+  word: { flexBasis: '17%', flexGrow: 1, minWidth: 0, height: 58, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, overflow: 'hidden' },
   note: { borderRadius: 14, paddingVertical: 6, paddingHorizontal: 12 },
   pick: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   tint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
@@ -11,6 +11,8 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
 import { helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { PlayerStrip } from './player-strip';
 
 const INK_SOFT = '#6B6488';
 const GUESS_MS = 25_000; // keep in sync with server/games/imposter.ts
@@ -70,7 +72,8 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle title={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} sub="انظر إلى سرّك دون أن يراك أحد" />
+          <RoundHeader label={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} round={0} rounds={0} />
+          <PhaseTitle icon="eye" title="سرّك" sub="انظر إلى سرّك دون أن يراك أحد" />
           <SecretCard view={view} partners={partnerNames} />
           <Btn size="xl" icon="check" label={ready ? 'جاهز' : 'رأيت، أنا جاهز'} color={C.green} disabled={ready} onPress={() => act('ready')} />
           <WaitingFor players={notReady} />
@@ -83,22 +86,14 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       return (
         <>
           <PhaseTitle icon="chat" title="وقت التلميحات" sub="يقول كلٌّ منكم كلمة واحدة، بهذا الترتيب" />
-          <Card>
-            <Row wrap gap={4} center>
-              {view.order.map((id, i) => (
-                <View key={id}>
-                  <PlayerTag player={player(id)} size={48} badge={i === 0 ? 'mic' : undefined} sub={i === 0 ? 'يبدأ' : `${i + 1}`} ring={i === 0 ? C.yellow : undefined} />
-                  {view.botClues[id] ? (
-                    <View style={styles.bubble}>
-                      <Txt v="tiny" color={C.ink} center numberOfLines={1}>
-                        {view.botClues[id]}
-                      </Txt>
-                    </View>
-                  ) : null}
-                </View>
-              ))}
-            </Row>
-          </Card>
+          <PlayerStrip
+            room={room}
+            active={view.order.slice(0, 1)}
+            entries={view.order.map((id, i) => ({
+              id,
+              sub: view.botClues[id] ? `«${view.botClues[id]}»` : i === 0 ? 'البداية' : undefined,
+            }))}
+          />
           <SecretCard view={view} height={160} partners={partnerNames} />
           <Txt v="small" center color={C.dim}>
             يمكنكم القيام بجولتين من التلميحات قبل التصويت
@@ -134,7 +129,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
             </Row>
           </Card>
           <Txt center v="small" color={C.muted}>
-            صوّت {view.voted.length} من {view.participants.length}
+            صوّت {num(view.voted.length)} من {num(view.participants.length)}
             {view.myVote ? ' · يمكنك تغيير صوتك' : ''}
           </Txt>
           <WaitingFor players={notVoted} label="في انتظار تصويت" />
@@ -152,7 +147,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
             <TimerBar endsAt={view.guessEndsAt} total={GUESS_MS} onTick />
             <View style={{ gap: 10 }}>
               {view.guessOptions.map((w) => (
-                <Btn key={w} size="lg" label={w} color={C.surfaceStrong} textColor={C.text} onPress={() => act('guess', { word: w })} />
+                <Btn key={w} size="lg" label={w} ghost onPress={() => act('guess', { word: w })} />
               ))}
             </View>
           </>
@@ -160,14 +155,8 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       }
       return (
         <>
-          <PhaseTitle title={`${g.name} انكشف`} />
+          <PhaseTitle art={<Avatar player={g} size={92} ring={C.red} />} title={`انكشف الدخيل: ${g.name}`} sub="فرصة أخيرة لتخمين الكلمة السرية والنجاة…" />
           <TimerBar endsAt={view.guessEndsAt} total={GUESS_MS} />
-          <Card style={{ alignItems: 'center', gap: 10 }}>
-            <Avatar player={g} size={92} />
-            <Txt v="h3" center>
-              يحاول تخمين الكلمة السرية لينجو…
-            </Txt>
-          </Card>
         </>
       );
     }
@@ -180,15 +169,15 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const accused = r.accused ? player(r.accused) : null;
       let story: string;
       if (!accused) story = 'تعادل في الأصوات، فنجا الدخيل';
-      else if (!r.caught) story = `صوّتّم على ${accused.name} وهو بريء`;
-      else if (r.guessCorrect) story = `انكشف ${accused.name}، لكنه خمّن الكلمة`;
-      else if (r.guessed === '') story = `أمسكتم بالدخيل ${accused.name}، ولم يخمّن الكلمة في الوقت`;
+      else if (!r.caught) story = `صوّتّم على ${accused.name}، والدخيل شخص آخر`;
+      else if (r.guessCorrect) story = `انكشف الدخيل ${accused.name}، لكن تخمينه للكلمة صحيح`;
+      else if (r.guessed === '') story = `أمسكتم بالدخيل ${accused.name}، ولا تخمين للكلمة في الوقت`;
       else story = `أمسكتم بالدخيل ${accused.name}`;
       return (
         <>
           {iWon ? <Confetti burst={view.round} /> : null}
           <ResultBanner tone={r.winners === 'civilians' ? 'good' : 'bad'} title={r.winners === 'civilians' ? 'فاز المواطنون' : 'فاز الدخيل'} sub={story} />
-          <Card style={{ alignItems: 'center' }}>
+          <Card style={{ alignItems: 'center', gap: 8 }}>
             <Txt v="small" color={C.muted}>
               الدخيل كان
             </Txt>
@@ -226,10 +215,12 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
               </Row>
             ))}
           </Card>
-          <Card>
-            <Txt v="h3">النقاط</Txt>
-            <Scoreboard players={room.players} scores={view.scores} highlight={me} />
-          </Card>
+          <View style={{ gap: 6 }}>
+            <Txt v="small" center color={C.muted}>
+              النقاط
+            </Txt>
+            <PlayerStrip room={room} entries={view.participants.map((id) => ({ id, score: view.scores[id] ?? 0 }))} />
+          </View>
           {isHost ? (
             last ? (
               <Btn size="xl" icon="trophy" label="النتيجة النهائية" onPress={() => act('next')} />
@@ -265,15 +256,3 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
     }
   }
 }
-
-const styles = StyleSheet.create({
-  bubble: {
-    backgroundColor: C.text,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    marginTop: 2,
-    alignSelf: 'center',
-    maxWidth: 92,
-  },
-});

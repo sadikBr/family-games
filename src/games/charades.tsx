@@ -4,7 +4,8 @@ import { StyleSheet, View } from 'react-native';
 import { client } from '@/lib/client';
 import { CHARADES_CATEGORIES, CHARADES_FREE_SKIPS, type CharadesCard, type CharadesSettings as Settings, type CharadesView } from '@/shared/games/charades';
 import type { RoomView } from '@/shared/protocol';
-import { C, F, alpha } from '@/theme';
+import { C, alpha } from '@/theme';
+import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, Stepper } from '@/ui/controls';
@@ -13,34 +14,32 @@ import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { TEAM, helpers } from './helpers';
+import { RoundHeader } from './islamic-ui';
+import { TeamCard, TeamResult, TeamStrip } from './taboo-teams';
 
 const LEVEL_LABEL = { 1: 'سهلة', 2: 'متوسطة', 3: 'صعبة' } as const;
 const LEVEL_COLOR = { 1: C.green, 2: C.yellow, 3: C.red } as const;
 
-function ScoreHeader({ view }: { view: CharadesView }) {
+function ScoreHeader({ view, myTeam }: { view: CharadesView; myTeam: number }) {
   return (
-    <Row gap={10}>
-      {[0, 1].map((t) => {
-        const active = view.activeTeam === t && view.phase !== 'teams' && view.phase !== 'final';
-        return (
-          <View key={t} style={[styles.teamScore, { borderColor: active ? TEAM[t].color : 'transparent' }]}>
-            <View style={[styles.teamDot, { backgroundColor: TEAM[t].color }]} />
-            <Txt v="small" style={{ flex: 1 }} numberOfLines={1}>
-              {TEAM[t].name.replace('الفريق ', '')}
-            </Txt>
-            <Txt style={{ fontFamily: F.display, fontSize: 24, lineHeight: 34 }}>{num(view.teamScores[t])}</Txt>
-          </View>
-        );
-      })}
-    </Row>
+    <TeamStrip
+      teams={[0, 1].map((t) => ({
+        name: TEAM[t].name,
+        color: TEAM[t].color,
+        score: view.teamScores[t],
+        sub: myTeam === t ? 'فريقك' : undefined,
+        active: view.activeTeam === t && view.phase !== 'teams' && view.phase !== 'final',
+      }))}
+    />
   );
 }
 
 function WordCard({ card, big }: { card: CharadesCard; big?: boolean }) {
+  const accent = useAccent();
   return (
     <PopIn k={card.index}>
       <View style={styles.card}>
-        <View style={styles.cardTop}>
+        <View style={[styles.cardTop, { backgroundColor: accent }]}>
           <Txt v="tiny" color="#FFFFFF">
             {card.category}
           </Txt>
@@ -81,15 +80,6 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
       </Txt>
     </Card>
   ) : null;
-  const myTeamTag =
-    myTeam !== -1 ? (
-      <Row gap={6} center>
-        <View style={[styles.teamDot, { backgroundColor: TEAM[myTeam].color }]} />
-        <Txt v="tiny" color={C.muted}>
-          فريقك: {TEAM[myTeam].name}
-        </Txt>
-      </Row>
-    ) : null;
 
   switch (view.phase) {
     case 'teams':
@@ -97,17 +87,11 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
         <>
           <PhaseTitle icon="users" title="الفرق" sub={isHost ? 'اضغط على لاعب لنقله للفريق الآخر' : 'المضيف يجهّز الفرق'} />
           {[0, 1].map((t) => (
-            <Card key={t} outline={alpha(TEAM[t].color, 0.7)}>
-              <Row gap={8}>
-                <View style={[styles.teamDot, { backgroundColor: TEAM[t].color }]} />
-                <Txt v="h2">{TEAM[t].name}</Txt>
-              </Row>
-              <Row wrap gap={6} center>
-                {view.teams[t].map((id) => (
-                  <PlayerTag key={id} player={player(id)} size={52} badge={id === me ? 'star' : undefined} onPress={isHost ? () => act('swap', { id }) : undefined} />
-                ))}
-              </Row>
-            </Card>
+            <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
+              {view.teams[t].map((id) => (
+                <PlayerTag key={id} player={player(id)} size={52} sub={id === me ? '(أنت)' : undefined} onPress={isHost ? () => act('swap', { id }) : undefined} />
+              ))}
+            </TeamCard>
           ))}
           {isHost ? (
             <>
@@ -123,13 +107,10 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
     case 'ready':
       return (
         <>
-          <ScoreHeader view={view} />
+          <RoundHeader label={`الدور ${num(view.turn)} من ${num(view.totalTurns)}`} round={0} rounds={0} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           {notice}
-          <PhaseTitle
-            art={<Avatar player={actor} size={88} ring={active.color} />}
-            title={isActor ? 'دورك في التمثيل' : `${actor.name} سيمثّل`}
-            sub={`دور ${active.name}`}
-          />
+          <PhaseTitle art={<Avatar player={actor} size={88} ring={active.color} />} title={isActor ? 'دورك في التمثيل' : `التمثيل: ${actor.name}`} sub={active.name} />
           <Card>
             <Txt center>
               {isActor
@@ -144,10 +125,6 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           ) : (
             <HostNote>في انتظار {actor.name}</HostNote>
           )}
-          {myTeamTag}
-          <Txt v="tiny" center color={C.dim}>
-            الدور {num(view.turn)} من {num(view.totalTurns)}
-          </Txt>
         </>
       );
 
@@ -155,7 +132,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
       return (
         <View style={{ flex: 1, minHeight: 380, justifyContent: 'center', gap: 10 }}>
           <Txt v="h2" center>
-            {isActor ? 'استعدّ… ستظهر الكلمة' : onActiveTeam ? `استعدّوا للتخمين، ${actor.name} يمثّل` : `${actor.name} يمثّل لفريقه`}
+            {isActor ? 'استعدّ… ستظهر الكلمة' : onActiveTeam ? `استعدّوا للتخمين — التمثيل من ${actor.name}` : `التمثيل من ${actor.name} ل${active.name.slice(1)}`}
           </Txt>
           <CountdownBig endsAt={view.endsAt} />
         </View>
@@ -165,7 +142,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
       const card = view.card;
       return (
         <>
-          <ScoreHeader view={view} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={isActor} />
           {notice}
           {isActor && card ? (
@@ -192,17 +169,21 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
               <Avatar player={actor} size={84} ring={active.color} />
               <Txt v="display">خمّنوا!</Txt>
               <Txt center color={C.muted}>
-                {actor.name} يمثّل… قولوا تخميناتكم بصوت عالٍ
+                التمثيل من {actor.name}… قولوا تخميناتكم بصوت عالٍ
               </Txt>
-              <Pill label={`${okCount} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+              <View style={{ alignSelf: 'center' }}>
+                <Pill label={`${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+              </View>
             </Card>
           ) : card ? (
             <>
               <Txt v="small" center color={C.muted}>
-                الكلمة التي يمثّلها {actor.name} (لا تساعدوهم!)
+                كلمة هذا الدور (لا تساعدوهم!)
               </Txt>
               <WordCard card={card} />
-              <Pill label={`${okCount} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+              <View style={{ alignSelf: 'center' }}>
+                <Pill label={`${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
+              </View>
             </>
           ) : null}
           {isHost ? <Btn size="sm" ghost icon="stop" label="إنهاء الدور" onPress={() => act('endTurn')} /> : null}
@@ -216,7 +197,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
       return (
         <>
           <PhaseTitle icon="clock" title="انتهى الوقت" sub={`${active.name}: ${num(pts)} في هذا الدور`} />
-          <ScoreHeader view={view} />
+          <ScoreHeader view={view} myTeam={myTeam} />
           {notice}
           <Card>
             <Row wrap gap={6}>
@@ -243,23 +224,11 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
         <>
           {iWon ? <Confetti /> : null}
           <ResultBanner tone={winner === -1 ? 'neutral' : iWon ? 'good' : 'bad'} title={winner === -1 ? 'تعادل!' : `فاز ${TEAM[winner].name}`} sub={`${num(a)} مقابل ${num(b)}`} />
-          <ScoreHeader view={view} />
-          {([0, 1] as const).map((t) => (
-            <Card key={t} outline={winner === t ? alpha(TEAM[t].color, 0.8) : undefined}>
-              <Row gap={8}>
-                <View style={[styles.teamDot, { backgroundColor: TEAM[t].color }]} />
-                <Txt v="h3" style={{ flex: 1 }}>
-                  {TEAM[t].name}
-                </Txt>
-                <Txt style={{ fontFamily: F.display, fontSize: 22, lineHeight: 32 }}>{num(view.teamScores[t])}</Txt>
-              </Row>
-              <Row wrap gap={6} center>
-                {view.teams[t].map((id) => (
-                  <PlayerTag key={id} player={player(id)} size={44} crown={winner === t} />
-                ))}
-              </Row>
-            </Card>
-          ))}
+          <TeamResult
+            me={me}
+            winner={winner}
+            teams={[0, 1].map((t) => ({ name: TEAM[t].name, color: TEAM[t].color, score: view.teamScores[t], players: view.teams[t].map(player) }))}
+          />
           <PlayAgain room={room} />
         </>
       );
@@ -326,21 +295,8 @@ export function CharadesSettings({ room, editable }: { room: RoomView; editable:
 }
 
 const styles = StyleSheet.create({
-  teamScore: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 16,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    backgroundColor: C.surface,
-    borderWidth: 2,
-  },
-  teamDot: { width: 12, height: 12, borderRadius: 6 },
   card: { backgroundColor: '#FBF7EC', borderRadius: 22, overflow: 'hidden' },
   cardTop: {
-    backgroundColor: C.orange,
     paddingVertical: 8,
     paddingHorizontal: 14,
     flexDirection: 'row',
