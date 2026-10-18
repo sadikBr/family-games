@@ -162,8 +162,11 @@ export const wordle: GameModule<State, WordleSettings> = {
       const n = s.rows[b].length;
       if (s.botNext[b] === n) continue;
       s.botNext[b] = n;
-      const fits = ANSWERS.filter((w) => s.rows[b].every((r) => markGuess(r.guess, w).join() === r.marks.join()));
-      const pool = fits.length && Math.random() < 0.75 ? fits : ANSWERS;
+      const tried = new Set(s.rows[b].map((r) => r.guess));
+      const fresh = ANSWERS.filter((w) => !tried.has(w));
+      const fits = fresh.filter((w) => s.rows[b].every((r) => markGuess(r.guess, w).join() === r.marks.join()));
+      // never a word it already tried (the server would refuse it)
+      const pool = fits.length && Math.random() < 0.75 ? fits : fresh;
       ctx.bot(b, `w:${s.round}:${n}`, randInt(9000, 16000), { type: 'guess', word: pool[randInt(0, pool.length - 1)] });
     }
   },
