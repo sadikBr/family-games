@@ -54,11 +54,13 @@ test('ronda: after a capture of the card just played, the third card of the rank
   expect(s.scores[sq]).toBe(1);
   ronda.act(ctx, s, p, { type: 'play', card: 'swords-1' }); // the third 1: takes the three, +5
   expect(s.scores[sp]).toBe(5);
+  expect(s.announce.text).toBe('ف جوج! +5');
   expect(s.captured[sp].map((c: any) => c.id).sort()).toEqual(['coins-1', 'cups-1', 'swords-1']);
   expect(s.captured[sq].length).toBe(0);
   expect(s.table.map((c: any) => c.id)).toEqual(['cups-7']); // the table is untouched
   ronda.act(ctx, s, q, { type: 'play', card: 'clubs-1' }); // the last 1: takes all four, +10
   expect(s.scores[sq]).toBe(11);
+  expect(s.announce.text).toBe('ف ثلاثة! +10');
   expect(s.captured[sq].length).toBe(4);
   expect(s.captured[sp].length).toBe(0);
   expect(s.chain).toBeNull();

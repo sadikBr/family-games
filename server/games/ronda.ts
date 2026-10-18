@@ -3,7 +3,7 @@
  * Play a card: if the same rank is on the table you take it, plus the cards that follow
  * it in sequence (… 6, 7, 10, 11, 12). دقة = taking the card just played by the
  * previous player (+1); if the next player answers with the third card of that rank, they take the
- * three cards from the other pile (+5), and the fourth card takes all four (+10). مسّة = clearing the table (+1). روندا (pair) = 1, ترينكا
+ * three cards from the other pile («ف جوج», +5), and the fourth card takes all four («ف ثلاثة», +10). مسّة = clearing the table (+1). روندا (pair) = 1, ترينكا
  * (three of a kind) = 5, four of a kind = two rondas. At the end of a hand the side
  * with more than 20 cards (13 with three players) scores one point per extra card. First to the target wins.
  */
@@ -269,7 +269,8 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.lastCapturer = by;
       const count = chain.cards.length + 1;
       const pts = count >= 4 ? 10 : 5;
-      const label = count >= 4 ? `الرابعة! ${cardsWord(4)} +10` : `الثالثة! ${cardsWord(3)} +5`;
+      // the table's own calls: دقة → ف جوج (+5) → ف ثلاثة (+10)
+      const label = count >= 4 ? 'ف ثلاثة! +10' : 'ف جوج! +5';
       s.feed.push(`${label} لـ${ctx.playerName(by)}`, { by, points: pts });
       setAnnounce(s, by, label);
       said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(count)} بـ ${cardName(card)} — +${pts}`;
