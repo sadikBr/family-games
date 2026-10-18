@@ -42,6 +42,23 @@ export interface GameModule<S, Settings> {
   botPlan?(ctx: GameCtx, s: S, bots: string[]): boolean | void;
   /** Lobby settings change for this game: validate and apply the keys it knows (in place). */
   patchSettings?(settings: Settings, patch: Record<string, unknown>): void;
+  /**
+   * The final standing once the game is over (null while it's still going, or if it ended without
+   * a result — e.g. too many players left). Tournaments award points from it.
+   */
+  result?(s: S): GameResult | null;
+}
+
+/**
+ * How a finished game ranked its players: `places[0]` = the winner(s), `places[1]` = second, …
+ * Players sharing a place (a tie, a team, everyone in a co-op game) are in the same inner array.
+ * Every participant should appear exactly once (bots included — the tournament drops them itself);
+ * players who left before the end may be omitted. `coop` marks games the family plays together:
+ * everyone in places[0], and `won` says whether the family won.
+ */
+export interface GameResult {
+  places: string[][];
+  coop?: { won: boolean };
 }
 
 /** Thrown from game logic to send an Arabic error to the acting player. */
