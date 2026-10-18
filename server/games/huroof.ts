@@ -190,7 +190,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.buzzer = by;
       s.timerTotal = ANSWER_MS;
       s.endsAt = ctx.now + ANSWER_MS;
-      s.feed.push(`${ctx.playerName(by)} ضغط الجرس!`, { by });
+      s.feed.push(`أول من ضغط الجرس: ${ctx.playerName(by)}`, { by });
       ctx.fx('throw', by);
       ctx.say?.(`الجرس لـ${ctx.playerName(by)}: في انتظار الجواب`, by);
       return;
