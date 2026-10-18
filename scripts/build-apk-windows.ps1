@@ -1,4 +1,7 @@
 <#
+  Keep this file plain ASCII: Windows PowerShell 5.1 reads scripts without a BOM in the ANSI code page,
+  and characters such as an em dash break its strings.
+
   Build the Android APK on Windows (EAS local builds don't run on Windows).
 
   Needs, once:
@@ -7,7 +10,7 @@
     - Android command-line tools unzipped as <sdk>\cmdline-tools\latest  -> default C:\Android\sdk, or ANDROID_HOME / -AndroidHome
   The script installs the SDK packages it needs (platform 36, build-tools 36, NDK, CMake) and accepts the licences.
 
-  Run from the project folder (keep it in a SHORT path such as C:\fg — long paths break the native build):
+  Run from the project folder (keep it in a SHORT path such as C:\fg - long paths break the native build):
     powershell -ExecutionPolicy Bypass -File scripts\build-apk-windows.ps1
   or double-click scripts\build-apk-windows.cmd
 
@@ -116,7 +119,7 @@ $variant = 'release'
 if ($Debug) { $task = 'assembleDebug'; $variant = 'debug' }
 $abis = 'arm64-v8a'
 if ($AllAbis) { $abis = 'armeabi-v7a,arm64-v8a,x86,x86_64' }
-Step "Building the APK ($variant, $abis) — 10 to 30 minutes the first time"
+Step "Building the APK ($variant, $abis) - 10 to 30 minutes the first time"
 Push-Location (Join-Path $root 'android')
 try {
   & .\gradlew.bat $task "-PreactNativeArchitectures=$abis"
