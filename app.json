@@ -46,6 +46,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-gradle-memory",
       [
         "@config-plugins/react-native-webrtc",
         {
