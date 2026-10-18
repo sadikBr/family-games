@@ -51,3 +51,7 @@ tools/art/.out
 # CI caches
 .android-sdk/
 .gradle-home/
+
+# Firebase service account keys are private: never commit them (google-services.json is public and stays)
+*-firebase-adminsdk-*.json
+service-account*.json

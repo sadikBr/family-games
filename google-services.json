@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "632401151869",
+    "project_id": "family-games-f2665",
+    "storage_bucket": "family-games-f2665.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:632401151869:android:ea1d167f04d3d6beefee14",
+        "android_client_info": {
+          "package_name": "com.familygames.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiQEFMQ1swdtkO0eGnFO92n1fs8CNGYQw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

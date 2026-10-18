@@ -26,6 +26,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.familygames.app",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS",
