@@ -1,0 +1,90 @@
+/**
+ * Push notifications on phones (expo-notifications + the Expo push service).
+ *
+ * - The server sends a push to members whose app is closed when someone in their group presses «لنلعب».
+ * - Android gets its push token through Firebase (google-services.json, see README «المجموعات»).
+ *   If there is no token (permission refused, no Google services, a build without the Firebase file),
+ *   getExpoPushTokenAsync throws: we log it once and carry on without push — the in-app invitation
+ *   still reaches everyone who has the app open.
+ */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+import { client } from './client';
+import { askUser } from './push-ask';
+
+const ASKED_KEY = 'fg.pushAsked.v1';
+export const CALL_CHANNEL = 'group-calls';
+
+let warned = false;
+const handled = new Set<string>();
+
+async function ensureChannel() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(CALL_CHANNEL, {
+      name: 'دعوات المجموعات',
+      description: 'عندما تبدأ إحدى مجموعاتك اللعب',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 150, 250],
+      lightColor: '#F2B33D',
+    });
+  } catch {}
+}
+
+async function registerToken() {
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+    client.setPushToken(data);
+  } catch (e) {
+    if (!warned) {
+      warned = true;
+      console.log('push notifications are off (no push token):', e instanceof Error ? e.message : e);
+    }
+  }
+}
+
+function handleResponse(res: Notifications.NotificationResponse | null, onCall: (code: string) => void) {
+  if (!res) return;
+  const id = res.notification.request.identifier;
+  if (handled.has(id)) return;
+  handled.add(id);
+  const data = res.notification.request.content.data as { kind?: unknown; code?: unknown } | undefined;
+  if (data?.kind === 'groupCall' && typeof data.code === 'string' && /^\d{4}$/.test(data.code)) onCall(data.code);
+  Notifications.clearLastNotificationResponseAsync().catch(() => {});
+}
+
+export function initPush(onCall: (code: string) => void): () => void {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+  });
+  ensureChannel().then(async () => {
+    try {
+      const perm = await Notifications.getPermissionsAsync();
+      if (perm.granted) await registerToken();
+    } catch {}
+  });
+  const sub = Notifications.addNotificationResponseReceivedListener((res) => handleResponse(res, onCall));
+  // opened from a notification while the app was closed
+  Notifications.getLastNotificationResponseAsync()
+    .then((res) => handleResponse(res, onCall))
+    .catch(() => {});
+  return () => sub.remove();
+}
+
+export async function askForPushOnce(): Promise<void> {
+  try {
+    const perm = await Notifications.getPermissionsAsync();
+    if (perm.granted) return registerToken();
+    if (!perm.canAskAgain || (await AsyncStorage.getItem(ASKED_KEY))) return;
+    await AsyncStorage.setItem(ASKED_KEY, '1');
+    if (!(await askUser())) return;
+    await ensureChannel(); // Android 13+ shows the system prompt only once a channel exists
+    const res = await Notifications.requestPermissionsAsync();
+    if (res.granted) await registerToken();
+  } catch {}
+}

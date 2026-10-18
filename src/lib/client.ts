@@ -1,11 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import type {
   ClientMsg,
   GameAction,
   GameId,
+  GroupInfo,
+  GroupRequest,
+  PlayerInfo,
   RoomAction,
   RoomView,
   ServerMsg,
@@ -15,6 +18,8 @@ import { getProfile } from './profile';
 import { serverUrl } from './server-url';
 
 const LAST_ROOM_KEY = 'fg.lastRoom.v1';
+/** the last group list, so the home screen shows the groups at once (refreshed when connected) */
+const GROUPS_KEY = 'fg.groups.v1';
 
 export type ConnStatus = 'idle' | 'connecting' | 'online' | 'offline';
 
@@ -26,6 +31,19 @@ export interface ClientSnapshot {
   offset: number;
   lastCode: string | null;
   url: string;
+  /** my groups (null until known) */
+  groups: GroupInfo[] | null;
+  /** a group I'm in started playing: the invitation to show (see GroupCallSheet) */
+  call: GroupCall | null;
+  /** the server's answer to my last group create / join */
+  groupReply: { id: number; a: 'create' | 'join'; group: GroupInfo } | null;
+}
+
+export interface GroupCall {
+  id: number;
+  group: { id: string; name: string };
+  code: string;
+  by: PlayerInfo;
 }
 
 class GameClient {
@@ -39,6 +57,11 @@ class GameClient {
   private errorId = 0;
   private code: string | null = null;
   private appStateSub: { remove(): void } | null = null;
+  /** moving from one room to another: states of the old room still on their way are ignored */
+  private switchTo: string | null = null;
+  private pushToken: string | null = null;
+  private callId = 0;
+  private replyId = 0;
   /** voice chat messages go to the voice manager (src/lib/voice.ts) */
   private voiceListener: ((msg: Extract<ServerMsg, { t: 'signal' | 'voiceConfig' }>) => void) | null = null;
 
@@ -49,6 +72,9 @@ class GameClient {
     offset: 0,
     lastCode: null,
     url: '',
+    groups: null,
+    call: null,
+    groupReply: null,
   };
 
   subscribe = (l: () => void) => {
@@ -68,14 +94,46 @@ class GameClient {
       const last = await AsyncStorage.getItem(LAST_ROOM_KEY);
       if (last) this.update({ lastCode: last });
     } catch {}
+    try {
+      const raw = await AsyncStorage.getItem(GROUPS_KEY);
+      if (raw && !this.snap.groups) {
+        // who is online and who is playing is only known once connected
+        const saved = (JSON.parse(raw) as GroupInfo[]).map((g) => ({ ...g, playing: null, members: g.members.map((m) => ({ ...m, online: false })) }));
+        this.update({ groups: saved });
+      }
+    } catch {}
     if (!this.appStateSub) {
       this.appStateSub = AppState.addEventListener('change', (s) => {
-        if (s === 'active' && this.wanted && !this.isOpen()) {
-          this.retry = 0;
-          this.connect();
+        if (s === 'active') {
+          // the app is open: be connected, so the family sees us and our calls arrive
+          if (!this.isOpen()) {
+            this.retry = 0;
+            this.connect();
+          }
+        } else if (s === 'background' && Platform.OS !== 'web' && !this.code) {
+          // closed outside a room: let the server know, so a group call comes as a notification
+          this.sleep();
         }
       });
     }
+  }
+
+  /** Stay connected while the app is open (presence and group calls), not only inside a room. */
+  start() {
+    if (AppState.currentState === 'background' && Platform.OS !== 'web') return;
+    this.connect();
+  }
+
+  /** Disconnect until the app comes back (outside a room only). */
+  private sleep() {
+    this.wanted = false;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    try {
+      this.ws?.close();
+    } catch {}
   }
 
   serverNow() {
@@ -163,10 +221,30 @@ class GameClient {
   private onMessage(msg: ServerMsg) {
     switch (msg.t) {
       case 'welcome':
+        this.update({ offset: msg.now - Date.now() });
+        this.raw({ t: 'groups' });
+        if (this.pushToken) this.raw({ t: 'push', token: this.pushToken });
+        return;
       case 'pong':
         this.update({ offset: msg.now - Date.now() });
         return;
+      case 'groups':
+        this.update({ groups: msg.groups });
+        AsyncStorage.setItem(GROUPS_KEY, JSON.stringify(msg.groups)).catch(() => {});
+        return;
+      case 'group':
+        this.update({ groupReply: { id: ++this.replyId, a: msg.a, group: msg.group } });
+        return;
+      case 'groupCall':
+        // already in that room: nothing to invite me to
+        if (this.snap.room?.code === msg.code || this.code === msg.code) return;
+        this.update({ call: { id: ++this.callId, group: msg.group, code: msg.code, by: msg.by } });
+        return;
       case 'state': {
+        if (this.switchTo) {
+          if (msg.room.code !== this.switchTo) return; // the room we're leaving
+          this.switchTo = null;
+        }
         this.code = msg.room.code;
         if (this.snap.lastCode !== msg.room.code) {
           AsyncStorage.setItem(LAST_ROOM_KEY, msg.room.code).catch(() => {});
@@ -175,8 +253,10 @@ class GameClient {
         return;
       }
       case 'error': {
-        if (msg.code === 'no_room') {
+        if (msg.code === 'no_room' || (this.switchTo && msg.code !== 'group')) {
+          // (a refused move to another room: the server already took us out of the old one)
           this.code = null;
+          this.switchTo = null;
           this.forgetRoom();
         }
         this.update({ error: { id: ++this.errorId, message: msg.message, code: msg.code } });
@@ -187,6 +267,7 @@ class GameClient {
         this.voiceListener?.(msg);
         return;
       case 'left':
+        if (this.switchTo) return; // the old room letting us go on the way to the new one
         this.code = null;
         this.forgetRoom();
         if (msg.kicked) this.update({ error: { id: ++this.errorId, message: 'أخرجك المضيف من الغرفة', code: 'kicked' } });
@@ -229,20 +310,54 @@ class GameClient {
 
   createRoom(game: GameId) {
     this.code = null;
+    this.switchTo = null;
     this.update({ room: null });
     this.send({ t: 'create', game });
   }
 
   joinRoom(code: string) {
+    // from one room straight into another (an invitation accepted in a room): the old room stays
+    // on screen until the new one arrives
+    const switching = !!this.snap.room && this.snap.room.code !== code;
     this.code = code;
-    if (this.snap.room?.code !== code) this.update({ room: null });
+    this.switchTo = switching ? code : null;
+    if (this.snap.call?.code === code) this.update({ call: null });
     if (this.isOpen()) this.raw({ t: 'join', code });
     else this.connect(); // join is sent on open
+  }
+
+  /** «لنلعب»: open the group's room (or join it if it is already playing). */
+  groupPlay(id: string) {
+    this.code = null;
+    this.switchTo = null;
+    this.update({ room: null, call: this.snap.call?.group.id === id ? null : this.snap.call });
+    this.send({ t: 'group', a: 'play', id });
+  }
+
+  group(msg: Exclude<GroupRequest, { a: 'play' }>) {
+    this.send(msg);
+  }
+
+  /** Ask for my groups again (e.g. pulling the home screen). */
+  refreshGroups() {
+    if (this.isOpen()) this.raw({ t: 'groups' });
+    else this.connect();
+  }
+
+  /** The Expo push token of this phone: sent now and on every connection. */
+  setPushToken(token: string) {
+    this.pushToken = token;
+    if (this.isOpen()) this.raw({ t: 'push', token });
+  }
+
+  dismissCall() {
+    this.update({ call: null });
   }
 
   leaveRoom() {
     if (this.isOpen()) this.raw({ t: 'leave' });
     this.code = null;
+    this.switchTo = null;
     this.forgetRoom();
   }
 

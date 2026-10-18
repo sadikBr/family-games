@@ -55,3 +55,5 @@ tools/art/.out
 # Firebase service account keys are private: never commit them (google-services.json is public and stays)
 *-firebase-adminsdk-*.json
 service-account*.json
+# the groups database when the server runs without DATA_DIR (see server/db.ts)
+/data/

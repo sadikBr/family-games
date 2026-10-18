@@ -4,6 +4,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
+import { GroupWaiting } from '@/groups/waiting-panel';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { BOT_GAMES, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
@@ -85,6 +86,9 @@ export function Lobby({ room }: { room: RoomView }) {
 
   return (
     <>
+      {/* a room opened from a group: who we are still waiting for */}
+      <GroupWaiting room={room} />
+
       {/* The game's cover */}
       <View style={[styles.cover, { backgroundColor: alpha(accent, 0.16), borderColor: alpha(accent, 0.5) }]}>
         <Row gap={14} style={{ alignItems: 'center' }}>
@@ -259,19 +263,24 @@ export function LobbyFooter({ room }: { room: RoomView }) {
   const missing = Math.max(0, meta.minPlayers - online);
   const maxSeats = MAX_PLAYERS[room.game];
   const tooMany = maxSeats ? online > maxSeats : false;
+  const groupWait = !!room.group?.waiting;
   if (!isHost) {
     return (
       <View style={styles.waiting}>
         <Icon name="clock" size={18} color={C.muted} />
         <Txt v="bold" color={C.muted}>
-          في انتظار المضيف ليبدأ
+          {groupWait ? 'بانتظار بقية المجموعة' : 'في انتظار المضيف ليبدأ'}
         </Txt>
       </View>
     );
   }
   return (
     <View style={{ gap: 6 }}>
-      {tooMany ? (
+      {groupWait ? (
+        <Txt v="small" center color={C.muted}>
+          بانتظار بقية المجموعة — أو اضغط «ابدأ بالموجودين»
+        </Txt>
+      ) : tooMany ? (
         <Txt v="small" center color={C.muted}>
           هذه اللعبة لـ {num(maxSeats!)} لاعبين على الأكثر
         </Txt>
@@ -281,7 +290,7 @@ export function LobbyFooter({ room }: { room: RoomView }) {
           {botsAllowed ? '، أو أضيفوا بوتات' : ''}
         </Txt>
       ) : null}
-      <Btn size="xl" icon="play" label="ابدأ اللعبة" color={C.green} disabled={missing > 0 || tooMany} onPress={() => client.roomAction({ type: 'start' })} />
+      <Btn size="xl" icon="play" label="ابدأ اللعبة" color={C.green} disabled={missing > 0 || tooMany || groupWait} onPress={() => client.roomAction({ type: 'start' })} />
     </View>
   );
 }

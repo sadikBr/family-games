@@ -1435,6 +1435,40 @@ export interface RoomView {
   said: Said | null;
   /** who is in the room's voice chat (connected players only) */
   voice: VoiceMember[];
+  /** a room started from a group with «لنلعب»: who we wait for (see RoomGroup) */
+  group?: RoomGroup;
+}
+
+/* ------------------------------------------------------------------ */
+/* Groups («المجموعات»)                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface GroupMember extends PlayerInfo {
+  /** the app is open on that phone right now */
+  online: boolean;
+}
+
+export interface GroupInfo {
+  id: string;
+  /** 6-letter invite code (see src/shared/groups.ts) */
+  code: string;
+  name: string;
+  /** player id of the creator (the only one who can remove members) */
+  createdBy: string;
+  members: GroupMember[];
+  /** the group's live room, if a «لنلعب» room is still open: its code, who started it, when */
+  playing: { code: string; by: string; since: number } | null;
+}
+
+/** A group room's waiting list: everyone who was in the group when «لنلعب» was pressed. */
+export interface RoomGroup {
+  id: string;
+  name: string;
+  expected: (PlayerInfo & { online: boolean; inRoom: boolean; notified?: boolean })[];
+  /** true until everyone is in, or the caller / host chose «ابدأ بالموجودين» (the game can't start before) */
+  waiting: boolean;
+  /** player id of whoever pressed «لنلعب» */
+  by: string;
 }
 
 export interface VoiceMember {
@@ -1467,7 +1501,18 @@ export type ClientMsg =
   | { t: 'room'; action: RoomAction }
   | { t: 'act'; action: GameAction }
   | { t: 'voice'; a: 'join' | 'leave' | 'mute'; muted?: boolean }
-  | { t: 'signal'; to: string; data: VoiceSignal };
+  | { t: 'signal'; to: string; data: VoiceSignal }
+  | { t: 'groups' }
+  | GroupRequest
+  | { t: 'push'; token: string };
+
+export type GroupRequest =
+  | { t: 'group'; a: 'create'; name: string }
+  | { t: 'group'; a: 'join'; code: string }
+  | { t: 'group'; a: 'leave'; id: string }
+  | { t: 'group'; a: 'rename'; id: string; name: string }
+  | { t: 'group'; a: 'remove'; id: string; player: string }
+  | { t: 'group'; a: 'play'; id: string };
 
 export type RoomAction =
   | { type: 'game'; game: GameId }
@@ -1476,7 +1521,9 @@ export type RoomAction =
   | { type: 'lobby' }
   | { type: 'kick'; id: string }
   | { type: 'addBot' }
-  | { type: 'pace'; pace: Pace };
+  | { type: 'pace'; pace: Pace }
+  /** a group room: stop waiting for the missing members (caller or host) */
+  | { type: 'groupGo' };
 
 /**
  * Bot speed. Besides scaling the bots' own thinking time, the room always leaves a pause after
@@ -1496,8 +1543,14 @@ export const PACE_LABEL: Record<Pace, string> = { slow: 'بطيئة', normal: '�
 export type ServerMsg =
   | { t: 'welcome'; now: number }
   | { t: 'state'; room: RoomView; now: number }
-  | { t: 'error'; message: string; code?: 'no_room' | 'generic' }
+  | { t: 'error'; message: string; code?: 'no_room' | 'generic' | 'group' }
   | { t: 'left'; kicked?: boolean }
   | { t: 'pong'; now: number }
   | { t: 'voiceConfig'; iceServers: IceServer[] }
-  | { t: 'signal'; from: string; data: VoiceSignal };
+  | { t: 'signal'; from: string; data: VoiceSignal }
+  /** my groups (sent on request, and again whenever one of them changes) */
+  | { t: 'groups'; groups: GroupInfo[] }
+  /** answer to a group create / join */
+  | { t: 'group'; a: 'create' | 'join'; group: GroupInfo }
+  /** someone pressed «لنلعب» in one of my groups */
+  | { t: 'groupCall'; group: { id: string; name: string }; code: string; by: PlayerInfo };

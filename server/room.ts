@@ -17,6 +17,7 @@ import {
   type PlayerInfo,
   type PlayerPublic,
   type RoomAction,
+  type RoomGroup,
   type Pace,
   type Said,
   PACES,
@@ -198,6 +199,20 @@ export function send(ws: Sock, msg: ServerMsg) {
   }
 }
 
+/** A room opened from a group with «لنلعب» (see server/groups.ts). */
+export interface RoomGroupState {
+  id: string;
+  name: string;
+  /** player id of whoever pressed «لنلعب» */
+  by: string;
+  /** the group's members at that moment */
+  expected: PlayerInfo[];
+  /** until everyone is in, or the caller / host goes on without the missing ones */
+  waiting: boolean;
+  /** members who were sent a push notification */
+  notified: Set<string>;
+}
+
 interface BotJob {
   at: number;
   botId: string;
@@ -238,6 +253,12 @@ export class Room {
   private saidCounter = 0;
   /** the last change to the game: when, and by whom ('' for a timer / new round) */
   private lastChange = { at: 0, by: '' };
+  /** set when the room was opened from a group */
+  group: RoomGroupState | null = null;
+  /** who has the app open right now (the groups hub knows; used for the group waiting list) */
+  isOnline: (id: string) => boolean = () => false;
+  /** called when a game starts (a group remembers its last game) */
+  onStart: ((game: GameId) => void) | null = null;
 
   constructor(
     public readonly code: string,
@@ -336,7 +357,40 @@ export class Room {
     this.sockets.set(info.id, ws);
     ws.data.code = this.code;
     this.touch();
+    this.checkGroupComplete();
     this.broadcast();
+  }
+
+  /** Everyone the group waits for is in the room: stop waiting. Returns true if it just happened. */
+  checkGroupComplete(): boolean {
+    const g = this.group;
+    if (!g?.waiting) return false;
+    const done = g.expected.every((e) => this.players.some((p) => p.id === e.id && p.connected && !p.bot));
+    if (done) g.waiting = false;
+    return done;
+  }
+
+  private groupView(): RoomGroup | undefined {
+    const g = this.group;
+    if (!g) return undefined;
+    return {
+      id: g.id,
+      name: g.name,
+      by: g.by,
+      waiting: g.waiting,
+      expected: g.expected.map((e) => {
+        const p = this.players.find((x) => x.id === e.id && !x.bot);
+        return {
+          id: e.id,
+          name: p?.name ?? e.name,
+          avatar: p?.avatar ?? e.avatar,
+          color: p?.color ?? e.color,
+          inRoom: !!p?.connected,
+          online: !!p?.connected || this.isOnline(e.id),
+          notified: g.notified.has(e.id) || undefined,
+        };
+      }),
+    };
   }
 
   /* ---------------------------------------------------------------- */
@@ -493,6 +547,7 @@ export class Room {
       }
       case 'start': {
         if (!isHost) return;
+        if (this.group?.waiting) throw new GameError('بانتظار بقية المجموعة — أو اضغط «ابدأ بالموجودين»');
         const botsAllowed = BOT_GAMES.includes(this.game);
         const participants = this.players
           .filter((p) => p.connected && (botsAllowed || !p.bot))
@@ -520,6 +575,17 @@ export class Room {
         this.state = this.module.start(ctx, participants, settings);
         this.status = 'playing';
         this.markChange('');
+        try {
+          this.onStart?.(this.game);
+        } catch (e) {
+          console.error(e);
+        }
+        break;
+      }
+      case 'groupGo': {
+        // «ابدأ بالموجودين»: the caller or the host stops waiting for the missing members
+        if (!this.group?.waiting || (by !== this.group.by && !isHost)) return;
+        this.group.waiting = false;
         break;
       }
       case 'lobby': {
@@ -795,6 +861,7 @@ export class Room {
       said: this.status === 'playing' ? this.said : null,
       pace: this.pace,
       voice: [...this.voice].map(([id, v]) => ({ id, muted: v.muted })),
+      group: this.groupView(),
     };
   }
 

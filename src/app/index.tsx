@@ -1,6 +1,7 @@
 /**
  * Home. Its one job: get the family into a game fast. From the top: who you are, a greeting, the
- * two ways in (join a room by its code, or go back to the last one), «لعبة اليوم» — one game picked
+ * two ways in (join a room by its code, or go back to the last one), «مجموعاتي» — the family's
+ * groups, each with its «لنلعب» button — «لعبة اليوم» — one game picked
  * for the day — the games you played recently, then every game, with search, a «كم عددكم؟» player
  * count and category chips. Tiles take their game's colour; the star keeps a game in favourites.
  */
@@ -12,6 +13,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { GameArt, HeroArt } from '@/art/game-art';
 import { Icon, type IconName } from '@/art/icons';
 import { GAMES, GAME_GROUPS, GAME_ORDER, type GameMeta } from '@/games/meta';
+import { GroupsSection } from '@/groups/group-card';
 import { client, useClient } from '@/lib/client';
 import { toggleFavorite, useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
@@ -277,6 +279,8 @@ export default function Home() {
           أو اختر لعبة في الأسفل لتفتح غرفة جديدة وتدعو الآخرين
         </Txt>
       </View>
+
+      <GroupsSection />
 
       {!filtered ? <Featured game={featured} /> : null}
 

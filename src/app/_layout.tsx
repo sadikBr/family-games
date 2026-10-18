@@ -6,14 +6,16 @@ import {
 import { AmiriQuran_400Regular } from '@expo-google-fonts/amiri-quran';
 import { Lalezar_400Regular } from '@expo-google-fonts/lalezar';
 import { useFonts } from 'expo-font';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { GroupCallSheet, PushPrompt } from '@/groups/call-sheet';
 import { client } from '@/lib/client';
 import { loadProfile } from '@/lib/profile';
+import { initPush } from '@/lib/push';
 import { loadServerOverride } from '@/lib/server-url';
 import { initSfx } from '@/lib/sfx';
 import { C } from '@/theme';
@@ -37,14 +39,25 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadProfile(), loadServerOverride(), client.init(), initSfx()]).finally(() =>
-      setReady(true),
-    );
+    Promise.all([loadProfile(), loadServerOverride(), client.init(), initSfx()]).finally(() => {
+      setReady(true);
+      // connected while the app is open: the family sees who is here, and group calls arrive
+      client.start();
+    });
   }, []);
 
   const done = (fontsLoaded || !!fontError) && ready;
   useEffect(() => {
     if (done) SplashScreen.hideAsync().catch(() => {});
+  }, [done]);
+
+  // a tapped group-call notification: straight into that room
+  useEffect(() => {
+    if (!done) return;
+    return initPush((code) => {
+      client.joinRoom(code);
+      router.push('/room');
+    });
   }, [done]);
 
   if (!done) return <View style={styles.root} />;
@@ -62,6 +75,8 @@ export default function RootLayout() {
           <Stack.Screen name="profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
         <Toast />
+        <GroupCallSheet />
+        <PushPrompt />
       </View>
     </ThemeProvider>
   );

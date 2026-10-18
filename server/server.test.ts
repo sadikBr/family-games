@@ -4,6 +4,9 @@
  */
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import type { Subprocess } from 'bun';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type {
   BattleshipView,
@@ -46,10 +49,12 @@ import { colorsOf } from '../src/shared/uno';
 
 const PORT = 5799;
 let proc: Subprocess;
+/** the groups database goes to a throw-away folder */
+const DATA_DIR = mkdtempSync(join(tmpdir(), 'fg-server-test-'));
 
 beforeAll(async () => {
   proc = Bun.spawn(['bun', 'run', `${import.meta.dir}/index.ts`], {
-    env: { ...process.env, PORT: String(PORT), BOT_SPEED: process.env.BOT_SPEED ?? '1', AUTOPILOT_MS: '1500', HOST_HANDOVER_MS: '1200' },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR, BOT_SPEED: process.env.BOT_SPEED ?? '1', AUTOPILOT_MS: '1500', HOST_HANDOVER_MS: '1200' },
     stdout: 'ignore',
     stderr: 'inherit',
   });
@@ -63,7 +68,10 @@ beforeAll(async () => {
   throw new Error('server did not start');
 });
 
-afterAll(() => proc.kill());
+afterAll(() => {
+  proc.kill();
+  rmSync(DATA_DIR, { recursive: true, force: true });
+});
 
 class Phone {
   ws!: WebSocket;
