@@ -292,6 +292,25 @@ after 15 minutes without players (about a minute to wake) and may ask for a card
 3. When it finishes you get a link and a QR code. Open it on the phone, download the `.apk` and install
    it (Android asks you to allow installing apps from this source). Send the same file to the family.
 
+### Building the APK on a Windows PC
+
+EAS local builds don't run on Windows, so `scripts/build-apk-windows.ps1` builds with Gradle directly
+(same app and server address as the EAS «preview» build).
+
+1. Install [Bun](https://bun.sh) (or Node.js).
+2. JDK 17, as a zip: [Microsoft Build of OpenJDK 17](https://learn.microsoft.com/java/openjdk/download#openjdk-17)
+   (or [Eclipse Temurin 17](https://adoptium.net/temurin/releases/?version=17&os=windows&arch=x64&package=jdk) → `.zip`).
+   Unzip to `C:\Android\jdk-17`.
+3. Android command-line tools: [developer.android.com/studio](https://developer.android.com/studio#command-line-tools-only)
+   → «Command line tools only» → Windows. Unzip, then move the inner `cmdline-tools` folder so that
+   `C:\Android\sdk\cmdline-tools\latest\bin\sdkmanager.bat` exists.
+4. Put the project in a short path (e.g. `C:\fg`) — the native build breaks on long Windows paths.
+5. Double-click `scripts\build-apk-windows.cmd` (or `bun run build:apk-windows`). The first run installs the
+   SDK packages and takes 10–30 minutes; the APK ends up as `family-games.apk` in the project folder.
+   Other locations: `-JavaHome …` / `-AndroidHome …` (or the `JAVA_HOME` / `ANDROID_HOME` variables).
+
+The APK is signed with a local key, so a phone that has the GitLab-built APK must uninstall it first.
+
 ### Updating later
 
 - **Server / game rules:** `npx @railway/cli up` (attach a volume first so the groups survive it — see [المجموعات](#المجموعات-groups)).
