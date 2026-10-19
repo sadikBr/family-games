@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { BOARD_IMG } from '@/art/assets';
 import { GameArt } from '@/art/game-art';
@@ -15,7 +15,8 @@ import { Confetti } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar, SlideIn, winLine } from './duel';
+import { FadeAside, Glide, HOP, Hint, Lift, SoftMark, glideMs, nudge, useBoardChange } from './board-motion';
+import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
 
 // the board image has a frame: squares span 9/98 … 89/98 of its width
@@ -23,6 +24,17 @@ const INSET = 9 / 98;
 const SPAN = 80 / 98;
 
 const pieceImg = (v: number) => BOARD_IMG[`dama-${v > 0 ? 'white' : 'black'}${Math.abs(v) === 2 ? '-king' : ''}`];
+type LastMove = NonNullable<DamaView['lastMove']>;
+
+/** Is `prev → board` exactly the last move (so it can be animated)? Not when two moves arrived together. */
+function fitsMove(prev: number[] | null, board: number[], lm: LastMove | null): lm is LastMove {
+  if (!prev || !lm || prev.length !== board.length || !lm.path.length) return false;
+  const to = lm.path[lm.path.length - 1];
+  if (!prev[lm.from] || Math.sign(prev[lm.from]) !== Math.sign(board[to])) return false;
+  if (lm.captures.some((c) => !prev[c] || board[c])) return false;
+  const touched = new Set([lm.from, to, ...lm.captures]);
+  return board.every((v, i) => touched.has(i) || v === prev[i]);
+}
 
 export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
   const h = helpers(room);
@@ -32,6 +44,9 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
   const boardW = Math.min(width - 32, 460);
   const sq = (boardW * SPAN) / 8;
   const off = boardW * INSET;
+  const lm = view.lastMove;
+  const moveKey = `${view.board.join(',')}|${lm ? `${lm.from}-${lm.path.join('-')}` : ''}`;
+  const mv = useBoardChange(moveKey, view.board);
 
   if (!view.myColor && view.phase === 'play') return <Spectator room={room} />;
 
@@ -49,15 +64,25 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
     }
     return { left: off + c * sq, top: off + r * sq };
   };
-  const lm = view.lastMove;
   const last = lm ? [lm.from, ...lm.path] : [];
-  const moveKey = lm ? `${lm.from}-${lm.path.join('-')}` : '';
   const lastTo = lm ? lm.path[lm.path.length - 1] : -1;
-  // the moved piece slides in from its square, through every square of a capture chain
+  // the last move, played while the board was on screen: the piece glides (hopping through every
+  // square of a capture chain) and each piece taken fades aside as the mover passes it
+  const prev = mv.live && fitsMove(mv.prev, view.board, lm) ? mv.prev : null;
+  const xy = (i: number) => ({ x: pos(i).left, y: pos(i).top });
+  const hops = lm ? lm.path.length : 0;
+  const firstMs = lm ? glideMs(Math.hypot(xy(lm.from).x - xy(lastTo).x, xy(lm.from).y - xy(lastTo).y) / sq) : 0;
+  const hopMs = hops > 1 ? HOP : firstMs;
   const slideFrom = (i: number) => {
-    if (!lm || i !== lastTo) return null;
-    const d = pos(i);
-    return [lm.from, ...lm.path.slice(0, -1)].map((k) => ({ x: pos(k).left - d.left, y: pos(k).top - d.top }));
+    if (!lm || !prev || !mv.fresh || i !== lastTo) return null;
+    const d = xy(i);
+    return [lm.from, ...lm.path.slice(0, -1)].map((k) => ({ x: xy(k).x - d.x, y: xy(k).y - d.y }));
+  };
+  // the k-th piece taken is jumped during the k-th hop
+  const takenAt = (k: number) => {
+    const a = k === 0 ? lm!.from : lm!.path[k - 1];
+    const b = lm!.path[Math.min(k, hops - 1)];
+    return { delay: k * hopMs + hopMs * 0.55, drift: nudge(xy(a), xy(b), sq * 0.18) };
   };
 
   const tap = (i: number) => {
@@ -98,15 +123,21 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
           title={view.winner === 'draw' ? 'تعادل' : won ? 'فزت!' : winLine(h.player(view[view.winner as 'white' | 'black']).name)}
           sub={reason}
         />
-      ) : myTurn ? (
+      ) : (
+        // the line keeps its place when it's not my turn, so the board doesn't jump under a moving piece
         <Txt v="bold" center color={C.yellow}>
-          {mustCapture ? 'الأكل إجباري — كُل قطعة!' : sel === null ? 'اختر قطعة لتحريكها' : 'اختر أين تذهب'}
+          {myTurn ? (mustCapture ? 'الأكل إجباري — كُل قطعة!' : sel === null ? 'اختر قطعة لتحريكها' : 'اختر أين تذهب') : ' '}
         </Txt>
-      ) : null}
+      )}
       <View style={{ width: boardW, height: boardW, alignSelf: 'center', direction: 'ltr' }}>
         <Image source={BOARD_IMG['dama-board']} style={StyleSheet.absoluteFill} contentFit="contain" />
         {last.map((i, k) => (
-          <View key={`l${k}:${i}`} style={[styles.mark, pos(i), { width: sq, height: sq, backgroundColor: alpha(C.yellow, k === 0 || k === last.length - 1 ? 0.28 : 0.16) }]} />
+          <SoftMark
+            key={`${moveKey}:${k}`}
+            animate={mv.fresh}
+            delay={hops > 1 ? Math.max(0, k - 1) * hopMs : 0}
+            style={[styles.mark, pos(i), { width: sq, height: sq, backgroundColor: alpha(C.yellow, k === 0 || k === last.length - 1 ? 0.28 : 0.16) }]}
+          />
         ))}
         {view.board.map((v, i) => {
           const dark = (Math.floor(i / 8) + (i % 8)) % 2 === 1;
@@ -114,24 +145,44 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
           const p = pos(i);
           const can = myTurn && from.has(i);
           const isTarget = targets.some((m) => m.path[m.path.length - 1] === i);
-          const taken = !v && !!lm?.captures.includes(i);
+          const capIdx = lm ? lm.captures.indexOf(i) : -1;
+          const taken = !v && capIdx >= 0;
           const slide = v ? slideFrom(i) : null;
           const piece = v ? (
-            <Animated.View key={`${i}:${v}`} entering={slide ? undefined : FadeIn.duration(140)} style={[styles.piece, sel === i && styles.pieceSel, can && sel !== i && styles.pieceCan]}>
-              <Image source={pieceImg(v)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" />
+            <Animated.View key={`${i}:${v}`} entering={!slide && mv.live && mv.prev && mv.prev[i] !== v ? FadeIn.duration(160) : undefined}>
+              <Lift on={sel === i} y={3}>
+                <View style={styles.piece}>
+                  <Image source={pieceImg(v)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" />
+                  {can && sel !== i ? <Hint style={[styles.ring, { borderColor: alpha(C.yellow, 0.45) }]} /> : null}
+                  {sel === i ? <Hint style={[styles.ring, { borderColor: C.yellow }]} /> : null}
+                </View>
+              </Lift>
             </Animated.View>
           ) : null;
           return (
             <Pressable key={i} disabled={final} onPress={() => tap(i)} style={[styles.cell, p, { width: sq, height: sq }, i === lastTo && { zIndex: 2 }]} accessibilityLabel={`مربع ${i}${taken ? ' — أُكلت هنا قطعة' : ''}`}>
-              {taken ? <Animated.View key={`cap${moveKey}`} exiting={FadeOut} style={[styles.ghost, { width: sq * 0.62, height: sq * 0.62, borderRadius: sq }]} /> : null}
+              {taken ? (
+                <SoftMark key={`cap${moveKey}`} animate={!!prev} delay={prev ? takenAt(capIdx).delay + 120 : 0} style={[styles.ghost, { width: sq * 0.5, height: sq * 0.5, borderRadius: sq }]} />
+              ) : null}
+              {taken && prev ? (
+                <FadeAside
+                  key={`fade${moveKey}`}
+                  reduced={!mv.fresh}
+                  {...takenAt(capIdx)}
+                  style={{ position: 'absolute', left: (sq - sq * 0.92 - 5) / 2, top: (sq - sq * 0.92 - 5) / 2 }}>
+                  <View style={styles.piece}>
+                    <Image source={pieceImg(prev[i])} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" />
+                  </View>
+                </FadeAside>
+              ) : null}
               {slide ? (
-                <SlideIn key={`${moveKey}:${v}`} steps={slide} ms={slide.length > 1 ? 230 : 200}>
+                <Glide key={`${moveKey}:${v}`} steps={slide} ms={firstMs}>
                   {piece}
-                </SlideIn>
+                </Glide>
               ) : (
                 piece
               )}
-              {isTarget ? <View style={[styles.dot, { width: sq * 0.34, height: sq * 0.34, borderRadius: sq }]} /> : null}
+              {isTarget ? <Hint style={[styles.dot, { width: sq * 0.34, height: sq * 0.34, borderRadius: sq }]} /> : null}
             </Pressable>
           );
         })}
@@ -163,9 +214,8 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
 const styles = StyleSheet.create({
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   mark: { position: 'absolute' },
-  piece: { alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 2.5, borderColor: 'transparent' },
-  pieceSel: { borderColor: C.yellow, transform: [{ translateY: -3 }] },
-  pieceCan: { borderColor: alpha(C.yellow, 0.45) },
+  piece: { alignItems: 'center', justifyContent: 'center', borderRadius: 999, padding: 2.5 },
+  ring: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 999, borderWidth: 2.5 },
   dot: { position: 'absolute', backgroundColor: alpha(C.yellow, 0.9), borderWidth: 2, borderColor: '#151726' },
-  ghost: { position: 'absolute', backgroundColor: alpha(C.red, 0.4), borderWidth: 2, borderColor: alpha(C.red, 0.85) },
+  ghost: { position: 'absolute', backgroundColor: alpha(C.red, 0.22), borderWidth: 2, borderColor: alpha(C.red, 0.7) },
 });
