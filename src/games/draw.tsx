@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -11,6 +11,7 @@ import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
+import { useScrollLock } from '@/ui/screen';
 import { Confetti, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { li } from '@/shared/li';
@@ -52,6 +53,29 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const seq = useRef(0);
   const tool = useRef({ color: COLORS[0], width: WIDTHS[1] });
+  // the page must not scroll while a finger is on the board (Android's scroll would cut the stroke)
+  const hold = useScrollLock();
+  const holding = useRef(false);
+  const grab = () => {
+    if (holding.current) return;
+    holding.current = true;
+    hold(true);
+  };
+  const letGo = () => {
+    if (!holding.current) return;
+    holding.current = false;
+    hold(false);
+  };
+  // leaving the board (end of the turn) with a finger still down: give the page its scroll back
+  // and while the board is on screen at all: a stroke that starts with a quick swipe would otherwise be
+  // taken by the page before the lock above arrives (the board is sized to fit, nothing to scroll to)
+  useEffect(() => {
+    hold(true);
+    return () => {
+      hold(false);
+      if (holding.current) hold(false);
+    };
+  }, [hold]);
   const pickColor = (c: string) => {
     tool.current.color = c;
     setColor(c);
@@ -93,6 +117,7 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
     if (timer.current) clearInterval(timer.current);
     cur.current = null;
     setLocal(null);
+    letGo();
   };
 
   const shown = local && !view.strokes.some((s) => s.id === local.id && s.pts.length >= local.pts.length) ? [...view.strokes.filter((s) => s.id !== local.id), local] : view.strokes;
@@ -104,6 +129,9 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
         {/* a child-less layer on top, so touch coordinates are always relative to the canvas */}
         <View
           style={StyleSheet.absoluteFill}
+          onTouchStart={grab}
+          onTouchEnd={letGo}
+          onTouchCancel={letGo}
           onStartShouldSetResponder={() => true}
           onMoveShouldSetResponder={() => true}
           onResponderTerminationRequest={() => false}
@@ -162,8 +190,9 @@ function GuessBox() {
 
 export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
   const h = helpers(room);
-  const { width } = useWindowDimensions();
-  const size = Math.min(width - 32, 440);
+  const { width, height } = useWindowDimensions();
+  // the board, its colours and the guess box fit on the screen without scrolling
+  const size = Math.max(220, Math.min(width - 32, 440, height - 330));
   const accent = useAccent();
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
   const isDrawer = view.drawer === h.me;

@@ -1,6 +1,6 @@
 /** «الرسم المتسلسل» — the screen: pick a phrase, draw, guess, then the big reveal, votes and the end. */
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
@@ -138,6 +138,9 @@ function DrawStep({ room, view, task }: { room: RoomView; view: TeledrawView; ta
   const h = helpers(room);
   const accent = useAccent();
   const w = usePageWidth();
+  // the pad, its tools and «انتهيت من الرسم» fit on the screen: the page can't scroll while drawing
+  const { height } = useWindowDimensions();
+  const pad = Math.max(220, Math.min(w, height - 420));
   const prompt = task.prompt;
   const text = prompt?.empty || !prompt?.text ? NOTHING : prompt.text;
   return (
@@ -162,7 +165,7 @@ function DrawStep({ room, view, task }: { room: RoomView; view: TeledrawView; ta
         </>
       ) : (
         <>
-          <DrawPad key={`${view.step}`} size={w} initial={task.draft} frame={accent} />
+          <DrawPad key={`${view.step}`} size={pad} initial={task.draft} frame={accent} />
           <Txt v="tiny" center color={C.muted}>
             بلا حروف ولا أرقام في الرسم
           </Txt>

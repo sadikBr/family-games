@@ -3,7 +3,7 @@
  * drawing is private: lines are drawn on the phone, thinned out, and sent one by one when the finger
  * lifts (the server keeps a draft so nothing is lost if time runs out or the phone reconnects).
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -13,6 +13,7 @@ import { simplifyPoints } from '@/shared/teledraw-geom';
 import { C, alpha } from '@/theme';
 import { Row } from '@/ui/bits';
 import { IconBtn } from '@/ui/btn';
+import { useScrollLock } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
 export const PEN_COLORS = ['#1B1830', '#E2475F', '#F08A3E', '#F2B33D', '#2FB67C', '#2D9CDB', '#7B61D9', '#8A5A2B'];
@@ -63,6 +64,28 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
   const [width, setWidth] = useState(WIDTHS[1]);
   const cur = useRef<TeledrawStroke | null>(null);
   const tool = useRef({ color: PEN_COLORS[0], width: WIDTHS[1] });
+  // the page must not scroll while a finger is on the pad (Android's scroll would cut the stroke)
+  const hold = useScrollLock();
+  const holding = useRef(false);
+  const grab = () => {
+    if (holding.current) return;
+    holding.current = true;
+    hold(true);
+  };
+  const letGo = () => {
+    if (!holding.current) return;
+    holding.current = false;
+    hold(false);
+  };
+  // and while the board is on screen at all: a stroke that starts with a quick swipe would otherwise be
+  // taken by the page before the lock above arrives (the board is sized to fit, nothing to scroll to)
+  useEffect(() => {
+    hold(true);
+    return () => {
+      hold(false);
+      if (holding.current) hold(false);
+    };
+  }, [hold]);
   const pickColor = (c: string) => {
     tool.current.color = c;
     setColor(c);
@@ -91,6 +114,7 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
     setLive({ ...s, p: s.p.slice() });
   };
   const end = () => {
+    letGo();
     const s = cur.current;
     cur.current = null;
     setLive(null);
@@ -120,6 +144,9 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
         <View
           style={StyleSheet.absoluteFill}
           accessibilityLabel="لوحة الرسم"
+          onTouchStart={grab}
+          onTouchEnd={letGo}
+          onTouchCancel={letGo}
           onStartShouldSetResponder={() => true}
           onMoveShouldSetResponder={() => true}
           onResponderTerminationRequest={() => false}

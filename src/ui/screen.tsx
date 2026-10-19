@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -39,6 +39,17 @@ function Glow({ color, width, height }: { color: string; width: number; height: 
   );
 }
 
+/**
+ * A drawing board (or anything dragged with a finger) inside the page's scroll: on Android the
+ * ScrollView takes over any vertical drag and cuts the stroke short. `useScrollLock()` returns
+ * `hold(on)`: call hold(true) when a finger goes down on the board, hold(false) when it lifts — the
+ * page doesn't scroll in between.
+ */
+const ScrollLockContext = createContext<(on: boolean) => void>(() => {});
+export function useScrollLock() {
+  return use(ScrollLockContext);
+}
+
 /** Usable width inside <Screen> (16px gutters, 560px max), for grids that must fit any phone. */
 export function useContentWidth() {
   const { width } = useWindowDimensions();
@@ -52,6 +63,8 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
     if (scrollKey !== undefined) scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [scrollKey]);
   const contentRef = useRef<View>(null);
+  const [locks, setLocks] = useState(0);
+  const hold = useCallback((on: boolean) => setLocks((n) => Math.max(0, n + (on ? 1 : -1))), []);
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
       {glow ? <Glow color={glow} width={width} height={height} /> : null}
@@ -62,8 +75,10 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
           {header}
           {scroll ? (
             <KeyboardScrollContext.Provider value={{ scroll: scrollRef, content: contentRef }}>
+              <ScrollLockContext.Provider value={hold}>
               <ScrollView
                 ref={scrollRef}
+                scrollEnabled={locks === 0}
                 style={styles.flex}
                 contentContainerStyle={[styles.content, contentStyle]}
                 keyboardShouldPersistTaps="handled"
@@ -73,6 +88,7 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
                   {children}
                 </View>
               </ScrollView>
+              </ScrollLockContext.Provider>
             </KeyboardScrollContext.Provider>
           ) : (
             <View style={[styles.flex, styles.content, contentStyle]}>
