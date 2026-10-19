@@ -17,6 +17,7 @@ import { qdeck } from '../qdeck';
 import { HAJJ_SKILL, hajjCardChoice } from '../ai/misc-hajj';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { HAJJ_STATION_VOICE, voiceAnd, voiceWinner } from '../voice-calls-boards';
 import { mcqOptions } from './mcq';
 
 /** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
@@ -319,7 +320,9 @@ export const hajj: GameModule<State, HajjSettings> = {
       else if (c?.kind === 'event') what = c.title === 'عمل صالح' ? ' — عمل صالح وخطوات إلى الأمام' : ' — تأخير في الطريق';
       else if (c?.kind === 'zad') what = ' — الصبر منع التأخير';
       else if (s.question) what = ' — وسؤال';
-      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}${bonus ? ` (+${bonus})` : ''}${what}`, by);
+      // read aloud: the station reached (and the winner at «طواف الوداع»)
+      const voice = c?.kind === 'station' ? voiceAnd(HAJJ_STATION_VOICE[c.title], s.winner === by && voiceWinner(ctx.playerName(by))) : undefined;
+      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}${bonus ? ` (+${bonus})` : ''}${what}`, by, voice);
       return;
     }
 
@@ -335,16 +338,19 @@ export const hajj: GameModule<State, HajjSettings> = {
           text: `«${q.options[q.correct]}» — تقدّم خطوة${got ? ` وخذ بطاقة «${ZAD_INFO[got].title}»` : ''}.`,
         });
         s.feed.push(`${ctx.playerName(by)} أجاب صحيحاً`, { by });
-        ctx.say?.(`إجابة صحيحة من ${ctx.playerName(by)} — خطوة إلى الأمام`, by);
         ctx.fx('correct', by);
       } else {
-        ctx.say?.(`إجابة خاطئة من ${ctx.playerName(by)}`, by);
         card(s, by, { kind: 'wrong', title: 'إجابة خاطئة', text: `الجواب الصحيح: «${q.options[q.correct]}».` });
         ctx.fx('buzz', by);
       }
       s.question = null;
-      if (hajjSquare(p.pos) === 'station' && a.choice === q.correct) return stationArrival(ctx, s, p);
-      endTurn(s);
+      const right = a.choice === q.correct;
+      const station = right && hajjSquare(p.pos) === 'station';
+      if (station) stationArrival(ctx, s, p);
+      else endTurn(s);
+      // said after the step: the station it led to is read aloud (and the winner at «طواف الوداع»)
+      const voice = station ? voiceAnd(HAJJ_STATION_VOICE[HAJJ_STATIONS[hajjStationAt(p.pos)].title], s.winner === by && voiceWinner(ctx.playerName(by))) : undefined;
+      ctx.say?.(right ? `إجابة صحيحة من ${ctx.playerName(by)} — خطوة إلى الأمام` : `إجابة خاطئة من ${ctx.playerName(by)}`, by, voice);
     }
   },
 

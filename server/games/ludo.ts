@@ -12,6 +12,7 @@ import { Feed, randDelay } from '../cardkit';
 import { ludoBotMove } from '../ai/misc-ludo';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: LudoSettings;
@@ -113,7 +114,7 @@ function moveToken(s: State, id: string, t: number): { captured: string[]; finis
 }
 
 /** One short line for the turn bar: what the move did. */
-function sayMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }) {
+function sayMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }, voice?: string) {
   const name = li(ctx.playerName(id));
   const lm = s.lastMove!;
   let text: string;
@@ -123,11 +124,13 @@ function sayMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; 
   else text = `رمية ${name}: ${s.dice} — حركة قطعة`;
   const again = s.dice === 6 || res.captured.length > 0 || res.finished;
   if (again && s.tokens[id].some((p) => p < FINISH)) text += ' — ودور إضافي';
-  ctx.say?.(text, id);
+  ctx.say?.(text, id, voice);
 }
 
 function afterMove(ctx: GameCtx, s: State, id: string, res: { captured: string[]; finished: boolean }) {
-  sayMove(ctx, s, id, res);
+  // read aloud: a capture, a piece home, and the winner (the first to bring every piece home)
+  const first = !s.winner && s.tokens[id].every((p) => p >= FINISH);
+  sayMove(ctx, s, id, res, voiceAnd(res.captured.length > 0 && VB.capture, res.finished && VB.home, first && voiceWinner(ctx.playerName(id))));
   if (res.captured.length) {
     s.feed.push(`${ctx.playerName(id)} أكل ${res.captured.map((c) => ctx.playerName(c)).join(' و ')}`, { by: id });
     ctx.fx('boom', res.captured[0]);
@@ -193,7 +196,7 @@ export const ludo: GameModule<State, LudoSettings> = {
         s.sixes += 1;
         if (s.sixes === 3) {
           s.feed.push(`${ctx.playerName(by)}: ثلاث رميات من 6 متتالية! ضاع الدور`, { by });
-          ctx.say?.(`ثلاث رميات من 6 ${li(ctx.playerName(by))} — ضاع الدور`, by);
+          ctx.say?.(`ثلاث رميات من 6 ${li(ctx.playerName(by))} — ضاع الدور`, by, VB.turnLost);
           nextTurn(s);
           s.dice = d;
           return;
@@ -202,12 +205,13 @@ export const ludo: GameModule<State, LudoSettings> = {
       const can = movableTokens(s.tokens[by], d, s.settings.exitOnOne);
       if (!can.length) {
         s.feed.push(`${ctx.playerName(by)} رمى ${d} — لا توجد حركة`, { by });
-        ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d} — لا حركة ممكنة`, by);
+        ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d} — لا حركة ممكنة`, by, d === 6 ? VB.six : undefined);
         nextTurn(s);
         s.dice = d; // keep showing the roll
         return;
       }
-      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}`, by);
+      // read aloud: a 6 (a piece out, another roll)
+      ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}`, by, d === 6 ? VB.six : undefined);
       s.phase = 'move';
       s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + AUTO_MOVE_MS : null;
       return;

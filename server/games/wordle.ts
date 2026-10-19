@@ -23,6 +23,7 @@ import { quranJoinedIndex, quranWordIndex, verseFor } from '../qword-words';
 import { wordleEasyGuess, wordleExpertGuess, wordleSmartGuess } from '../ai/misc-wordle';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isStr, randInt, shuffle } from '../util';
+import { voiceLastTry, voiceResult, voiceSolved } from '../voice-calls-boards';
 import { forFont } from './tajweed';
 
 export const ROUND_MS = 4 * 60_000;
@@ -231,14 +232,19 @@ export const wordle: GameModule<State, WordleSettings> = {
     if (s.rows[by].some((r) => r.guess === g)) throw new GameError('جرّبت هذه الكلمة من قبل');
     const marks = markGuess(g, entry(s).key);
     s.rows[by].push({ guess: g, marks });
+    const tries = s.rows[by].length;
     if (marks.every((m) => m === 'g')) {
       s.solvedAt[by] = Object.keys(s.solvedAt).length;
       ctx.fx('correct', by);
+      // read aloud: who found it (never the word, the others are still looking)
+      const first = s.solvedAt[by] === 0;
+      ctx.say?.(`${first ? 'أول حل' : 'حل'}: ${ctx.playerName(by)} في ${tries === 1 ? 'محاولة واحدة' : tries === 2 ? 'محاولتين' : `${tries} محاولات`}`, by, voiceSolved(ctx.playerName(by), first));
       if (full(s.settings).race) {
         finishRound(ctx, s);
         return;
       }
     } else if (s.rows[by].length >= MAX_TRIES) ctx.fx('buzz', by);
+    else if (tries === MAX_TRIES - 1) ctx.say?.(`المحاولة الأخيرة لـ${ctx.playerName(by)}`, by, voiceLastTry(ctx.playerName(by)));
     if (endIfAllDone(ctx, s)) return;
     // half of the players are done: the rest hurry up
     const finished = s.players.filter((id) => done(s, id)).length;
@@ -257,7 +263,9 @@ export const wordle: GameModule<State, WordleSettings> = {
       if (s.round >= s.words.length) {
         s.phase = 'final';
         s.endsAt = null;
-        ctx.fx('win', topScorer(s));
+        const w = topScorer(s);
+        ctx.fx('win', w);
+        ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)} (${s.scores[w]} نقطة)` : 'انتهت اللعبة بالتعادل', w, voiceResult(w && ctx.playerName(w)));
       } else newRound(ctx, s);
     }
     return true;

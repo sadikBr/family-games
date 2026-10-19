@@ -12,6 +12,7 @@ import { duelWin, startDuel } from '../duel';
 import { damaBot } from '../ai/boards-dama';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 export type Move = { from: number; path: number[]; captures: number[] };
 /** Rule options; the maximum-capture rule is on unless `maxCapture` is false. */
@@ -234,7 +235,7 @@ export const dama: GameModule<State, DamaSettings> = {
     const side = by === s.white ? 1 : by === s.black ? -1 : 0;
     if (!side) return;
     if (a.type === 'resign') {
-      ctx.say?.(`استسلام من ${ctx.playerName(by)}`, by);
+      ctx.say?.(`استسلام من ${ctx.playerName(by)}`, by, voiceAnd(VB.surrender, voiceWinner(ctx.playerName(side === 1 ? s.black : s.white))));
       return finish(ctx, s, side === 1 ? 'black' : 'white', 'resign');
     }
     if (a.type !== 'move') return;
@@ -254,10 +255,16 @@ export const dama: GameModule<State, DamaSettings> = {
     s.quiet = m.captures.length || wasMan ? 0 : s.quiet + 1;
     s.moves += 1;
     const crowned = wasMan && Math.abs(s.board[m.path[m.path.length - 1]]) === 2;
-    ctx.say?.(`${m.captures.length ? `أكلٌ ${li(ctx.playerName(by))}: ${pieces(m.captures.length)}` : `حركة من ${ctx.playerName(by)}`}${crowned ? ' — وصارت القطعة ملكاً' : ''}`, by);
     ctx.fx(m.captures.length ? 'correct' : 'card', by);
     s.turn = s.turn === 1 ? -1 : 1;
     finishIfOver(ctx, s);
+    // said after the end check, so the winner rides on the move's call: a multiple capture, a new king, the result
+    const voice = voiceAnd(
+      m.captures.length >= 3 ? VB.captureBig : m.captures.length === 2 && VB.capture2,
+      crowned && VB.crowned,
+      s.phase !== 'play' && voiceResult(s.winner === 'draw' || !s.winner ? null : ctx.playerName(s[s.winner])),
+    );
+    ctx.say?.(`${m.captures.length ? `أكلٌ ${li(ctx.playerName(by))}: ${pieces(m.captures.length)}` : `حركة من ${ctx.playerName(by)}`}${crowned ? ' — وصارت القطعة ملكاً' : ''}`, by, voice);
   },
 
   botPlan(ctx, s) {

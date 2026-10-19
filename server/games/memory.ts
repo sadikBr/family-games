@@ -5,6 +5,7 @@ import { randDelay } from '../cardkit';
 import { memoryBotFlip } from '../ai/misc-memory';
 import { GameError, botLevel, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { VB, voiceResult } from '../voice-calls-boards';
 
 /** two cards that don't match stay face up this long before turning back */
 export const PEEK_MS = 2400;
@@ -75,13 +76,13 @@ export const memory: GameModule<State, MemorySettings> = {
       s.pairs[by] += 1;
       // the pair stays in `flipped` (shown as just found) until the next flip
       ctx.fx('correct', by);
-      ctx.say?.(`زوج لـ${ctx.playerName(by)} ودورٌ آخر`, by);
+      ctx.say?.(`زوج لـ${ctx.playerName(by)} ودورٌ آخر`, by, VB.pair);
       if (s.owners.every(Boolean)) {
         s.phase = 'final';
         const best = Math.max(...Object.values(s.pairs));
         const top = Object.keys(s.pairs).filter((p) => s.pairs[p] === best);
         ctx.fx('win', top.length === 1 ? top[0] : undefined);
-        ctx.say?.(top.length === 1 ? `انتهت اللعبة: الفوز لـ${ctx.playerName(top[0])}` : 'انتهت اللعبة بالتعادل');
+        ctx.say?.(top.length === 1 ? `انتهت اللعبة: الفوز لـ${ctx.playerName(top[0])}` : 'انتهت اللعبة بالتعادل', undefined, voiceResult(top.length === 1 ? ctx.playerName(top[0]) : null));
       }
     } else {
       s.peekUntil = ctx.now + PEEK_MS;

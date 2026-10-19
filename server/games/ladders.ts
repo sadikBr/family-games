@@ -7,6 +7,7 @@ import type { BoardCard, LaddersSettings, LaddersView } from '../../src/shared/p
 import { Feed, randDelay } from '../cardkit';
 import { GameError, type GameModule } from '../types';
 import { shuffle } from '../util';
+import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: LaddersSettings;
@@ -77,9 +78,11 @@ export const ladders: GameModule<State, LaddersSettings> = {
     }
     if (p.pos !== from) p.since = s.rollId;
     const name = li(ctx.playerName(by));
-    if (jump) ctx.say?.(`رمية ${name}: ${d} — ${jump.deed.title}: ${jump.kind === 'ladder' ? 'صعود' : 'نزول'} إلى ${p.pos}`, by);
+    // read aloud: a ladder, a snake, and the winner on square 100
+    const voice = voiceAnd(jump && (jump.kind === 'ladder' ? VB.ladder : VB.snake), p.pos === 100 && voiceWinner(ctx.playerName(by)));
+    if (jump) ctx.say?.(`رمية ${name}: ${d} — ${jump.deed.title}: ${jump.kind === 'ladder' ? 'صعود' : 'نزول'} إلى ${p.pos}`, by, voice);
     else if (p.pos === from) ctx.say?.(`رمية ${name}: ${d} — المطلوب ${100 - from} بالضبط`, by);
-    else ctx.say?.(`رمية ${name}: ${d} — إلى الخانة ${p.pos}`, by);
+    else ctx.say?.(`رمية ${name}: ${d} — إلى الخانة ${p.pos}`, by, voice);
     if (p.pos === 100) {
       s.winner = by;
       s.phase = 'final';

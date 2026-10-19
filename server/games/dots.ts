@@ -9,6 +9,7 @@ import { dotsBotLine } from '../dots-ai';
 import { duelWin, startDuel } from '../duel';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { VB, voiceAnd, voiceResult } from '../voice-calls-boards';
 
 interface State {
   settings: DotsSettings;
@@ -125,8 +126,11 @@ export const dots: GameModule<State, DotsSettings> = {
   act(ctx, s, by, a) {
     if (s.phase !== 'play' || !s.active.includes(by)) return;
     if (a.type === 'resign') {
-      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
-      return dropOut(ctx, s, by);
+      dropOut(ctx, s, by);
+      // the last one standing wins: read aloud
+      const over = s.phase !== 'play';
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by, voiceAnd(VB.resign, over && voiceResult(s.winners?.length === 1 ? ctx.playerName(s.winners[0]) : null)));
+      return;
     }
     if (a.type !== 'line') return;
     if (turnOf(s) !== by) throw new GameError('ليس دورك');
@@ -140,7 +144,6 @@ export const dots: GameModule<State, DotsSettings> = {
     s.lastBoxes = dotsLineBoxes(s.n, e).filter((b) => s.boxes[b] < 0 && dotsBoxLines(s.n, b).every((x) => s.lines[x] >= 0));
     for (const b of s.lastBoxes) s.boxes[b] = seat;
     const k = s.lastBoxes.length;
-    ctx.say?.(k ? `${k === 1 ? 'مربع' : 'مربعان'} ${li(ctx.playerName(by))} — ودور إضافي` : `خط من ${ctx.playerName(by)}`, by);
     if (s.lastBoxes.length) {
       s.points[by] += s.lastBoxes.length;
       ctx.fx('correct', by);
@@ -149,6 +152,10 @@ export const dots: GameModule<State, DotsSettings> = {
       ctx.fx('card', by);
       s.turnIdx = (s.turnIdx + 1) % s.active.length;
     }
+    // read aloud (after the end check): two boxes with one line, and the winner
+    const over = s.phase !== 'play';
+    const voice = voiceAnd(k === 2 && VB.twoBoxes, over && voiceResult(s.winners?.length === 1 ? ctx.playerName(s.winners[0]) : null));
+    ctx.say?.(k ? `${k === 1 ? 'مربع' : 'مربعان'} ${li(ctx.playerName(by))} — ودور إضافي` : `خط من ${ctx.playerName(by)}`, by, voice);
   },
 
   botPlan(ctx, s, bots) {

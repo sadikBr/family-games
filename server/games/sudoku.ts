@@ -8,6 +8,7 @@ import { generateSudoku } from '../../src/shared/sudoku';
 import { sudokuNextStep } from '../ai/misc-sudoku';
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, randInt } from '../util';
+import { voicePlace, voiceResult } from '../voice-calls-boards';
 
 const PLACE_POINTS = [300, 200, 150, 100];
 
@@ -36,6 +37,16 @@ function finish(ctx: GameCtx, s: State, id: string) {
   s.scores[id] += Math.max(50, (PLACE_POINTS[place] ?? 80) - 20 * s.mistakes[id]);
   ctx.fx(place === 0 ? 'win' : 'correct', id);
   if (s.players.every((p) => s.finished.some((f) => f.id === p) || !(ctx.isConnected(p) || ctx.isBot(p)))) s.phase = 'final';
+  // said and read aloud: who finished, in which place; at the end, the winner on points
+  const top = s.phase === 'final' ? topScorer(s) : null;
+  ctx.say?.(`السودوكو كاملة: ${ctx.playerName(id)} — المركز ${place + 1}`, id, s.phase === 'final' ? voiceResult(top && ctx.playerName(top)) : voicePlace(place, ctx.playerName(id)));
+}
+
+/** The only top scorer, or null on a tie. */
+function topScorer(s: State): string | null {
+  const best = Math.max(...s.players.map((id) => s.scores[id] ?? 0));
+  const top = s.players.filter((id) => (s.scores[id] ?? 0) === best);
+  return top.length === 1 ? top[0] : null;
 }
 
 /** For result(): the highest `score` first; equal scores share a place. */
@@ -78,7 +89,11 @@ export const sudoku: GameModule<State, SudokuSettings> = {
     if (s.phase !== 'play' || !s.players.includes(by) || s.finished.some((f) => f.id === by)) return;
     if (a.type === 'giveup') {
       s.finished.push({ id: by, ms: -1, mistakes: s.mistakes[by] });
-      if (s.players.every((p) => s.finished.some((f) => f.id === p))) s.phase = 'final';
+      if (s.players.every((p) => s.finished.some((f) => f.id === p))) {
+        s.phase = 'final';
+        const top = topScorer(s);
+        if (top && s.scores[top] > 0) ctx.say?.(`انتهت اللعبة: الفوز لـ${ctx.playerName(top)} (${s.scores[top]} نقطة)`, top, voiceResult(ctx.playerName(top)));
+      }
       return;
     }
     if (a.type !== 'set' || !isNum(a.cell) || !isNum(a.value)) return;

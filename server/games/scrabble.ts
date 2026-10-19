@@ -16,6 +16,7 @@ import { bestByLeave, keepOnSwap, leaveValue, searchMoves, tilesFor, type BotMov
 import { isWord } from '../scrabble-dict';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, pick, shuffle } from '../util';
+import { BIG_WORD, VB, voiceAnd, voicePoints, voiceResult } from '../voice-calls-boards';
 
 const LOG = 8;
 
@@ -87,7 +88,7 @@ function endGame(ctx: GameCtx, s: State, out: string | null) {
   const winner = leader(s);
   s.final = { winner, out, adjust, left };
   ctx.fx('win', winner ?? undefined);
-  ctx.say?.(winner ? `انتهت اللعبة: الفوز لـ${ctx.playerName(winner)} (${s.scores[winner]} نقطة)` : 'انتهت اللعبة بالتعادل', winner ?? undefined);
+  ctx.say?.(winner ? `انتهت اللعبة: الفوز لـ${ctx.playerName(winner)} (${s.scores[winner]} نقطة)` : 'انتهت اللعبة بالتعادل', winner ?? undefined, voiceResult(winner && ctx.playerName(winner)));
 }
 
 /** After a turn without a word: end the game once everyone has had two of them in a row. */
@@ -139,7 +140,9 @@ function play(ctx: GameCtx, s: State, by: string, raw: unknown) {
   remember(s, move(by, 'play', { cells: placements.map((p) => p.cell), words: res.words.map((w) => ({ w: w.w, score: w.score })), score: res.score, bingo: res.bingo }));
   ctx.fx(res.bingo ? 'reveal' : 'correct', by);
   const words = res.words.map((w) => `«${w.w}»`).join(' و');
-  ctx.say?.(`${res.words.length > 1 ? 'كلمات' : 'كلمة'} من ${ctx.playerName(by)}: ${words} (+${res.score})${res.bingo ? ' بالأحرف السبعة!' : ''}`, by);
+  // read aloud: all seven tiles, or a big word, with its points (an ordinary word is silent)
+  const voice = res.bingo ? voiceAnd(VB.bingo, voicePoints(res.score)) : res.score >= BIG_WORD ? voiceAnd(VB.bigWord, voicePoints(res.score)) : undefined;
+  ctx.say?.(`${res.words.length > 1 ? 'كلمات' : 'كلمة'} من ${ctx.playerName(by)}: ${words} (+${res.score})${res.bingo ? ' بالأحرف السبعة!' : ''}`, by, voice);
   if (!s.racks[by].length && !s.bag.length) endGame(ctx, s, by);
   else startTurn(ctx, s, nextAfter(s, by));
 }

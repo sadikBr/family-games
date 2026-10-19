@@ -25,6 +25,7 @@ import { Feed, randDelay as rand } from '../cardkit';
 import { expertAccepts, expertAuctionMax, expertBuy, expertLeaveJail, expertManage, expertOffer, spareDeeds } from '../ai/misc-estate';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
 interface Prop {
   owner: string;
@@ -71,10 +72,10 @@ export const AUCTION_STEPS = [10, 50, 100];
 export const BOT_TRADE_MS = 15_000;
 export const HUMAN_TRADE_MS = 30_000;
 
-/** Add a line to the game's log and tell everyone (the line under the turn bar). */
-function log(ctx: GameCtx, s: State, text: string, extra: { by?: string; points?: number } = {}) {
+/** Add a line to the game's log and tell everyone (the line under the turn bar); `voice` = its call read aloud. */
+function log(ctx: GameCtx, s: State, text: string, extra: { by?: string; points?: number } = {}, voice?: string) {
   s.feed.push(text, extra);
-  ctx.say?.(text, extra.by);
+  ctx.say?.(text, extra.by, voice);
 }
 
 const lastLogId = (s: State) => s.feed.list().at(-1)?.id ?? 0;
@@ -185,7 +186,9 @@ function bankrupt(ctx: GameCtx, s: State, id: string, to: string | null) {
   }
   if (to) P(s, to).cash += pl.cash;
   pl.cash = 0;
-  log(ctx, s, `إفلاس ${name(ctx, id)}${to ? ` لصالح ${name(ctx, to)}` : ''}`, { by: id });
+  // read aloud: «إفلاس», and the winner when only one player is left
+  const left = s.players.filter((p) => !p.bankrupt);
+  log(ctx, s, `إفلاس ${name(ctx, id)}${to ? ` لصالح ${name(ctx, to)}` : ''}`, { by: id }, voiceAnd(VB.bankrupt, left.length === 1 && voiceWinner(name(ctx, left[0].id))));
   ctx.fx('boom', id);
   if (s.trade && (s.trade.from === id || s.trade.to === id)) s.trade = null;
   if (s.auction) {
@@ -240,6 +243,8 @@ function endByRounds(ctx: GameCtx, s: State) {
   s.winner = left.sort((a, b) => worthOf(s, b.id) - worthOf(s, a.id))[0]?.id ?? null;
   s.phase = 'final';
   ctx.fx('win', s.winner ?? undefined);
+  // the only line of this move: it carries the winner's call
+  if (s.winner) ctx.say?.(`انتهت الجولات — الفوز لـ${name(ctx, s.winner)}`, s.winner, voiceWinner(name(ctx, s.winner)));
 }
 
 function nextTurn(ctx: GameCtx, s: State) {
@@ -272,7 +277,7 @@ function sendToJail(ctx: GameCtx, s: State, id: string) {
   pl.jail = 0;
   s.extraRoll = false;
   s.doubles = 0;
-  log(ctx, s, `إلى السجن: ${name(ctx, id)}`, { by: id });
+  log(ctx, s, `إلى السجن: ${name(ctx, id)}`, { by: id }, VB.jail);
   ctx.fx('buzz', id);
 }
 
@@ -398,7 +403,7 @@ function startAuction(ctx: GameCtx, s: State, i: number) {
   s.buy = null;
   s.phase = 'auction';
   s.auction = { n: ++s.auctionN, sq: i, price: 0, leader: null, endsAt: ctx.now + AUCTION_MS, out: [], bids: 0 };
-  log(ctx, s, `مزاد على ${BOARD[i].name}!`);
+  log(ctx, s, `مزاد على ${BOARD[i].name}!`, {}, VB.auction);
   ctx.fx('reveal');
 }
 
@@ -579,7 +584,7 @@ export const estate: GameModule<State, EstateSettings> = {
       for (const i of t.get.props) s.props[i].owner = A.id;
       A.cash += t.get.cash - t.give.cash;
       B.cash += t.give.cash - t.get.cash;
-      log(ctx, s, `صفقة بين ${name(ctx, A.id)} و ${name(ctx, B.id)}`, { by: A.id });
+      log(ctx, s, `صفقة بين ${name(ctx, A.id)} و ${name(ctx, B.id)}`, { by: A.id }, VB.deal);
       ctx.fx('correct', A.id);
       s.moves += 1;
       return;
@@ -656,7 +661,7 @@ export const estate: GameModule<State, EstateSettings> = {
         if (sq.kind !== 'city') return;
         p.houses += 1;
         me.cash -= sq.house;
-        log(ctx, s, `${p.houses === 5 ? 'فندق جديد' : 'منزل جديد'} لـ${name(ctx, by)} في ${sq.name}`, { by });
+        log(ctx, s, `${p.houses === 5 ? 'فندق جديد' : 'منزل جديد'} لـ${name(ctx, by)} في ${sq.name}`, { by }, p.houses === 5 ? VB.hotel : undefined);
         ctx.fx('card', by);
       } else if (a.type === 'sell') {
         if (sq.kind !== 'city' || p.houses === 0) return;
@@ -729,7 +734,7 @@ export const estate: GameModule<State, EstateSettings> = {
         me.cash -= JAIL_FINE;
       }
       me.jail = null;
-      log(ctx, s, `خروج ${name(ctx, by)} من السجن`, { by });
+      log(ctx, s, `خروج ${name(ctx, by)} من السجن`, { by }, VB.jailOut);
       return;
     }
 
@@ -745,7 +750,7 @@ export const estate: GameModule<State, EstateSettings> = {
       if (me.jail !== null) {
         if (dbl) {
           me.jail = null;
-          log(ctx, s, `زوج لـ${name(ctx, by)}: خروج من السجن`, { by });
+          log(ctx, s, `زوج لـ${name(ctx, by)}: خروج من السجن`, { by }, voiceAnd(VB.doubles, VB.jailOut));
         } else {
           me.jail += 1;
           if (me.jail < 3) {
@@ -756,7 +761,7 @@ export const estate: GameModule<State, EstateSettings> = {
           // third try: pay and go
           me.jail = null;
           if (!charge(ctx, s, by, JAIL_FINE, null)) return afterResolve(ctx, s);
-          log(ctx, s, `خروج ${name(ctx, by)} من السجن مقابل ${JAIL_FINE}`, { by });
+          log(ctx, s, `خروج ${name(ctx, by)} من السجن مقابل ${JAIL_FINE}`, { by }, VB.jailOut);
         }
         s.extraRoll = false;
       } else if (dbl) {
@@ -780,7 +785,7 @@ export const estate: GameModule<State, EstateSettings> = {
         const sq = BOARD[me.pos];
         const free = isOwnable(sq) && !s.props[me.pos] ? ' (للبيع)' : '';
         const go = me.pos < from ? ` · +${GO_BONUS} من الانطلاق` : '';
-        ctx.say?.(`رمية ${name(ctx, by)} ${d[0]}+${d[1]}: ${sq.name}${free}${go}${dbl ? ' · زوج!' : ''}`, by);
+        ctx.say?.(`رمية ${name(ctx, by)} ${d[0]}+${d[1]}: ${sq.name}${free}${go}${dbl ? ' · زوج!' : ''}`, by, dbl ? VB.doubles : undefined);
       }
       afterResolve(ctx, s);
       return;
@@ -794,7 +799,7 @@ export const estate: GameModule<State, EstateSettings> = {
         if (me.cash < price) throw new GameError('لا يكفي المال — ارهن عقاراً أو اطرحه في المزاد');
         me.cash -= price;
         s.props[i] = { owner: by, houses: 0, mortgaged: false };
-        log(ctx, s, `شراء لـ${name(ctx, by)}: ${BOARD[i].name} بـ ${price}`, { by });
+        log(ctx, s, `شراء لـ${name(ctx, by)}: ${BOARD[i].name} بـ ${price}`, { by }, VB.buy);
         ctx.fx('correct', by);
       } else return startAuction(ctx, s, i);
       s.buy = null;

@@ -9,6 +9,7 @@ import { duelWin, startDuel } from '../duel';
 import { xoBot } from '../ai/boards-xo';
 import { GameError, botLevel, type GameModule } from '../types';
 import { isNum } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: XoSettings;
@@ -46,7 +47,9 @@ export const xo: GameModule<State, XoSettings> = {
     s.moves += 1;
     ctx.fx('card', by);
     const w = xoWinner(s.board, s.size, inRow(s.size));
-    ctx.say?.(`${me === 'x' ? 'X' : 'O'} من ${ctx.playerName(by)}${w ? ' — خط كامل!' : ''}`, by);
+    // read aloud: a full line and the winner, or a full board (a draw)
+    const full = !w && s.board.every(Boolean);
+    ctx.say?.(`${me === 'x' ? 'X' : 'O'} من ${ctx.playerName(by)}${w ? ' — خط كامل!' : ''}`, by, w ? voiceAnd(VB.fullLine, voiceWinner(ctx.playerName(by))) : full ? voiceResult(null) : undefined);
     if (w) {
       s.line = w.line;
       s.winner = w.mark;

@@ -10,6 +10,7 @@ import { duelWin, startDuel } from '../duel';
 import { kharbgaBot, kharbgaPlace } from '../ai/boards-kharbga';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 const QUIET_LIMIT = 80; // moves in a row without a capture → the game ends on piece count
 
@@ -70,20 +71,30 @@ function afterPlace(s: State, side: Side) {
   }
 }
 
-/** Hand the turn over, handling blocked players. */
-function passTurn(ctx: GameCtx, s: State) {
+/** The end of the game, read aloud: the winner, or «تعادل». */
+const resultVoice = (ctx: GameCtx, s: State) => voiceResult(s.winner && s.winner !== 'draw' ? ctx.playerName(idOf(s, s.winner)) : null);
+
+/**
+ * Hand the turn over, handling blocked players. `said` = the move's own line: it is said here, after
+ * the end check, so it carries the result (a blocked opponent's extra turn is said instead).
+ */
+function passTurn(ctx: GameCtx, s: State, said?: { text: string; by: string; voice?: string }) {
   s.chainFrom = null;
   const next = other(s.turn);
+  const sayMove = () => said && ctx.say?.(said.text, said.by, s.phase === 'final' ? voiceAnd(said.voice, resultVoice(ctx, s)) : said.voice);
   if (movesFor(s.board, next).length) {
     s.turn = next;
+    sayMove();
     return;
   }
   if (!movesFor(s.board, s.turn).length) {
     const a = count(s, 1), d = count(s, 2);
-    return end(ctx, s, a === d ? 'draw' : a > d ? 1 : 2, 'blocked');
+    end(ctx, s, a === d ? 'draw' : a > d ? 1 : 2, 'blocked');
+    sayMove();
+    return;
   }
   s.feed.push(`${ctx.playerName(idOf(s, next))} محاصر — ${ctx.playerName(idOf(s, s.turn))} يلعب مرة أخرى`);
-  ctx.say?.(`لا حركة ${li(ctx.playerName(idOf(s, next)))} — دور إضافي ${li(ctx.playerName(idOf(s, s.turn)))}`);
+  ctx.say?.(`لا حركة ${li(ctx.playerName(idOf(s, next)))} — دور إضافي ${li(ctx.playerName(idOf(s, s.turn)))}`, undefined, voiceAnd(said?.voice, VB.extraTurn));
 }
 
 export const kharbga: GameModule<State, KharbgaSettings> = {
@@ -120,7 +131,7 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     const side: Side | null = by === s.attacker ? 1 : by === s.defender ? 2 : null;
     if (!side) return;
     if (a.type === 'resign') {
-      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by, voiceAnd(VB.resign, voiceWinner(ctx.playerName(idOf(s, other(side))))));
       return end(ctx, s, other(side), 'resign');
     }
     if (side !== s.turn) throw new GameError('ليس دورك');
@@ -172,30 +183,36 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     s.moves += 1;
     s.firstMove = false;
     s.last = { from: m.from, to: m.to, captured };
+    // read aloud: a move that takes several pieces, and the end of the game
+    const captureVoice = captured.length >= 3 ? VB.captureBig : captured.length === 2 ? VB.capture2 : undefined;
+    let said: { text: string; by: string; voice?: string };
     if (captured.length) {
       s.quiet = 0;
       s.feed.push(`${ctx.playerName(by)} أكل ${captured.length === 1 ? 'قطعة' : `${captured.length} قطع`}`, { by });
       ctx.fx('throw', by);
       if (!count(s, other(side))) {
-        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by);
-        return end(ctx, s, side, 'captured');
+        end(ctx, s, side, 'captured');
+        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by, voiceAnd(captureVoice, resultVoice(ctx, s)));
+        return;
       }
       if (movesFor(s.board, side, m.to).length) {
-        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)} — والأكل مستمر`, by);
+        ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)} — والأكل مستمر`, by, captureVoice);
         s.chainFrom = m.to; // keep capturing with the same piece
         return;
       }
-      ctx.say?.(`أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by);
+      said = { text: `أكلٌ ${li(ctx.playerName(by))}: ${pieces(captured.length)}`, by, voice: captureVoice };
     } else {
       s.quiet += 1;
-      ctx.say?.(`حركة من ${ctx.playerName(by)}`, by);
+      said = { text: `حركة من ${ctx.playerName(by)}`, by };
       ctx.fx('card', by);
       if (s.quiet >= QUIET_LIMIT) {
         const a1 = count(s, 1), d = count(s, 2);
-        return end(ctx, s, a1 === d ? 'draw' : a1 > d ? 1 : 2, 'limit');
+        end(ctx, s, a1 === d ? 'draw' : a1 > d ? 1 : 2, 'limit');
+        ctx.say?.(said.text, by, resultVoice(ctx, s));
+        return;
       }
     }
-    passTurn(ctx, s);
+    passTurn(ctx, s, said);
   },
 
   botPlan(ctx, s, bots) {

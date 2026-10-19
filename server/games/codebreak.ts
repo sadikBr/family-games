@@ -21,6 +21,7 @@ import { botGuess, randomCode } from '../codebreak-bot';
 import { randDelay } from '../cardkit';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { voiceResult, voiceSolved } from '../voice-calls-boards';
 
 export const ROUND_MS = 5 * 60_000;
 /** Once half of the players are done, the others get at most this long. */
@@ -92,7 +93,8 @@ function newRound(ctx: GameCtx, s: State) {
   ctx.fx('start');
 }
 
-function finishRound(ctx: GameCtx, s: State) {
+/** `voice` = the call of the move that ended the round (a code cracked), kept unless the game is over. */
+function finishRound(ctx: GameCtx, s: State, voice?: string) {
   s.results = s.players.map((id) => {
     const sv = s.solved[id];
     const tries = sv ? s.rows[id].length : null;
@@ -102,11 +104,12 @@ function finishRound(ctx: GameCtx, s: State) {
   });
   s.hurried = false;
   const cracked = s.results.filter((r) => r.tries !== null).length;
-  ctx.say?.(`انتهى الرمز ${s.round}: فُكّ عند ${cracked} من ${s.players.length}`);
-  if (s.round >= s.settings.rounds || !s.players.length) {
+  const over = s.round >= s.settings.rounds || !s.players.length;
+  const w = over ? topScorer(s) : null;
+  ctx.say?.(`انتهى الرمز ${s.round}: فُكّ عند ${cracked} من ${s.players.length}`, undefined, over ? voiceResult(w && ctx.playerName(w)) : voice);
+  if (over) {
     s.phase = 'final';
     s.endsAt = null;
-    const w = topScorer(s);
     if (w) ctx.fx('win', w);
     else ctx.fx('win');
   } else {
@@ -164,17 +167,20 @@ export const codebreak: GameModule<State, CodebreakSettings> = {
     const m = codebreakMarks(g, s.code);
     s.rows[by].push({ guess: g, ...m });
     const tries = s.rows[by].length;
+    let voice: string | undefined;
     if (m.black === s.settings.pegs) {
       const order = Object.keys(s.solved).length;
       s.solved[by] = { order, ms: ctx.now - s.startedAt };
       ctx.fx('correct', by);
-      ctx.say?.(`فكّ الرمز${order === 0 ? ' أولاً' : ''}: ${ctx.playerName(by)} في ${tries === 1 ? 'محاولة واحدة' : tries === 2 ? 'محاولتين' : `${tries} محاولات`}`, by);
+      // read aloud: who cracked it (never the code)
+      voice = voiceSolved(ctx.playerName(by), order === 0);
+      ctx.say?.(`فكّ الرمز${order === 0 ? ' أولاً' : ''}: ${ctx.playerName(by)} في ${tries === 1 ? 'محاولة واحدة' : tries === 2 ? 'محاولتين' : `${tries} محاولات`}`, by, voice);
     } else if (tries >= s.settings.maxTries) {
       ctx.fx('buzz', by);
       ctx.say?.(`نفدت محاولات ${ctx.playerName(by)}`, by);
     }
     if (allDone(ctx, s)) {
-      finishRound(ctx, s);
+      finishRound(ctx, s, voice);
       return;
     }
     // half of the players are done: the rest hurry up

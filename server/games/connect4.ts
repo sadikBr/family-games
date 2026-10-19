@@ -6,6 +6,7 @@ import { duelWin, startDuel } from '../duel';
 import { c4Bot } from '../ai/boards-connect4';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: Connect4Settings;
@@ -25,7 +26,7 @@ interface State {
 /** `id` resigned or left: the other player wins the game (and it counts in the series). */
 function forfeit(ctx: GameCtx, s: State, id: string) {
   if (id !== s.red && id !== s.yellow) return;
-  ctx.say?.(`انسحاب من ${ctx.playerName(id)}`, id);
+  ctx.say?.(`انسحاب من ${ctx.playerName(id)}`, id, voiceAnd(VB.resign, voiceWinner(ctx.playerName(id === s.red ? s.yellow : s.red))));
   s.winner = id === s.red ? 2 : 1;
   s.phase = 'final';
   duelWin(ctx, s.score, id === s.red ? s.yellow : s.red);
@@ -70,7 +71,9 @@ export const connect4: GameModule<State, Connect4Settings> = {
     s.moves += 1;
     ctx.fx('card', by);
     const line = winLine(s.board, i);
-    ctx.say?.(`قرص من ${ctx.playerName(by)}${line ? ' — أربعة في صف!' : ''}`, by);
+    // read aloud: four in a row and the winner, or a full board (a draw)
+    const full = !line && s.board.every((x) => x);
+    ctx.say?.(`قرص من ${ctx.playerName(by)}${line ? ' — أربعة في صف!' : ''}`, by, line ? voiceAnd(VB.fourInRow, voiceWinner(ctx.playerName(by))) : full ? voiceResult(null) : undefined);
     if (line) {
       s.line = line;
       s.winner = me;

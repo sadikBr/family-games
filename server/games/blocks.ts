@@ -16,6 +16,7 @@ import { blocksExpert } from '../ai/boards-blocks';
 import { BUDGET } from '../ai/boards-search';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { VB, voiceAnd, voiceResult } from '../voice-calls-boards';
 
 interface State {
   settings: BlocksSettings;
@@ -192,11 +193,15 @@ export const blocks: GameModule<State, BlocksSettings> = {
       s.done[seat] = true;
       ctx.fx('correct', by);
     }
+    const allPlaced = !s.left[seat].length;
     advance(ctx, s, seat);
     const k = PIECE_SIZES[piece];
     const size = k === 1 ? 'مربع واحد' : k === 2 ? 'مربعين' : `${k} مربعات`;
     const skipped = s.passed.map((i) => ctx.playerName(s.seats[i]));
-    ctx.say?.(`قطعة من ${size} ${li(ctx.playerName(by))}${skipped.length ? ` — لا مكان لقطع ${skipped.join(' و')}` : ''}`, by);
+    // read aloud: every piece placed (the bonus), and the winner when the board is closed
+    const over = s.phase !== 'play';
+    const voice = voiceAnd(allPlaced && VB.allPieces, over && voiceResult(s.winners?.length === 1 ? ctx.playerName(s.winners[0]) : null));
+    ctx.say?.(`قطعة من ${size} ${li(ctx.playerName(by))}${skipped.length ? ` — لا مكان لقطع ${skipped.join(' و')}` : ''}`, by, voice);
   },
 
   botPlan(ctx, s, bots) {

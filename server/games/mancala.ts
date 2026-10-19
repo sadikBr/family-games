@@ -9,6 +9,7 @@ import { mancalaBotPit, pitsOf, sow } from '../mancala-rules';
 import { mancalaExpert } from '../ai/boards-mancala';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: MancalaSettings;
@@ -72,7 +73,7 @@ export const mancala: GameModule<State, MancalaSettings> = {
     const side = s.seats.indexOf(by);
     if (side < 0) return;
     if (a.type === 'resign') {
-      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by, voiceAnd(VB.resign, voiceWinner(ctx.playerName(s.seats[other(side as 0 | 1)]))));
       return forfeit(ctx, s, by);
     }
     if (a.type !== 'sow') return;
@@ -85,12 +86,15 @@ export const mancala: GameModule<State, MancalaSettings> = {
     s.board = r.board;
     s.moves += 1;
     s.last = { seq: s.moves, side: s.turn, from: pit, path: r.path, before, capture: r.capture, extra: r.extra };
-    ctx.say?.(`توزيع من ${ctx.playerName(by)}: ${seedsText(before[pit])}${r.capture ? ` — أكلٌ: ${seedsText(r.capture.seeds)}` : ''}${r.extra && !r.over ? ' — ودور إضافي' : ''}`, by);
     if (r.capture) ctx.fx('correct', by);
     else if (r.extra) ctx.fx('reveal', by);
     else ctx.fx('card', by);
     if (r.over) finishByBoard(ctx, s);
     else if (!r.extra) s.turn = other(s.turn);
+    // read aloud (after the end check, so the result rides on the move): a capture, an extra turn, the winner
+    const over = s.phase !== 'play';
+    const voice = voiceAnd(r.capture && VB.capture, r.extra && !r.over && VB.extraTurn, over && voiceResult(s.winner === null || s.winner === 'draw' ? null : ctx.playerName(s.seats[s.winner])));
+    ctx.say?.(`توزيع من ${ctx.playerName(by)}: ${seedsText(before[pit])}${r.capture ? ` — أكلٌ: ${seedsText(r.capture.seeds)}` : ''}${r.extra && !r.over ? ' — ودور إضافي' : ''}`, by, voice);
   },
 
   botPlan(ctx, s, bots) {

@@ -36,6 +36,7 @@ import {
 import { randDelay } from '../cardkit';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
+import { VB, voiceAnd, voiceDice, voiceWinner } from '../voice-calls-boards';
 
 const isRes = (v: unknown): v is CatanRes => isStr(v) && (RES as string[]).includes(v);
 
@@ -103,7 +104,21 @@ function announce(ctx: GameCtx, s: State, fromId: number) {
   const moved = fresh.find((e) => e.t === 'robber');
   if (best.t === 'steal' && moved && moved.t === 'robber') line = `اللص في ${HEX_NAME[s.hexes[moved.h]]}، وسرقة بطاقة من ${s.names[best.from] ?? '؟'} لـ${s.names[best.p] ?? '؟'}`;
   const by = 'p' in best && typeof best.p === 'string' ? best.p : undefined;
-  ctx.say?.(line, by);
+  ctx.say?.(line, by, catanVoice(fresh));
+}
+
+/** Read aloud: the number rolled (a 7 brings «اللص»), a knight, and the titles won (أطول طريق، أكبر جيش). */
+function catanVoice(fresh: CatanLog[]): string | undefined {
+  const parts: (string | false)[] = [];
+  for (const e of fresh) {
+    if (e.t === 'roll') {
+      const n = e.d[0] + e.d[1];
+      parts.push(voiceDice(n), n === 7 && VB.robber);
+    } else if (e.t === 'dev' && e.k === 'knight') parts.push(VB.knight);
+    else if (e.t === 'longest' && e.p) parts.push(VB.longest);
+    else if (e.t === 'army') parts.push(VB.army);
+  }
+  return voiceAnd(...parts);
 }
 
 const deadline = (ctx: GameCtx, s: State) => (s.settings.seconds ? ctx.now + s.settings.seconds * 1000 : null);
@@ -136,7 +151,7 @@ function endGame(ctx: GameCtx, s: State, winner: string | null, reason: 'win' | 
   s.discard = {};
   s.final = { winner, reason, rows: finalRows(s) };
   ctx.fx('win', winner ?? undefined);
-  ctx.say?.(winner ? `الفوز لـ${s.names[winner] ?? '؟'} بـ ${totalVp(s, winner)} نقاط` : 'انتهت اللعبة', winner ?? undefined);
+  ctx.say?.(winner ? `الفوز لـ${s.names[winner] ?? '؟'} بـ ${totalVp(s, winner)} نقاط` : 'انتهت اللعبة', winner ?? undefined, winner ? voiceWinner(s.names[winner] ?? '') : undefined);
 }
 
 /** The player whose turn it is wins as soon as they reach the target. */

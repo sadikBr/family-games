@@ -22,6 +22,7 @@ import { randDelay } from '../cardkit';
 import type { BotLevel } from '../../src/shared/protocol';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { roundWin, voiceResult } from '../voice-calls-boards';
 
 /** pause on a round's words before the next round (the host may skip it) */
 export const REVEAL_MS = 30_000;
@@ -128,11 +129,17 @@ function finishRound(ctx: GameCtx, s: State) {
     const w = topScorer(s);
     if (w) ctx.fx('win', w);
     else ctx.fx('win');
+    // the end, said and read aloud (the words found stay on the result screen)
+    ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)} (${s.scores[w]} نقطة)` : 'انتهت اللعبة بالتعادل', w ?? undefined, voiceResult(w && ctx.playerName(w)));
   } else {
     s.phase = 'reveal';
     s.endsAt = ctx.now + REVEAL_MS;
     s.timerTotal = REVEAL_MS;
     ctx.fx('reveal');
+    // the round's best score, said and read aloud
+    const best = Math.max(0, ...s.results.map((r) => r.points));
+    const top = s.results.filter((r) => r.points === best);
+    if (best > 0 && top.length === 1) ctx.say?.(`انتهت الجولة ${s.round}: الأعلى نقاطاً ${ctx.playerName(top[0].id)} (+${best})`, top[0].id, roundWin(ctx.playerName(top[0].id)));
   }
 }
 

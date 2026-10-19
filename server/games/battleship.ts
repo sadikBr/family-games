@@ -6,6 +6,7 @@ import { duelWin, startDuel } from '../duel';
 import { battleshipExpert } from '../ai/boards-battleship';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
 interface State {
   settings: BattleshipSettings;
@@ -62,7 +63,7 @@ export const battleship: GameModule<State, BattleshipSettings> = {
   act(ctx, s, by, a) {
     if (!s.players.includes(by) || s.phase === 'final') return;
     if (a.type === 'resign') {
-      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by, voiceAnd(VB.resign, voiceWinner(ctx.playerName(enemyOf(s, by)))));
       s.resigned = true;
       return win(ctx, s, enemyOf(s, by));
     }
@@ -90,8 +91,10 @@ export const battleship: GameModule<State, BattleshipSettings> = {
     const sunk = !!ship && ship.every((c) => s.shots[by][c] === 'hit');
     s.last = { by, cell: a.cell, result: sunk ? 'sunk' : hit ? 'hit' : 'miss', id: ++s.lastN };
     ctx.fx(sunk ? 'boom' : hit ? 'throw' : 'skip', by);
-    ctx.say?.(`طلقة من ${ctx.playerName(by)}: ${sunk ? 'سفينة غرقت!' : hit ? 'إصابة! وطلقة أخرى' : 'في الماء'}`, by);
-    if (sunkShips(s.fleets[enemy], s.shots[by]).length === s.fleets[enemy].length) {
+    // read aloud: «إصابة», «غرق», and the winner with the last ship (a miss is silent)
+    const all = sunkShips(s.fleets[enemy], s.shots[by]).length === s.fleets[enemy].length;
+    ctx.say?.(`طلقة من ${ctx.playerName(by)}: ${sunk ? 'سفينة غرقت!' : hit ? 'إصابة! وطلقة أخرى' : 'في الماء'}`, by, voiceAnd(sunk ? VB.sunk : hit && VB.hit, all && voiceWinner(ctx.playerName(by))));
+    if (all) {
       win(ctx, s, by);
       return;
     }

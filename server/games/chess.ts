@@ -6,6 +6,7 @@ import { duelWin, startDuel } from '../duel';
 import { chessBot } from '../ai/boards-chess';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
+import { VB, voiceAnd, voiceResult, voiceWinner } from '../voice-calls-boards';
 
 const NAME: Record<string, string> = { p: 'الجندي', n: 'الحصان', b: 'الفيل', r: 'الرخ', q: 'الوزير', k: 'الملك' };
 
@@ -55,7 +56,16 @@ function play(ctx: GameCtx, s: State, by: string, from: number, to: number, prom
   const moved = castled ? 'تبييت' : `${NAME[piece.toLowerCase()]} إلى ${sqName(to)}${taken ? ` — أُخذ ${NAME[taken.toLowerCase()]}` : ''}${m.promo ? ' (ترقية)' : ''}`;
   const res = resultOf(s.pos, s.reps);
   const check = !res && inCheck(s.pos) ? ' — كش!' : res?.reason === 'mate' ? ' — كش مات!' : '';
-  ctx.say?.(`حركة من ${ctx.playerName(by)}: ${moved}${check}`, by);
+  // read aloud: a promotion, the queen taken, «كش ملك» / «كش مات», a draw and the winner (an ordinary move is silent)
+  const winnerId = res && res.winner !== 'draw' ? (res.winner === 'w' ? s.white : s.black) : null;
+  const voice = voiceAnd(
+    m.promo && VB.promotion,
+    taken.toLowerCase() === 'q' && VB.queenTaken,
+    !res && inCheck(s.pos) && VB.check,
+    res?.reason === 'mate' && VB.mate,
+    res && voiceResult(winnerId && ctx.playerName(winnerId)),
+  );
+  ctx.say?.(`حركة من ${ctx.playerName(by)}: ${moved}${check}`, by, voice);
   if (res) {
     s.phase = 'final';
     s.winner = res.winner;
@@ -96,7 +106,7 @@ export const chess: GameModule<State, ChessSettings> = {
     const me = colorFor(s, by);
     if (!me) return;
     if (a.type === 'resign') {
-      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by);
+      ctx.say?.(`انسحاب من ${ctx.playerName(by)}`, by, voiceAnd(VB.resign, voiceWinner(ctx.playerName(me === 'w' ? s.black : s.white))));
       s.phase = 'final';
       s.winner = me === 'w' ? 'b' : 'w';
       s.reason = 'resign';

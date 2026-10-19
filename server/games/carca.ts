@@ -35,6 +35,7 @@ import { planMove, type BotMove } from '../carca-bot';
 import { randDelay } from '../cardkit';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
+import { VB, voiceResult } from '../voice-calls-boards';
 
 const LOG = 12;
 /** the follower step gets at least this long when the turn timer is on */
@@ -168,7 +169,7 @@ function endGame(ctx: GameCtx, s: CarcaState) {
   const winners = s.order.filter((id) => s.scores[id] === top);
   s.final = { winners, left: s.left.slice() };
   ctx.fx('win', winners.length === 1 ? winners[0] : undefined);
-  ctx.say?.(`انتهت البلاطات: ${winners.length === 1 ? `الفوز لـ${ctx.playerName(winners[0])}` : 'تعادل'} (${top} نقطة)`, winners.length === 1 ? winners[0] : undefined);
+  ctx.say?.(`انتهت البلاطات: ${winners.length === 1 ? `الفوز لـ${ctx.playerName(winners[0])}` : 'تعادل'} (${top} نقطة)`, winners.length === 1 ? winners[0] : undefined, voiceResult(winners.length === 1 ? ctx.playerName(winners[0]) : null));
 }
 
 /** Draw the next tile that fits somewhere (discarding the others); false when the pile runs out. */
@@ -228,7 +229,9 @@ function finishTurn(ctx: GameCtx, s: CarcaState) {
   if (scored.length) {
     const e = scored[0];
     const more = scored.length > 1 ? ` (+${scored.length - 1} غيرها)` : '';
-    ctx.say?.(`${DONE[e.kind]}: ${e.who.map((id) => ctx.playerName(id)).join(' و')} +${e.pts}${more}`, e.who.length === 1 ? e.who[0] : undefined);
+    // read aloud: a completed city or monastery, or a long road (4 points or more)
+    const voice = e.kind === 'city' ? VB.city : e.kind === 'monastery' ? VB.monastery : e.kind === 'road' && e.pts >= 4 ? VB.road : undefined;
+    ctx.say?.(`${DONE[e.kind]}: ${e.who.map((id) => ctx.playerName(id)).join(' و')} +${e.pts}${more}`, e.who.length === 1 ? e.who[0] : undefined, voice);
   }
   if (!s.pile.length) endGame(ctx, s);
   else startTurn(ctx, s, nextAfter(s, s.turn));
