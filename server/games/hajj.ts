@@ -14,7 +14,8 @@ import type { BoardCard, HajjSettings, HajjView, HajjZad } from '../../src/share
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS } from '../content-islamic';
 import { qdeck } from '../qdeck';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { HAJJ_SKILL, hajjCardChoice } from '../ai/misc-hajj';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { mcqOptions } from './mcq';
 
@@ -26,7 +27,6 @@ const Q_MS = 20000;
 const QUIZ_MS = 15000;
 const REVEAL_MS = 5000; // time to read the station quiz's answer
 const BOTS_REVEAL_MS = 3500; // nobody to read it: bots only
-const BOT_SKILL = 0.7;
 
 interface Pilgrim {
   id: string;
@@ -73,6 +73,7 @@ interface State {
   clock: number;
   botAt: number;
   botCard: number | null; // the card a bot decided to play this turn
+  botTarget?: string | null; // and the friend it helps (الصدقة)
 }
 
 const cur = (s: State) => s.players[s.turnIdx];
@@ -366,14 +367,18 @@ export const hajj: GameModule<State, HajjSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase === 'final') return;
+    const level = botLevel(ctx);
+    const answer = (q: { options: string[]; correct: number }) => {
+      const wrong = [...q.options.keys()].filter((k) => k !== q.correct);
+      return Math.random() < HAJJ_SKILL[level] ? q.correct : wrong[Math.floor(Math.random() * wrong.length)];
+    };
     // everyone answers the station question
     if (s.phase === 'quiz' && s.quiz && !s.quiz.revealed) {
       const q = s.quiz;
       for (const b of bots) {
         if (q.answers[b] || !s.players.some((p) => p.id === b)) continue;
-        const wrong = [...q.options.keys()].filter((k) => k !== q.correct);
-        const choice = Math.random() < BOT_SKILL ? q.correct : wrong[Math.floor(Math.random() * wrong.length)];
-        ctx.bot(b, `quiz:${s.reached.length}`, randDelay(2500, 9000), { type: 'quiz', choice });
+        // the fastest right answer steps forward: a strong player answers a little quicker
+        ctx.bot(b, `quiz:${s.reached.length}`, level === 'expert' ? randDelay(2200, 7000) : randDelay(2500, 9000), { type: 'quiz', choice: answer(q) });
       }
       return;
     }
@@ -383,31 +388,21 @@ export const hajj: GameModule<State, HajjSettings> = {
       if (s.botAt !== s.moves) {
         // decide once per turn whether to play a card first
         s.botAt = s.moves;
-        s.botCard = null;
-        const dist = nextStation(p.pos) - p.pos;
-        const has = (k: ZadKind) => p.hand.find((c) => c.kind === k);
-        const pickCard =
-          (dist <= 3 && nextStation(p.pos) < LAST && has('dalil')) ||
-          (dist >= 3 && has('talbiya')) ||
-          (Math.random() < 0.4 && has('zamzam')) ||
-          (Math.random() < 0.3 && dist > 2 && has('sadaqa'));
-        s.botCard = pickCard ? pickCard.id : null;
+        const others = s.players.filter((x) => x.id !== p.id);
+        const choice = hajjCardChoice(p.hand, p, others, LAST, ZAD_HAND, level);
+        s.botCard = choice?.card ?? null;
+        s.botTarget = choice?.target ?? null;
       }
       if (s.botCard !== null && !s.mods.played) {
         const c = p.hand.find((x) => x.id === s.botCard);
-        const others = s.players.filter((x) => x.id !== p.id);
-        const last = [...others].sort((x, y) => x.pos - y.pos)[0];
         if (c) {
-          ctx.bot(p.id, `play:${s.moves}`, randDelay(1200, 2000), { type: 'play', card: c.id, target: c.kind === 'sadaqa' ? last?.id : undefined });
+          ctx.bot(p.id, `play:${s.moves}`, randDelay(1200, 2000), { type: 'play', card: c.id, target: s.botTarget ?? undefined });
           return;
         }
       }
       ctx.bot(p.id, `roll:${s.moves}:${s.mods.played ? 1 : 0}`, randDelay(2600, 3400), { type: 'roll' });
     } else if (s.phase === 'question' && s.question) {
-      const q = s.question;
-      const wrong = [...q.options.keys()].filter((k) => k !== q.correct);
-      const choice = Math.random() < BOT_SKILL ? q.correct : wrong[Math.floor(Math.random() * wrong.length)];
-      ctx.bot(p.id, `ans:${s.moves}`, randDelay(3500, 6000), { type: 'answer', choice });
+      ctx.bot(p.id, `ans:${s.moves}`, randDelay(3500, 6000), { type: 'answer', choice: answer(s.question) });
     }
   },
 

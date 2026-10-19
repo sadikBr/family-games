@@ -22,7 +22,8 @@ import {
 } from '../../src/shared/estate';
 import type { EstateAuction, EstatePlayer, EstateSettings, EstateTrade, EstateView } from '../../src/shared/protocol';
 import { Feed, randDelay as rand } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { expertAccepts, expertAuctionMax, expertBuy, expertLeaveJail, expertManage, expertOffer, spareDeeds } from '../ai/misc-estate';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 interface Prop {
@@ -140,6 +141,15 @@ function sellValue(s: State, id: string): number {
 /** Raise cash automatically (bots, or players who owe money outside their turn). */
 function liquidate(ctx: GameCtx, s: State, id: string, need: number) {
   const pl = P(s, id);
+  // a strong bot mortgages its lone deeds before selling houses back at half price
+  if (need !== Infinity && ctx.isBot(id) && botLevel(ctx) !== 'easy') {
+    for (const i of spareDeeds(s, id)) {
+      if (pl.cash >= need) return;
+      s.props[i].mortgaged = true;
+      pl.cash += priceOf(i) / 2;
+      log(ctx, s, `رهن: ${BOARD[i].name} (${name(ctx, id)})`, { by: id });
+    }
+  }
   const mine = Object.keys(s.props).map(Number).filter((i) => owns(s, id, i));
   // sell houses, most expensive groups last
   const built = mine.filter((i) => s.props[i].houses > 0).sort((a, b) => priceOf(a) - priceOf(b));
@@ -602,6 +612,9 @@ export const estate: GameModule<State, EstateSettings> = {
       return;
     }
 
+    // a bot's turn move planned before something else changed the table (a trade it was offered was
+    // answered meanwhile…): it plans again, this one is dropped
+    if (isNum(a.v) && a.v !== s.moves) return;
     if (!myTurn) throw new GameError('ليس دورك');
 
     if (a.type === 'trade') {
@@ -801,9 +814,11 @@ export const estate: GameModule<State, EstateSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase === 'final') return;
     // answer trades offered to a bot
+    const level = botLevel(ctx);
+    const strong = level !== 'easy';
     const t = s.trade;
     if (t && ctx.isBot(t.to)) {
-      const accept = botLikes(s, t);
+      const accept = strong ? expertAccepts(s, t) : botLikes(s, t);
       ctx.bot(t.to, `trade:${t.id}`, rand(800, 1300), { type: accept ? 'tradeAccept' : 'tradeDecline' });
     }
     const au = s.auction;
@@ -811,16 +826,21 @@ export const estate: GameModule<State, EstateSettings> = {
       for (const id of bots) {
         const pl = s.players.find((x) => x.id === id);
         if (!pl || pl.bankrupt || au.out.includes(id) || au.leader === id) continue;
-        const gap = botAuctionMax(s, id, au.sq) - au.price;
+        const gap = (strong ? expertAuctionMax(s, id, au.sq) : botAuctionMax(s, id, au.sq)) - au.price;
         const key = `auc:${au.n}:${au.bids}`;
         if (gap < 10) ctx.bot(id, key, rand(600, 1200), { type: 'pass', at: au.bids });
-        else ctx.bot(id, key, rand(700, 1500), { type: 'bid', add: gap >= 150 ? 100 : gap >= 60 ? 50 : 10, at: au.bids });
+        // the expert raises by the smallest step (never pays more than needed)
+        else ctx.bot(id, key, rand(700, 1500), { type: 'bid', add: strong ? (gap >= 400 && au.price < 50 ? 50 : 10) : gap >= 150 ? 100 : gap >= 60 ? 50 : 10, at: au.bids });
       }
       return;
     }
     const p = cur(s);
     if (!ctx.isBot(p.id)) return;
     const key = `${s.moves}:${s.phase}`;
+    const moves = s.moves;
+    // every turn move carries the table version it was planned for (see act)
+    const turnBot = ctx.bot;
+    ctx = { ...ctx, bot: (id, k, d, a) => turnBot(id, k, d, { ...a, v: moves }) };
     // after a roll, wait until the dice and the token have landed on the phones (the room stretches
     // a bot's delay a little, hence ×0.75)
     const landed = Math.max(0, s.rolledAt + rollShowMs(s.rollSteps) - ctx.now) * 0.75;
@@ -831,16 +851,24 @@ export const estate: GameModule<State, EstateSettings> = {
     }
     if (s.phase === 'roll') {
       if (p.jail !== null) {
-        if (p.jailCards) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'useCard' });
-        if (p.cash > 400) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'payJail' });
+        if (strong) {
+          if (expertLeaveJail(s, p.id)) {
+            if (p.jailCards) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'useCard' });
+            if (p.cash >= JAIL_FINE) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'payJail' });
+          }
+        } else {
+          if (p.jailCards) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'useCard' });
+          if (p.cash > 400) return void ctx.bot(p.id, `jail:${key}`, randDelay(600, 1000), { type: 'payJail' });
+        }
       }
-      const m = botManage(s, p.id);
+      const m = strong ? expertManage(s, p.id) : botManage(s, p.id);
       if (m) return void ctx.bot(p.id, `m:${key}`, randDelay(500, 900), m);
       ctx.bot(p.id, `roll:${key}`, randDelay(750, 1050), { type: 'roll' });
       return;
     }
     if (s.phase === 'buy' && s.buy !== null) {
       const i = s.buy;
+      if (strong) return void ctx.bot(p.id, `buy:${key}`, randDelay(1100, 1400), expertBuy(s, p.id, i));
       const price = priceOf(i);
       const g = groupOf(i);
       const completes = g ? groupSquares(g).every((j) => j === i || owns(s, p.id, j)) : false;
@@ -849,10 +877,10 @@ export const estate: GameModule<State, EstateSettings> = {
       return;
     }
     if (s.phase === 'manage') {
-      const m = botManage(s, p.id);
+      const m = strong ? expertManage(s, p.id) : botManage(s, p.id);
       if (m) return void ctx.bot(p.id, `m:${key}`, randDelay(500, 900), m);
       if (!s.trade) {
-        const offer = botOffer(s, p.id);
+        const offer = level === 'expert' ? expertOffer(s, p.id, s.asked) : level === 'easy' ? botOffer(s, p.id) : null;
         if (offer) {
           s.asked[`${p.id}:${offer.get.props[0]}`] = s.round;
           return void ctx.bot(p.id, `tr:${key}`, randDelay(800, 1300), { type: 'trade', ...offer });

@@ -19,7 +19,7 @@ import {
 } from '../../src/shared/games/codebreak';
 import { botGuess, randomCode } from '../codebreak-bot';
 import { randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 export const ROUND_MS = 5 * 60_000;
@@ -200,15 +200,16 @@ export const codebreak: GameModule<State, CodebreakSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
-    const { level } = s.settings;
+    // the room's bot level (the game's own old «level» setting is ignored)
+    const level = botLevel(ctx);
     for (const b of bots) {
       if (!s.players.includes(b) || done(s, b)) continue;
       const n = s.rows[b].length;
       if (s.botNext[b] === n) continue;
       s.botNext[b] = n;
-      const code = botGuess(s.rows[b], s.settings);
-      // a person needs a moment to read the clues and place the pegs
-      const [lo, hi] = level === 'easy' ? [14000, 24000] : level === 'medium' ? [10000, 18000] : [8000, 14000];
+      const code = botGuess(s.rows[b], { ...s.settings, level });
+      // a person needs a moment to read the clues and place the pegs (easy = the old default pace)
+      const [lo, hi] = level === 'easy' ? [10000, 18000] : [8000, 14000];
       const delay = n === 0 ? randDelay(4000, 9000) : randDelay(lo, hi) + (s.settings.pegs - 4) * 2000;
       ctx.bot(b, `g:${s.round}:${n}`, delay, { type: 'guess', code, round: s.round });
     }

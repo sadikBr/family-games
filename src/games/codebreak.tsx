@@ -5,7 +5,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { CODEBREAK_TRIES, type CodebreakLevel, type CodebreakResult, type CodebreakView } from '@/shared/games/codebreak';
+import { CODEBREAK_TRIES, type CodebreakResult, type CodebreakView } from '@/shared/games/codebreak';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
@@ -331,7 +331,7 @@ export function CodebreakGame({ room, view }: { room: RoomView; view: CodebreakV
   );
 }
 
-/** Lobby settings: rounds, the code (pegs, colours, repeats), tries and the bots' level. */
+/** Lobby settings: rounds, the code (pegs, colours, repeats) and tries (the bots follow the room's «مستوى البوتات»). */
 export function CodebreakSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.codebreak;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'codebreak', patch });
@@ -360,17 +360,6 @@ export function CodebreakSettings({ room, editable }: { room: RoomView; editable
       />
       <Toggle label="يمكن أن يتكرر اللون في الرمز" value={s.repeats} editable={editable} onChange={(repeats) => change({ repeats })} />
       <Stepper label="عدد المحاولات" value={s.maxTries} min={CODEBREAK_TRIES.min} max={CODEBREAK_TRIES.max} editable={editable} onChange={(maxTries) => change({ maxTries })} />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'medium', label: 'متوسط' },
-          { key: 'hard', label: 'صعب' },
-        ]}
-        value={s.level}
-        editable={editable}
-        onChange={(level: CodebreakLevel) => change({ level })}
-      />
     </View>
   );
 }

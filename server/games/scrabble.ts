@@ -11,9 +11,10 @@
 import type { ScrabbleMove, ScrabblePlacement, ScrabbleSettings, ScrabbleTile, ScrabbleView } from '../../src/shared/games/scrabble';
 import { CELLS, RACK, analyse, makeTiles, normLetter, rackValue } from '../../src/shared/scrabble-rules';
 import { randDelay } from '../cardkit';
-import { findMoves, tilesFor } from '../scrabble-bot';
+import type { BotLevel } from '../../src/shared/protocol';
+import { bestByLeave, keepOnSwap, leaveValue, searchMoves, tilesFor, type BotMove } from '../scrabble-bot';
 import { isWord } from '../scrabble-dict';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, pick, shuffle } from '../util';
 
 const LOG = 8;
@@ -162,33 +163,59 @@ function swap(ctx: GameCtx, s: State, by: string, raw: unknown) {
 /* Bots                                                                */
 /* ------------------------------------------------------------------ */
 
-/** What a bot does this turn: the best word (strong), a random decent word (easy), else swap or pass. */
-export function botAction(s: State, id: string, timeMs = 300): { type: string; [k: string]: unknown } {
+/** CPU budget for one bot move (the server serves every room on one thread). */
+export const BOT_MS = 50;
+
+/**
+ * What a bot does this turn, by the room's bot level:
+ * easy   — the old «سهل» bot: a random decent word;
+ * smart  — the old «قوي» bot: the best scoring word;
+ * expert — the best points plus the value of the tiles it keeps (rack leave: blanks, «ال», a balance of
+ *          vowels, no duplicates or clogging letters; the tiles' cost once the bag is empty), and it
+ *          swaps a hopeless rack rather than play for a few points.
+ * With nothing to play: swap (keeping the useful tiles) or pass.
+ */
+export function botAction(s: State, id: string, level: BotLevel = 'expert', timeMs = BOT_MS): { type: string; [k: string]: unknown } {
   const rack = s.racks[id];
-  const moves = findMoves(s.board, rack, timeMs);
+  const moves = searchMoves(s.board, rack, timeMs);
+  const swapOk = s.bag.length >= RACK;
   if (moves.length) {
     moves.sort((a, b) => b.score - a.score || b.placements.length - a.placements.length);
-    let chosen = moves[0];
-    if (s.settings.level === 1) {
+    let chosen: BotMove | null = moves[0];
+    if (level === 'easy') {
       const best = moves[0].score;
       const ok = moves.filter((m) => m.score >= Math.max(3, best * 0.3) && m.score <= Math.max(best * 0.75, 6) && m.placements.length <= 5);
       chosen = ok.length ? pick(ok) : moves[Math.floor(moves.length / 4)];
+    } else if (level === 'expert') {
+      const pickL = bestByLeave(moves, rack, s.bag.length);
+      chosen = pickL?.move ?? chosen;
+      // a few points with a clogged rack: a swap sets up the next turns better
+      if (pickL && swapOk && pickL.move.score < 8 && pickL.value < 4) {
+        const keep = keepOnSwap(rack);
+        const kept = rack.filter((t) => keep.has(t.id));
+        if (leaveValue(kept, s.bag.length) > pickL.value) chosen = null;
+      }
     }
-    const tiles = tilesFor(chosen, rack);
+    const tiles = chosen && tilesFor(chosen, rack);
     if (tiles) return { type: 'play', tiles, turn: s.turnNo, auto: true };
   }
-  if (s.bag.length >= RACK) {
-    // keep a blank and one copy of a cheap common letter, swap the rest
-    const keep = new Set<number>();
-    const blank = rack.find((t) => !t.l);
-    if (blank) keep.add(blank.id);
-    const cheap = rack.find((t) => t.v === 1 && t.l);
-    if (cheap) keep.add(cheap.id);
+  if (swapOk) {
+    const keep = level === 'easy' ? oldKeep(rack) : keepOnSwap(rack);
     let ids = rack.filter((t) => !keep.has(t.id)).map((t) => t.id);
     if (!ids.length) ids = rack.map((t) => t.id);
     return { type: 'swap', ids, turn: s.turnNo, auto: true };
   }
   return { type: 'pass', turn: s.turnNo, auto: true };
+}
+
+/** The old bot's swap: keep a blank and one copy of a cheap common letter. */
+function oldKeep(rack: readonly ScrabbleTile[]): Set<number> {
+  const keep = new Set<number>();
+  const blank = rack.find((t) => !t.l);
+  if (blank) keep.add(blank.id);
+  const cheap = rack.find((t) => t.v === 1 && t.l);
+  if (cheap) keep.add(cheap.id);
+  return keep;
 }
 
 /* ------------------------------------------------------------------ */
@@ -268,7 +295,8 @@ export const scrabble: GameModule<State, ScrabbleSettings> = {
 
   botPlan(ctx, s) {
     if (s.phase !== 'play' || !ctx.isBot(s.turn)) return;
-    if (s.botMove?.turnNo !== s.turnNo) s.botMove = { turnNo: s.turnNo, action: botAction(s, s.turn) };
+    // the room's bot level (the game's own old «level» setting is ignored)
+    if (s.botMove?.turnNo !== s.turnNo) s.botMove = { turnNo: s.turnNo, action: botAction(s, s.turn, botLevel(ctx)) };
     const wait = s.settings.seconds ? Math.min(randDelay(1200, 2600), s.settings.seconds * 500) : randDelay(1200, 2600);
     ctx.bot(s.turn, `t${s.turnNo}`, wait, s.botMove.action);
   },

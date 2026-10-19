@@ -5,7 +5,8 @@
  */
 import type { SudokuSettings, SudokuView } from '../../src/shared/protocol';
 import { generateSudoku } from '../../src/shared/sudoku';
-import { type GameCtx, type GameModule } from '../types';
+import { sudokuNextStep } from '../ai/misc-sudoku';
+import { botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, randInt } from '../util';
 
 const PLACE_POINTS = [300, 200, 150, 100];
@@ -96,15 +97,27 @@ export const sudoku: GameModule<State, SudokuSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
     // bots fill one correct cell every few seconds, so they race at a human pace
+    const level = botLevel(ctx);
+    const pace = s.settings.level === 'easy' ? [4000, 9000] : s.settings.level === 'medium' ? [6000, 13000] : [8000, 18000];
     for (const b of bots) {
       if (!s.players.includes(b) || s.finished.some((f) => f.id === b)) continue;
       const n = filled(s, b);
       if (s.botNext[b] === n) continue;
       s.botNext[b] = n;
-      const empty = s.grids[b].map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
-      const cell = empty[randInt(0, empty.length - 1)];
-      const pace = s.settings.level === 'easy' ? [4000, 9000] : s.settings.level === 'medium' ? [6000, 13000] : [8000, 18000];
-      ctx.bot(b, `s:${n}`, randInt(pace[0], pace[1]), { type: 'set', cell, value: s.solution[cell] });
+      if (level === 'easy') {
+        // the old bot: any empty cell, at the old pace
+        const empty = s.grids[b].map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+        const cell = empty[randInt(0, empty.length - 1)];
+        ctx.bot(b, `s:${n}`, randInt(pace[0], pace[1]), { type: 'set', cell, value: s.solution[cell] });
+        continue;
+      }
+      // smart / expert: solve their own grid like a person — the easiest deduction first, and the
+      // time it takes follows how hard it was to see (a naked single is quick, a hard cell slow)
+      const step = sudokuNextStep(s.grids[b]);
+      if (!step) continue;
+      const speed = level === 'expert' ? 0.6 : 0.8;
+      const effort = step.kind === 'naked' ? 0.75 : step.kind === 'hidden' ? 1 : 1.6;
+      ctx.bot(b, `s:${n}`, Math.round(randInt(pace[0], pace[1]) * speed * effort), { type: 'set', cell: step.cell, value: step.value });
     }
   },
 

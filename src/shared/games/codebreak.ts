@@ -17,7 +17,7 @@ export interface CodebreakSettings {
   repeats: boolean;
   /** tries per round: 8 … 12 */
   maxTries: number;
-  /** how well the bots play */
+  /** how well the bots played (old apps still send it; the bots now follow the room's bot level) */
   level: CodebreakLevel;
 }
 

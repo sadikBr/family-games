@@ -472,7 +472,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   );
 }
 
-/** Lobby settings: time per turn and the bots' level. */
+/** Lobby settings: time per turn (the bots follow the room's «مستوى البوتات»). */
 export function ScrabbleSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.scrabble;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'scrabble', patch });
@@ -488,16 +488,6 @@ export function ScrabbleSettings({ room, editable }: { room: RoomView; editable:
           { key: '60', label: '60 ث' },
           { key: '90', label: '90 ث' },
           { key: '120', label: '120 ث' },
-        ]}
-      />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        editable={editable}
-        value={String(s.level) as '1' | '2'}
-        onChange={(v) => change({ level: Number(v) })}
-        options={[
-          { key: '1', label: 'سهل' },
-          { key: '2', label: 'قوي' },
         ]}
       />
       <Txt v="tiny" color={C.muted}>

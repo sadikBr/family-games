@@ -131,6 +131,49 @@ export function botWord(w: string): boolean {
   return baseWord(w);
 }
 
+/**
+ * Every start of a word a bot may play (botWord ⊆ everyday words, grammar words, «ال» + one of
+ * those, the short list): the bots' search prunes with it, far tighter than the whole dictionary.
+ * Built once (≈ 150k short strings); null when there is no everyday list (then isPrefix is used).
+ */
+let botPrefixes: Set<string> | null | undefined;
+let botLex: Set<string> | null = null;
+function buildBotLex() {
+  if (botPrefixes !== undefined) return;
+  isCommon('');
+  if (!common!.size) {
+    botPrefixes = null;
+    return;
+  }
+  botPrefixes = new Set(['']);
+  botLex = new Set();
+  const add = (w: string) => {
+    botLex!.add(w);
+    for (let i = 1; i <= w.length; i++) botPrefixes!.add(w.slice(0, i));
+  };
+  for (const w of [...common!, ...EXTRA]) {
+    add(w);
+    if (w.length >= 2) add('ال' + w);
+  }
+}
+export function botPrefix(p: string): boolean {
+  buildBotLex();
+  return botPrefixes ? botPrefixes.has(p) : isPrefix(p);
+}
+
+/** botWord, with a quick no for strings that are not even candidates (most of what the search tries). */
+const botWordMemo = new Map<string, boolean>();
+export function botWordFast(w: string): boolean {
+  buildBotLex();
+  if (botLex && !botLex.has(w)) return false;
+  let v = botWordMemo.get(w);
+  if (v === undefined) {
+    if (botWordMemo.size > 100_000) botWordMemo.clear();
+    botWordMemo.set(w, (v = botWord(w)));
+  }
+  return v;
+}
+
 /** Can a word (as isWord sees it) start with these normalised letters? For the bots' search. */
 export function isPrefix(p: string): boolean {
   if (basePrefix(p)) return true;
