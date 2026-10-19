@@ -3,8 +3,10 @@
  * (tap it again to take it back). On narrow phones the first tap on the board zooms into a 9×9 window
  * around that square. «العب» shows the score the move would make (same scoring code as the server);
  * the server checks the words in the dictionary.
+ * Motion: a tile I put down glides from my rack to its square, my rack closes its gaps and refills with
+ * new tiles sliding in, another player's word appears tile by tile and its points count up above it.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { haptic } from '@/lib/sfx';
@@ -23,8 +25,10 @@ import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
+import { CardMotion, CardStage } from './cards/motion';
 import { PlayerStrip } from './player-strip';
 import { Board, Legend, TileFace, type BoardWindow } from './scrabble-board';
+import { ARRIVE, useSettled } from './scrabble-motion';
 import { useRefusedFlash } from './wordle-ui';
 
 interface Pend {
@@ -63,6 +67,31 @@ function wordCells(board: ScrabbleView['board'], cells: readonly number[]): Set<
     }
   }
   return out;
+}
+
+/** Reading order of a word's new tiles: top to bottom, then right to left (column 0 is on the right). */
+const readingOrder = (cells: readonly number[]) => [...cells].sort((a, b) => rowOf(a) - rowOf(b) || colOf(a) - colOf(b));
+
+/**
+ * The word that just came, to animate: other players' tiles appear one by one, and the points count up
+ * (also for my own word). Only for a move made while the screen is open; a later move replaces it.
+ */
+function useFreshWord(view: ScrabbleView, me: string, settled: boolean) {
+  const move = view.last?.kind === 'play' ? view.last : null;
+  const key = move ? `${view.turnNo}` : null;
+  const [seen, setSeen] = useState<{ key: string | null; fresh: boolean }>({ key, fresh: false });
+  let cur = seen;
+  if (seen.key !== key) {
+    cur = { key, fresh: settled && key !== null };
+    setSeen(cur);
+  }
+  if (!move || !key || !cur.fresh) return { arrive: null, badge: null };
+  const cells = readingOrder(move.cells);
+  const mine = move.by === me;
+  const arrive = mine ? null : { key, order: new Map(cells.map((c, k) => [c, k])) };
+  // the points start counting once the last tile is down
+  const delay = mine ? 120 : (cells.length - 1) * ARRIVE.stagger + ARRIVE.ms;
+  return { arrive, badge: { key, cell: cells[0], score: move.score, delay } };
 }
 
 function moveText(m: ScrabbleMove, h: Helpers): string {
@@ -155,6 +184,15 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   const [swap, setSwap] = useState<number[] | null>(null);
   const [blankAt, setBlankAt] = useState<{ id: number; cell: number } | null>(null);
   const [confirmPass, setConfirmPass] = useState(false);
+  const settled = useSettled();
+  const fresh = useFreshWord(view, h.me, settled);
+  // the tile I just put down glides from the rack (only then: not when the zoomed board scrolls back to it)
+  const [flying, setFlying] = useState<number | null>(null);
+  useEffect(() => {
+    if (flying === null) return;
+    const t = setTimeout(() => setFlying(null), 700);
+    return () => clearTimeout(t);
+  }, [flying]);
 
   if (view.phase === 'final') return <Final room={room} view={view} h={h} width={width} />;
   const playing = view.order.includes(h.me);
@@ -165,7 +203,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   // placements still valid (a new game, a tile played, or a square taken by someone else drops them)
   const list = pend.since <= view.turnNo ? pend.list.filter((p) => rackIds.has(p.id) && !view.board[p.cell]) : [];
   const placedIds = new Set(list.map((p) => p.id));
-  const pendingMap = new Map(list.map((p) => [p.cell, { l: p.l, v: p.v, blank: p.blank }]));
+  const pendingMap = new Map(list.map((p) => [p.cell, { l: p.l, v: p.v, blank: p.blank, id: p.id === flying ? p.id : undefined }]));
   const shown: ScrabbleTile[] = [...order.filter((id) => rackIds.has(id)), ...rack.map((t) => t.id).filter((id) => !order.includes(id))].map((id) => rack.find((t) => t.id === id)!);
   const selected = sel !== null && rackIds.has(sel) && !placedIds.has(sel) ? sel : null;
   const swapSel = swap?.filter((id) => rackIds.has(id)) ?? null;
@@ -205,6 +243,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
       return;
     }
     setList([...list, { id: tile.id, cell, l: tile.l, v: tile.v, blank: false }]);
+    setFlying(tile.id);
     setSel(null);
   };
 
@@ -236,7 +275,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
   const tileSize = Math.min(46, Math.floor((width - 8 - (RACK - 1) * 4) / RACK));
 
   return (
-    <>
+    <CardStage>
       <PlayerStrip
         room={room}
         entries={view.order.map((id) => ({ id, score: view.scores[id] ?? 0, sub: `${num(view.rackCounts[id] ?? 0)} أحرف` }))}
@@ -259,7 +298,17 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
       </View>
 
       <View style={{ gap: 6 }}>
-        <Board board={view.board} pending={pendingMap} last={lastCells} word={lastWord} width={width} win={win} onCell={playing ? onCell : undefined} />
+        <Board
+          board={view.board}
+          pending={pendingMap}
+          last={lastCells}
+          word={lastWord}
+          width={width}
+          win={win}
+          onCell={playing ? onCell : undefined}
+          arrive={fresh.arrive}
+          badge={fresh.badge}
+        />
         <Row gap={6} center>
           <Btn
             size="sm"
@@ -290,12 +339,15 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
               {shown.map((t) => {
                 const placed = placedIds.has(t.id);
                 const on = swapSel ? swapSel.includes(t.id) : selected === t.id;
+                // new tiles slide in from the bag side; the others close the gaps smoothly
                 return (
-                  <Pressable key={t.id} onPress={() => onTile(t)} accessibilityLabel={t.l || 'مربع فارغ'}>
-                    <View style={on ? { transform: [{ translateY: -6 }] } : null}>
-                      <TileFace l={t.l} v={t.v} blank={!t.l} size={tileSize} dim={placed} selected={on} />
-                    </View>
-                  </Pressable>
+                  <CardMotion key={t.id} id={`t${t.id}`} enter="deal" from="top" flow>
+                    <Pressable onPress={() => onTile(t)} accessibilityLabel={t.l || 'مربع فارغ'}>
+                      <View style={on ? { transform: [{ translateY: -6 }] } : null}>
+                        <TileFace l={t.l} v={t.v} blank={!t.l} size={tileSize} dim={placed} selected={on} />
+                      </View>
+                    </Pressable>
+                  </CardMotion>
                 );
               })}
             </View>
@@ -395,7 +447,10 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
         visible={blankAt !== null}
         onCancel={() => setBlankAt(null)}
         onPick={(l) => {
-          if (blankAt) setList([...list, { id: blankAt.id, cell: blankAt.cell, l, v: 0, blank: true }]);
+          if (blankAt) {
+            setList([...list, { id: blankAt.id, cell: blankAt.cell, l, v: 0, blank: true }]);
+            setFlying(blankAt.id);
+          }
           setBlankAt(null);
           setSel(null);
         }}
@@ -413,7 +468,7 @@ export function ScrabbleGame({ room, view }: { room: RoomView; view: ScrabbleVie
           h.act('pass');
         }}
       />
-    </>
+    </CardStage>
   );
 }
 
