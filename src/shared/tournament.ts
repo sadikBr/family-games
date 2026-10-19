@@ -49,7 +49,7 @@ export const MAX_REPLAYS = 2;
 /** Games two people can play against each other (duel games first, then those that also work with two). */
 export const KNOCKOUT_GAMES: GameId[] = [
   'xo', 'connect4', 'chess', 'dama', 'kharbga', 'battleship', 'mancala',
-  'dots', 'ludo', 'blocks', 'ladders', 'memory', 'ronda', 'kanza', 'konkan', 'unoflip', 'hez2', 'phase10', 'kdab',
+  'dots', 'ludo', 'blocks', 'ladders', 'memory', 'ronda', 'kanza', 'konkan', 'unoflip', 'hez2', 'phase10', 'kdab', 'rami',
   'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof',
 ];
 

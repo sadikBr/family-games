@@ -33,6 +33,7 @@ import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
 import { WordleSettings } from './wordle';
+import { RamiSettings } from './rami';
 
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
   const settings = room.settings[game];
@@ -91,6 +92,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <ProphetsSettings room={room} editable={editable} />;
     case 'mosque':
       return <MosqueSettings room={room} editable={editable} />;
+    case 'rami':
+      return <RamiSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (

@@ -357,4 +357,22 @@ export function hez2() {
     <path d="M77 36 Q80.5 41 77 46 M81.5 33 Q86 41 81.5 49" stroke="#FFE89A" stroke-width="2.2" fill="none" stroke-linecap="round" data-flat/>
     <g transform="translate(68 73)"><circle r="11" fill="#F2C23D"/>
     <text x="0" y="5.2" font-size="14" font-family="Lilita" fill="#5E1747" text-anchor="middle" data-flat>+2</text></g>`);
+export function rami() {
+  // a run of hearts fanned out (7 8 9) with a joker on top: الرامي's two decks and their jokers
+  const card = (x, y, rot, label, suit, red) => `<g transform="translate(${x} ${y}) rotate(${rot})">
+    <rect x="-13" y="-18" width="26" height="36" rx="3.5" fill="#FFFDF6" data-shade="0.88"/>
+    <text x="-8" y="-8" font-size="8" font-family="Lilita" fill="${red ? '#C8283C' : '#1B1830'}" text-anchor="middle" data-flat>${label}</text>
+    <path d="M-8 6 C-12 3 -13.5 0.5 -13.5 -1.5 C-13.5 -3.5 -12 -4.5 -10.6 -4.5 C-9.5 -4.5 -8.6 -3.8 -8 -2.8 C-7.4 -3.8 -6.5 -4.5 -5.4 -4.5 C-4 -4.5 -2.5 -3.5 -2.5 -1.5 C-2.5 0.5 -4 3 -8 6Z" fill="${red ? '#C8283C' : '#1B1830'}" data-noline/></g>`;
+  const joker = `<g transform="translate(62 54) rotate(14)">
+    <rect x="-13" y="-18" width="26" height="36" rx="3.5" fill="#FFFDF6" data-shade="0.88"/>
+    <path d="M-9 4 C-9 -4 -12 -9 -14 -10 C-8 -10 -4 -6 -2 -2 L0 -12 L2 -2 C4 -6 8 -10 14 -10 C12 -9 9 -4 9 4Z" fill="#C8283C" data-lw="0.8"/>
+    <path d="M-2 -2 L0 -12 L2 -2 L0 4Z" fill="#2C3D73" data-noline/>
+    <circle cx="-14" cy="-10" r="2.2" fill="#F2C23D" data-noline/><circle cx="0" cy="-12.5" r="2.2" fill="#F2C23D" data-noline/><circle cx="14" cy="-10" r="2.2" fill="#F2C23D" data-noline/>
+    <rect x="-10" y="4" width="20" height="4" rx="2" fill="#F2C23D" data-noline/>
+    <text x="0" y="16" font-size="7" font-family="Lilita" fill="#C8283C" text-anchor="middle" data-flat>JOKER</text></g>`;
+  return svg100(`
+    ${base(HEX, HEX_IN, '#0E4A3C', '#1F8A70', ['#F2C23D', '#FFE89A'])}
+    ${card(30, 56, -22, '7', '♥', true)}${card(40, 50, -10, '8', '♥', true)}${card(50, 47, 2, '9', '♥', true)}
+    ${joker}
+    <path d="M30 76 H70 L66 83 H34Z" fill="#F2C23D"/>`);
 }

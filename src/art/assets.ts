@@ -60,6 +60,7 @@ export const GAME_IMG: Record<string, number> = {
   'qquote': require('../../assets/art/games/qquote.webp'),
   'quiz': require('../../assets/art/games/quiz.webp'),
   'qword': require('../../assets/art/games/qword.webp'),
+  'rami': require('../../assets/art/games/rami.webp'),
   'ronda': require('../../assets/art/games/ronda.webp'),
   'scrabble': require('../../assets/art/games/scrabble.webp'),
   'spy': require('../../assets/art/games/spy.webp'),
