@@ -268,6 +268,7 @@ function botGame(players: string[], level: 'easy' | 'hard') {
   const ctx: any = fakeCtx();
   const jobs: { by: string; a: any }[] = [];
   ctx.bot = (by: string, _k: string, _d: number, a: any) => jobs.push({ by, a });
+  ctx.botLevel = () => (level === 'hard' ? 'expert' : 'easy'); // the room-wide level now decides
   const s = blocks.start(ctx, players, { level });
   let guard = 0;
   while (s.phase === 'play' && guard++ < 500) {

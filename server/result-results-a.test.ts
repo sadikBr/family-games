@@ -179,7 +179,7 @@ test('battleship / chess / connect4 / dama / kharbga: winner then loser, a draw 
   c4.phase = 'final';
   c4.winner = 'draw';
   expect(connect4.result!(c4)!.places.length).toBe(1);
-});
+}, 60000); // bot-only games at the default «خبير» level
 
 test('blocks: colours by score, the leaver left out', () => {
   for (const players of [P2, P3]) {

@@ -234,39 +234,21 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
         </View>
       );
     }
-    case 'connect4':
-    case 'chess':
-    case 'kharbga':
-    case 'battleship':
+    // the bots' strength is the room's «مستوى البوتات» (in the waiting room), not a per-game setting
     case 'xo': {
-      const { settings, change } = settingsFor(room, room.game);
-      const size = room.game === 'xo' ? (room.settings.xo.size ?? 3) : 0;
+      const size = room.settings.xo.size ?? 3;
       return (
         <View style={{ gap: 8 }}>
-          {room.game === 'xo' ? (
-            <>
-              <Txt v="bold">حجم اللوحة</Txt>
-              <ChipPicker
-                options={XO_SIZES.map((n) => ({ key: String(n), label: `${n}×${n}` }))}
-                value={String(size)}
-                editable={editable}
-                onChange={(v) => client.roomAction({ type: 'settings', game: 'xo', patch: { size: Number(v) } })}
-              />
-              <Txt v="tiny" color={C.muted}>
-                {['', '', '', 'ثلاثة', 'أربعة', 'خمسة'][inRow(size)]} في خط للفوز
-              </Txt>
-            </>
-          ) : null}
-          <Txt v="bold">قوة البوت</Txt>
+          <Txt v="bold">حجم اللوحة</Txt>
           <ChipPicker
-            options={[
-              { key: '1', label: 'سهل' },
-              { key: '2', label: 'قوي' },
-            ]}
-            value={String(settings.level) as '1' | '2'}
+            options={XO_SIZES.map((n) => ({ key: String(n), label: `${n}×${n}` }))}
+            value={String(size)}
             editable={editable}
-            onChange={(v) => change({ level: Number(v) as 1 | 2 })}
+            onChange={(v) => client.roomAction({ type: 'settings', game: 'xo', patch: { size: Number(v) } })}
           />
+          <Txt v="tiny" color={C.muted}>
+            {['', '', '', 'ثلاثة', 'أربعة', 'خمسة'][inRow(size)]} في خط للفوز
+          </Txt>
         </View>
       );
     }

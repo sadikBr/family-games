@@ -6,7 +6,8 @@ import { MANCALA_SEEDS, mancalaSowMs, mancalaStore, type MancalaLevel, type Manc
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
 import { mancalaBotPit, pitsOf, sow } from '../mancala-rules';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { mancalaExpert } from '../ai/boards-mancala';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum } from '../util';
 
 interface State {
@@ -96,7 +97,12 @@ export const mancala: GameModule<State, MancalaSettings> = {
     if (s.phase !== 'play') return;
     const id = s.seats[s.turn];
     if (!bots.includes(id)) return;
-    if (s.botCache?.moves !== s.moves) s.botCache = { moves: s.moves, pit: mancalaBotPit(s.board, s.turn, s.settings.level) };
+    if (s.botCache?.moves !== s.moves) {
+      // the room's «مستوى البوتات» (the old per-game level is ignored)
+      const level = botLevel(ctx);
+      const pit = level === 'expert' ? mancalaExpert(s.board, s.turn) : mancalaBotPit(s.board, s.turn, level === 'smart' ? 'medium' : 'easy');
+      s.botCache = { moves: s.moves, pit };
+    }
     // wait for the seeds of the last move to finish moving on the phones
     const anim = sowingMs(s.last);
     ctx.bot(id, `m:${s.moves}`, anim + randDelay(650, 1100), { type: 'sow', pit: s.botCache.pit });

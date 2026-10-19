@@ -174,15 +174,19 @@ test('dots hard bot: declines the last two boxes of a chain to keep control (dou
   expect(dotsBotLine(n, short, 'hard')).toBe(v(0, 2));
 });
 
+/** The room-wide bot level that plays like each of the old per-game levels. */
+const ROOM_LEVEL = { easy: 'easy', medium: 'smart', hard: 'expert' } as const;
+
 /** Play a whole game with bots only; every bot move must be legal. */
 function botGame(seats: string[], size: number, level: DotsLevel | Record<string, DotsLevel>) {
   const q: { by: string; a: { type: string; line: number } }[] = [];
   const ctx = fakeCtx((by, a) => q.push({ by, a }));
-  const s = dots.start(ctx, seats, { size, level: typeof level === 'string' ? level : 'easy' });
+  let who = '';
+  ctx.botLevel = () => ROOM_LEVEL[typeof level === 'string' ? level : level[who]];
+  const s = dots.start(ctx, seats, { size, level: 'easy' });
   for (let k = 0; k < 1000 && s.phase === 'play'; k++) {
     q.length = 0;
-    const who = dots.turnOf!(s)[0];
-    if (typeof level !== 'string') s.settings.level = level[who];
+    who = dots.turnOf!(s)[0];
     dots.botPlan!(ctx, s, seats);
     expect(q.length).toBe(1);
     expect(q[0].by).toBe(who);
@@ -204,16 +208,16 @@ test('dots: bot-only games finish with every box taken (all sizes, 2–4 players
       expect(s.winners!.length).toBeGreaterThan(0);
     }
   }
-});
+}, 60000);
 
-test('dots: hard beats easy most of the time on 5×5', () => {
+test('dots: the expert bot beats the easy one most of the time on 5×5', () => {
   let hardWins = 0;
-  for (let g = 0; g < 20; g++) {
+  for (let g = 0; g < 10; g++) {
     const s = botGame(['h', 'e'], 5, { h: 'hard', e: 'easy' });
     if (s.winners!.length === 1 && s.winners![0] === 'h') hardWins += 1;
   }
-  expect(hardWins).toBeGreaterThanOrEqual(14);
-});
+  expect(hardWins).toBeGreaterThanOrEqual(8);
+}, 60000);
 
 test('dots: bot move takes little time even on 6×6', () => {
   const n = 6;

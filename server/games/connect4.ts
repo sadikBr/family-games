@@ -3,7 +3,8 @@ import { COLS, bestColumn, dropRow, winLine, type Disc } from '../../src/shared/
 import type { Connect4Settings, Connect4View } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { c4Bot } from '../ai/boards-connect4';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 interface State {
@@ -86,7 +87,9 @@ export const connect4: GameModule<State, Connect4Settings> = {
     const id = s.turn === 1 ? s.red : s.yellow;
     if (!bots.includes(id) || s.botMove === s.moves) return; // think once per turn
     s.botMove = s.moves;
-    ctx.bot(id, `c4:${s.moves}`, randDelay(700, 1300), { type: 'drop', col: bestColumn(s.board, s.turn, s.settings.level) });
+    const level = botLevel(ctx); // the room's «مستوى البوتات» (the old per-game level is ignored)
+    const col = level === 'easy' ? bestColumn(s.board, s.turn, 1) : c4Bot(s.board, s.turn, level);
+    ctx.bot(id, `c4:${s.moves}`, randDelay(700, 1300), { type: 'drop', col });
   },
 
   view(ctx, s, me): Connect4View {
