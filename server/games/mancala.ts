@@ -2,7 +2,7 @@
  * «المنقلة» — Kalah for two: six pits a side and a store each. The starting player alternates
  * between games and the series score is kept (see ../duel.ts).
  */
-import { MANCALA_SEEDS, mancalaStore, type MancalaLevel, type MancalaMove, type MancalaSettings, type MancalaView } from '../../src/shared/games/mancala';
+import { MANCALA_SEEDS, mancalaSowMs, mancalaStore, type MancalaLevel, type MancalaMove, type MancalaSettings, type MancalaView } from '../../src/shared/games/mancala';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
 import { mancalaBotPit, pitsOf, sow } from '../mancala-rules';
@@ -39,12 +39,8 @@ const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال'
 /** «حبة واحدة», «حبتان», «5 حبات», «12 حبة» */
 const seedsText = (n: number) => (n === 1 ? 'حبة واحدة' : n === 2 ? 'حبتان' : n <= 10 ? `${n} حبات` : `${n} حبة`);
 
-/** How long the phones take to show a move (seeds land one by one, then a capture pauses): see mancala.tsx. */
-export function sowingMs(m: MancalaMove | null) {
-  if (!m) return 0;
-  const per = Math.max(80, Math.min(170, 1400 / m.path.length));
-  return m.path.length * per + (m.capture ? 750 : 0);
-}
+/** How long the phones take to show a move (seeds land one by one, a capture travels to the store): see mancala.tsx. */
+export const sowingMs = (m: MancalaMove | null) => mancalaSowMs(m);
 
 /** `id` resigned or left: the other player wins (and it counts in the series). */
 function forfeit(ctx: GameCtx, s: State, id: string) {
