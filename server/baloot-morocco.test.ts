@@ -142,7 +142,7 @@ test('deal: 5 cards each and one face up; «أشتري» or pass from the dealer
   expect(s.contract).toMatchObject({ mode: 'hokm', trump: up.suit, buyer: first, mult: 1 });
   expect(s.phase).toBe('play'); // no doubling in this mode
   expect(s.turn).toBe(first);
-  expect(said.at(-1)).toBe(`الشاري: ${ctx.playerName(first)} — الأتو: ${maSuitName(up.suit)}${up.rank === 'J' ? ' (الفورص)' : ''}`);
+  expect(said.at(-1)).toBe(`الشاري: ${ctx.playerName(first)} — الطرونفو: ${maSuitName(up.suit)}${up.rank === 'J' ? ' (الفورص)' : ''}`);
 });
 
 test('purchase turn 1: passes, then the first «أشتري» ends it', () => {
@@ -272,11 +272,11 @@ test('play duties are enforced by the server, with clear refusals', () => {
   const h = playWith(['AS KS 7S 8S 9S 10S JS QS', 'AH 10H 9C 8C 7C KH QH 7H', 'JH 9H 8H JD 9D AD 10D KD', 'QD 8D 7D AC 10C KC QC JC'], '7H');
   // trump ♥: p0 leads ♠; p1 void → must trump
   baloot.act(h.ctx, h.s, 'p0', { type: 'play', card: '7S' });
-  expect(() => baloot.act(h.ctx, h.s, 'p1', { type: 'play', card: '7C' })).toThrow('يجب أن تقطع بالأتو');
+  expect(() => baloot.act(h.ctx, h.s, 'p1', { type: 'play', card: '7C' })).toThrow('يجب أن تقطع بالطرونفو');
   baloot.act(h.ctx, h.s, 'p1', { type: 'play', card: '7H' });
   // p2 void in ♠, an opponent holds with the 7 ♥ → over-trump
   expect(ids(vw(h.ctx, h.s, 'p2').playable.map(c))).toEqual(['8H', '9H', 'JH']);
-  expect(() => baloot.act(h.ctx, h.s, 'p2', { type: 'play', card: 'JD' })).toThrow('يجب أن تقطع بالأتو');
+  expect(() => baloot.act(h.ctx, h.s, 'p2', { type: 'play', card: 'JD' })).toThrow('يجب أن تقطع بالطرونفو');
   baloot.act(h.ctx, h.s, 'p2', { type: 'play', card: '8H' });
   // p3 void in ♠ and ♥ → anything
   expect(vw(h.ctx, h.s, 'p3').playable.length).toBe(8);

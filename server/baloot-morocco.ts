@@ -41,7 +41,7 @@ export function maBidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, 
   const b = s.bid!;
   const opt = maBidOptions(s, by).find((o) => o.call === call);
   if (!opt) throw new GameError(b.queue[0] === by ? 'لا يمكنك هذا الاختيار الآن' : 'ليس دورك');
-  if (call === 'hokm2' && !(isStr(suit) && opt.suits?.includes(suit as BSuit))) throw new GameError('اختر شكل الأتو');
+  if (call === 'hokm2' && !(isStr(suit) && opt.suits?.includes(suit as BSuit))) throw new GameError('اختر شكل الطرونفو');
   b.queue.shift();
   if (call === 'hokm' || call === 'hokm2') {
     const trump = call === 'hokm' ? s.faceUp!.suit : (suit as BSuit);
@@ -57,7 +57,7 @@ export function maBidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, 
     b.round = 2;
     b.calls = {};
     b.queue = b.order.slice();
-    ctx.say?.('لا شراء في الجولة الأولى — الجولة الثانية: أتو بشكل آخر');
+    ctx.say?.('لا شراء في الجولة الأولى — الجولة الثانية: طرونفو بشكل آخر');
     return null;
   }
   return 'redeal';
@@ -73,7 +73,7 @@ function maDeal(ctx: GameCtx, s: State, buyer: string, trump: BSuit, forced: boo
   s.faceUp = null;
   for (const id of s.seats) s.maAvail[id] = findAnnouncements(s.hands[id], trump);
   s.balootHolder = s.seats.find((id) => ['K', 'Q'].every((r) => s.hands[id].some((c) => c.suit === trump && c.rank === r))) ?? null;
-  ctx.say?.(`الشاري: ${ctx.playerName(buyer)} — الأتو: ${maSuitName(trump)}${forced ? ' (الفورص)' : ''}`, buyer);
+  ctx.say?.(`الشاري: ${ctx.playerName(buyer)} — الطرونفو: ${maSuitName(trump)}${forced ? ' (الفورص)' : ''}`, buyer);
   ctx.fx('correct', buyer);
 }
 
@@ -88,9 +88,9 @@ export function maIllegal(s: State, id: string): string {
   const trump = s.contract!.trump!;
   const led = s.trick[0]?.card.suit;
   const hand = s.hands[id];
-  if (led === trump && hand.some((c) => c.suit === trump)) return 'يجب أن تلعب أتو أعلى إن استطعت';
+  if (led === trump && hand.some((c) => c.suit === trump)) return 'يجب أن تلعب طرونفو أعلى إن استطعت';
   if (hand.some((c) => c.suit === led)) return 'يجب أن تتبع الشكل المطلوب';
-  return 'يجب أن تقطع بالأتو';
+  return 'يجب أن تقطع بالطرونفو';
 }
 
 /** The 2nd trick: the announcements a player declares with the card (before it leaves the hand). */

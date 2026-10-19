@@ -3,7 +3,7 @@
  * Play a card: if the same rank is on the table you take it, plus the cards that follow
  * it in sequence (… 6, 7, 10, 11, 12). دقة = taking the card just played by the
  * previous player (+1); if the next player answers with the third card of that rank, they take the
- * three cards from the other pile («ف جوج», +5), and the fourth card takes all four («ف ثلاثة», +10). مسّة = clearing the table (+1). روندا (pair) = 1, ترينكا
+ * three cards from the other pile («ف جوج», +5), and the fourth card takes all four («ف ثلاثة», +10). ميسا = clearing the table (+1). روندا (pair) = 1, ترينكا
  * (three of a kind) = 5, four of a kind = two rondas. At the end of a hand the side
  * with more than 20 cards (13 with three players) scores one point per extra card. First to the target wins.
  */
@@ -192,6 +192,38 @@ function endHand(ctx: GameCtx, s: State) {
   for (const row of s.handSummary) if (addPoints(ctx, s, row.side, row.points)) return;
 }
 
+/**
+ * «المفرّق ياكل القاعة» (agreed from the start): at the last deal, the dealer's very last card must
+ * take. If it takes, the dealer's side also takes everything left on the table (القاعة); taking
+ * with the king (الراي) is +5 for the dealer's side. Playing the ace (اللاص) as that card, or taking
+ * nothing with it, is +5 for the other side(s).
+ */
+function dealerEatsTable(ctx: GameCtx, s: State, by: string, card: Card, took: boolean): { ended: boolean; said: string } {
+  if (by !== s.seats[s.dealerIdx]) return { ended: false, said: '' };
+  const side = sideOf(s.sides, by);
+  const name = ctx.playerName(by);
+  if (took && s.table.length) {
+    s.captured[side].push(...s.table);
+    s.feed.push(`المفرّق ياكل القاعة: ${cardsWord(s.table.length)} لـ${name}`, { by });
+    s.table = [];
+  }
+  const others = s.sides.map((x) => x.key).filter((k) => k !== side);
+  if (took && card.rank === 12) {
+    s.feed.push('المفرّق ياكل القاعة بالراي! +5', { by, points: 5 });
+    setAnnounce(s, by, 'المفرّق ياكل القاعة بالراي! +5');
+    return { ended: addPoints(ctx, s, side, 5), said: 'المفرّق ياكل القاعة بالراي: +5' };
+  }
+  if (card.rank === 1 || !took) {
+    const why = took ? 'آخر ورقة للمفرّق هي الواحد' : 'آخر ورقة للمفرّق بلا أخذ';
+    const gain = `+5 ${others.length > 1 ? 'لكل خصم' : 'للخصم'}`;
+    s.feed.push(`${why}: ${gain}`, { points: 5 });
+    setAnnounce(s, null, `${why}\n${gain}`);
+    for (const k of others) if (addPoints(ctx, s, k, 5)) return { ended: true, said: `${why}: ${gain}` };
+    return { ended: false, said: `${why}: ${gain}` };
+  }
+  return { ended: false, said: took ? 'المفرّق ياكل القاعة' : '' };
+}
+
 function findCapture(table: Card[], card: Card): Card[] {
   const match = table.find((c) => c.rank === card.rank);
   if (!match) return [];
@@ -273,6 +305,7 @@ export const ronda: GameModule<State, RondaSettings> = {
     const chain = s.chain && s.chain.by === prev && s.chain.rank === card.rank && s.chain.side !== side ? s.chain : null;
     if (chain) {
       // the third (or fourth) card of the rank right after a دقة: take those cards from the other pile
+      // everything the دقة took (the matched card AND the run that followed it: 1 → 1 2 3) changes pile
       const pile = s.captured[chain.side];
       for (const c of chain.cards) {
         const i = pile.findIndex((x) => x.id === c.id);
@@ -281,14 +314,15 @@ export const ronda: GameModule<State, RondaSettings> = {
       s.captured[side].push(card, ...chain.cards);
       s.lastCapturer = by;
       const count = chain.cards.length + 1;
-      const pts = count >= 4 ? 10 : 5;
+      const same = chain.cards.filter((c) => c.rank === card.rank).length + 1;
+      const pts = same >= 4 ? 10 : 5;
       // the table's own calls: دقة → ف جوج (+5) → ف ثلاثة (+10)
-      const label = count >= 4 ? 'ف ثلاثة! +10' : 'ف جوج! +5';
+      const label = same >= 4 ? 'ف ثلاثة! +10' : 'ف جوج! +5';
       s.feed.push(`${label} لـ${ctx.playerName(by)}`, { by, points: pts });
       setAnnounce(s, by, label);
       said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(count)} بـ ${cardName(card)} — +${pts}`;
       ctx.fx('reveal', by);
-      s.chain = count < 4 ? { by, side, rank: card.rank, cards: [...chain.cards, card] } : null;
+      s.chain = same < 4 ? { by, side, rank: card.rank, cards: [...chain.cards, card] } : null;
       s.lastPlayed = null;
       s.lastPlay = { by, card, took: chain.cards };
       ended = addPoints(ctx, s, side, pts);
@@ -307,14 +341,15 @@ export const ronda: GameModule<State, RondaSettings> = {
       }
       if (missa) {
         pts += 1;
-        s.feed.push('مسّة! +1', { by, points: 1 });
+        s.feed.push('ميسا! +1', { by, points: 1 });
       }
-      if (pts) setAnnounce(s, by, wasDaqa && missa ? 'دقة ومسّة! +2' : wasDaqa ? 'دقة! +1' : 'مسّة! +1');
-      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasDaqa && missa ? ' — دقة ومسّة!' : wasDaqa ? ' — دقة!' : missa ? ' — مسّة!' : ''}`;
+      if (pts) setAnnounce(s, by, wasDaqa && missa ? 'دقة وميسا! +2' : wasDaqa ? 'دقة! +1' : 'ميسا! +1');
+      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasDaqa && missa ? ' — دقة وميسا!' : wasDaqa ? ' — دقة!' : missa ? ' — ميسا!' : ''}`;
       ctx.fx(pts ? 'reveal' : 'correct', by);
       s.lastPlayed = null;
-      // a دقة opens a chain: the next player may answer with the same rank
-      s.chain = wasDaqa ? { by, side, rank: card.rank, cards: [took[0], card] } : null;
+      // a دقة opens a chain: the next player may answer with the same rank and take all of it,
+      // the run included (1 on 1 2 3 → the answer takes 1 1 1 2 3)
+      s.chain = wasDaqa ? { by, side, rank: card.rank, cards: [...took, card] } : null;
       s.lastPlay = { by, card, took };
       ended = addPoints(ctx, s, side, pts);
     } else {
@@ -325,6 +360,11 @@ export const ronda: GameModule<State, RondaSettings> = {
       said = `ورقة من ${ctx.playerName(by)}: ${cardName(card)}`;
       s.chain = null;
       s.lastPlay = { by, card, took };
+    }
+    if (!ended && s.deck.length === 0 && s.seats.every((id) => s.hands[id].length === 0)) {
+      const r = dealerEatsTable(ctx, s, by, card, !!chain || took.length > 0);
+      ended = r.ended;
+      if (r.said) said += ` — ${r.said}`;
     }
     ctx.say?.(said, by);
     if (ended) return;

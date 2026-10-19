@@ -57,10 +57,10 @@ function maPlayHint(v: BalootView): string {
   const led = v.trick[0].card.suit;
   const trump = v.contract!.trump!;
   const trumps = v.myHand.filter((c) => c.suit === trump).length;
-  if (legal.every((c) => c.suit === trump) && legal.length < trumps) return 'العب أتو أعلى من الأتو الموجود';
-  if (led === trump && legal.every((c) => c.suit === trump)) return 'اتبع الأتو';
+  if (legal.every((c) => c.suit === trump) && legal.length < trumps) return 'العب طرونفو أعلى من الطرونفو الموجود';
+  if (led === trump && legal.every((c) => c.suit === trump)) return 'اتبع الطرونفو';
   if (legal.every((c) => c.suit === led)) return `اتبع الشكل المطلوب: ${maSuitName(led)}`;
-  if (legal.every((c) => c.suit === trump)) return `يجب أن تقطع بالأتو: ${maSuitName(trump)}`;
+  if (legal.every((c) => c.suit === trump)) return `يجب أن تقطع بالطرونفو: ${maSuitName(trump)}`;
   return 'العب ورقة مضيئة';
 }
 
@@ -269,7 +269,7 @@ export function BalootSettings({ room, editable }: { room: RoomView; editable: b
       />
       <Txt v="tiny" color={C.muted}>
         {ma
-          ? 'البلوط المغربي بالورق المغربي: الأتو والإعلانات وبلوط-ريبلوط، واللعب حتى 1000. القواعد في «كيف نلعب؟».'
+          ? 'البلوط المغربي بالورق المغربي: الطرونفو والإعلانات وبلوط-ريبلوط، واللعب حتى 1000. القواعد في «كيف نلعب؟».'
           : 'البلوط السعودي بالورق الفرنسي: صن وحكم وأشكل والمشاريع والدبل، واللعب حتى 152.'}
       </Txt>
       <Txt v="bold">نهاية اللعبة</Txt>

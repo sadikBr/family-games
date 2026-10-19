@@ -59,12 +59,12 @@ test('ronda: a روندا at the deal is announced in the view with a fresh id',
   expect(s.scores[first]).toBe(score + 1);
 });
 
-test('ronda: مسّة is announced, and a deal right after a capture does not cover its sound', () => {
+test('ronda: ميسا is announced, and a deal right after a capture does not cover its sound', () => {
   const { ctx, fx } = fakeCtx();
   const s: any = ronda.start(ctx, ['a', 'b'], { target: 41 });
   const p = s.seats[s.turnIdx];
   const q = s.seats.find((x: string) => x !== p);
-  // capture the whole table with the last card in hand → مسّة, then the next deal happens
+  // capture the whole table with the last card in hand → ميسا, then the next deal happens
   s.hands = { [p]: [c('coins', 5)], [q]: [] };
   s.table = [c('cups', 5), c('cups', 6)];
   s.lastPlayed = null;
@@ -74,7 +74,7 @@ test('ronda: مسّة is announced, and a deal right after a capture does not co
   ronda.act(ctx, s, p, { type: 'play', card: 'coins-5' });
   expect(s.announce.id).toBe(before + 1);
   expect(s.announce.by).toBe(p);
-  expect(s.announce.text).toContain('مسّة');
+  expect(s.announce.text).toContain('ميسا');
   expect(s.hands[p].length + s.hands[q].length).toBe(8); // the deal happened
   expect(fx.map((f) => f.kind)).not.toContain('card');
   expect(fx.at(-1)!.kind).toBe('reveal');
@@ -127,7 +127,7 @@ test('ronda / kanza: a solo winner is the target of the win sound', () => {
   s.hands = { [p]: [c('coins', 5)], [q]: [c('cups', 1)] };
   s.table = [c('cups', 5)];
   s.lastPlayed = null;
-  ronda.act(ctx, s, p, { type: 'play', card: 'coins-5' }); // مسّة → 41
+  ronda.act(ctx, s, p, { type: 'play', card: 'coins-5' }); // ميسا → 41
   expect(s.phase).toBe('final');
   expect(fx.at(-1)).toEqual({ kind: 'win', target: p });
 

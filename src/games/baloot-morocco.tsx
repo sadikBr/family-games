@@ -1,6 +1,6 @@
 /**
  * «البلوط» (Moroccan mode) — the pieces of the screen that differ from the Saudi game: the purchase
- * panel («شاري» / «باص», then the suit picker), the contract line «الأتو: الكوباص — الشاري: بابا»
+ * panel («شاري» / «باص», then the suit picker), the contract line «الطرونفو: الكوباص — الشاري: بابا»
  * and the end-of-hand breakdown (tricks, ديكس دي دير, announcements, بلوط-ريبلوط, دخل / كابو / ليتيج).
  */
 import { Pressable, View } from 'react-native';
@@ -39,7 +39,7 @@ export function SuitName({ suit, size = 16, color = C.text, bold }: { suit: BSui
   );
 }
 
-/** «الأتو: ⟨icon⟩ الكوباص — الشاري: بابا», the ليتيج waiting and «البيل». */
+/** «الطرونفو: ⟨icon⟩ الكوباص — الشاري: بابا», the ليتيج waiting and «البيل». */
 export function MaContractBar({ v, h }: { v: BalootView; h: Helpers }) {
   const c = v.contract;
   const extra = (
@@ -73,7 +73,7 @@ export function MaContractBar({ v, h }: { v: BalootView; h: Helpers }) {
           paddingHorizontal: 10,
         }}>
         <Txt v="bold" color={C.yellow}>
-          الأتو:
+          الطرونفو:
         </Txt>
         <SuitName suit={c.trump} bold color="#FFFFFF" />
       </View>
@@ -90,7 +90,7 @@ function SuitBtn({ suit, width, onPress }: { suit: BSuit; width: number; onPress
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`الأتو ${maSuitName(suit)}`}
+      accessibilityLabel={`الطرونفو ${maSuitName(suit)}`}
       onPress={() => {
         haptic.tap();
         onPress();
@@ -127,12 +127,12 @@ export function MaBidPanel({ v, width, onCall }: { v: BalootView; width: number;
     <Animated.View entering={FadeIn.duration(200)} style={{ gap: 8 }}>
       {h2 ? (
         <Txt v="bold" center color={C.yellow}>
-          الجولة الثانية: اختر شكلاً آخر للأتو، أو «باص»
+          الجولة الثانية: اختر شكلاً آخر للطرونفو، أو «باص»
         </Txt>
       ) : (
         <Row center gap={4} wrap>
           <Txt v="bold" color={C.yellow}>
-            {forced ? 'الفورص: المكشوفة ولد، والشراء عليك — الأتو:' : 'اشترِ المكشوفة فيصير الأتو:'}
+            {forced ? 'الفورص: المكشوفة ولد، والشراء عليك — الطرونفو:' : 'اشترِ المكشوفة فيصير الطرونفو:'}
           </Txt>
           <SuitName suit={up} bold color={C.yellow} />
         </Row>
@@ -181,7 +181,7 @@ export function MaHandBreakdown({ v, h }: { v: BalootView; h: Helpers }) {
   return (
     <View style={{ backgroundColor: C.surface, borderRadius: 18, padding: 12, gap: 4 }}>
       <Row center gap={6} wrap>
-        <Txt v="bold">الأتو:</Txt>
+        <Txt v="bold">الطرونفو:</Txt>
         {r.contract.trump ? <SuitName suit={r.contract.trump} bold /> : null}
         <Txt v="small" color={C.muted}>
           · الشاري: {h.player(r.contract.buyer).name}

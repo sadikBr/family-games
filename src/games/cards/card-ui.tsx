@@ -452,7 +452,7 @@ export function useTapToPlay({ canPlay, onPlay }: { canPlay: (id: string) => boo
 const ANNOUNCE_MS = 2500;
 
 /**
- * A big call-out over the felt (روندا، مسّة، دقة…). Each new id pops in and hides itself
+ * A big call-out over the felt (روندا، ميسا، دقة…). Each new id pops in and hides itself
  * after ~2.5 s. Place it inside <Felt>.
  */
 export function AnnounceBanner({ announce, h }: { announce: { by: string | null; text: string; id: number } | null; h: Helpers }) {
