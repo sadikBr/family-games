@@ -17,6 +17,7 @@ import { Field } from '@/ui/field';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 import { SpeakToggle } from '@/games/speak-toggle';
+import { versionLabel } from '@/lib/updates';
 
 export default function ProfileScreen() {
   // first launch; `next`: where to go once the name is chosen (e.g. a group invite link)
@@ -115,6 +116,12 @@ export default function ProfileScreen() {
         <Card>
           <SpeakToggle voices />
         </Card>
+      ) : null}
+
+      {!isFirst && versionLabel() ? (
+        <Txt v="tiny" center color={C.dim}>
+          {versionLabel()}
+        </Txt>
       ) : null}
 
       {!isFirst ? (

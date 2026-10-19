@@ -317,6 +317,14 @@ The APK is signed with a local key, so a phone that has the GitLab-built APK mus
 ### Updating later
 
 - **Server / game rules:** `npx @railway/cli up` (attach a volume first so the groups survive it — see [المجموعات](#المجموعات-groups)).
-- **App screens or new games:** build a new APK (step 2) and install it over the old one.
+- **App screens, games, texts, sounds (over the air):** `scripts\publish-update-windows.cmd` on Windows
+  (or `bun run update`). It publishes an EAS Update on the «preview» channel; phones download it the
+  next time the app opens, and a banner on the home screen offers to restart into it right away. The
+  profile screen shows which version a phone runs.
+- **A new APK is still needed** when the native side changes: a new native package, app.json plugins /
+  permissions / icons, or eas.json. Updates only reach APKs with the same runtime version (a
+  fingerprint of the native side, `runtimeVersion.policy: fingerprint`), so a mismatch is harmless:
+  phones just don't take the update. Build APKs and publish updates from the same computer (line
+  endings and installed packages are part of the fingerprint).
 - The server address can still be changed inside the app («إعدادات الخادم» on the profile screen), for
   example to play on a computer at home over Wi-Fi (`bun run server`).

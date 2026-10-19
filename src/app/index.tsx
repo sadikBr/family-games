@@ -19,6 +19,7 @@ import { client, useClient } from '@/lib/client';
 import { toggleFavorite, useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
 import { haptic, isMuted, onMuteChange, setMuted } from '@/lib/sfx';
+import { applyUpdate, useUpdateReady } from '@/lib/updates';
 import { norm } from '@/shared/arabic';
 import { BOT_GAMES, type GameId } from '@/shared/protocol';
 import { C, F, alpha, shade } from '@/theme';
@@ -223,6 +224,7 @@ function QuickTile({ icon, title, sub, onPress, compact }: { icon: IconName; tit
 export default function Home() {
   const { profile, isNew, loaded } = useProfile();
   const { lastCode } = useClient();
+  const updateReady = useUpdateReady();
   const { favorites, recent } = useGamePrefs();
   const [muted, setMutedState] = useState(isMuted());
   const [query, setQuery] = useState('');
@@ -280,6 +282,20 @@ export default function Home() {
         </View>
         <HeroArt width={Math.min(120, contentWidth * 0.32)} />
       </View>
+
+      {updateReady ? (
+        // a newer version of the app was downloaded (over the air): one tap to switch to it
+        <Pressable onPress={applyUpdate} accessibilityRole="button" style={({ pressed }) => [styles.back, styles.update, pressed && styles.pressed]}>
+          <Icon name="refresh" size={18} color={C.yellow} />
+          <View style={{ flex: 1 }}>
+            <Txt v="bold">نسخة جديدة من التطبيق جاهزة</Txt>
+            <Txt v="tiny" color={C.muted}>
+              اضغط لإعادة التشغيل عليها (تُستعمل تلقائياً في المرة القادمة)
+            </Txt>
+          </View>
+          <Icon name="chevron" size={16} color={C.dim} />
+        </Pressable>
+      ) : null}
 
       {lastCode ? (
         <Pressable
@@ -431,6 +447,7 @@ const styles = StyleSheet.create({
   helloTitle: { fontFamily: F.display, fontSize: 25, lineHeight: 38, color: C.text },
   quick: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
   quickIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
+  update: { height: undefined, minHeight: 56, paddingVertical: 8, backgroundColor: alpha(C.yellow, 0.1), borderColor: alpha(C.yellow, 0.5) },
   back: {
     flexDirection: 'row',
     alignItems: 'center',

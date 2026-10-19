@@ -31,6 +31,7 @@
         "expo-status-bar": "~57.0.1",
         "expo-symbols": "~57.0.3",
         "expo-system-ui": "~57.0.4",
+        "expo-updates": "~57.0.26",
         "expo-web-browser": "~57.0.3",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -65,7 +66,9 @@
         "build:apk-local": "JAVA_HOME=/usr/lib/jvm/java-17-openjdk ANDROID_HOME=$HOME/Android/Sdk bunx eas-cli build --platform android --profile preview --local --output family-games.apk",
         "build:apk-windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-apk-windows.ps1",
         "test:server": "BOT_SPEED=0.05 bun test server",
-        "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json"
+        "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json",
+        "update": "eas update --channel preview --platform android",
+        "update:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-update-windows.ps1"
     },
     "private": true
 }
