@@ -8,7 +8,8 @@
   A NEW APK is still needed (scripts\build-apk-windows.cmd) when the native side changes: a new native
   package in package.json, app.json plugins / permissions / icons, eas.json. The update only reaches
   APKs with the same "runtime version" (a fingerprint of the native side), so a mismatch is safe: the
-  phones just don't take it. Build the APKs and publish the updates from the SAME computer.
+  phones just don't take it. Build the APKs and publish the updates from the SAME computer: the APK
+  script writes its runtime version to .apk-runtime, and this script warns when an update won't match.
 
   The server changes still go to Railway: bunx @railway/cli up --service family-games
 
@@ -64,6 +65,25 @@ if (-not $Message) {
 # bunx on Windows splits a quoted argument at its spaces: keep the message to one plain word
 $Message = ($Message -replace '[^A-Za-z0-9._:-]+', '-').Trim('-')
 if (-not $Message) { $Message = "update-$(Get-Date -Format 'yyyy-MM-dd-HHmm')" }
+
+# Will the update reach the phones? Only if its runtime version is the one of the last APK built here.
+Step 'Checking the runtime version'
+$rvOut = & bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String
+$runtime = ''
+if ($rvOut -match '"runtimeVersion":"([0-9a-f]+)"') { $runtime = $Matches[1] }
+$apkFile = Join-Path $root '.apk-runtime'
+$apkRuntime = ''
+if (Test-Path $apkFile) { $apkRuntime = (Get-Content $apkFile -Raw).Trim() }
+Write-Host "This update:      $runtime"
+if ($apkRuntime) { Write-Host "Last APK built:   $apkRuntime" } else { Write-Host 'Last APK built:   unknown (built before this check existed)' }
+if ($runtime -and $apkRuntime -and $runtime -ne $apkRuntime) {
+  Write-Host ''
+  Write-Host 'WARNING: the runtime versions differ, so phones with the last APK will NOT get this update.' -ForegroundColor Red
+  Write-Host 'Something native changed since that APK (package.json, app.json, eas.json, plugins).' -ForegroundColor Red
+  Write-Host 'Build and install a new APK first: scripts\build-apk-windows.cmd' -ForegroundColor Red
+  $answer = Read-Host 'Publish anyway? (y/N)'
+  if ($answer -notmatch '^[yY]') { Fail 'Cancelled.' }
+}
 
 Step "Publishing the update ($Message)"
 # --environment: EAS requires it in non-interactive mode (the server address is set above anyway)

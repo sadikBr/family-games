@@ -88,8 +88,10 @@ export function applyUpdate() {
 export function versionLabel(): string | null {
   const m = updates();
   if (!m) return null;
-  if (m.isEmbeddedLaunch || !m.createdAt) return 'النسخة المثبّتة';
+  // the start of the runtime version: compared with the publish script's output when an update doesn't arrive
+  const rv = m.runtimeVersion ? ` (${m.runtimeVersion.slice(0, 6)})` : '';
+  if (m.isEmbeddedLaunch || !m.createdAt) return `النسخة المثبّتة${rv}`;
   const d = m.createdAt;
   const two = (n: number) => String(n).padStart(2, '0');
-  return `تحديث ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+  return `تحديث ${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}${rv}`;
 }

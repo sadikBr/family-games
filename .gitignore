@@ -57,3 +57,6 @@ tools/art/.out
 service-account*.json
 # the groups database when the server runs without DATA_DIR (see server/db.ts)
 /data/
+
+# runtime version of the last APK built on this computer (scripts/build-apk-windows.ps1)
+.apk-runtime

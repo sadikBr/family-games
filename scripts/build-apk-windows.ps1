@@ -160,6 +160,23 @@ if (-not $env:EXPO_PUBLIC_SERVER_URL) {
 Write-Host "Server: $env:EXPO_PUBLIC_SERVER_URL"
 $env:NODE_ENV = 'production'
 
+# --- the runtime version (over-the-air updates only reach APKs with the same one). Computed here,
+# before prebuild, exactly the way "eas update" computes it when publishing, and handed to Gradle:
+# left to Gradle, it is computed after prebuild from a different view of the project and doesn't match.
+$runtime = ''
+if (-not $Debug) {
+  Step 'Computing the runtime version (for over-the-air updates)'
+  if ($useBun) { $rvOut = & bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String }
+  else { $rvOut = & npx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String }
+  if ($rvOut -match '"runtimeVersion":"([0-9a-f]+)"') {
+    $runtime = $Matches[1]
+    $env:EXPO_UPDATES_FINGERPRINT_OVERRIDE = $runtime
+    Write-Host "Runtime version: $runtime"
+  } else {
+    Write-Host 'Could not compute the runtime version: over-the-air updates may not reach this APK.' -ForegroundColor Yellow
+  }
+}
+
 # --- generate the native Android project from app.json (fresh every time)
 Step 'Generating the Android project (expo prebuild)'
 # a Gradle daemon left from an earlier build keeps files in android\build open, and prebuild can't
@@ -201,6 +218,8 @@ try {
 $apk = Join-Path $root "android\app\build\outputs\apk\$variant\app-$variant.apk"
 if (-not (Test-Path $apk)) { Fail "The build finished but no APK was found at $apk" }
 Copy-Item $apk (Join-Path $root 'family-games.apk') -Force
+# remembered for scripts\publish-update-windows.cmd, which checks its updates will reach this APK
+if ($runtime) { Set-Content -Path (Join-Path $root '.apk-runtime') -Value $runtime -Encoding ASCII }
 Write-Host ''
 Write-Host "Done: $(Join-Path $root 'family-games.apk')" -ForegroundColor Green
 Write-Host 'Note: this APK is signed with a local key. If the phone has the APK from GitLab installed, uninstall that first.' -ForegroundColor Yellow
