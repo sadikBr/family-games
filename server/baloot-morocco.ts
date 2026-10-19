@@ -66,6 +66,7 @@ export function maBidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, 
 /** The taker (الشاري) gets the face-up card + 2, everyone else 3 (dealer's right first). */
 function maDeal(ctx: GameCtx, s: State, buyer: string, trump: BSuit, forced: boolean) {
   s.contract = { mode: 'hokm', trump, buyer, caller: buyer, call: 'hokm', mult: 1, gahwa: false };
+  s.upCard = s.faceUp;
   for (const id of s.bid!.order) {
     if (id === buyer) s.hands[id].push(s.faceUp!, ...s.stock.splice(0, 2));
     else s.hands[id].push(...s.stock.splice(0, 3));
