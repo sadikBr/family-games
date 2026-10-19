@@ -280,7 +280,7 @@ export function HandFan({
             place={{ x: start + k * step, y: 12 + Math.abs(off) * Math.abs(off) * 0.7, rot: off * 2.2 }}
             // the selected card comes to the front: the whole raised card answers the second tap
             style={{ zIndex: sel ? 50 : k + 1 }}>
-            <BalootCard card={c} width={w} selected={sel} dim={myTurn && !playable.includes(c.id)} onPress={onPress ? () => onPress(c) : undefined} />
+            <BalootCard card={c} width={w} selected={sel} dim={myTurn && !playable.includes(c.id)} onPress={onPress ? () => onPress(c) : undefined} steady />
           </CardMotion>
         );
       })}

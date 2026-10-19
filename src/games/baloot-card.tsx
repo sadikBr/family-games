@@ -155,6 +155,7 @@ export const BalootCard = memo(function BalootCard({
   selected,
   ring,
   onPress,
+  steady,
 }: {
   card: BCard | null;
   width: number;
@@ -163,6 +164,8 @@ export const BalootCard = memo(function BalootCard({
   /** a coloured border (the card that holds / took the trick) */
   ring?: string;
   onPress?: () => void;
+  /** keep the tap target mounted while onPress comes and goes (the hand: no blink at a change of turn) */
+  steady?: boolean;
 }) {
   const ma = use(MoroccoDeck);
   // a Moroccan card is a little taller (1.5): it keeps the same height, so the layout doesn't move
@@ -189,9 +192,11 @@ export const BalootCard = memo(function BalootCard({
   const box = ma ? <View style={{ width, alignItems: 'center' }}>{face}</View> : face;
   return (
     <Animated.View style={look}>
-      {onPress ? (
+      {onPress || steady ? (
         <Pressable
+          disabled={!onPress}
           onPress={() => {
+            if (!onPress) return;
             haptic.tap();
             onPress();
           }}

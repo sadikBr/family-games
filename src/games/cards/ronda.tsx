@@ -127,7 +127,7 @@ function RondaScreen({ room, view, tap, myTurn }: { room: RoomView; view: RondaV
       </Felt>
       <TurnLine myTurn={myTurn} text="اختر ورقة، واضغطها مرة ثانية للعب" keep />
       <View style={{ gap: 10, paddingTop: 6 }}>
-        <CardRow cards={view.myHand} size="lg" selected={tap.selected ? [tap.selected] : []} onPress={myTurn ? (c) => tap.tap(c.id) : undefined} motion={{ enter: 'deal', from: 'top' }} />
+        <CardRow cards={view.myHand} size="lg" selected={tap.selected ? [tap.selected] : []} onPress={myTurn ? (c) => tap.tap(c.id) : undefined} motion={{ enter: 'deal', from: 'top' }} steady />
         {/* the button's place is always kept: nothing jumps when a card is selected or played */}
         <View style={{ minHeight: 56, justifyContent: 'center' }}>
           {myTurn && selected ? (

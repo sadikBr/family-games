@@ -111,6 +111,7 @@ export function CardRow({
   empty,
   gap = 6,
   motion,
+  steady,
 }: {
   cards: Card[];
   size?: Size;
@@ -124,6 +125,8 @@ export function CardRow({
   gap?: number;
   /** animate the cards (inside a CardStage) */
   motion?: RowMotion;
+  /** keep the tap target mounted while onPress comes and goes (a hand: no blink at a change of turn) */
+  steady?: boolean;
 }) {
   const room = useContentWidth() - 16;
   const fitted = fitSize(size, cards.length, gap, room);
@@ -146,6 +149,7 @@ export function CardRow({
             dim={dim.includes(c.id)}
             ring={rings?.[c.id]}
             onPress={onPress ? () => onPress(c) : undefined}
+            steady={steady}
           />
         );
         if (!motion) return <View key={c.id}>{face}</View>;
