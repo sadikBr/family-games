@@ -457,6 +457,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       turn: s.seats[s.turnIdx],
       dir: s.dir,
       top: top(s),
+      topId: s.discard[s.discard.length - 1]?.id,
       color: s.color,
       deckLeft: s.deck.length,
       deckTop: deckTop ? faceOf(deckTop, other) : null,
