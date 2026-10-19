@@ -16,10 +16,10 @@ import { Txt, num } from '@/ui/txt';
 import { EASE } from './cards/motion';
 
 /** A tile of a word settling in, and the gap between two tiles of the word. */
-export const ARRIVE = { ms: 260, stagger: 110 } as const;
+export const ARRIVE = { ms: 340, stagger: 145 } as const;
 /** How long the points take to count up, and how long the chip stays before it fades away. */
-const COUNT_MS = 600;
-const BADGE_STAY_MS = 2600;
+const COUNT_MS = 800;
+const BADGE_STAY_MS = 3200;
 
 /** False for the first moments after the screen opens. */
 export function useSettled(ms = 700): boolean {

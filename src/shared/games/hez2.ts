@@ -20,7 +20,7 @@ export const HEZ2_DEFAULTS: Hez2Settings = { target: 100, lastTwo: true };
 export const HEZ2_TARGETS = [50, 100, 150, 200];
 export const HEZ2_HAND = 5;
 /** the last card of a round stays on the table this long before the round's results */
-export const HEZ2_OVER_MS = 2600;
+export const HEZ2_OVER_MS = 3000;
 /** the next round deals itself after this long (the host can deal sooner) */
 export const HEZ2_ROUND_END_MS = 25_000;
 

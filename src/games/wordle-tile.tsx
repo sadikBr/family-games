@@ -19,7 +19,7 @@ import { EASE } from './cards/motion';
 export const MARK_BG: Record<WordleMark, string> = { g: '#2FB67C', y: '#F2B33D', x: '#5B6080' };
 
 /** One half of a turn (to the edge, then back open), and the gap between two tiles of a row. */
-export const FLIP = { half: 125, stagger: 120 } as const;
+export const FLIP = { half: 165, stagger: 160 } as const;
 /** How long a whole row of `n` tiles takes to show its colours. */
 export const flipTotal = (n: number) => (n - 1) * FLIP.stagger + 2 * FLIP.half;
 

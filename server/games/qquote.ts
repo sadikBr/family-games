@@ -11,7 +11,7 @@ import { verseRef, verseSlice } from '../qquote-quran';
 import { forFont } from './tajweed';
 import { qdeck } from '../qdeck';
 import { quizAnswer } from '../ai/social-quiz';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 import { mcqOptions, soleWinner } from './mcq';
 import { ASK, voiceAnswer, voiceFinal, voiceOnly, voiceQuestion } from '../voice-calls-party';
@@ -80,7 +80,7 @@ function reveal(ctx: GameCtx, s: State) {
     return { id, choice: a ? a.choice : null, correct, points };
   });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, REVEAL_MS);
   voiceOnly(ctx, voiceAnswer(`${item.options[item.correct]}، ${item.ref.replace(' — ', '، ')}`));
   // each phone plays «correct» or «wrong» for its own player (see useMyResultFx)
 }

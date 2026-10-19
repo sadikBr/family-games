@@ -9,15 +9,15 @@ import type { TrisClaimView } from '../../src/shared/games/tris-claim';
 import type { CardSide, TrisSettings, TrisView } from '../../src/shared/protocol';
 import { trisClaim, trisMindPlay, trisSimOf } from '../ai/tris-mind';
 import { freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 import { VOICE, voiceHand, voiceTeam, voiceWin } from '../voice-calls';
 
 const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
 /** a full trick stays on the table this long before it is collected (everyone sees who took it) */
-export const TRICK_PAUSE_MS = 2500;
+export const TRICK_PAUSE_MS = 2800;
 /** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
-export const CLAIM_REVEAL_MS = 3800;
+export const CLAIM_REVEAL_MS = 4500;
 
 export const strength = (rank: number) => STRENGTH.length - STRENGTH.indexOf(rank);
 /** «⅓ نقطة» / «نقطة و⅔» */
@@ -124,7 +124,7 @@ function claimHand(ctx: GameCtx, s: State, by: string) {
   s.claim = null;
   s.trickWinner = null;
   s.phase = 'trickEnd';
-  s.pauseUntil = ctx.now + CLAIM_REVEAL_MS;
+  s.pauseUntil = ctx.now + paced(ctx, CLAIM_REVEAL_MS);
   const team = s.sides.find((x) => x.key === claim.side)!.members.map((m) => ctx.playerName(m)).join(' و');
   ctx.say?.(`الباقي لفريق ${team} — أُنهيت اليد`, by, VOICE.claim);
   ctx.fx('reveal');
@@ -260,7 +260,7 @@ export const tris: GameModule<State, TrisSettings> = {
     const won = s.trick.reduce((t, x) => t + thirds(x.card), 0) + (s.trickNo === 10 ? 3 : 0);
     ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)} — اللمّة لـ${ctx.playerName(winner)}${won ? ` (${thirdsWord(won)})` : ''}`, winner);
     s.phase = 'trickEnd';
-    s.pauseUntil = ctx.now + TRICK_PAUSE_MS;
+    s.pauseUntil = ctx.now + paced(ctx, TRICK_PAUSE_MS);
     ctx.fx('correct', winner);
     refreshClaim(s);
   },

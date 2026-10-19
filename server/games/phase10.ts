@@ -36,7 +36,7 @@ import {
 import { decideOnce } from '../ai/cards-memo';
 import { p10BotAction } from '../ai/cards-phase10';
 import { Feed, randDelay } from '../cardkit';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { voiceWin } from '../voice-calls';
 import { isNum, isStr, shuffle } from '../util';
 
@@ -167,7 +167,7 @@ function endHand(ctx: GameCtx, s: State, out: string | null) {
     return;
   }
   s.phase = 'handEnd';
-  s.nextAt = ctx.now + HAND_END_MS;
+  s.nextAt = ctx.now + paced(ctx, HAND_END_MS);
   ctx.fx('reveal');
 }
 

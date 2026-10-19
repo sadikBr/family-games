@@ -150,9 +150,9 @@ function useBoardFx(view: CatanView, robber: number, sel: string) {
 }
 
 /** the hexes of the rolled number: they light up once the dice have landed, then fade */
-const GLOW_IN = 280;
-const GLOW_HOLD = 1100;
-const GLOW_OUT = 600;
+const GLOW_IN = 360;
+const GLOW_HOLD = 1400;
+const GLOW_OUT = 780;
 const GLOW_END = DICE_THROW_MS + GLOW_IN + GLOW_HOLD + GLOW_OUT;
 
 function HexGlow({ points, width, height, u }: { points: string[]; width: number; height: number; u: number }) {

@@ -23,7 +23,7 @@ import { qdeck } from '../qdeck';
 import { SURVEY_QUESTIONS, type SurveyAnswer, type SurveyQuestion } from '../survey-content';
 import { matchAnswer, namesOf } from '../survey-match';
 import { readMs } from '../ai/social-quiz';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceOnly, voiceQuestion, voiceTeamRound, voiceTeamWin, type VoiceTeam } from '../voice-calls-party';
 
@@ -107,7 +107,7 @@ function setTimer(ctx: GameCtx, s: State, ms: number) {
 }
 
 function note(ctx: GameCtx, s: State, text: string) {
-  s.notice = { text, until: ctx.now + NOTICE_MS };
+  s.notice = { text, until: ctx.now + paced(ctx, NOTICE_MS) };
 }
 
 function event(s: State, by: string, text: string, kind: SurveyEvent['kind'], slot: number | null) {
@@ -226,7 +226,7 @@ function endRound(ctx: GameCtx, s: State, team: SurveyTeam, stolen: boolean) {
   s.answerer = null;
   s.face = null;
   s.step++;
-  setTimer(ctx, s, ROUND_END_MS);
+  setTimer(ctx, s, paced(ctx, ROUND_END_MS));
   ctx.fx('reveal');
   // the answer that ended the round (every endRound follows an answer), then who takes the round
   const last = answerVoice(s);

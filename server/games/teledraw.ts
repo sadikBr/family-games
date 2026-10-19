@@ -29,14 +29,14 @@ import {
 } from '../../src/shared/games/teledraw';
 import { drawingSize, simplifyPoints } from '../../src/shared/teledraw-geom';
 import { dealPhrases } from '../teledraw-content';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceBestDraw, voiceBestGuess, voiceBook } from '../voice-calls-party';
 
 /** time to pick the starting phrase */
 export const WRITE_MS = 45000;
 /** «the books move on» between two steps */
-export const PASS_MS = 2500;
+export const PASS_MS = 3000;
 /** before the reveal starts */
 export const REVEAL_INTRO_MS = 3500;
 /** auto-advance in the reveal: a text page, a drawing, and the extra time on a book's last page */
@@ -180,11 +180,11 @@ function endStep(ctx: GameCtx, s: TeledrawState) {
   ctx.fx('card');
   if (s.step >= s.steps) {
     s.next = 'reveal';
-    s.total = REVEAL_INTRO_MS;
+    s.total = paced(ctx, REVEAL_INTRO_MS);
     ctx.say?.('اكتملت الدفاتر: حان وقت الكشف!', undefined, voiceAnd(missing > 0 && PVOICE.timeUp, PVOICE.reveal));
   } else {
     s.next = kindOf(s.step) === 'draw' ? 'draw' : 'guess';
-    s.total = PASS_MS;
+    s.total = paced(ctx, PASS_MS);
     ctx.say?.(missing ? 'انتهى الوقت: الصفحات الناقصة تمرّ فارغة' : 'اكتملت الصفحات: الدفاتر تنتقل', undefined, missing ? PVOICE.timeUp : undefined);
   }
   s.endsAt = ctx.now + s.total;
@@ -201,7 +201,7 @@ function revealTimer(ctx: GameCtx, s: TeledrawState) {
   }
   const book = s.books[s.rb];
   const page = book.pages[s.rp];
-  s.total = (page.kind === 'draw' && !page.empty && !page.left ? AUTO_DRAW_MS : AUTO_TEXT_MS) + (s.rp === book.pages.length - 1 ? AUTO_END_MS : 0);
+  s.total = paced(ctx, (page.kind === 'draw' && !page.empty && !page.left ? AUTO_DRAW_MS : AUTO_TEXT_MS) + (s.rp === book.pages.length - 1 ? AUTO_END_MS : 0));
   s.endsAt = ctx.now + s.total;
 }
 

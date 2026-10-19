@@ -66,6 +66,8 @@ export interface State {
   turnNo: number;
   dice: [number, number] | null;
   rollId: number;
+  /** when the dice were last rolled (ctx.now): bots let the throw and the lit hexes be seen */
+  rolledAt?: number;
   /** setup: the snake order, the step in it, what is placed now and the settlement just placed */
   setupList: string[];
   setupStep: number;

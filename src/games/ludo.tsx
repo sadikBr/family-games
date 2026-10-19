@@ -27,7 +27,7 @@ const HEX: Record<LudoColor, string> = { red: '#E2475F', green: '#2FB67C', yello
 const NAME: Record<LudoColor, string> = { red: 'الأحمر', green: 'الأخضر', yellow: 'الأصفر', blue: 'الأزرق' };
 
 /** One square of a piece's walk. */
-const HOP_MS = 150;
+const HOP_MS = 190;
 type Px = { left: number; top: number };
 
 /**
@@ -49,8 +49,8 @@ function Pawn({ at, hops, delay, z, interactive, children }: { at: Px; hops: Px[
       y.set(withSequence(...pts.map((p) => withTiming(p.top, t))));
       lift.set(withSequence(...pts.flatMap(() => [withTiming(-5, { duration: HOP_MS / 2 }), withTiming(0, { duration: HOP_MS / 2 })])));
     } else {
-      x.set(withDelay(delay, withTiming(at.left, { duration: 300 })));
-      y.set(withDelay(delay, withTiming(at.top, { duration: 300 })));
+      x.set(withDelay(delay, withTiming(at.left, { duration: 380 })));
+      y.set(withDelay(delay, withTiming(at.top, { duration: 380 })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [at.left, at.top]);
@@ -163,7 +163,7 @@ export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
         {lm?.captured.length && landAt ? (
           <Animated.View
             key={`cap${lmKey}`}
-            entering={FadeIn.delay(walkMs).duration(200)}
+            entering={FadeIn.delay(walkMs).duration(260)}
             pointerEvents="none"
             style={[styles.capture, { left: off + landAt[1] * cell - cell * 0.75, top: off + landAt[0] * cell - cell * 0.75, width: cell * 1.5, height: cell * 1.5, borderRadius: cell }]}
           />

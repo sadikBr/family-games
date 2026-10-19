@@ -20,7 +20,7 @@ import { QUESTIONS, Q_CATS } from '../content-islamic';
 import { MOSQUE_FACTS, fromBank, type MosqueQuestion } from '../mosque-facts';
 import { qdeck } from '../qdeck';
 import { quizChoice, quizDelay, quizSkill, readChars, readMs } from '../ai/social-quiz';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 import { PVOICE, voiceAnd, voiceAnswer, voiceBuilt, voiceOnly, voiceQuestion } from '../voice-calls-party';
@@ -122,7 +122,7 @@ function reveal(ctx: GameCtx, s: MosqueState) {
   s.bricks += s.earned;
   build(s);
   s.phase = 'reveal';
-  s.endsAt = ctx.now + (s.justBuilt.length ? MOSQUE_BUILT_MS : MOSQUE_REVEAL_MS);
+  s.endsAt = ctx.now + paced(ctx, s.justBuilt.length ? MOSQUE_BUILT_MS : MOSQUE_REVEAL_MS);
   // each phone plays its own right / wrong sound; a finished piece is celebrated by everyone
   if (s.justBuilt.length) ctx.fx('reveal');
   // the answer, then the piece that was just finished («اكْتَمَلَ بِنَاءُ المحراب»)

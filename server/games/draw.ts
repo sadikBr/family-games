@@ -7,7 +7,7 @@
 import { answerKey, norm } from '../../src/shared/arabic';
 import type { DrawSettings, DrawStroke, DrawView } from '../../src/shared/protocol';
 import { DRAW_WORDS } from '../content-extra';
-import type { GameCtx, GameModule } from '../types';
+import { paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceFinal, voiceOnly, voiceWord } from '../voice-calls-party';
 
@@ -112,7 +112,7 @@ function endTurn(ctx: GameCtx, s: State) {
   for (const [id, p] of Object.entries(pts)) s.scores[id] = (s.scores[id] ?? 0) + p;
   s.roundPoints = pts;
   s.phase = 'reveal';
-  s.endsAt = ctx.now + DRAW_REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, DRAW_REVEAL_MS);
   ctx.fx('reveal');
   // the reveal: the word is on every screen now («انْتَهَى الوَقْتُ» first when the clock ended the turn)
   ctx.say?.(`الكلمة كانت «${s.word}» — عرفها ${s.guessed.length} من ${s.order.length - 1}`, drawer(s), voiceAnd(timeUp && PVOICE.timeUp, voiceWord(s.word)));
@@ -275,7 +275,7 @@ export const draw: GameModule<State, DrawSettings> = {
       word: knows && s.word ? s.word : null,
       hint: s.word ? hintText(s.word, s.hints) : '',
       endsAt: s.phase === 'final' ? null : s.endsAt,
-      total: s.phase === 'choose' ? CHOOSE_MS : s.phase === 'reveal' ? DRAW_REVEAL_MS : s.settings.seconds * 1000,
+      total: s.phase === 'choose' ? CHOOSE_MS : s.phase === 'reveal' ? paced(ctx, DRAW_REVEAL_MS) : s.settings.seconds * 1000,
       strokes: s.strokes,
       guessed: s.guessed.map((g) => g.id),
       close: s.close.has(me),

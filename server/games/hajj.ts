@@ -15,7 +15,7 @@ import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS } from '../content-islamic';
 import { qdeck } from '../qdeck';
 import { HAJJ_SKILL, hajjCardChoice } from '../ai/misc-hajj';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { HAJJ_STATION_VOICE, voiceAnd, voiceWinner } from '../voice-calls-boards';
 import { mcqOptions } from './mcq';
@@ -28,6 +28,8 @@ const Q_MS = 20000;
 const QUIZ_MS = 15000;
 const REVEAL_MS = 5000; // time to read the station quiz's answer
 const BOTS_REVEAL_MS = 3500; // nobody to read it: bots only
+/** the last roll on the phones: the dice land, then the pawn walks (dice-race.tsx) */
+const WALK_MS = 3000;
 
 interface Pilgrim {
   id: string;
@@ -200,7 +202,7 @@ function revealQuiz(ctx: GameCtx, s: State) {
     .map(([id]) => id);
   q.revealed = true;
   q.results = s.players.map((p) => ({ id: p.id, correct: right.includes(p.id), first: right[0] === p.id }));
-  q.endsAt = ctx.now + (s.players.some((p) => !ctx.isBot(p.id)) ? REVEAL_MS : BOTS_REVEAL_MS);
+  q.endsAt = ctx.now + paced(ctx, s.players.some((p) => !ctx.isBot(p.id)) ? REVEAL_MS : BOTS_REVEAL_MS);
   for (const id of right) {
     const p = s.players.find((x) => x.id === id);
     if (p) draw(s, p);
@@ -406,7 +408,8 @@ export const hajj: GameModule<State, HajjSettings> = {
           return;
         }
       }
-      ctx.bot(p.id, `roll:${s.moves}:${s.mods.played ? 1 : 0}`, randDelay(2600, 3400), { type: 'roll' });
+      // the last pawn's walk ends on the phones (dice-race.tsx), then a moment to see where it landed
+      ctx.bot(p.id, `roll:${s.moves}:${s.mods.played ? 1 : 0}`, WALK_MS + paced(ctx, randDelay(400, 1000)), { type: 'roll' });
     } else if (s.phase === 'question' && s.question) {
       ctx.bot(p.id, `ans:${s.moves}`, randDelay(3500, 6000), { type: 'answer', choice: answer(s.question) });
     }

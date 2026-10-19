@@ -19,7 +19,7 @@ import {
 import { randDelay } from '../cardkit';
 import { MAP_PLACES, type MapPlace } from '../mapquiz-content';
 import { qdeck } from '../qdeck';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr } from '../util';
 import { ASK, voiceAnswer, voiceAnd, voiceClosest, voiceFinal, voiceOnly } from '../voice-calls-party';
 import { soleWinner } from './mcq';
@@ -87,7 +87,7 @@ function reveal(ctx: GameCtx, s: State) {
     return { id, guess: { lat: g.lat, lon: g.lon }, km, points };
   });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + MAPQUIZ_REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, MAPQUIZ_REVEAL_MS);
   ctx.fx('reveal');
   // the closest pin, then the place's fact as the reveal shows it
   const best = s.results.filter((r) => r.km !== null).sort((a, b) => a.km! - b.km!)[0];
@@ -221,7 +221,7 @@ export const mapquiz: GameModule<State, MapquizSettings> = {
     }
   },
 
-  view(_ctx, s, me): MapquizView {
+  view(ctx, s, me): MapquizView {
     const place = s.places[s.round];
     const shown = s.phase !== 'play';
     const mine = s.guesses[me];
@@ -234,7 +234,7 @@ export const mapquiz: GameModule<State, MapquizSettings> = {
       name: place.name,
       answer: shown ? { lat: place.lat, lon: place.lon, fact: place.fact } : null,
       endsAt: s.endsAt,
-      timerTotal: s.phase === 'reveal' ? MAPQUIZ_REVEAL_MS : s.timerTotal,
+      timerTotal: s.phase === 'reveal' ? paced(ctx, MAPQUIZ_REVEAL_MS) : s.timerTotal,
       guessed: Object.keys(s.guesses).filter((id) => s.participants.includes(id)),
       mine: mine ? { lat: mine.lat, lon: mine.lon } : null,
       results: s.results,

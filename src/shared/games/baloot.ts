@@ -91,7 +91,7 @@ export interface BalootHandResult {
   litige?: boolean;
   /** Moroccan rules: points carried over from earlier ليتيج hands that this hand's winner took */
   potWon?: number;
-  /** «الباقي لنا»: this team took the remaining tricks without playing them */
+  /** «سوا» (Saudi) / «الباقي لنا» (Moroccan): this team took the remaining tricks without playing them */
   claimed?: BSide;
 }
 
@@ -168,15 +168,21 @@ export interface BalootView {
   pot: number;
   /** Moroccan rules — البيل: both teams are level at or above the target, a deciding hand is played */
   bel: boolean;
-  /** «الباقي لنا»: every remaining trick is certain for my team and my hand shows it — I may end the hand */
+  /** «سوا» / «الباقي لنا»: every remaining trick is certain for my team and my hand shows it — I may end the hand */
   canClaim?: boolean;
-  /** «الباقي لنا» was claimed: the claimer's hand (and the partner's if it was needed) shown to everyone */
+  /** «سوا» / «الباقي لنا» was claimed: the claimer's hand (and the partner's if it was needed) shown to everyone */
   claimed?: { by: string; side: BSide; reveal: { by: string; cards: BCard[] }[] } | null;
 }
 
 export const BALOOT_DEFAULTS: BalootSettings = { mode: 'saudi', target: 152, timer: 0, doubling: true, level: 2 };
 /** the targets each rule set offers (the first is the default) */
 export const BALOOT_TARGETS: Record<BalootRules, number[]> = { saudi: [152, 100], morocco: [1000, 500] };
+
+/**
+ * The call that ends a hand whose remaining tricks are certain: «سوا» in the Saudi game, «الباقي»
+ * (as in «الباقي لنا») in the Moroccan one. Used noun-first: «سوا لفريق …», «إنهاء مبكر — سوا لنا».
+ */
+export const BALOOT_CLAIM_WORD: Record<BalootRules, string> = { saudi: 'سوا', morocco: 'الباقي' };
 
 export const BALOOT_INFO = {
   title: 'البلوط',
@@ -198,7 +204,7 @@ export const BALOOT_INFO = {
     'تُحسب مشاريع الفريق صاحب أكبر مشروع فقط (الأعلى قيمة، ثم الأعلى ورقة، ثم الأسبق في اللعب). «بلوت» = K و Q الحكم في يد واحدة: نقطتان تُعلنان عند لعب الثانية منهما.',
     'إن جمع المشترون أقل من الخصوم فهي «خسرانة»: يأخذ الخصوم كل نقاط اليد والمشاريع. وعند التعادل يفوز المشترون. «كبوت» = كل الأكلات الثماني: 44 في الصن و25 في الحكم.',
     'الدبل: في الحكم يحق للخصم «دبل» (×2)، ثم للمشتري «ثري» (×3)، ثم «فور» (×4)، ثم «قهوة» وفيها يربح الفائز باليد اللعبة كلها. في الصن «دبل» فقط، إذا تجاوز المشترون 100 والخصوم دونها. في اليد المضاعفة يأخذ الفائز كل شيء.',
-    '«الباقي لنا»: إذا كانت أوراق لاعب واحد تأخذ كل الأكلات الباقية مهما لعب الآخرون — الشريك أيضاً — يظهر له زر لإنهاء اليد: تُكشف أوراقه، وتُحسب كل الأوراق الباقية والأرض لفريقه (ويُحسب «بلوت» لصاحبه).',
+    '«سوا»: إذا كانت أوراق لاعب واحد تأخذ كل الأكلات الباقية مهما لعب الآخرون — الشريك أيضاً — يظهر له زر «سوا» لإنهاء اليد: تُكشف أوراقه، وتُحسب كل الأوراق الباقية والأرض لفريقه (ويُحسب «بلوت» لصاحبه).',
     'يفوز الفريق الذي يصل أولاً إلى 152 نقطة (أو الهدف الذي تختارونه). سجل النتائج يعرض «لنا» و«لهم».',
   ],
 };

@@ -30,11 +30,14 @@ type Pt = { x: number; y: number };
 // —— the pawn's walk ————————————————————————————————————————————————————————————————————
 
 /** one square, then the next (a calm step each) */
-const STEP_MS = 140;
+const STEP_MS = 180;
 /** on the foot of a ladder / the head of a snake for a moment before it lifts / pulls */
-const JUMP_PAUSE = 200;
-/** the dice land first and the number stays readable for a moment before the pawn sets off */
-const DEPART_MS = DICE_THROW_MS + 400;
+const JUMP_PAUSE = 260;
+/**
+ * the dice land first and the number stays readable for a moment before the pawn sets off (the
+ * server's bot waits for the whole walk: WALK_MS in server/games/ladders.ts)
+ */
+const DEPART_MS = DICE_THROW_MS + 550;
 
 /**
  * The snakes drawn on the board picture, head to tail, as points in an 800 × 800 frame (the head
@@ -83,16 +86,16 @@ function planWalk(key: number, id: string, from: number, to: number, dice: numbe
   const j = JUMPS[landing];
   if ((j ? j.to : landing) !== to || landing < from) {
     // not what one roll would do (a missed update): glide straight there
-    return { key, id, steps: [], jump: { kind: 'glide', path: [centre(from), centre(to)], ms: 450 } };
+    return { key, id, steps: [], jump: { kind: 'glide', path: [centre(from), centre(to)], ms: 580 } };
   }
   const steps: number[] = [];
   for (let k = from + 1; k <= landing; k++) steps.push(k);
   if (!j) return { key, id, steps, jump: null };
   const ends = [centre(landing), centre(j.to)];
-  if (j.kind === 'ladder') return { key, id, steps, jump: { kind: 'ladder', path: ends, ms: Math.round(Math.max(480, Math.min(780, dist(ends) * 10 * 85))) } };
+  if (j.kind === 'ladder') return { key, id, steps, jump: { kind: 'ladder', path: ends, ms: Math.round(Math.max(620, Math.min(1000, dist(ends) * 10 * 110))) } };
   const body = (SNAKE_BODY[landing] ?? []).map(([x, y]) => ({ x: x / 800, y: y / 800 }));
   const path = smooth([ends[0], ...body, ends[1]]);
-  return { key, id, steps, jump: { kind: 'snake', path, ms: Math.round(Math.max(650, Math.min(1150, dist(path) * 10 * 105))) } };
+  return { key, id, steps, jump: { kind: 'snake', path, ms: Math.round(Math.max(850, Math.min(1500, dist(path) * 10 * 135))) } };
 }
 
 const walkMs = (w: Walk, reduced: boolean) => (reduced ? 240 : w.steps.length * STEP_MS + (w.jump ? JUMP_PAUSE + w.jump.ms : 0));
@@ -115,8 +118,8 @@ function Pawn({ player, target, size, walk, toPx, reduced }: { player: PlayerPub
     if (walk && walk.key !== seen.current) {
       seen.current = walk.key;
       if (reduced) {
-        x.set(withDelay(DEPART_MS, withTiming(target.x, { duration: 240 })));
-        y.set(withDelay(DEPART_MS, withTiming(target.y, { duration: 240 })));
+        x.set(withDelay(DEPART_MS, withTiming(target.x, { duration: 320 })));
+        y.set(withDelay(DEPART_MS, withTiming(target.y, { duration: 320 })));
         return;
       }
       // every point of the walk (top-left corner of the pawn); the very last one is its resting place
@@ -161,8 +164,8 @@ function Pawn({ player, target, size, walk, toPx, reduced }: { player: PlayerPub
     }
     // making room on a shared square, the board resizing… (a walk that is over or replaced goes on)
     if (!moved) return;
-    x.set(withTiming(target.x, { duration: 280, easing: EASE }));
-    y.set(withTiming(target.y, { duration: 280, easing: EASE }));
+    x.set(withTiming(target.x, { duration: 360, easing: EASE }));
+    y.set(withTiming(target.y, { duration: 360, easing: EASE }));
   });
   const key = walk?.key ?? -1;
   useEffect(() => run(), [target.x, target.y, key]);

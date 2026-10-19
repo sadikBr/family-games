@@ -59,7 +59,7 @@ function LetterBadge({ letter, size = 84 }: { letter: string; size?: number }) {
 
 function Spin({ view }: { view: NamesView }) {
   const left = useCountdown(view.endsAt, 70);
-  const landed = left < 700;
+  const landed = left < 1200; // the letter stays a moment before the writing starts
   const shown = landed ? view.letter : displayLetter(GAME_LETTERS[Math.floor(left / 85) % GAME_LETTERS.length]);
   return (
     <View style={{ alignItems: 'center', gap: 16, paddingTop: 30 }}>

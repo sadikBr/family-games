@@ -21,7 +21,7 @@ import { verseRef, verseText } from '../qquote-quran';
 import { QWORD_ANSWERS, QWORD_CAT_LABEL, type QwordEntry } from '../qword-content';
 import { quranJoinedIndex, quranWordIndex, verseFor } from '../qword-words';
 import { wordleEasyGuess, wordleExpertGuess, wordleSmartGuess } from '../ai/misc-wordle';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, randInt, shuffle } from '../util';
 import { voiceLastTry, voiceResult, voiceSolved } from '../voice-calls-boards';
 import { forFont } from './tajweed';
@@ -149,7 +149,7 @@ function finishRound(ctx: GameCtx, s: State) {
   s.phase = 'reveal';
   const q = entry(s).quran;
   s.verse = q ? qwordVerse(q) : null;
-  s.timerTotal = s.verse ? REVEAL_VERSE_MS : REVEAL_MS;
+  s.timerTotal = paced(ctx, s.verse ? REVEAL_VERSE_MS : REVEAL_MS);
   s.endsAt = ctx.now + s.timerTotal;
   ctx.fx('reveal');
 }

@@ -70,13 +70,13 @@ export const mancalaStore = (side: 0 | 1) => side * 7 + 6;
 
 /**
  * How a move is shown on the phones (mancala.tsx) and how long the bot waits for it (the server):
- * the seeds land one by one, `per(n)` ms apart (about 100 ms, like a hand sowing); after a capture
- * the full pits stay a moment (`pause`), then their seeds travel to the store (`fly`).
+ * the seeds land one by one, `per(n)` ms apart (about 140 ms, like a calm hand sowing); after a
+ * capture the full pits stay a moment (`pause`), then their seeds travel to the store (`fly`).
  */
 export const MANCALA_SOW = {
-  per: (n: number) => Math.round(Math.max(90, Math.min(130, 1200 / Math.max(1, n)))),
-  pause: 550,
-  fly: 450,
+  per: (n: number) => Math.round(Math.max(120, Math.min(170, 1560 / Math.max(1, n)))),
+  pause: 720,
+  fly: 600,
 } as const;
 
 /** The whole animation of a move, in ms (without the end-of-game sweep, after which nobody plays). */

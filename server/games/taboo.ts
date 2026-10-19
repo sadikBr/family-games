@@ -1,6 +1,6 @@
 import type { TabooCardResult, TabooSettings, TabooView } from '../../src/shared/protocol';
 import { TABOO_CARDS, type TabooCard } from '../content';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceOnly, voiceTeamsFinal } from '../voice-calls-party';
 
@@ -102,7 +102,7 @@ function undoBuzz(ctx: GameCtx, s: State) {
   s.card = b.card;
   s.noBuzz = b.card.index;
   s.lastBuzz = null;
-  s.notice = { text: `تراجع عن «قالها» (${ctx.playerName(b.by)}) — النقطة رجعت`, until: ctx.now + NOTICE_MS };
+  s.notice = { text: `تراجع عن «قالها» (${ctx.playerName(b.by)}) — النقطة رجعت`, until: ctx.now + paced(ctx, NOTICE_MS) };
   ctx.fx('reveal');
   ctx.say?.('أُلغي «قالها» ورجعت النقطة');
 }
@@ -118,7 +118,7 @@ function balanceTeams(ctx: GameCtx, s: State) {
     if (!mover) continue;
     s.teams[o] = s.teams[o].filter((id) => id !== mover);
     s.teams[t] = [...s.teams[t], mover];
-    s.notice = { text: `انتقل ${ctx.playerName(mover)} إلى ${t === 0 ? 'الفريق الأحمر' : 'الفريق الأزرق'} ليبقى في كل فريق لاعبان`, until: ctx.now + NOTICE_MS };
+    s.notice = { text: `انتقل ${ctx.playerName(mover)} إلى ${t === 0 ? 'الفريق الأحمر' : 'الفريق الأزرق'} ليبقى في كل فريق لاعبان`, until: ctx.now + paced(ctx, NOTICE_MS) };
     ctx.fx('reveal');
   }
 }

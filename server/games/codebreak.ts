@@ -19,7 +19,7 @@ import {
 } from '../../src/shared/games/codebreak';
 import { botGuess, randomCode } from '../codebreak-bot';
 import { randDelay } from '../cardkit';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 import { voiceResult, voiceSolved } from '../voice-calls-boards';
 
@@ -114,8 +114,8 @@ function finishRound(ctx: GameCtx, s: State, voice?: string) {
     else ctx.fx('win');
   } else {
     s.phase = 'reveal';
-    s.endsAt = ctx.now + REVEAL_MS;
-    s.timerTotal = REVEAL_MS;
+    s.timerTotal = paced(ctx, REVEAL_MS);
+    s.endsAt = ctx.now + s.timerTotal;
     ctx.fx('reveal');
   }
 }

@@ -36,7 +36,7 @@ import {
 import { li } from '../../src/shared/li';
 import { Feed, randDelay } from '../cardkit';
 import { botDiscard, botDraw, botPlay, type BotAction, type Seat } from '../rami-bot';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import type { BotLevel } from '../../src/shared/protocol';
 import { isNum, isStr, shuffle } from '../util';
 import { VOICE, voiceAnd, voiceWin } from '../voice-calls';
@@ -207,7 +207,7 @@ function endRound(ctx: GameCtx, s: State, out: string | null, forfeit: string | 
     return;
   }
   s.phase = 'roundEnd';
-  s.nextAt = ctx.now + ROUND_END_MS;
+  s.nextAt = ctx.now + paced(ctx, ROUND_END_MS);
   ctx.fx(out ? 'reveal' : 'tick');
 }
 

@@ -5,7 +5,7 @@
  */
 import type { WaveSettings, WaveView } from '../../src/shared/protocol';
 import { WAVE_SPECTRUMS } from '../content-games2';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceClosest, voiceClue, voiceFinal, voiceOnly } from '../voice-calls-party';
 
@@ -78,7 +78,7 @@ function reveal(ctx: GameCtx, s: State) {
   s.scores[p] += avg;
   s.results.push({ id: p, guess: null, points: avg });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + WAVE_REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, WAVE_REVEAL_MS);
   ctx.fx(s.results.some((r) => r.points >= 3) ? 'correct' : 'buzz');
   const best = s.results.filter((r) => r.id !== p).sort((a, b) => b.points - a.points)[0];
   ctx.say?.(

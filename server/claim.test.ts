@@ -1,4 +1,4 @@
-/** «الباقي لنا» — claiming the rest of a hand in البلوط (Saudi and Moroccan rules) and in التريس. */
+/** «الباقي لنا» («سوا» in the Saudi Baloot) — claiming the rest of a hand in البلوط (Saudi and Moroccan rules) and in التريس. */
 import { expect, test } from 'bun:test';
 
 import type { BalootView, BCard, BRank, BSuit } from '../src/shared/games/baloot';
@@ -10,6 +10,7 @@ import { balootClaim, sideCertain } from './ai/baloot-mind';
 import { trisClaim, trisSimOf, trisTeamCertain } from './ai/tris-mind';
 import { baloot, CLAIM_REVEAL_MS, decide, turnOf, type State } from './games/baloot';
 import { CLAIM_REVEAL_MS as TRIS_REVEAL_MS, tris, type State as TrisState } from './games/tris';
+import { VOICE } from './voice-calls';
 
 const P = ['p0', 'p1', 'p2', 'p3'];
 const c = (id: string): BCard => ({ id, suit: id.slice(-1) as BSuit, rank: id.slice(0, -1) as BRank });
@@ -17,6 +18,7 @@ const cs = (s: string) => (s ? s.split(' ').map(c) : []);
 
 function fakeCtx(bots = true) {
   const said: string[] = [];
+  const voices: (string | undefined)[] = [];
   const jobs: { by: string; a: any }[] = [];
   const ctx: any = {
     now: 1000,
@@ -26,10 +28,13 @@ function fakeCtx(bots = true) {
     playerName: (id: string) => ({ p0: 'سارة', p1: 'يوسف', p2: 'ماما', p3: 'بابا' })[id] ?? id,
     memo: new Map(),
     bot: (by: string, _k: string, _d: number, a: any) => jobs.push({ by, a }),
-    say: (t: string) => said.push(t),
+    say: (t: string, _by?: string, voice?: string) => {
+      said.push(t);
+      voices.push(voice);
+    },
     botLevel: () => 'easy',
   };
-  return { ctx, said, jobs };
+  return { ctx, said, voices, jobs };
 }
 
 /** A hand in play with the given cards left (p0 bought), `turn` to play, optionally a trick on the table. */
@@ -194,7 +199,8 @@ test('the claim itself: hands shown to everyone, the hand ends, the announcement
   expect(v.claimed?.reveal[0].cards.map((x) => x.id).sort()).toEqual(['AH', 'AS']);
   expect(v.myHand.map((x) => x.id).sort()).toEqual(['9H', 'QS']);
   expect(turnOf(g.s)).toEqual([]);
-  expect(g.said.at(-1)).toBe('الباقي لفريق سارة وماما — أُنهيت اليد');
+  // the Saudi call is «سوا» (the Moroccan rules keep «الباقي لنا»)
+  expect(g.said.at(-1)).toBe('سوا لفريق سارة وماما — أُنهيت اليد');
   // nobody can play during the reveal; then the hand ends with the usual sheet
   baloot.act(g.ctx, g.s, 'p0', { type: 'play', card: 'AS' });
   expect(g.s.hands.p0.some((x) => x.id === 'AS')).toBe(true);
@@ -208,6 +214,21 @@ test('the claim itself: hands shown to everyone, the hand ends, the announcement
   expect(g.s.result!.tricks).toEqual({ A: 2, B: 0 });
   expect(g.s.result!.abnat).toEqual({ A: 48, B: 0 });
   expect(g.s.result!.ground).toBe('A');
+});
+
+test('the call: «سوا» in the Saudi game (heard «سْوَا»), «الباقي لنا» in the Moroccan one', () => {
+  const hands = ['JH 9H AH', '7C 8C 9C', '7D 8D 9D', '10H KH JC'];
+  const sa = position({ trump: 'H', hands, turn: 'p0' });
+  sa.s.claim = balootClaim(sa.s);
+  baloot.act(sa.ctx, sa.s, 'p0', { type: 'claim' });
+  expect(sa.said.at(-1)).toBe('سوا لفريق سارة وماما — أُنهيت اليد');
+  expect(sa.voices.at(-1)).toBe(VOICE.siwa);
+  expect(VOICE.siwa).toBe('سْوَا');
+  const ma = position({ mode: 'morocco', trump: 'H', hands, turn: 'p0' });
+  ma.s.claim = balootClaim(ma.s);
+  baloot.act(ma.ctx, ma.s, 'p0', { type: 'claim' });
+  expect(ma.said.at(-1)).toBe('الباقي لفريق سارة وماما — أُنهيت اليد');
+  expect(ma.voices.at(-1)).toBe(VOICE.claim);
 });
 
 test('bots claim at once; a human may keep playing (an old app without the button works)', () => {

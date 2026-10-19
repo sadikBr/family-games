@@ -3,7 +3,7 @@
  *
  * Every spoken call of the card games lives here, so the family can fix a pronunciation in one place.
  * The rules:
- * - Only the big moments (a روندا, a دقة, a bid, «الباقي لنا», the winner…), never an ordinary card:
+ * - Only the big moments (a روندا, a دقة, a bid, «الباقي لنا» / «سوا», the winner…), never an ordinary card:
  *   a voice on every move would be noise.
  * - Very short: 1 to 4 words.
  * - The game's own Moroccan words, exactly as the screens show them (دقة، ف جوج، ميسا، شاري، باص…).
@@ -72,8 +72,9 @@ export const VOICE = {
   sing: 'الغْنَا',
   taghtis: 'تْغْطِيسْ',
 
-  /* every team game */
+  /* every team game (the Saudi Baloot says «سوا» instead) */
   claim: 'البَاقِي لْنَا',
+  siwa: 'سْوَا',
 
   /* الكانزة: the 1 of coins (20 points) taken */
   kanzaAce: 'وَاحَدْ أُورُوصْ',

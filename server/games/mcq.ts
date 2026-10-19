@@ -4,7 +4,7 @@
  */
 import type { GameId, McqResult, McqView } from '../../src/shared/protocol';
 import { easyDelay, quizAnswer } from '../ai/social-quiz';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 import { voiceAnswer, voiceFinal, voiceOnly, voiceQuestion } from '../voice-calls-party';
 
@@ -56,7 +56,7 @@ function reveal(ctx: GameCtx, s: McqState<unknown>, voice?: McqVoice) {
     return { id, choice: a ? a.choice : null, correct, points };
   });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, REVEAL_MS);
   voiceOnly(ctx, answerVoice(voice, item));
   // no shared sound here: each phone plays «correct» or «wrong» for its own player (see quiz.tsx)
 }

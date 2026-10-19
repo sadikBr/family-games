@@ -25,7 +25,7 @@ import {
 } from '../ai/cards-kdab';
 import { decideOnce } from '../ai/cards-memo';
 import { Feed, freshDeck, randDelay } from '../cardkit';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { VOICE, voiceWin } from '../voice-calls';
 
@@ -107,7 +107,7 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
   noteChallenge(s, caller, taker, play, truthful);
   s.hands[taker].push(...s.pile);
   s.reveal = { id: ++s.revealN, caller, player: play.by, cards: play.cards, truthful, taker };
-  s.revealUntil = ctx.now + REVEAL_MS;
+  s.revealUntil = ctx.now + paced(ctx, REVEAL_MS);
   ctx.say?.(
     truthful
       ? `«كذّاب!» من ${ctx.playerName(caller)} في غير محلّه — الكومة لـ${ctx.playerName(caller)}`

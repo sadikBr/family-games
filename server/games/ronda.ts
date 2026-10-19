@@ -12,11 +12,18 @@ import type { CardSide, RondaSettings, RondaView } from '../../src/shared/protoc
 import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
 import { decideOnce } from '../ai/cards-memo';
 import { rondaBotCard } from '../ai/cards-ronda';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, pick } from '../util';
 import { VOICE, voiceAnd, voiceTeam, voiceWin } from '../voice-calls';
 
 const HAND_SIZE = 4;
+/**
+ * A take (and the «last play» panel that shows it) stays this much longer before the next bot plays,
+ * at the room's pace (paced): the cards taken can be seen.
+ */
+export const TAKE_LOOK_MS = 900;
+/** How long the next bot waits: its own thinking, plus a look at a take that just happened. */
+export const rondaBotDelay = (ctx: GameCtx, took: boolean) => randDelay(1100, 2300) + (took ? paced(ctx, TAKE_LOOK_MS) : 0);
 
 interface State {
   settings: RondaSettings;
@@ -446,7 +453,7 @@ export const ronda: GameModule<State, RondaSettings> = {
         },
         level,
       ));
-      ctx.bot(bot, key, randDelay(1100, 2300), { type: 'play', card: card.id });
+      ctx.bot(bot, key, rondaBotDelay(ctx, !!s.lastPlay?.took.length), { type: 'play', card: card.id });
       return;
     }
     // 'easy': the old greedy bot
@@ -475,7 +482,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       const dup = hand.find((c) => hand.filter((x) => x.rank === c.rank).length > 1);
       best = dup ?? pick(hand);
     }
-    ctx.bot(bot, key, randDelay(1100, 2300), { type: 'play', card: best.id });
+    ctx.bot(bot, key, rondaBotDelay(ctx, !!s.lastPlay?.took.length), { type: 'play', card: best.id });
   },
 
   view(ctx, s, me): RondaView {

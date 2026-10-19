@@ -3,12 +3,12 @@ import { MEMORY_FACES } from '../../src/shared/memory';
 import type { MemorySettings, MemoryView } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
 import { memoryBotFlip } from '../ai/misc-memory';
-import { GameError, botLevel, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 import { VB, voiceResult } from '../voice-calls-boards';
 
 /** two cards that don't match stay face up this long before turning back */
-export const PEEK_MS = 2400;
+export const PEEK_MS = 3000;
 
 interface State {
   settings: MemorySettings;
@@ -85,7 +85,7 @@ export const memory: GameModule<State, MemorySettings> = {
         ctx.say?.(top.length === 1 ? `انتهت اللعبة: الفوز لـ${ctx.playerName(top[0])}` : 'انتهت اللعبة بالتعادل', undefined, voiceResult(top.length === 1 ? ctx.playerName(top[0]) : null));
       }
     } else {
-      s.peekUntil = ctx.now + PEEK_MS;
+      s.peekUntil = ctx.now + paced(ctx, PEEK_MS);
       ctx.say?.(`بطاقتان غير متطابقتين من ${ctx.playerName(by)}`, by);
     }
   },

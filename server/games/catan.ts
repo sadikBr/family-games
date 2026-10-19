@@ -34,7 +34,7 @@ import {
   type State,
 } from '../catan-rules';
 import { randDelay } from '../cardkit';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
 import { VB, voiceAnd, voiceDice, voiceWinner } from '../voice-calls-boards';
 
@@ -120,6 +120,9 @@ function catanVoice(fresh: CatanLog[]): string | undefined {
   }
   return voiceAnd(...parts);
 }
+
+/** after a roll: the dice land and the hexes of the number light up (catan-board.tsx) before a bot goes on */
+export const ROLL_SHOW_MS = 2000;
 
 const deadline = (ctx: GameCtx, s: State) => (s.settings.seconds ? ctx.now + s.settings.seconds * 1000 : null);
 
@@ -332,6 +335,7 @@ function doRoll(ctx: GameCtx, s: State) {
   const d = rollDice(s);
   s.dice = d;
   s.rollId += 1;
+  s.rolledAt = ctx.now;
   const total = d[0] + d[1];
   addLog(s, { t: 'roll', p: s.turn, d });
   ctx.fx('throw', s.turn);
@@ -711,11 +715,13 @@ export const catan: GameModule<State, CatanSettings> = {
     if (s.phase === 'final') return;
     const actors = new Set(catan.turnOf!(s));
     const level = botLevel(ctx);
+    // the dice just rolled: the throw and the lit hexes are seen first (at the room's pace)
+    const look = s.rolledAt === undefined ? 0 : Math.max(0, s.rolledAt + paced(ctx, ROLL_SHOW_MS) - ctx.now);
     for (const id of actors) {
       if (!ctx.isBot(id) || !isActive(s, id)) continue;
       const plan = botAction(s, id, level);
       if (!plan) continue;
-      ctx.bot(id, `${s.seq}:${plan.key}`, plan.delay, { ...plan.action, seq: s.seq });
+      ctx.bot(id, `${s.seq}:${plan.key}`, Math.max(plan.delay, look), { ...plan.action, seq: s.seq });
     }
     // a bot waiting for answers to its offer: settle it once everyone answered, or after a while
     const t = s.trade;

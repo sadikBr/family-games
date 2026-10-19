@@ -5,7 +5,7 @@
  */
 import type { CodeColor, CodenamesSettings, CodenamesView } from '../../src/shared/protocol';
 import { CODENAMES_WORDS } from '../content-extra';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceCodeClue, voiceTeamWin } from '../voice-calls-party';
 
@@ -65,7 +65,7 @@ function deal(s: State) {
 }
 
 function endTurn(ctx: GameCtx, s: State, why: string) {
-  s.turnNote = { team: s.turn, text: why, until: ctx.now + NOTE_MS };
+  s.turnNote = { team: s.turn, text: why, until: ctx.now + paced(ctx, NOTE_MS) };
   s.turn = other(s.turn);
   s.clue = null;
   s.guessesLeft = 0;

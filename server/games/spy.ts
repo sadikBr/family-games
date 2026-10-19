@@ -1,7 +1,7 @@
 /** «الجاسوس» — server rules (Spyfall-like, played out loud in the same room). */
 import { SPY_MINUTES, type SpyHow, type SpyResult, type SpySettings, type SpyView } from '../../src/shared/games/spy';
 import { SPY_LOCATIONS, type SpyLocation } from '../spy-content';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceFinal, voiceOnly } from '../voice-calls-party';
 
@@ -176,7 +176,7 @@ function checkAccusation(ctx: GameCtx, s: State, force = false) {
     return;
   }
   if (force || allIn || no > voters.length - need) {
-    s.failed = { by: acc.by, target: acc.target, yes, no, until: ctx.now + NOTICE_MS };
+    s.failed = { by: acc.by, target: acc.target, yes, no, until: ctx.now + paced(ctx, NOTICE_MS) };
     s.accusation = null;
     ctx.fx('skip');
     ctx.say?.(`فشل اتّهام ${ctx.playerName(acc.target)} (نعم ${yes} · لا ${no}) — يستمر اللعب`, undefined, PVOICE.accuseFailed);

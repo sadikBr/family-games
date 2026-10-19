@@ -2,7 +2,7 @@
  * Board motion kit — calm motion for board games (الشطرنج، الضامة، الخربڨة…): a moved piece glides
  * to its new square (through every square of a capture chain), a captured piece fades aside, the
  * last move's squares fade in softly, selection and legal-move hints come and go smoothly.
- * Same spirit as the card kit (src/games/cards/motion.tsx): ease-out, 200–450 ms, no bounce, no
+ * Same spirit as the card kit (src/games/cards/motion.tsx): ease-out, about 200–560 ms (unhurried), no bounce, no
  * overshoot, no zoom from nothing; reduced motion → no travel, short fades only.
  *
  * HOW TO USE IT
@@ -41,24 +41,24 @@ export const BOARD_EASE = Easing.out(Easing.cubic);
 
 export const BOARD_MS = {
   /** one hop of a capture chain */
-  hop: 240,
+  hop: 320,
   /** a captured piece fading aside */
-  fade: 340,
+  fade: 440,
   /** the last move's squares fading in */
-  mark: 260,
+  mark: 340,
   /** selection / legal-move hints */
-  hint: 150,
+  hint: 170,
   /** a selected piece lifting */
-  lift: 150,
+  lift: 180,
   /** a newly placed piece settling */
-  settle: 260,
+  settle: 340,
   /** nothing animates this long after mount */
   settleAfterMount: 700,
 } as const;
 export const HOP = BOARD_MS.hop;
 
-/** A calm duration for a glide over `squares` squares (a pawn step ≈ 250 ms, a queen across the board ≈ 420 ms). */
-export const glideMs = (squares: number) => Math.round(Math.min(420, Math.max(240, 215 + 30 * squares)));
+/** A calm duration for a glide over `squares` squares (a pawn step ≈ 320 ms, a queen across the board ≈ 560 ms). */
+export const glideMs = (squares: number) => Math.round(Math.min(560, Math.max(320, 285 + 40 * squares)));
 
 type Pt = { x: number; y: number };
 

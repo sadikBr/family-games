@@ -10,11 +10,14 @@ import type { CardSide, KanzaSettings, KanzaView } from '../../src/shared/protoc
 import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
 import { kanzaBotMove } from '../ai/cards-kanza';
 import { decideOnce } from '../ai/cards-memo';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 import { VOICE, voiceAnd, voiceTeam, voiceWin } from '../voice-calls';
 
 const HAND_SIZE = 3;
+/** A take stays this much longer before the next bot plays, at the room's pace (paced). */
+export const TAKE_LOOK_MS = 900;
+const botDelay = (ctx: GameCtx, s: State) => randDelay(1200, 2400) + (s.lastPlay?.took.length ? paced(ctx, TAKE_LOOK_MS) : 0);
 const TABLE_START = 4;
 const TARGET_SUM = 15;
 const MAX_TAKE = 2;
@@ -236,7 +239,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
           level,
         ),
       );
-      ctx.bot(bot, key, randDelay(1200, 2400), { type: 'play', card: m.card.id, take: m.take.map((c) => c.id) });
+      ctx.bot(bot, key, botDelay(ctx, s), { type: 'play', card: m.card.id, take: m.take.map((c) => c.id) });
       return;
     }
     // 'easy': the old greedy bot
@@ -253,7 +256,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
       const safe = sorted.find((c) => !s.table.some((t) => t.rank + c.rank === TARGET_SUM));
       best = { card: safe ?? sorted[0], take: [], score: 0 };
     }
-    ctx.bot(bot, key, randDelay(1200, 2400), {
+    ctx.bot(bot, key, botDelay(ctx, s), {
       type: 'play',
       card: best.card.id,
       take: best.take.map((c) => c.id),

@@ -4,7 +4,7 @@ import Animated, { Easing, FadeIn, useAnimatedStyle, useReducedMotion, useShared
 
 import { Icon } from '@/art/icons';
 import { haptic, play } from '@/lib/sfx';
-import { useCountdown } from '@/lib/time';
+import { useCountdown, useSpan } from '@/lib/time';
 import type { PlayerPublic } from '@/shared/protocol';
 import { C, F, alpha, hashRand } from '@/theme';
 
@@ -19,7 +19,10 @@ import { Txt, num } from './txt';
 export function TimerBar({ endsAt, total, onTick }: { endsAt: number | null; total: number; onTick?: boolean }) {
   const left = useCountdown(endsAt, 100);
   const secs = Math.ceil(left / 1000);
-  const ratio = total > 0 ? Math.min(1, left / total) : 0;
+  // a pause the server stretched to the room's «سرعة اللعب» (paced) can be longer than the `total`
+  // given: the bar then starts full and runs over the whole wait
+  const full = Math.max(total, useSpan(endsAt));
+  const ratio = full > 0 ? Math.min(1, left / full) : 0;
   const color = ratio > 0.5 ? C.green : ratio > 0.2 ? C.yellow : C.red;
   const w = useSharedValue(ratio);
   useEffect(() => {

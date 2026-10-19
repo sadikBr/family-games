@@ -24,7 +24,7 @@ import { ONEWORD_WORDS, type OnewordWord } from '../oneword-content';
 import { clueKey, clueProblem, cleanClue, duplicates, guessMatches, sameClue } from '../oneword-match';
 import { qdeck } from '../qdeck';
 import { conventionClue, expertGuess } from '../ai/social-oneword';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
 import { PVOICE, voiceGuesser, voicePlain } from '../voice-calls-party';
 
@@ -172,7 +172,7 @@ function resolve(ctx: GameCtx, s: State, text: string | null, result: OnewordRes
   s.history.push({ word: word.w, guesser: s.guesser, result, guess: text });
   s.phase = 'reveal';
   s.step++;
-  setTimer(ctx, s, REVEAL_MS);
+  setTimer(ctx, s, paced(ctx, REVEAL_MS));
   const name = ctx.playerName(s.guesser);
   const said =
     result === 'right'

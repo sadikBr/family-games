@@ -9,7 +9,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { haptic } from '@/lib/sfx';
 import { ANN_NAME, maSuitName } from '@/shared/baloot-morocco';
 import { PROJECT_NAME, SUIT_SYM, suitLabel } from '@/shared/baloot-rules';
-import type { BalootContract, BalootOption, BalootRaise, BalootView, BCard, BProjectView, BSide, BSuit } from '@/shared/games/baloot';
+import { BALOOT_CLAIM_WORD, type BalootContract, type BalootOption, type BalootRaise, type BalootView, type BCard, type BProjectView, type BSide, type BSuit } from '@/shared/games/baloot';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
@@ -530,7 +530,7 @@ export function HandBreakdown({ v, h }: { v: BalootView; h: Helpers }) {
           {t}
         </Txt>
       ))}
-      {r.claimed ? <ClaimNote mine={mine ? r.claimed === mine : null} /> : null}
+      {r.claimed ? <ClaimNote word={BALOOT_CLAIM_WORD.saudi} mine={mine ? r.claimed === mine : null} /> : null}
       <Row gap={8}>
         <View style={{ flex: 1.3 }} />
         {cols.map((s) => (

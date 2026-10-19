@@ -332,7 +332,7 @@ export function LastEvent({ feed, h }: { feed: FeedItem[]; h: Helpers }) {
   const f = feed[feed.length - 1];
   if (!f) return null;
   return (
-    <Animated.View key={f.id} entering={FadeIn.duration(180)} style={styles.event}>
+    <Animated.View key={f.id} entering={FadeIn.duration(240)} style={styles.event}>
       {f.by ? <Avatar player={h.player(f.by)} size={20} /> : null}
       <Txt v="small" numberOfLines={1} style={{ flexShrink: 1 }}>
         {f.text}
@@ -371,7 +371,7 @@ export function LastPlay({
   return (
     <Animated.View
       key={`${play.by}-${play.card.id}`}
-      entering={FadeInDown.duration(240)}
+      entering={FadeInDown.duration(320)}
       style={[styles.lastPlay, { borderColor: alpha(p.color, 0.85) }]}
       accessibilityLiveRegion="polite">
       <Row gap={6} center>
@@ -449,11 +449,11 @@ export function useTapToPlay({ canPlay, onPlay }: { canPlay: (id: string) => boo
   return { selected, tap, clear, play: () => (selected ? play(selected) : undefined) };
 }
 
-const ANNOUNCE_MS = 2500;
+const ANNOUNCE_MS = 3400;
 
 /**
  * A big call-out over the felt (روندا، ميسا، دقة…). Each new id pops in and hides itself
- * after ~2.5 s. Place it inside <Felt>.
+ * after ~3.4 s. Place it inside <Felt>.
  */
 export function AnnounceBanner({ announce, h }: { announce: { by: string | null; text: string; id: number } | null; h: Helpers }) {
   const [hiddenId, setHiddenId] = useState<number | null>(null);
@@ -466,7 +466,7 @@ export function AnnounceBanner({ announce, h }: { announce: { by: string | null;
   if (!announce || hiddenId === announce.id) return null;
   return (
     <View pointerEvents="none" style={styles.announceWrap}>
-      <Animated.View key={announce.id} entering={FadeIn.duration(220)} exiting={FadeOut.duration(250)} style={styles.announce}>
+      <Animated.View key={announce.id} entering={FadeIn.duration(280)} exiting={FadeOut.duration(320)} style={styles.announce}>
         {announce.by ? <Avatar player={h.player(announce.by)} size={34} /> : null}
         <Txt center style={[styles.announceText, announce.text.length > 22 && { fontSize: 18, lineHeight: 28 }]}>
           {announce.text}

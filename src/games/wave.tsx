@@ -19,7 +19,7 @@ import { McqFinal, RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
 
 const INK = '#151726';
-const REVEAL_MS = 11_000; // keep in sync with WAVE_REVEAL_MS in server/games/wave.ts
+const REVEAL_MS = 11_000; // WAVE_REVEAL_MS in server/games/wave.ts (stretched to the room's pace there: TimerBar follows)
 // 0 sits at the right end of the dial (where Arabic reading starts), 100 at the left end
 const angle = (v: number) => (Math.PI * v) / 100;
 

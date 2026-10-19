@@ -20,7 +20,7 @@ import {
 import { boggleWord, generateGrid, wordOf } from '../boggle-grid';
 import { randDelay } from '../cardkit';
 import type { BotLevel } from '../../src/shared/protocol';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 import { roundWin, voiceResult } from '../voice-calls-boards';
 
@@ -133,8 +133,8 @@ function finishRound(ctx: GameCtx, s: State) {
     ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)} (${s.scores[w]} نقطة)` : 'انتهت اللعبة بالتعادل', w ?? undefined, voiceResult(w && ctx.playerName(w)));
   } else {
     s.phase = 'reveal';
-    s.endsAt = ctx.now + REVEAL_MS;
-    s.timerTotal = REVEAL_MS;
+    s.timerTotal = paced(ctx, REVEAL_MS);
+    s.endsAt = ctx.now + s.timerTotal;
     ctx.fx('reveal');
     // the round's best score, said and read aloud
     const best = Math.max(0, ...s.results.map((r) => r.points));

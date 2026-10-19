@@ -1,6 +1,6 @@
 /**
  * Card motion kit — cards that glide instead of popping in and out. Calm on purpose: ease-out
- * curves, 250–450 ms, no bounce, no overshoot, no zoom from nothing. Works the same on Android and
+ * curves, about 350–750 ms (unhurried: the family follows every card), no bounce, no overshoot, no zoom from nothing. Works the same on Android and
  * on the web (plain shared values + `withTiming`, positions measured with `measureLayout`).
  *
  * HOW TO ADOPT IT IN A CARD GAME (phase 2: التريس، الكانزة، الكونكان، أونو، الكذّاب، فاز 10…)
@@ -68,18 +68,18 @@ const EASE_IN_OUT = Easing.inOut(Easing.cubic);
 
 export const MOTION = {
   /** a card flying from one place to another (my card from the hand to the table) */
-  fly: 380,
+  fly: 500,
   /** a card sliding in from a player's seat */
-  enter: 320,
+  enter: 420,
   /** a card dealt into my hand, and the gap between two dealt cards */
-  deal: 300,
-  stagger: 50,
+  deal: 400,
+  stagger: 70,
   /** cards gathering and leaving (a collected trick) */
-  leave: 560,
+  leave: 740,
   /** a card moving to its new place (the hand closing a gap) */
-  glide: 260,
+  glide: 340,
   /** selection lift / dimming */
-  lift: 160,
+  lift: 190,
   /** nothing animates this long after the stage mounts (reconnect / first screen) */
   settle: 700,
 } as const;
@@ -135,7 +135,7 @@ class Registry {
   }
   /** Delay for a card dealt now: cards arriving together come one after another. */
   stagger(now: number) {
-    if (now - this.staggerAt > 140) this.staggerK = 0;
+    if (now - this.staggerAt > 180) this.staggerK = 0;
     this.staggerAt = now;
     const k = Math.min(this.staggerK, 9);
     this.staggerK += 1;
@@ -484,7 +484,7 @@ export function SoftNumber({ value, style, render }: { value: number; style?: St
 function SoftNumberFace({ animate, children, style }: { animate: boolean; children: ReactNode; style?: StyleProp<TextStyle> }) {
   const p = useSharedValue(animate ? 0 : 1);
   useEffect(() => {
-    if (animate) p.set(withTiming(1, { duration: 420, easing: EASE }));
+    if (animate) p.set(withTiming(1, { duration: 540, easing: EASE }));
   }, [animate, p]);
   const anim = useAnimatedStyle(() => ({ opacity: 0.25 + 0.75 * p.get(), transform: [{ translateY: 6 * (1 - p.get()) }] }));
   return <Animated.View style={[style as StyleProp<ViewStyle>, anim]}>{children}</Animated.View>;

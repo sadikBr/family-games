@@ -3,13 +3,14 @@
  * - whose turn it is: «دورك!» in the primary colour when the game waits for me, otherwise the
  *   player's avatar and name (it slides in again at every change of turn);
  * - under it, the last move the game announced («روبو لعب ٧ أوروص وأخذ ورقتين», see GameCtx.say), so a
- *   quick move by someone else is never missed.
+ *   quick move by someone else is never missed. Each line stays up long enough to be read (readMs):
+ *   a line that comes sooner waits its turn (two at most wait; older waiting ones are dropped).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import type { PlayerPublic, RoomView } from '@/shared/protocol';
+import type { PlayerPublic, RoomView, Said } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Txt } from '@/ui/txt';
@@ -24,6 +25,32 @@ function turnText(room: RoomView, players: PlayerPublic[]) {
   return `بانتظار: ${others.map((p) => p.name).join('، ')}`;
 }
 
+/** How long a line stays before the next one may replace it: about a reading speed, 2–4.5 s. */
+const readMs = (text: string) => Math.min(4500, Math.max(2000, 1400 + text.length * 45));
+
+/** The announced line to show now: the newest one, but never before the one on screen could be read. */
+function useReadableSaid(said: Said | null): Said | null {
+  const [st, setSt] = useState<{ shown: Said | null; at: number; queue: Said[] }>({ shown: said, at: 0, queue: [] });
+  useEffect(() => {
+    const update = () =>
+      setSt((s) => {
+        if (!said) return s.shown || s.queue.length ? { shown: null, at: 0, queue: [] } : s;
+        if (s.shown?.id === said.id || s.queue.some((q) => q.id === said.id)) return s;
+        const now = Date.now();
+        if (!s.shown || now - s.at >= readMs(s.shown.text)) return { shown: said, at: now, queue: [] };
+        return { ...s, queue: [...s.queue, said].slice(-2) };
+      });
+    update();
+  }, [said]);
+  useEffect(() => {
+    if (!st.queue.length || !st.shown) return;
+    const wait = Math.max(0, st.at + readMs(st.shown.text) - Date.now());
+    const t = setTimeout(() => setSt((s) => (s.queue.length ? { shown: s.queue[0], at: Date.now(), queue: s.queue.slice(1) } : s)), wait);
+    return () => clearTimeout(t);
+  }, [st]);
+  return st.shown;
+}
+
 export function TurnBar({ room }: { room: RoomView }) {
   // a game that points at players keeps the pill's room during a short pause with nobody to point at
   // (a finished trick on show, a hand being counted), so the header doesn't shrink and grow
@@ -34,9 +61,9 @@ export function TurnBar({ room }: { room: RoomView }) {
   const everyone = turn.length > 1 && turn.length >= room.players.filter((p) => p.connected || p.bot).length;
   const showTurn = room.status === 'playing' && players.length > 0 && !everyone;
   if (showTurn !== pointed && (showTurn || everyone || room.status !== 'playing')) setPointed(showTurn);
-  if (room.status !== 'playing') return null;
   // a call that is only heard (an empty text, see Said.voice) has no line here
-  const said = room.said?.text ? room.said : null;
+  const said = useReadableSaid(room.status === 'playing' && room.said?.text ? room.said : null);
+  if (room.status !== 'playing') return null;
   const by = said?.by ? room.players.find((p) => p.id === said.by) : undefined;
   const holdSpace = !showTurn && pointed;
   if (!showTurn && !said && !holdSpace) return null;
@@ -50,7 +77,7 @@ export function TurnBar({ room }: { room: RoomView }) {
       {showTurn ? (
         <Animated.View
           key={turn.join('|')}
-          entering={FadeInDown.duration(260)}
+          entering={FadeInDown.duration(340)}
           accessibilityLiveRegion="polite"
           accessibilityLabel={text}
           style={{
@@ -74,7 +101,7 @@ export function TurnBar({ room }: { room: RoomView }) {
         <View style={{ height: 24 + 10 + 3 }} />
       ) : null}
       {said ? (
-        <Animated.View key={said.id} entering={FadeIn.duration(220)} accessibilityLiveRegion="polite">
+        <Animated.View key={said.id} entering={FadeIn.duration(280)} accessibilityLiveRegion="polite">
           <Row gap={6} style={{ justifyContent: 'center' }}>
             {by ? <Avatar player={by} size={18} /> : null}
             <Txt v="small" color={C.muted} numberOfLines={2} center style={{ flexShrink: 1 }}>

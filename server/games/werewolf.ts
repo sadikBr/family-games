@@ -14,7 +14,7 @@ import {
 } from '../../src/shared/protocol';
 import { tieHash } from '../ai/social-imposter';
 import { emptyPublic, protectScores, threatScores, top, villageScores, type WolfPublic } from '../ai/social-werewolf';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceDead, voiceHunter, voiceMayor, voiceOnly, voiceOut } from '../voice-calls-party';
 
@@ -505,7 +505,7 @@ function smartPlan(ctx: GameCtx, s: State, expert: boolean): boolean {
         if (!target) continue;
       }
       if (!target) target = pick(others);
-      at += 2000 + Math.random() * 2000; // one every 2–4 s
+      at += paced(ctx, 2000 + Math.random() * 2000); // one every 2–4 s (at the room's pace), each can be read
       s.accusations.push({ by: b, target, at });
       pub.acc.push({ day: s.day, by: b, target });
     }
@@ -783,7 +783,7 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
         } else {
           target = pick(others);
         }
-        at += 2000 + Math.random() * 2000; // one every 2–4 s
+        at += paced(ctx, 2000 + Math.random() * 2000); // one every 2–4 s (at the room's pace), each can be read
         s.accusations.push({ by: b, target, at });
         (s.pub ??= emptyPublic()).acc.push({ day: s.day, by: b, target });
       }

@@ -130,8 +130,8 @@ test('mancala: sowing is announced; the bot waits for the seeds to land on the p
   const s: any = mancala.start(ctx, ['a', 'b'], { seeds: 4, level: 'easy' });
   mancala.act(ctx, s, s.seats[0], { type: 'sow', pit: 0 });
   expect(last()).toEqual({ text: `توزيع من «${s.seats[0]}»: 4 حبات`, by: s.seats[0] });
-  expect(sowingMs(s.last)).toBe(4 * 130);
-  expect(sowingMs({ ...s.last, capture: { pit: 1, opposite: 11, seeds: 3 } })).toBe(4 * 130 + 550 + 450);
+  expect(sowingMs(s.last)).toBe(4 * 170);
+  expect(sowingMs({ ...s.last, capture: { pit: 1, opposite: 11, seeds: 3 } })).toBe(4 * 170 + 720 + 600);
 });
 
 test('battleship: a shot is announced', () => {

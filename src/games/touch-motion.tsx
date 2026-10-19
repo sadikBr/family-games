@@ -57,7 +57,7 @@ export function FloatUp({ children, style, delay = 0 }: { children: ReactNode; s
   const reduced = useReducedMotion();
   const p = useSharedValue(0);
   useEffect(() => {
-    p.set(withDelay(delay, withTiming(1, { duration: reduced ? 700 : 1150, easing: Easing.out(Easing.quad) })));
+    p.set(withDelay(delay, withTiming(1, { duration: reduced ? 700 : 1500, easing: Easing.out(Easing.quad) })));
   }, [p, delay, reduced]);
   const anim = useAnimatedStyle(() => {
     const t = p.get();
@@ -86,7 +86,7 @@ export function Ripple({
   color,
   from = 0.5,
   to = 1.5,
-  ms = 650,
+  ms = 850,
   width = 2,
   opacity = 0.85,
   delay = 0,

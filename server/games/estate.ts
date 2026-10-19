@@ -23,7 +23,7 @@ import {
 import type { EstateAuction, EstatePlayer, EstateSettings, EstateTrade, EstateView } from '../../src/shared/protocol';
 import { Feed, randDelay as rand } from '../cardkit';
 import { expertAccepts, expertAuctionMax, expertBuy, expertLeaveJail, expertManage, expertOffer, spareDeeds } from '../ai/misc-estate';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
@@ -80,8 +80,11 @@ function log(ctx: GameCtx, s: State, text: string, extra: { by?: string; points?
 
 const lastLogId = (s: State) => s.feed.list().at(-1)?.id ?? 0;
 
-/** How long the dice and the hopping token take on the phones, plus a moment to see where it landed. */
-export const rollShowMs = (steps: number) => 1100 + 150 * Math.min(12, steps) + 700;
+/**
+ * How long the dice and the hopping token take on the phones (190 ms a square: estate-board.tsx), plus
+ * `look`, a moment to see where it landed (the bots pass it at the room's pace).
+ */
+export const rollShowMs = (steps: number, look = 700) => 1100 + 190 * Math.min(12, steps) + look;
 
 const cur = (s: State) => s.players[s.turnIdx];
 const P = (s: State, id: string) => s.players.find((p) => p.id === id)!;
@@ -848,7 +851,7 @@ export const estate: GameModule<State, EstateSettings> = {
     ctx = { ...ctx, bot: (id, k, d, a) => turnBot(id, k, d, { ...a, v: moves }) };
     // after a roll, wait until the dice and the token have landed on the phones (the room stretches
     // a bot's delay a little, hence ×0.75)
-    const landed = Math.max(0, s.rolledAt + rollShowMs(s.rollSteps) - ctx.now) * 0.75;
+    const landed = Math.max(0, s.rolledAt + rollShowMs(s.rollSteps, paced(ctx, 700)) - ctx.now) * 0.75;
     const randDelay = (min: number, max: number) => Math.max(landed, rand(min, max));
     if (s.phase === 'debt') {
       ctx.bot(p.id, `bk:${key}`, randDelay(600, 1000), { type: 'settle' });

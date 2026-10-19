@@ -32,18 +32,18 @@ import type { BotLevel } from '../../src/shared/protocol';
 import { makeSides, randDelay } from '../cardkit';
 import { expertBid, expertCard, expertTrump, findClaim, outlook, type BidOutlook, type Knowledge, type Sim } from '../touti-ai';
 import { bestTrump, botBid, botPlay, reachChance } from '../touti-bot';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 import { SUIT_VOICE, VOICE, voiceBid, voiceTeam, voiceTrump, voiceWin } from '../voice-calls';
 
 /** a full trick stays on the table this long (everyone sees who took it) */
-export const TRICK_PAUSE_MS = 2400;
+export const TRICK_PAUSE_MS = 2800;
 /** everyone passed: the empty auction stays on screen this long before the new deal */
-export const REDEAL_MS = 2600;
+export const REDEAL_MS = 3200;
 /** the end-of-hand sheet stays this long (the host can deal sooner) */
 export const HAND_END_MS = 15_000;
 /** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
-export const CLAIM_REVEAL_MS = 3800;
+export const CLAIM_REVEAL_MS = 4500;
 
 interface BidState {
   /** dealer's right first, dealer last */
@@ -179,7 +179,7 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: unknown) {
   }
   // the auction is over: everyone passed (a new deal), the last bidder stands alone, or 230
   if (!b.highBy && !b.active.length) {
-    s.redealAt = ctx.now + REDEAL_MS;
+    s.redealAt = ctx.now + paced(ctx, REDEAL_MS);
     ctx.say?.('لا مزايدة — توزيع جديد', undefined, voice);
     ctx.fx('buzz');
     return;
@@ -242,7 +242,7 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown): boolean 
   s.tricks[side] += 1;
   s.trickWinner = winner;
   s.turn = null;
-  s.pauseUntil = ctx.now + TRICK_PAUSE_MS;
+  s.pauseUntil = ctx.now + paced(ctx, TRICK_PAUSE_MS);
   ctx.say?.(`${head} — الأكلة لـ${ctx.playerName(winner)}${gain ? ` (+${gain})` : ''}${s.trickNo === TRICKS ? ' مع الدير' : ''}`, winner);
   ctx.fx('correct', winner);
   return true;
@@ -304,7 +304,7 @@ function endHand(ctx: GameCtx, s: State) {
   const t = s.settings.target;
   if (s.scores.A >= t || s.scores.B >= t) finish(ctx, s, s.scores.A >= t ? 'A' : 'B');
   else {
-    s.nextAt = ctx.now + HAND_END_MS;
+    s.nextAt = ctx.now + paced(ctx, HAND_END_MS);
     ctx.fx(out.success ? 'reveal' : 'buzz');
   }
 }
@@ -419,7 +419,7 @@ function claim(ctx: GameCtx, s: State, by: string) {
   }
   s.cards[side] += gain;
   s.tricks[side] += left;
-  s.claimed = { by, side, reveal: reveal.map((id) => ({ by: id, cards: sortTouti(s.hands[id], s.trump) })), until: ctx.now + CLAIM_REVEAL_MS };
+  s.claimed = { by, side, reveal: reveal.map((id) => ({ by: id, cards: sortTouti(s.hands[id], s.trump) })), until: ctx.now + paced(ctx, CLAIM_REVEAL_MS) };
   for (const id of s.seats) {
     s.played.push(...s.hands[id]);
     s.hands[id] = [];

@@ -26,12 +26,12 @@ export { EASE };
 
 export const BOARD_MOTION = {
   /** a piece / tile / follower settling into place */
-  settle: 380,
+  settle: 500,
   /** the robber gliding to its new hex */
-  robber: 460,
+  robber: 600,
   /** a resource / follower flying to a player's chip, and the gap between two of them */
-  fly: 620,
-  stagger: 110,
+  fly: 800,
+  stagger: 145,
 } as const;
 
 type Pt = { x: number; y: number };

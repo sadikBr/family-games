@@ -8,7 +8,7 @@ import { client } from '@/lib/client';
 import { useCountdown } from '@/lib/time';
 import { maSuitName } from '@/shared/baloot-morocco';
 import { SUIT_SYM } from '@/shared/baloot-rules';
-import { BALOOT_TARGETS, type BalootView, type BSide } from '@/shared/games/baloot';
+import { BALOOT_CLAIM_WORD, BALOOT_TARGETS, type BalootView, type BSide } from '@/shared/games/baloot';
 import type { RoomView } from '@/shared/protocol';
 import { C, F } from '@/theme';
 import { Row } from '@/ui/bits';
@@ -200,10 +200,11 @@ function TableScreen({
         <InfoRow v={v} mine={mySide} />
       </View>
 
-      {/* «الباقي لنا»: the option above my hand, then the claimer's cards face up */}
-      {v.canClaim && !v.claimed ? <ClaimButton onPress={() => h.act('claim')} /> : null}
+      {/* «سوا» (Saudi) / «الباقي لنا» (Moroccan): the option above my hand, then the claimer's cards face up */}
+      {v.canClaim && !v.claimed ? <ClaimButton word={BALOOT_CLAIM_WORD[ma ? 'morocco' : 'saudi']} onPress={() => h.act('claim')} /> : null}
       {v.claimed ? (
         <ClaimReveal
+          word={BALOOT_CLAIM_WORD[ma ? 'morocco' : 'saudi']}
           claimed={v.claimed}
           mySide={mySide}
           sideNames={(side) => teamNames(v, h, side as BSide)}

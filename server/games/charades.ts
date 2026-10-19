@@ -10,7 +10,7 @@ import {
   type CharadesView,
 } from '../../src/shared/games/charades';
 import { CHARADES_ALL, type CharadesWord } from '../charades-content';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceOnly, voiceTeamsFinal } from '../voice-calls-party';
 
@@ -137,7 +137,7 @@ function balanceTeams(ctx: GameCtx, s: State) {
     if (!mover) continue;
     s.teams[o] = s.teams[o].filter((id) => id !== mover);
     s.teams[t] = [...s.teams[t], mover];
-    s.notice = { text: `انتقل ${ctx.playerName(mover)} إلى ${TEAM_NAMES[t]} ليبقى في كل فريق لاعبان`, until: ctx.now + NOTICE_MS };
+    s.notice = { text: `انتقل ${ctx.playerName(mover)} إلى ${TEAM_NAMES[t]} ليبقى في كل فريق لاعبان`, until: ctx.now + paced(ctx, NOTICE_MS) };
     ctx.fx('reveal');
   }
 }

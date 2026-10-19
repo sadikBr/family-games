@@ -1,7 +1,7 @@
 import type { PotatoSettings, PotatoView } from '../../src/shared/protocol';
 import { potatoAnswerPool } from '../bot-content';
 import { POTATO_PROMPTS } from '../content';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, randInt } from '../util';
 import { PVOICE, voiceAnd, voiceBurnt, voiceFinal, voiceOnly } from '../voice-calls-party';
 
@@ -229,7 +229,7 @@ export const potato: GameModule<State, PotatoSettings> = {
     if (!ctx.isBot(s.holderId)) return;
     const bot = s.holderId;
     if (s.phase === 'ready') {
-      ctx.bot(bot, `start:${s.round}`, 2200, { type: 'start' });
+      ctx.bot(bot, `start:${s.round}`, paced(ctx, 2600), { type: 'start' });
     } else if (s.phase === 'play') {
       const targets = eligibleTargets(ctx, s);
       if (!targets.length) return;

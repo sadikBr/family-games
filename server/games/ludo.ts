@@ -10,7 +10,7 @@ import { FINISH, SAFE, seatColors, trackIndex } from '../../src/shared/ludo';
 import type { LudoColor, LudoSettings, LudoView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { ludoBotMove } from '../ai/misc-ludo';
-import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
@@ -213,7 +213,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       // read aloud: a 6 (a piece out, another roll)
       ctx.say?.(`رمية ${li(ctx.playerName(by))}: ${d}`, by, d === 6 ? VB.six : undefined);
       s.phase = 'move';
-      s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + AUTO_MOVE_MS : null;
+      s.autoAt = distinctMoves(s.tokens[by], d, s.settings.exitOnOne).length === 1 ? ctx.now + paced(ctx, AUTO_MOVE_MS) : null;
       return;
     }
     if (a.type === 'move') {

@@ -11,7 +11,7 @@ import { answerExact, answerMatches, norm } from '../../src/shared/arabic';
 import { WHO, WHO_ALIASES, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
 import { qdeck } from '../qdeck';
 import { readMs } from '../ai/social-quiz';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { voiceAnswer, voiceFinal, voiceOnly } from '../voice-calls-party';
 import { isNum, isStr, randInt, shuffle } from '../util';
 import { soleWinner } from './mcq';
@@ -116,7 +116,7 @@ function finishRound(ctx: GameCtx, s: State) {
   s.phase = 'reveal';
   s.shown = s.entries[s.round - 1].clues.length;
   s.nextClueAt = null;
-  s.endsAt = now + REVEAL_MS;
+  s.endsAt = now + paced(ctx, REVEAL_MS);
   voiceOnly(ctx, voiceAnswer(s.entries[s.round - 1].name));
 }
 

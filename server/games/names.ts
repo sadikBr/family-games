@@ -20,7 +20,7 @@ import {
 import { GAME_LETTERS, displayLetter, similarAnswers, startsWithLetter } from '../../src/shared/arabic';
 import { NAMES_DICT } from '../bot-content';
 import { knownWord } from '../dictionary';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
 import { PVOICE, voiceFinal, voiceLetter, voiceOnly, voiceRoundTo } from '../voice-calls-party';
 
@@ -69,7 +69,7 @@ function newRound(ctx: GameCtx, s: State) {
   s.round += 1;
   s.letter = s.letters[(s.round - 1) % s.letters.length];
   s.phase = 'spin';
-  s.endsAt = ctx.now + SPIN_MS;
+  s.endsAt = ctx.now + paced(ctx, SPIN_MS);
   s.stoppedBy = null;
   s.done = [];
   s.answers = Object.fromEntries(s.participants.map((id) => [id, {}]));

@@ -27,7 +27,7 @@ import {
 import { li } from '../../src/shared/li';
 import { randDelay } from '../cardkit';
 import { decide, type Void } from '../hez2-bot';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
 import { SUIT_VOICE, voiceHez, voiceRound, voiceWin } from '../voice-calls';
 
@@ -203,7 +203,7 @@ function endRound(ctx: GameCtx, s: State, winner: string | null, stuck = false) 
   s.again = null;
   s.pending = 0;
   s.out = null;
-  s.overAt = ctx.now + OVER_MS;
+  s.overAt = ctx.now + paced(ctx, OVER_MS);
   s.moves += 1;
   const reached = s.seats.some((id) => (s.scores[id] ?? 0) >= s.settings.target);
   s.winner = reached ? ranking(s)[0] : null;
@@ -422,7 +422,7 @@ export const hez2: GameModule<State, Hez2Settings> = {
         ctx.fx('win', s.winner);
       } else {
         s.phase = 'roundEnd';
-        s.nextAt = ctx.now + ROUND_END_MS;
+        s.nextAt = ctx.now + paced(ctx, ROUND_END_MS);
       }
       return true;
     }

@@ -18,7 +18,7 @@ import {
 import { STORIES, type Chapter } from '../prophets-stories';
 import { qdeck } from '../qdeck';
 import { quizChoice, quizDelay, quizSkill, readChars, readMs } from '../ai/social-quiz';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 import { quranData } from './surah';
@@ -149,7 +149,7 @@ function reveal(ctx: GameCtx, s: ProphetsState) {
   for (const [id, v] of Object.entries(s.votes)) if (v.choice === ch.correct) s.perPlayer[id] = (s.perPlayer[id] ?? 0) + 1;
   s.phase = 'reveal';
   s.ready = [];
-  s.endsAt = ctx.now + PROPHETS_REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, PROPHETS_REVEAL_MS);
   ctx.fx(right ? 'correct' : 'buzz');
   voiceOnly(ctx, voiceAnd(right ? PVOICE.right : PVOICE.wrong, voiceAnswer(ch.options[ch.correct]) + (ch.after ? `. ${ch.after}` : '')));
 }

@@ -5,7 +5,7 @@
 import { JUMPS } from '../../src/shared/islamic';
 import type { BoardCard, LaddersSettings, LaddersView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
-import { GameError, type GameModule } from '../types';
+import { GameError, paced, type GameModule } from '../types';
 import { shuffle } from '../util';
 import { VB, voiceAnd, voiceWinner } from '../voice-calls-boards';
 
@@ -26,6 +26,9 @@ interface State {
 const li = (n: string) => (/^[\u0621-\u064A]/.test(n) ? `ل${n.startsWith('ال') ? n.slice(1) : n}` : `لـ${n}`);
 
 const cur = (s: State) => s.players[s.turnIdx];
+
+/** The last roll on the phones: the die lands, then the pawn walks (and climbs / slides): ladders.tsx. */
+export const WALK_MS = 3000;
 
 /** Finishing order: furthest along first; on the same square, whoever got there first. */
 export function laddersOrder(s: State): string[] {
@@ -95,7 +98,8 @@ export const ladders: GameModule<State, LaddersSettings> = {
   botPlan(ctx, s, bots) {
     const p = cur(s);
     if (!p || s.phase !== 'roll' || !bots.includes(p.id)) return;
-    ctx.bot(p.id, `roll:${s.rollId}`, randDelay(2600, 3400), { type: 'roll' });
+    // the last pawn's walk ends on the phones, then a moment to see where it landed
+    ctx.bot(p.id, `roll:${s.rollId}`, WALK_MS + paced(ctx, randDelay(400, 1000)), { type: 'roll' });
   },
 
   view(ctx, s): LaddersView {

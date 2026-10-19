@@ -138,7 +138,7 @@ export interface ReturnFx {
   countAt: number;
 }
 
-const RETURN_DELAY = 260;
+const RETURN_DELAY = 340;
 
 /**
  * Followers that went back to their owners since the last view (none right after mount). The server

@@ -172,17 +172,14 @@ const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2', 'rami'
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
 /**
- * Pacing for turn-based play, so people can follow what happens:
+ * How fast games move («سرعة اللعب»), so people can follow what happens:
  * - think: multiplies the delay a game gives its bot for its own turn;
  * - after: the least time between someone else's move (or a new round) and a bot's move;
- * - again: the least time between two steps of the same bot's turn (roll → move, place → follower…).
+ * - again: the least time between two steps of the same bot's turn (roll → move, place → follower…);
+ * - show: scales the games' own pauses (a finished trick on the table, a reveal, the end of a round:
+ *   see `paced` in types.ts).
  * Moves everyone makes at once (answers, votes) are not slowed down: they race a timer.
- */
-/**
- * How fast games move. `think` scales a bot's own thinking time; `after` / `again` = the least time
- * after someone else's / its own previous move before a bot plays, so every move can be seen;
- * `show` scales the games' own pauses (a finished trick on the table, a reveal, the end of a round:
- * see `paced` in types.ts). The family found games too quick: even «عادية» leaves time to look.
+ * The family found games too quick: even «عادية» leaves time to look.
  */
 const PACE: Record<Pace, { think: number; after: number; again: number; show: number }> = {
   slow: { think: 2.4, after: 3600, again: 2000, show: 1.7 },

@@ -21,7 +21,7 @@ import type {
   BSide,
   BSuit,
 } from '../../src/shared/games/baloot';
-import { BALOOT_TARGETS } from '../../src/shared/games/baloot';
+import { BALOOT_CLAIM_WORD, BALOOT_TARGETS } from '../../src/shared/games/baloot';
 import { maCardLabel, type Ann } from '../../src/shared/baloot-morocco';
 import {
   B_SUITS,
@@ -63,18 +63,18 @@ import {
   maViewAnn,
 } from '../baloot-morocco';
 import { makeSides, randDelay } from '../cardkit';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 import { VOICE, voiceAnd, voiceHokm, voiceTeam, voiceWin } from '../voice-calls';
 
 /** a full trick stays on the table this long (everyone sees who took it) */
-export const TRICK_PAUSE_MS = 2400;
+export const TRICK_PAUSE_MS = 2800;
 /** everyone passed twice: the empty bidding stays on screen this long before the new deal */
-export const REDEAL_MS = 2600;
+export const REDEAL_MS = 3200;
 /** the end-of-hand sheet stays this long (the host can deal sooner) */
 export const HAND_END_MS = 15_000;
-/** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
-export const CLAIM_REVEAL_MS = 3800;
+/** «سوا» / «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
+export const CLAIM_REVEAL_MS = 4500;
 
 interface BidState {
   round: 1 | 2;
@@ -146,9 +146,9 @@ export interface State {
   log: { plays: Played[]; boss: boolean }[];
   /** the face-up card the buyer took (everyone saw it go into that hand) */
   upCard: BCard | null;
-  /** «الباقي لنا»: a team certain to take every remaining trick, and who may claim it */
+  /** «سوا» / «الباقي لنا»: a team certain to take every remaining trick, and who may claim it */
   claim: ClaimInfo | null;
-  /** «الباقي لنا» was claimed: those hands are shown before the end of the hand */
+  /** «سوا» / «الباقي لنا» was claimed: those hands are shown before the end of the hand */
   claimed: { by: string; side: BSide; reveal: { by: string; cards: BCard[] }[] } | null;
   /** bumps on every change (bot keys, timer) */
   seq: number;
@@ -250,7 +250,7 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, suit: unk
     const r = maBidCall(ctx, s, by, call, suit);
     if (r === 'play') startPlay(s);
     else if (r === 'redeal') {
-      s.redealAt = ctx.now + REDEAL_MS;
+      s.redealAt = ctx.now + paced(ctx, REDEAL_MS);
       ctx.say?.('لا شراء — توزيع جديد', undefined, VOICE.pass);
       ctx.fx('buzz');
     }
@@ -298,7 +298,7 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, suit: unk
     ctx.say?.('لا شراء في الجولة الأولى — الجولة الثانية: حكم بشكل آخر أو صن', undefined, VOICE.bs);
     return;
   }
-  s.redealAt = ctx.now + REDEAL_MS;
+  s.redealAt = ctx.now + paced(ctx, REDEAL_MS);
   ctx.say?.('لا شراء — توزيع جديد', undefined, VOICE.bs);
   ctx.fx('buzz');
 }
@@ -438,7 +438,7 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown, declare: 
   s.tricks[side] += 1;
   s.trickWinner = winner;
   s.turn = null;
-  s.pauseUntil = ctx.now + TRICK_PAUSE_MS;
+  s.pauseUntil = ctx.now + paced(ctx, TRICK_PAUSE_MS);
   ctx.say?.(`${head} — الأكلة لـ${ctx.playerName(winner)}${gain ? ` (+${gain})` : ''}`, winner, voiceAnd(...voices));
   ctx.fx('correct', winner);
   return true;
@@ -457,7 +457,7 @@ function showProjects(ctx: GameCtx, s: State) {
 }
 
 /**
- * «الباقي لنا»: the team takes every remaining trick (certain whatever anyone plays — checked again
+ * «سوا» / «الباقي لنا»: the team takes every remaining trick (certain whatever anyone plays — checked again
  * here). The hand ends as if it had been played out: every card left and the last trick's 10 go to
  * that team; projects not declared yet are declared in full (as the default is), and «بلوت» /
  * بلوط-ريبلوط counts for whoever holds K + Q of trumps, since every card would have been played.
@@ -491,8 +491,9 @@ function claimHand(ctx: GameCtx, s: State, by: string) {
   s.claim = null;
   s.turn = null;
   s.trickWinner = null;
-  s.pauseUntil = ctx.now + CLAIM_REVEAL_MS;
-  ctx.say?.(`الباقي ل${teamName(ctx, s, side)} — أُنهيت اليد`, by, VOICE.claim);
+  s.pauseUntil = ctx.now + paced(ctx, CLAIM_REVEAL_MS);
+  // «سوا» in the Saudi game, «الباقي» in the Moroccan one (noun-first: «سوا لفريق …»)
+  ctx.say?.(`${BALOOT_CLAIM_WORD[ma ? 'morocco' : 'saudi']} ل${teamName(ctx, s, side)} — أُنهيت اليد`, by, ma ? VOICE.claim : VOICE.siwa);
   ctx.fx('reveal');
 }
 
@@ -512,7 +513,7 @@ function endHand(ctx: GameCtx, s: State) {
     if (s.result && s.claimed) s.result.claimed = s.claimed.side;
     if (won) finish(ctx, s, won);
     else {
-      s.nextAt = ctx.now + HAND_END_MS;
+      s.nextAt = ctx.now + paced(ctx, HAND_END_MS);
       ctx.fx('reveal');
     }
     return;
@@ -553,7 +554,7 @@ function endHand(ctx: GameCtx, s: State) {
   if (c.gahwa) finish(ctx, s, out.winner);
   else if ((s.scores.A >= t || s.scores.B >= t) && s.scores.A !== s.scores.B) finish(ctx, s, s.scores.A > s.scores.B ? 'A' : 'B');
   else {
-    s.nextAt = ctx.now + HAND_END_MS;
+    s.nextAt = ctx.now + paced(ctx, HAND_END_MS);
     ctx.fx('reveal');
   }
 }
@@ -637,7 +638,7 @@ function mindDecide(s: State, id: string, level: 'expert' | 'smart'): GameAction
   return { type: 'play', card: card.id, declare: s.trickNo === 1 ? (s.avail[id] ?? []).map(projectKey) : [] };
 }
 
-/** After every change: a new sequence number, the decision timer, and whether «الباقي لنا» is on. */
+/** After every change: a new sequence number, the decision timer, and whether «سوا» / «الباقي لنا» is on. */
 function armTimer(ctx: GameCtx, s: State) {
   s.seq += 1;
   s.deadline = s.settings.timer > 0 && turnOf(s).length ? ctx.now + s.settings.timer * 1000 : null;
@@ -801,7 +802,7 @@ export const baloot: GameModule<State, BalootSettings> = {
   },
 
   botPlan(ctx, s) {
-    // «الباقي لنا»: a bot claims at once (after a short, human-like pause)
+    // «سوا» / «الباقي لنا»: a bot claims at once (after a short, human-like pause)
     if (s.claim && !s.claimed && ctx.isBot(s.claim.by)) {
       ctx.bot(s.claim.by, `claim${s.hand}:${s.seq}`, randDelay(900, 1600), { type: 'claim', seq: s.seq });
       return;

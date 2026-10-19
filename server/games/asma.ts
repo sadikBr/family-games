@@ -10,13 +10,13 @@ import { ASMA_PAIRS, type AsmaCard, type AsmaMatchView, type AsmaMemoryView, typ
 import { ASMA_NAMES, type AsmaName } from '../asma-content';
 import { randDelay } from '../cardkit';
 import { qdeck } from '../qdeck';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, shuffle } from '../util';
 import { makeMcq, mcqOptions, soleWinner, type McqItem, type McqState } from './mcq';
 import { ASK, voiceAnswer, voiceAnd, voiceQuestion, voiceWinner, PVOICE } from '../voice-calls-party';
 
 /** memory: a Name and a meaning that don't match stay face up this long */
-export const PEEK_MS = 2500;
+export const PEEK_MS = 3000;
 const BOT_SKILL = 0.7;
 /** memory bots remember each card they saw with this chance, by the room's bot strength */
 const BOT_MEMORY: Record<BotLevel, number> = { easy: 0.7, smart: 0.88, expert: 0.98 };
@@ -154,7 +154,7 @@ function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: str
     ctx.say?.(`زوج لـ${ctx.playerName(by)}: «${ASMA_NAMES[g.deck[x].idx].name}» ومعناه، ودورٌ آخر`, by, voiceAnd(PVOICE.pair, ASMA_NAMES[g.deck[x].idx].name));
     if (g.owners.every(Boolean)) memoryEnd(ctx, s);
   } else {
-    g.peekUntil = ctx.now + PEEK_MS;
+    g.peekUntil = ctx.now + paced(ctx, PEEK_MS);
     ctx.say?.(`بطاقتان غير متطابقتين من ${ctx.playerName(by)}`, by);
   }
 }

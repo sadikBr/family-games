@@ -59,17 +59,17 @@ export function RaceToken({
     for (let k = from + 1; k <= hopTo; k++) {
       const c = at(k);
       const last = k === hopTo && hopTo === pos;
-      xs.push(withTiming(last ? tx : c.x - size / 2, { duration: 170 }));
-      ys.push(withTiming(last ? ty : c.y - size / 2, { duration: 170 }));
-      ls.push(withTiming(-size * 0.4, { duration: 85 }), withTiming(0, { duration: 85 }));
+      xs.push(withTiming(last ? tx : c.x - size / 2, { duration: 210 }));
+      ys.push(withTiming(last ? ty : c.y - size / 2, { duration: 210 }));
+      ls.push(withTiming(-size * 0.4, { duration: 105 }), withTiming(0, { duration: 105 }));
     }
     if (hopTo !== pos) {
       // ladder / snake / event: slide the rest of the way
-      xs.push(withDelay(xs.length ? 250 : 0, withTiming(tx, { duration: 650 })));
-      ys.push(withDelay(xs.length > 1 ? 250 : 0, withTiming(ty, { duration: 650 })));
+      xs.push(withDelay(xs.length ? 320 : 0, withTiming(tx, { duration: 820 })));
+      ys.push(withDelay(xs.length > 1 ? 320 : 0, withTiming(ty, { duration: 820 })));
     }
     // the dice land first; the number stays readable for a moment before the token sets off
-    const delay = rolled ? DICE_THROW_MS + 400 : 0;
+    const delay = rolled ? DICE_THROW_MS + 550 : 0;
     x.set(withDelay(delay, withSequence(...xs)));
     y.set(withDelay(delay, withSequence(...ys)));
     if (ls.length) lift.set(withDelay(delay, withSequence(...ls)));

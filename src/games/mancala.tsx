@@ -157,7 +157,7 @@ function SeedFlight({ from, to, n, ms, seed, hole }: { from: Pt; to: Pt; n: numb
 function SoftMark({ left, top, width, height, radius, color, strength }: { left: number; top: number; width: number; height: number; radius: number; color: string; strength: number }) {
   const o = useSharedValue(0);
   useEffect(() => {
-    o.set(withTiming(strength, { duration: 360, easing: EASE }));
+    o.set(withTiming(strength, { duration: 460, easing: EASE }));
   }, [o, strength]);
   const style = useAnimatedStyle(() => ({ opacity: o.get() }));
   return <Animated.View pointerEvents="none" style={[{ position: 'absolute', left, top, width, height, borderRadius: radius, backgroundColor: color }, style]} />;
@@ -177,7 +177,7 @@ function Board({ view, h, myTurn, animate }: { view: MancalaView; h: Helpers; my
   const flights = last ? flightsOf(last, landed, view.board) : [];
   const end = total + (flights.length ? 2 : 0);
   const per = MANCALA_SOW.per(total);
-  const pause = last?.capture ? MANCALA_SOW.pause : 420;
+  const pause = last?.capture ? MANCALA_SOW.pause : 550;
   const [step, setStep] = useState(animate ? 0 : end);
   // the server's bot waits for this (sowingMs): keep the timings in MANCALA_SOW
   useEffect(() => {

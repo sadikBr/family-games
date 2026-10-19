@@ -215,16 +215,17 @@ function Token({ g, player, pos, slot, slots, size, delay }: { g: Geom; player: 
       for (let k = 1; k <= d; k++) {
         const last = k === d;
         const c = spotOf(g, (from + k) % 40);
-        xs.push(withTiming(last ? tx : c.x - size / 2, { duration: 150 }));
-        ys.push(withTiming(last ? ty : c.y - size / 2, { duration: 150 }));
-        ls.push(withTiming(-size * 0.35, { duration: 75 }), withTiming(0, { duration: 75 }));
+        // 190 ms a square: the server's bots wait for it (rollShowMs in server/games/estate.ts)
+        xs.push(withTiming(last ? tx : c.x - size / 2, { duration: 190 }));
+        ys.push(withTiming(last ? ty : c.y - size / 2, { duration: 190 }));
+        ls.push(withTiming(-size * 0.35, { duration: 95 }), withTiming(0, { duration: 95 }));
       }
       x.set(withDelay(delay, withSequence(...xs)));
       y.set(withDelay(delay, withSequence(...ys)));
       lift.set(withDelay(delay, withSequence(...ls)));
     } else {
-      x.set(withDelay(delay, withTiming(tx, { duration: 500 })));
-      y.set(withDelay(delay, withTiming(ty, { duration: 500 })));
+      x.set(withDelay(delay, withTiming(tx, { duration: 650 })));
+      y.set(withDelay(delay, withTiming(ty, { duration: 650 })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, tx, ty]);

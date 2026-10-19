@@ -22,7 +22,7 @@ import { randDelay } from '../cardkit';
 import { soleWinner } from './mcq';
 import { qdeck } from '../qdeck';
 import { STEP_SEQS, type StepSeq } from '../steps-content';
-import { botLevel, type GameCtx, type GameModule } from '../types';
+import { botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
 import { ASK, voiceFinal, voiceOnly, voiceOrder } from '../voice-calls-party';
 
@@ -101,7 +101,7 @@ function reveal(ctx: GameCtx, s: State) {
     return { id, order: sub.order, right, points, ms };
   });
   s.phase = 'reveal';
-  s.endsAt = ctx.now + STEPS_REVEAL_MS;
+  s.endsAt = ctx.now + paced(ctx, STEPS_REVEAL_MS);
   ctx.fx('reveal');
   voiceOnly(ctx, voiceOrder(s.seqs[s.round].steps));
 }
@@ -254,7 +254,7 @@ export const steps: GameModule<State, StepsSettings> = {
     }
   },
 
-  view(_ctx, s, me): StepsView {
+  view(ctx, s, me): StepsView {
     const seq = s.seqs[s.round];
     const shown = s.phase !== 'play';
     return {
@@ -266,7 +266,7 @@ export const steps: GameModule<State, StepsSettings> = {
       title: seq.title,
       items: s.items,
       endsAt: s.endsAt,
-      timerTotal: s.phase === 'reveal' ? STEPS_REVEAL_MS : s.timerTotal,
+      timerTotal: s.phase === 'reveal' ? paced(ctx, STEPS_REVEAL_MS) : s.timerTotal,
       submitted: Object.keys(s.subs).filter((id) => s.participants.includes(id)),
       mine: s.subs[me]?.order ?? null,
       correct: shown ? s.correct : null,

@@ -2,6 +2,8 @@
  * «الباقي لنا» — finishing a hand whose remaining tricks are all certain for one team (the server
  * checks it exactly). Shared by the trick games: the calm button above my hand, and the claimer's
  * cards shown face up to everyone for a few seconds before the end of the hand.
+ * `word` is the call, used noun-first: «الباقي» by default («الباقي لنا»), «سوا» in the Saudi Baloot
+ * (BALOOT_CLAIM_WORD).
  */
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
@@ -14,13 +16,27 @@ import { Txt } from '@/ui/txt';
 import type { Helpers } from '../helpers';
 import { CardMotion, EASE, MOTION } from './motion';
 
+const DEFAULT_WORD = 'الباقي';
+/** The button's label for a call: «الباقي لنا», but «سوا» alone (it already means «the rest is ours»). */
+const buttonCall = (word: string) => (word === DEFAULT_WORD ? 'الباقي لنا' : word);
+
 /** The option (it is only an option: the hand can be played on). */
-export function ClaimButton({ onPress }: { onPress: () => void }) {
+export function ClaimButton({
+  onPress,
+  word = DEFAULT_WORD,
+  hint = 'أوراقك وحدها تأخذ كل الأكلات الباقية',
+}: {
+  onPress: () => void;
+  /** the call: «الباقي» (default) or «سوا» */
+  word?: string;
+  /** the short explanation under the button */
+  hint?: string;
+}) {
   return (
     <Animated.View entering={FadeIn.duration(MOTION.enter).easing(EASE)} exiting={FadeOut.duration(200)} style={{ gap: 2, alignItems: 'center' }}>
-      <Btn size="md" icon="check" color={C.green} label="الباقي لنا — أنهِ اليد" onPress={onPress} />
+      <Btn size="md" icon="check" color={C.green} label={`${buttonCall(word)} — أنهِ اليد`} onPress={onPress} />
       <Txt v="tiny" color={C.muted} center numberOfLines={1}>
-        أوراقك وحدها تأخذ كل الأكلات الباقية
+        {hint}
       </Txt>
     </Animated.View>
   );
@@ -33,7 +49,7 @@ export interface Claimed<CardT> {
 }
 
 /**
- * The claimed hand: «الباقي لفريقكم» and the claimer's cards (the partner's too when they were
+ * The claimed hand: «الباقي لفريقكم» («سوا لفريقكم») and the claimer's cards (the partner's too when they were
  * needed) laid face up, one after the other — on the claimer's own phone they glide out of the hand.
  */
 export function ClaimReveal<CardT extends { id: string }>({
@@ -42,6 +58,7 @@ export function ClaimReveal<CardT extends { id: string }>({
   sideNames,
   h,
   renderCard,
+  word = DEFAULT_WORD,
 }: {
   claimed: Claimed<CardT>;
   mySide: string | null;
@@ -49,8 +66,10 @@ export function ClaimReveal<CardT extends { id: string }>({
   sideNames: (side: string) => string;
   h: Helpers;
   renderCard: (c: CardT) => ReactNode;
+  /** the call: «الباقي» (default) or «سوا» */
+  word?: string;
 }) {
-  const title = claimed.side === mySide ? 'الباقي لفريقكم' : `الباقي لفريق ${sideNames(claimed.side)}`;
+  const title = claimed.side === mySide ? `${word} لفريقكم` : `${word} لفريق ${sideNames(claimed.side)}`;
   return (
     <Animated.View
       entering={FadeIn.duration(MOTION.enter).easing(EASE)}
@@ -76,11 +95,11 @@ export function ClaimReveal<CardT extends { id: string }>({
   );
 }
 
-/** One line for the end-of-hand sheet: «إنهاء مبكر — الباقي لنا». */
-export function ClaimNote({ mine }: { mine: boolean | null }) {
+/** One line for the end-of-hand sheet: «إنهاء مبكر — الباقي لنا» («إنهاء مبكر — سوا لنا»). */
+export function ClaimNote({ mine, word = DEFAULT_WORD }: { mine: boolean | null; word?: string }) {
   return (
     <Txt v="small" center color={C.green}>
-      إنهاء مبكر — الباقي {mine === null ? 'للفائزين بالأكلات' : mine ? 'لنا' : 'لهم'}، دون لعب الأوراق الباقية
+      إنهاء مبكر — {word} {mine === null ? 'للفائزين بالأكلات' : mine ? 'لنا' : 'لهم'}، دون لعب الأوراق الباقية
     </Txt>
   );
 }
