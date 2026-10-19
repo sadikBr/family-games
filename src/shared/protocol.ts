@@ -1464,6 +1464,8 @@ export interface RoomView {
   turn: string[];
   /** how fast bots play, set by the host */
   pace: Pace;
+  /** how strong bots play, set by the host (optional: an older server doesn't send it) */
+  botLevel?: BotLevel;
   /** the last move announced by the game (see GameCtx.say), for the strip under the turn bar */
   said: Said | null;
   /** who is in the room's voice chat (connected players only) */
@@ -1572,6 +1574,7 @@ export type RoomAction =
   | { type: 'kick'; id: string }
   | { type: 'addBot' }
   | { type: 'pace'; pace: Pace }
+  | { type: 'botLevel'; level: BotLevel }
   /** a group room: stop waiting for the missing members (caller or host) */
   | { type: 'groupGo' }
   /** tournaments (host only): set up / change the tournament in the waiting room */
@@ -1605,6 +1608,14 @@ export interface Said {
 }
 export const PACES: Pace[] = ['slow', 'normal', 'fast'];
 export const PACE_LABEL: Record<Pace, string> = { slow: 'بطيئة', normal: 'عادية', fast: 'سريعة' };
+
+/**
+ * How strong the bots play, for every game (set by the host). 'easy' for children and beginners,
+ * 'smart' a solid club player, 'expert' the strongest the game's bot can play (the default).
+ */
+export type BotLevel = 'easy' | 'smart' | 'expert';
+export const BOT_LEVELS: BotLevel[] = ['easy', 'smart', 'expert'];
+export const BOT_LEVEL_LABEL: Record<BotLevel, string> = { easy: 'سهل', smart: 'ذكي', expert: 'خبير' };
 
 export type ServerMsg =
   | { t: 'welcome'; now: number }

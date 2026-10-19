@@ -21,6 +21,8 @@ import {
   type Pace,
   type Said,
   PACES,
+  BOT_LEVELS,
+  type BotLevel,
   resolveGame,
   type RoomView,
   type ServerMsg,
@@ -249,6 +251,8 @@ export class Room {
   private seated: string[] = [];
   lastActivity = Date.now();
   pace: Pace = 'normal';
+  /** how strong the bots play (all games) */
+  botLevel: BotLevel = 'expert';
   /** the last move the game announced (cleared when a game starts or ends) */
   private said: Said | null = null;
   private saidCounter = 0;
@@ -290,6 +294,7 @@ export class Room {
       say: (text: string, by?: string) => {
         this.said = { id: ++this.saidCounter, text, by };
       },
+      botLevel: () => this.botLevel,
       isConnected: (id) => this.players.some((p) => p.id === id && p.connected),
       isBot: (id) => this.autopilot.has(id) || this.players.some((p) => p.id === id && p.bot),
       playerName: (id) => this.players.find((p) => p.id === id)?.name ?? '؟',
@@ -550,6 +555,12 @@ export class Room {
         // the host can change it any time, also during a game
         if (!isHost || !PACES.includes(a.pace)) return;
         this.pace = a.pace;
+        break;
+      }
+      case 'botLevel': {
+        // like the pace: the host can change it any time
+        if (!isHost || !BOT_LEVELS.includes(a.level)) return;
+        this.botLevel = a.level;
         break;
       }
       case 'addBot': {
@@ -1075,6 +1086,7 @@ export class Room {
       turn: this.turnNow(),
       said: this.status === 'playing' ? this.said : null,
       pace: this.pace,
+      botLevel: this.botLevel,
       voice: [...this.voice].map(([id, v]) => ({ id, muted: v.muted })),
       group: this.groupView(),
       tournament: this.tournament?.view() ?? null,

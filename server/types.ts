@@ -1,4 +1,4 @@
-import type { FxKind, GameAction, GameId, GameView } from '../src/shared/protocol';
+import type { BotLevel, FxKind, GameAction, GameId, GameView } from '../src/shared/protocol';
 
 export interface GameCtx {
   now: number;
@@ -20,7 +20,15 @@ export interface GameCtx {
    * in it (which card was stolen, someone's role…). Optional so tests' fake contexts can skip it.
    */
   say?(text: string, by?: string): void;
+  /**
+   * How strong the bots should play (the room's «البوتات» setting). Optional so tests' fake contexts
+   * can skip it: read it through `botLevel(ctx)` below, which defaults to 'expert'.
+   */
+  botLevel?(): BotLevel;
 }
+
+/** The room's bot strength ('expert' when the context doesn't say). */
+export const botLevel = (ctx: GameCtx): BotLevel => ctx.botLevel?.() ?? 'expert';
 
 export interface GameModule<S, Settings> {
   id: GameId;
