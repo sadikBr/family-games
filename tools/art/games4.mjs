@@ -1,6 +1,7 @@
 // Emblems for المراحل العشر, شبكة الكلمات, تمثيل صامت, الجاسوس, ماذا قال الناس؟, المربعات, المنقلة (100×100, mascot pass).
 import { INK, svg100 } from './mkit.mjs';
 import { HEX, HEX_IN, ROUND, ROUND_IN, SHIELD, SHIELD_IN, base } from './games2.mjs';
+import { miniCard } from './badges.mjs';
 
 export function phase10() {
   const card = (x, y, rot, fill, label, size = 15) => `<g transform="translate(${x} ${y}) rotate(${rot})">
@@ -345,4 +346,15 @@ export function oneword() {
     <rect x="34" y="38" width="32" height="24" rx="5" fill="#F2C23D" data-lw="1.1"/>
     <text x="50" y="56" font-size="15" font-family="Lilita" fill="#3A2412" text-anchor="middle" data-flat>1</text>
     ${clue(30, 28, -8, 26, false)}${clue(70, 28, 8, 26, true)}${clue(28, 74, 6, 24, false)}${clue(72, 74, -6, 24, false)}`);
+}
+
+export function hez2() {
+  // two Moroccan cards — a 7 (the joker) and the 2 on top, shaking — with the «+2» it costs the next player
+  return svg100(`
+    ${base(ROUND, ROUND_IN, '#5E1747', '#B83C8E', ['#F2C23D', '#FFE89A'])}
+    ${miniCard(37, 53, -16, 'coins', '', 1.12)}
+    <g transform="translate(37 53) rotate(-16) scale(1.12)"><text x="-7" y="-7" font-size="10" font-family="Lilita" fill="#7a3a2a" text-anchor="middle">7</text></g>${miniCard(58, 49, 11, 'cups', '2', 1.26)}
+    <path d="M77 36 Q80.5 41 77 46 M81.5 33 Q86 41 81.5 49" stroke="#FFE89A" stroke-width="2.2" fill="none" stroke-linecap="round" data-flat/>
+    <g transform="translate(68 73)"><circle r="11" fill="#F2C23D"/>
+    <text x="0" y="5.2" font-size="14" font-family="Lilita" fill="#5E1747" text-anchor="middle" data-flat>+2</text></g>`);
 }

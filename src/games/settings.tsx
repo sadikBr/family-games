@@ -31,6 +31,7 @@ import { StepsSettings } from './steps';
 import { MapquizSettings } from './mapquiz';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
+import { Hez2Settings } from './hez2';
 import { WordleSettings } from './wordle';
 
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
@@ -46,6 +47,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
   switch (room.game) {
     case 'phase10':
       return <Phase10Settings room={room} editable={editable} />;
+    case 'hez2':
+      return <Hez2Settings room={room} editable={editable} />;
     case 'scrabble':
       return <ScrabbleSettings room={room} editable={editable} />;
     case 'charades':

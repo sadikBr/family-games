@@ -32,6 +32,7 @@ import { headsup } from './games/headsup';
 import { imposter } from './games/imposter';
 import { kanza } from './games/kanza';
 import { unoflip } from './games/unoflip';
+import { hez2 } from './games/hez2';
 import { ludo } from './games/ludo';
 import { codenames } from './games/codenames';
 import { dama } from './games/dama';
@@ -110,6 +111,7 @@ const MODULES: Record<GameId, AnyModule> = {
   tris,
   konkan,
   unoflip,
+  hez2,
   ludo,
   codenames,
   dama,
@@ -161,7 +163,7 @@ const AUTOPILOT_MS = Number(process.env.AUTOPILOT_MS ?? 20_000);
 /** A host offline this long hands the room to a connected player. */
 const HOST_HANDOVER_MS = Number(process.env.HOST_HANDOVER_MS ?? 15_000);
 /** Card games where a seat can't disappear mid-hand: someone who leaves is replaced by a bot. */
-const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot'];
+const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2'];
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
