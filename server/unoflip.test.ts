@@ -42,3 +42,25 @@ test('unoflip: plays, draws and passes are announced with who made them', () => 
   }
   expect(said.length).toBeGreaterThan(5);
 });
+
+test('unoflip: the view names the id of the card on top of the pile (the played card keeps its hand id)', () => {
+  const { ctx } = sayCtx();
+  const s: any = unoflip.start(ctx, ['a', 'b'], { target: 500 });
+  expect((unoflip.view(ctx, s, 'a') as any).topId).toBe(s.discard.at(-1).id);
+  for (let k = 0; k < 40 && s.phase === 'play'; k++) {
+    if (s.choosing) {
+      unoflip.act(ctx, s, s.choosing.by, { type: 'color', color: s.side === 'light' ? 'red' : 'pink' });
+      continue;
+    }
+    const p = s.seats[s.turnIdx];
+    const v: any = unoflip.view(ctx, s, p);
+    if (!v.playable.length) {
+      unoflip.act(ctx, s, p, { type: v.canPass ? 'pass' : 'draw' });
+      continue;
+    }
+    const card = v.playable[0];
+    unoflip.act(ctx, s, p, { type: 'play', card });
+    for (const id of ['a', 'b']) expect((unoflip.view(ctx, s, id) as any).topId).toBe(card);
+    return;
+  }
+});

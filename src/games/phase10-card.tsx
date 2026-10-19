@@ -5,12 +5,15 @@
  */
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { haptic } from '@/lib/sfx';
 import { P10_COLORS, type P10Card, type P10Color } from '@/shared/games/phase10';
 import { p10CardName } from '@/shared/phase10-rules';
 import { C, F, alpha } from '@/theme';
+
+import { useCardLook } from './cards/motion';
 
 export const P10_HEX: Record<P10Color, string> = {
   orange: '#D9620B',
@@ -144,31 +147,38 @@ export const P10CardView = memo(function P10CardView({
   value?: number;
   onPress?: () => void;
 }) {
+  // the lift and the dimming glide; the Pressable sits inside the lifted view, so a second tap lands
+  // exactly on the raised card
+  const look = useCardLook({ lift: selected ? 8 : 0, dim, dimTo: 0.4 });
   const face = (
     <View
       style={[
         styles.wrap,
-        { borderRadius: Math.max(6, w * 0.12) + 2, transform: [{ translateY: selected ? -8 : 0 }] },
+        { borderRadius: Math.max(6, w * 0.12) + 2 },
         selected && { borderColor: C.yellow, backgroundColor: C.yellow },
         glow && !selected && { borderColor: alpha(C.yellow, 0.7) },
-        dim && { opacity: 0.4 },
       ]}>
       <Face card={card} w={w} value={value} />
     </View>
   );
-  if (!onPress) return face;
   return (
-    <Pressable
-      onPress={() => {
-        haptic.tap();
-        onPress();
-      }}
-      hitSlop={2}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!selected }}
-      accessibilityLabel={card ? `ورقة ${p10CardName(card)}` : 'الكومة'}>
-      {face}
-    </Pressable>
+    <Animated.View style={look}>
+      {onPress ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            onPress();
+          }}
+          hitSlop={2}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !!selected }}
+          accessibilityLabel={card ? `ورقة ${p10CardName(card)}` : 'الكومة'}>
+          {face}
+        </Pressable>
+      ) : (
+        face
+      )}
+    </Animated.View>
   );
 });
 

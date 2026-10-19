@@ -894,6 +894,8 @@ export interface UnoView {
   turn: string;
   dir: 1 | -1;
   top: UnoFace; // discard pile, active side
+  /** id of the card on top of the discard pile (the same id it had in its player's hand), so the app can make it glide there */
+  topId?: string;
   color: UnoColor; // colour in play (chosen colour after a wild)
   deckLeft: number;
   deckTop: UnoFace | null; // the draw pile shows the other side of its top card

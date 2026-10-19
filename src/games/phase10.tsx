@@ -19,7 +19,9 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 import { li } from '@/shared/li';
 
-import { AnnounceBanner, Felt, TableStrip, TurnLine } from './cards/card-ui';
+import { AnnounceBanner, DOUBLE_TAP_MS, Felt, TableStrip, TurnLine, tapClock } from './cards/card-ui';
+import { CardMotion, CardStage, SoftNumber, type Side } from './cards/motion';
+import { FromStock, STOCK_ID, tiltOf, useArrivals, usePile, type PileChange } from './cards/pile';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { P10CardView } from './phase10-card';
@@ -44,7 +46,7 @@ function phaseTag(view: Phase10View, id: string): string {
 /* Table                                                               */
 /* ------------------------------------------------------------------ */
 
-function GroupBox({ group, w, fits, fresh, onPress }: { group: P10Group; w: number; fits: boolean; fresh?: string; onPress: () => void }) {
+function GroupBox({ group, w, fits, fresh, from, onPress }: { group: P10Group; w: number; fits: boolean; fresh?: string; from: Side; onPress: () => void }) {
   const cards = arrangeGroup(group.kind, group.cards);
   return (
     <Pressable
@@ -57,8 +59,11 @@ function GroupBox({ group, w, fits, fresh, onPress }: { group: P10Group; w: numb
       accessibilityLabel={fits ? `أضف إلى ${KIND_LABEL[group.kind]}` : KIND_LABEL[group.kind]}
       style={[styles.group, fresh ? { borderColor: alpha(fresh, 0.95), backgroundColor: alpha(fresh, 0.14) } : null, fits && styles.groupFits]}>
       <Row gap={2} wrap style={{ direction: 'ltr' }}>
+        {/* a card laid down or added glides from my hand (or slides in from the players' side) */}
         {cards.map((x) => (
-          <P10CardView key={x.card.id} card={x.card} w={w} value={x.value} />
+          <CardMotion key={x.card.id} id={x.card.id} enter="play" from={from} flow>
+            <P10CardView card={x.card} w={w} value={x.value} />
+          </CardMotion>
         ))}
       </Row>
       {fits ? (
@@ -238,6 +243,12 @@ function HandEnd({ room, view, h }: { room: RoomView; view: Phase10View; h: Help
 
 export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View }) {
   const h = helpers(room);
+  if (!view.participants.includes(h.me) || (!view.active.includes(h.me) && view.phase === 'play')) return <Spectator room={room} />;
+  // one stage for every phase: it stays mounted from hand to hand, so the next deal glides in
+  return <CardStage>{view.phase !== 'play' ? <HandEnd room={room} view={view} h={h} /> : <PlayTable room={room} view={view} h={h} />}</CardStage>;
+}
+
+function PlayTable({ room, view, h }: { room: RoomView; view: Phase10View; h: Helpers }) {
   const width = useContentWidth();
   const accent = useAccent();
   const [sortBy, setSortBy] = useState<'number' | 'color'>('number');
@@ -245,9 +256,16 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
   const [picked, setPicked] = useState<{ hand: number; ids: string[] }>({ hand: 0, ids: [] });
   const [staged, setStaged] = useState<{ hand: number; slots: string[][] }>({ hand: 0, slots: [] });
   const [skipCard, setSkipCard] = useState<string | null>(null);
-
-  if (!view.participants.includes(h.me) || (!view.active.includes(h.me) && view.phase === 'play')) return <Spectator room={room} />;
-  if (view.phase !== 'play') return <HandEnd room={room} view={view} h={h} />;
+  // the last card selected and when (for the second tap: the same touch reported twice is dropped)
+  const [tapAt, setTapAt] = useState<{ id: string; at: number } | null>(null);
+  const top = view.discardTop;
+  // the discard pile: the card under the top one stays visible while the next one glides onto it;
+  // a card taken from it leaves toward the player who took it
+  const pileHow: PileChange = !top || view.step === 'play' ? 'take' : view.discardBy ? 'cover' : 'reset';
+  const pile = usePile(top, (c) => c.id, pileHow);
+  // a single card drawn from the stock glides from the stock (one taken from the pile flies from there by itself)
+  const added = useArrivals(view.myHand.map((c) => c.id));
+  const fromStock = added.length === 1 && added[0] !== pile.taken?.id ? added[0] : null;
 
   const byId = new Map(view.myHand.map((c) => [c.id, c]));
   const myPhase = phaseOf(view, h.me);
@@ -266,7 +284,6 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
   const ready: P10Card[][] | null =
     laid || !reqs.length ? null : slotOk.every(Boolean) ? slotCards : fitsExactly(reqs, [...slotCards.flat(), ...selCards]);
   const suggestion = playing && !laid && !ready ? solvePhase(reqs, view.myHand) : null;
-  const top = view.discardTop;
   const canTakeTop = drawing && !!top && !isSkip(top);
 
   const setSel = (ids: string[]) => setPicked({ hand: view.hand, ids });
@@ -281,9 +298,14 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
     setStaged({ hand: view.hand, slots: [] });
     setSel([]);
   };
+  // the staged cards stay in their slots until the server answers: they then glide from there to the table
   const lay = (groups: P10Card[][]) => {
     h.act('lay', { groups: groups.map((g) => g.map((c) => c.id)) });
-    clearAll();
+    setSel([]);
+  };
+  const hit = (group: number, ids: string[]) => {
+    h.act('hit', { group, cards: ids });
+    setSel([]);
   };
   const discard = (target?: string) => {
     const c = selCards[0];
@@ -296,6 +318,27 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
     h.act('discard', { card: c.id, ...(target ? { target } : {}) });
     setSel([]);
     setSkipCard(null);
+  };
+  // groups on the table one card can join
+  const fitsFor = (cs: P10Card[]) => (laid && cs.length ? view.groups.filter((g) => canHit(g.kind, g.cards, cs)) : []);
+  // tap a card to select it (several for a phase); tap the only selected card again for the one
+  // natural move: add it to the one group it fits, or else throw it away (that ends the turn)
+  const tapCard = (c: P10Card) => {
+    const now = tapClock();
+    if (sel.length === 1 && sel[0] === c.id) {
+      if (tapAt?.id === c.id && now - tapAt.at < DOUBLE_TAP_MS) return; // the same touch twice
+      if (!playing) {
+        setSel([]);
+        return;
+      }
+      const fits = fitsFor([c]);
+      if (fits.length === 1) hit(fits[0].id, [c.id]);
+      else if (!fits.length) discard();
+      // fits several groups: the lit groups say where it goes
+      return;
+    }
+    setTapAt({ id: c.id, at: now });
+    toggle(c);
   };
 
   // sizes from the screen width (fits 320 px phones)
@@ -310,7 +353,8 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
     sortBy,
   );
   const owners = view.participants.filter((id) => view.groups.some((g) => g.owner === id));
-  const anyFits = playing && laid && selCards.length > 0 && view.groups.some((g) => canHit(g.kind, g.cards, selCards));
+  const fitting = playing ? fitsFor(selCards) : [];
+  const anyFits = fitting.length > 0;
   const skip = view.skipEvent;
   const thrower = view.discardBy ? h.player(view.discardBy) : null;
 
@@ -318,13 +362,15 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
   if (drawing) hint = 'اضغط على الكومة، أو على الورقة المكشوفة لتأخذها';
   else if (playing && !laid) {
     if (ready) hint = 'أوراقك تكمل المرحلة — اضغط «ضع المرحلة»';
-    else if (sel.length === 1) hint = 'ارمِ هذه الورقة، أو ضعها في خانة من خانات مرحلتك';
+    else if (sel.length === 1) hint = 'اضغط الورقة مرة ثانية لترميها، أو ضعها في خانة';
     else if (sel.length) hint = 'اضغط على خانة من خانات مرحلتك لتضع فيها الأوراق المختارة';
-    else hint = 'اختر أوراقاً ثم اضغط على خانة، أو اختر ورقة واحدة لترميها';
+    else hint = 'اختر أوراقاً ثم اضغط على خانة، أو اضغط ورقة مرتين لترميها';
   } else if (playing && laid) {
-    if (anyFits) hint = 'اضغط على مجموعة مضاءة لتضيف إليها';
+    if (sel.length === 1 && fitting.length === 1) hint = 'اضغط الورقة مرة ثانية لتضيفها إلى المجموعة المضاءة';
+    else if (anyFits) hint = 'اضغط على مجموعة مضاءة لتضيف إليها';
+    else if (sel.length === 1) hint = 'لا مكان لها على الطاولة — اضغطها مرة ثانية لترميها';
     else if (sel.length > 1) hint = 'هذه الأوراق لا تصلح معاً لأي مجموعة — جرّب ورقة واحدة';
-    else hint = 'اختر ورقة لتضيفها إلى مجموعة على الطاولة، أو لترميها';
+    else hint = 'اختر ورقة لتضيفها إلى مجموعة، أو اضغطها مرتين لترميها';
   }
 
   return (
@@ -346,7 +392,9 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
             style={[styles.pile, drawing && styles.pileActive]}
             accessibilityRole="button"
             accessibilityLabel="اسحب من الكومة">
-            <P10CardView card={null} w={pileW} />
+            <CardMotion id={STOCK_ID}>
+              <P10CardView card={null} w={pileW} />
+            </CardMotion>
             <Txt v="tiny" center color="rgba(255,255,255,0.85)">
               الكومة ({num(view.stockLeft)})
             </Txt>
@@ -357,18 +405,35 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
             style={[styles.pile, canTakeTop && styles.pileActive]}
             accessibilityRole="button"
             accessibilityLabel="خذ الورقة المكشوفة">
-            {top ? (
-              <Animated.View key={top.id} entering={FadeIn.duration(160)}>
-                <P10CardView card={top} w={pileW} />
-                {thrower ? (
-                  <View style={styles.thrower} pointerEvents="none">
-                    <Avatar player={thrower} size={22} ring={thrower.color} />
-                  </View>
-                ) : null}
-              </Animated.View>
-            ) : (
-              <View style={{ width: pileW + 4, height: Math.round(pileW * 1.42) + 4 }} />
-            )}
+            <View style={{ width: pileW + 12, height: Math.round(pileW * 1.42) + 12 }}>
+              {/* the previous top card keeps its element and simply lies under the new one (it is back on top when the new one is taken) */}
+              {[...(pile.under && pile.under.id !== top?.id ? [pile.under] : []), ...(top ? [top] : [])].map((c) => {
+                const isTop = c === top;
+                return (
+                  // my card glides here from my hand; another player's slides in from the players' strip
+                  <CardMotion
+                    key={c.id}
+                    id={isTop ? c.id : `under:${c.id}`}
+                    enter={isTop && pileHow === 'cover' ? 'play' : 'none'}
+                    from={view.discardBy === h.me ? 'bottom' : 'top'}
+                    source={isTop}
+                    place={{ x: 4, y: 4, rot: tiltOf(c.id) }}>
+                    <P10CardView card={c} w={pileW} />
+                  </CardMotion>
+                );
+              })}
+              {pile.taken && view.turn !== h.me ? (
+                // taken by another player: it lifts off toward the players' strip
+                <CardMotion key={`taken-${pile.taken.id}`} id={`taken:${pile.taken.id}`} source={false} leaving leave={{ to: { x: 0, y: -56 }, scale: 0.9 }} place={{ x: 4, y: 4, rot: tiltOf(pile.taken.id) }}>
+                  <P10CardView card={pile.taken} w={pileW} />
+                </CardMotion>
+              ) : null}
+              {thrower && top ? (
+                <Animated.View key={`by-${top.id}`} entering={FadeIn.duration(220).delay(pileHow === 'cover' ? 300 : 0)} style={styles.thrower} pointerEvents="none">
+                  <Avatar player={thrower} size={22} ring={thrower.color} />
+                </Animated.View>
+              ) : null}
+            </View>
             <Txt v="tiny" center color="rgba(255,255,255,0.85)" numberOfLines={1} style={{ maxWidth: pileW + 40 }}>
               {top && isSkip(top) ? 'لا تُسحب' : thrower ? `من ${thrower.id === h.me ? 'عندك' : thrower.name}` : 'المكشوفة'}
             </Txt>
@@ -390,12 +455,10 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
                     key={g.id}
                     group={g}
                     w={tableW}
-                    fits={playing && laid && selCards.length > 0 && canHit(g.kind, g.cards, selCards)}
+                    fits={fitting.includes(g)}
                     fresh={view.lastGroups?.ids.includes(g.id) ? h.player(view.lastGroups.by).color : undefined}
-                    onPress={() => {
-                      h.act('hit', { group: g.id, cards: sel });
-                      setSel([]);
-                    }}
+                    from={view.lastGroups?.by === h.me ? 'bottom' : 'top'}
+                    onPress={() => hit(g.id, sel)}
                   />
                 ))}
             </Row>
@@ -412,15 +475,14 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
         />
       </Felt>
 
-      <TurnLine
-        myTurn={myTurn}
-        text={drawing ? 'اسحب ورقة' : laid ? 'أضف أوراقاً على المجموعات ثم ارمِ ورقة' : 'ضع مرحلتك أو أضف أوراقاً ثم ارمِ ورقة'}
-      />
-      {view.skipped.includes(h.me) ? (
-        <Txt v="small" center color={C.red}>
+      {/* one line that keeps its place: nothing under it jumps when the turn changes */}
+      {!myTurn && view.skipped.includes(h.me) ? (
+        <Txt v="bold" center color={C.red} numberOfLines={1}>
           ستفقد دورك القادم (تخطَّ)
         </Txt>
-      ) : null}
+      ) : (
+        <TurnLine myTurn={myTurn} text={drawing ? 'اسحب ورقة' : laid ? 'أضف أوراقاً على المجموعات ثم ارمِ ورقة' : 'ضع مرحلتك أو أضف أوراقاً ثم ارمِ ورقة'} keep />
+      )}
 
       {/* my phase: tap cards, then tap a slot */}
       {myPhase !== null && !laid ? (
@@ -467,7 +529,9 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
                 {cards.length ? (
                   <Row wrap gap={3} style={{ direction: 'ltr' }}>
                     {(ok ? arrangeGroup(r.kind, cards) : cards.map((card) => ({ card, value: undefined }))).map((x) => (
-                      <P10CardView key={x.card.id} card={x.card} w={slotW} value={x.value} onPress={() => unstage(x.card.id)} />
+                      <CardMotion key={x.card.id} id={x.card.id} enter="play" from="bottom" flow>
+                        <P10CardView card={x.card} w={slotW} value={x.value} onPress={() => unstage(x.card.id)} />
+                      </CardMotion>
                     ))}
                   </Row>
                 ) : (
@@ -509,9 +573,19 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
       {/* my hand */}
       <View style={{ gap: 8 }}>
         <Row gap={6}>
-          <Txt v="small" color={C.muted} style={{ flex: 1 }}>
-            أوراقك ({num(view.myHand.length)})
-          </Txt>
+          <Row gap={4} style={{ flex: 1 }}>
+            <Txt v="small" color={C.muted}>
+              أوراقك
+            </Txt>
+            <SoftNumber
+              value={view.myHand.length}
+              render={(k) => (
+                <Txt v="small" color={C.muted}>
+                  ({num(k)})
+                </Txt>
+              )}
+            />
+          </Row>
           {(['number', 'color'] as const).map((k) => (
             <Pressable
               key={k}
@@ -529,12 +603,19 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
           ))}
         </Row>
         <Row wrap gap={handGap} center style={{ direction: 'ltr', paddingTop: 8 }}>
-          {handShown.map((c) => (
-            <P10CardView key={c.id} card={c} w={handW} selected={sel.includes(c.id)} onPress={() => toggle(c)} />
-          ))}
+          {handShown.map((c) => {
+            const fresh = c.id === fromStock;
+            return (
+              <CardMotion key={c.id} id={c.id} enter={fresh ? 'none' : 'deal'} from="top" flow>
+                <FromStock id={c.id} fromStock={fresh}>
+                  <P10CardView card={c} w={handW} selected={sel.includes(c.id)} onPress={() => tapCard(c)} />
+                </FromStock>
+              </CardMotion>
+            );
+          })}
         </Row>
         {playing ? (
-          <Row gap={10}>
+          <Row gap={10} style={{ minHeight: 48 }}>
             <Btn
               flex
               size="md"
@@ -550,9 +631,19 @@ export function Phase10Game({ room, view }: { room: RoomView; view: Phase10View 
           {hint}
         </Txt>
       </View>
-      <Txt v="tiny" center color={C.dim}>
-        اليد {num(view.hand)} · نقاطك {num(view.scores[h.me] ?? 0)}
-      </Txt>
+      <Row gap={4} center>
+        <Txt v="tiny" color={C.dim}>
+          اليد {num(view.hand)} · نقاطك
+        </Txt>
+        <SoftNumber
+          value={view.scores[h.me] ?? 0}
+          render={(k) => (
+            <Txt v="tiny" color={C.dim}>
+              {num(k)}
+            </Txt>
+          )}
+        />
+      </Row>
 
       {skipCard ? <SkipPicker view={view} h={h} onPick={(id) => discard(id)} onCancel={() => setSkipCard(null)} /> : null}
     </>
