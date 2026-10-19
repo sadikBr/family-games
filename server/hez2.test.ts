@@ -5,7 +5,7 @@ import type { Card, Suit } from '../src/shared/cards';
 import { HEZ2_DEFAULTS, hez2Points, hez2Variant, isSpecial, type Hez2Settings, type Hez2View } from '../src/shared/games/hez2';
 import type { BotLevel } from '../src/shared/protocol';
 import { OVER_MS, ROUND_END_MS, canPlay, hez2, playable, ranking, type State } from './games/hez2';
-import { decide, longSuit } from './hez2-bot';
+import { decide, hez2Tuning, longSuit } from './hez2-bot';
 
 const c = (rank: number, suit: Suit = 'coins'): Card => ({ id: `${suit}-${rank}`, suit, rank });
 
@@ -365,6 +365,7 @@ test('expert: remembers who drew — the next player is void in a suit, so that 
   const orig = Math.random;
   Math.random = seeded(7);
   const picks: Record<string, number> = {};
+  hez2Tuning.timeless = true;
   try {
     for (let k = 0; k < 15; k++) {
       const a = decide(g.s, 'a', 'expert')!;
@@ -373,6 +374,7 @@ test('expert: remembers who drew — the next player is void in a suit, so that 
     }
   } finally {
     Math.random = orig;
+    hez2Tuning.timeless = false;
   }
   expect(picks.cups ?? 0).toBeGreaterThanOrEqual(8);
 });

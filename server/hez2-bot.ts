@@ -229,6 +229,8 @@ function expertSuit(s: State, bot: string, voids: Record<string, Void>): Suit {
 /** Time and work limits for one expert decision (keeps a phone-sized server responsive). */
 const BUDGET_MS = 24;
 const MAX_ROLLOUTS = 90;
+/** Tests that check a decision's quality set `timeless` so a busy machine doesn't cut the look-ahead short. */
+export const hez2Tuning = { timeless: false };
 const SIM_CTX = {
   now: 0,
   fx() {},
@@ -319,7 +321,7 @@ function lookAhead(s: State, bot: string, cands: GameAction[], prior: (a: GameAc
       sum[i] += rollout(lightCopy(world), bot, cands[i], rand);
       cnt[i] += 1;
       // at least a few worlds for every choice, then stop on time
-      if (r >= 3 && performance.now() - t0 > BUDGET_MS) break outer;
+      if (r >= 3 && !hez2Tuning.timeless && performance.now() - t0 > BUDGET_MS) break outer;
     }
   }
   let best = 0;

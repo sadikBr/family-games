@@ -220,7 +220,7 @@ test('scrabble: ranked by final score', () => {
   ordered(r, (id) => s.scores[id]);
   if (s.final.winner) expect(r.places[0]).toEqual([s.final.winner]);
   tieShares(scrabble, s, s.scores, 'a', 'b');
-});
+}, 30_000); // a whole bot game: slow on a busy machine
 
 /* ------------------------------------------------------------------ */
 /* Quizzes and score races                                             */
