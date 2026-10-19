@@ -18,7 +18,7 @@ import { JoinGroupModal } from '@/groups/group-forms';
 import { client, useClient } from '@/lib/client';
 import { toggleFavorite, useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
-import { haptic, isMuted, onMuteChange, play, setMuted } from '@/lib/sfx';
+import { haptic, isMuted, onMuteChange, setMuted } from '@/lib/sfx';
 import { norm } from '@/shared/arabic';
 import { BOT_GAMES, type GameId } from '@/shared/protocol';
 import { C, F, alpha, shade } from '@/theme';
@@ -30,7 +30,6 @@ import { Txt, num } from '@/ui/txt';
 const GAP = 10;
 
 function startGame(id: GameId) {
-  play('pop');
   haptic.medium();
   client.createRoom(id);
   router.push('/room');

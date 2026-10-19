@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/art/icons';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
-import { haptic, play } from '@/lib/sfx';
+import { haptic } from '@/lib/sfx';
 import { C, F } from '@/theme';
 import { IconBubble } from '@/ui/bits';
 import { Header } from '@/ui/controls';
@@ -67,7 +67,6 @@ export default function JoinScreen() {
     if (failed || stuck) setWaiting(false);
     if (k === 'del') return setCode(shown.slice(0, -1));
     if (k === 'ok') return submit(shown);
-    play('tick');
     const next = (shown + k).slice(0, 4);
     setCode(next);
     if (next.length === 4) submit(next);

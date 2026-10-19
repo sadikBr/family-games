@@ -30,7 +30,8 @@ export function TimerBar({ endsAt, total, onTick }: { endsAt: number | null; tot
   }, [ratio, w]);
   const lastTick = useRef(-1);
   useEffect(() => {
-    if (onTick && secs <= 5 && secs > 0 && secs !== lastTick.current && endsAt) {
+    // only the last 3 seconds of MY time tick (the family found the app too noisy)
+    if (onTick && secs <= 3 && secs > 0 && secs !== lastTick.current && endsAt) {
       lastTick.current = secs;
       play('tick');
       haptic.tap();

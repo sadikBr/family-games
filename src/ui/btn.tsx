@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Icon, type IconName } from '@/art/icons';
-import { haptic, play } from '@/lib/sfx';
+import { haptic } from '@/lib/sfx';
 import { C, F, shade } from '@/theme';
 
 import { Txt } from './txt';
@@ -70,10 +70,8 @@ export function Btn({
       onPressIn={() => pressed.set(withTiming(1, { duration: 60 }))}
       onPressOut={() => pressed.set(withTiming(0, { duration: 110 }))}
       onPress={() => {
-        if (!silent) {
-          play('pop');
-          haptic.light();
-        }
+        // a light vibration only: a sound on every button was too much
+        if (!silent) haptic.light();
         onPress?.();
       }}
       style={[flex ? styles.flex : null, style]}

@@ -5,7 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
-import { haptic, play } from '@/lib/sfx';
+import { haptic } from '@/lib/sfx';
 import { STEPS_CATEGORIES, type StepsSettings as Settings, type StepsView } from '@/shared/games/steps';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
@@ -52,7 +52,6 @@ function Builder({ view, h }: { view: StepsView; h: Helpers }) {
   const putStep = (item: number) => {
     if (target === null) return;
     haptic.tap();
-    play('pop');
     const slots = draft.slots.slice();
     slots[target] = item;
     setState({ round: view.round, slots, target: null });
