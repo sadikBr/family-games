@@ -2,9 +2,9 @@
  * «حروف» — claim letter hexagons: buzz first, then type the answer. Red joins right ↔ left, green joins top ↔ bottom.
  * The question arrives word by word (the server only sends the words shown so far); the buzzer freezes it.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Polygon, Rect, Text as SvgText } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
@@ -107,14 +107,29 @@ function QuestionWords({ text, hidden, frozen }: { text: string; hidden: number;
   return (
     <View style={styles.words} accessibilityLabel={text}>
       {words.map((w, i) => (
-        <Animated.View key={i} entering={FadeIn.duration(320)}>
-          <Txt v="h3">{w}</Txt>
-        </Animated.View>
+        <FadeWord key={i} word={w} />
       ))}
       {[...Array(hidden)].map((_, i) => (
         <View key={`h${i}`} style={[styles.dot, frozen && styles.dotFrozen]} />
       ))}
     </View>
+  );
+}
+
+/**
+ * One word fading in when it appears. A plain opacity animation on the word itself: Reanimated's
+ * `entering` animations in this wrapping row made the whole question box flicker on Android at every word.
+ */
+function FadeWord({ word }: { word: string }) {
+  const o = useSharedValue(0);
+  useEffect(() => {
+    o.set(withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) }));
+  }, [o]);
+  const st = useAnimatedStyle(() => ({ opacity: o.get() }));
+  return (
+    <Animated.View style={st}>
+      <Txt v="h3">{word}</Txt>
+    </Animated.View>
   );
 }
 
