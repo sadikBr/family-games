@@ -5,7 +5,7 @@
  * Say UNO with one card left, or anyone can catch you (+2).
  * The round winner scores the cards left in the other hands; first to the target wins.
  */
-import type { FeedItem, UnoSettings, UnoView } from '../../src/shared/protocol';
+import type { BotLevel, FeedItem, UnoSettings, UnoView } from '../../src/shared/protocol';
 import {
   canPlayFace,
   colorsOf,
@@ -21,8 +21,10 @@ import {
   type UnoFace,
   type UnoSide,
 } from '../../src/shared/uno';
+import { decideOnce } from '../ai/cards-memo';
+import { unoColor, unoObserve, unoTurn, type UnoKnowledge, type UnoMemory } from '../ai/cards-uno';
 import { Feed, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 
 const HAND = 7;
@@ -52,6 +54,10 @@ interface State {
   roundSummary: UnoView['roundSummary'];
   winner: string | null;
   moves: number;
+  /** what each seat has seen of the cards (for the bots — see server/ai/cards-uno.ts) */
+  unoMem?: UnoMemory;
+  /** colours a player had to draw on (public), forgotten when they get more cards or the deck flips */
+  voids?: Record<string, UnoColor[]>;
 }
 
 const n = (s: State) => s.seats.length;
@@ -81,6 +87,7 @@ function drawOne(s: State, id: string): UnoCard | null {
 }
 
 function drawN(s: State, id: string, k: number) {
+  if (s.voids) delete s.voids[id];
   let got = 0;
   for (let i = 0; i < k; i++) if (drawOne(s, id)) got++;
   return got;
@@ -179,6 +186,7 @@ function applyEffect(ctx: GameCtx, s: State, by: string, f: UnoFace): string {
       break;
     case 'flip': {
       s.side = otherSide(s.side);
+      s.voids = {};
       s.deck.reverse();
       const t = top(s);
       s.feed.push(`قلب! الجهة ${s.side === 'dark' ? 'المظلمة' : 'المضيئة'} — فوق: ${faceName(t)}`, { by });
@@ -245,6 +253,51 @@ function playable(s: State, id: string): string[] {
 /** A new action by someone else closes the window to catch a forgotten UNO. */
 function closeCatch(s: State, by: string) {
   if (s.catchable && s.catchable !== by) s.catchable = null;
+}
+
+/** What a bot can know from its seat. */
+function knowledge(s: State, me: string): UnoKnowledge {
+  return {
+    me,
+    seats: s.seats,
+    turnIdx: s.turnIdx,
+    dir: s.dir,
+    side: s.side,
+    top: top(s),
+    color: s.color,
+    hand: s.hands[me] ?? [],
+    hands: Object.fromEntries(s.seats.filter((id) => id !== me).map((id) => [id, s.hands[id]])),
+    memory: s.unoMem?.[me] ?? {},
+    voids: s.voids ?? {},
+    drawn: s.drawn?.by === me ? s.drawn.id : null,
+    scores: s.scores,
+    target: s.settings.target,
+  };
+}
+
+/** The 'smart' / 'expert' bots (server/ai/cards-uno.ts). */
+function strongBots(ctx: GameCtx, s: State, level: BotLevel) {
+  unoObserve((s.unoMem ??= {}), s.seats, s.hands, s.side, s.discard[s.discard.length - 1], s.deck[0]);
+  // catch a forgotten UNO at once
+  if (s.catchable) {
+    const catcher = s.seats.find((id) => id !== s.catchable && ctx.isBot(id));
+    if (catcher && (level === 'expert' || Math.random() < 0.9)) ctx.bot(catcher, `catch:${s.moves}:${s.catchable}`, randDelay(700, 1500), { type: 'catch' });
+  }
+  if (s.choosing) {
+    const bot = s.choosing.by;
+    if (!ctx.isBot(bot)) return;
+    const color = decideOnce(s, `${bot}:color:${s.moves}`, () => unoColor(knowledge(s, bot), level));
+    ctx.bot(bot, `color:${s.moves}`, randDelay(700, 1400), { type: 'color', color });
+    return;
+  }
+  const bot = s.seats[s.turnIdx];
+  if (!ctx.isBot(bot)) return;
+  const action = decideOnce(s, `${bot}:turn:${s.moves}`, () => unoTurn(knowledge(s, bot), level));
+  if (action.type === 'play' && s.hands[bot].length === 2 && !s.unoSaid.has(bot) && (level === 'expert' || Math.random() < 0.95)) {
+    ctx.bot(bot, `uno:${s.moves}`, randDelay(300, 600), { type: 'uno' });
+  }
+  const delay = action.type === 'play' ? randDelay(1100, 2000) : action.type === 'pass' ? randDelay(700, 1300) : randDelay(900, 1700);
+  ctx.bot(bot, `${action.type}:${s.moves}`, delay, action);
 }
 
 /** For result(): the highest `score` first; equal scores share a place. */
@@ -349,6 +402,9 @@ export const unoflip: GameModule<State, UnoSettings> = {
         s.drawn = { by, id: c.id };
         ctx.say?.(`سحب ورقة: ${name(ctx, by)}`, by);
       } else {
+        // couldn't play on this colour, nor the card drawn: short of it (everybody saw)
+        const v = ((s.voids ??= {})[by] ??= []);
+        if (!v.includes(s.color)) v.push(s.color);
         s.feed.push(`${name(ctx, by)} سحب ورقة ومرّر`, { by });
         ctx.say?.(`سحب ورقة ثم تمرير: ${name(ctx, by)}`, by);
         advance(s);
@@ -401,6 +457,12 @@ export const unoflip: GameModule<State, UnoSettings> = {
 
   botPlan(ctx, s) {
     if (s.phase !== 'play') return;
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      strongBots(ctx, s, level);
+      return;
+    }
+    // 'easy': the old bots
     // catch a forgotten UNO
     if (s.catchable) {
       const catcher = s.seats.find((id) => id !== s.catchable && ctx.isBot(id));

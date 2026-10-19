@@ -33,8 +33,10 @@ import {
   solvePhase,
   sortP10,
 } from '../../src/shared/phase10-rules';
+import { decideOnce } from '../ai/cards-memo';
+import { p10BotAction } from '../ai/cards-phase10';
 import { Feed, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const HAND_SIZE = 10;
@@ -71,6 +73,8 @@ export interface State {
   /** who threw each card of the discard pile (null: turned up at the deal) */
   throwers: (string | null)[];
   lastGroups: Phase10View['lastGroups'];
+  /** public history of the hand for the bots: face-up cards taken and cards thrown */
+  log?: { by: string; card: P10Card; kind: 'take' | 'throw' }[];
 }
 
 /** The phase number a player is working on (null once they finished them all). */
@@ -120,6 +124,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.skipEvent = null;
   s.throwers = [null];
   s.lastGroups = null;
+  s.log = [];
   s.feed.clear();
   s.feed.push(`اليد ${s.hand} — ${HAND_SIZE} أوراق لكل لاعب`);
   ctx.say?.(`اليد ${s.hand} — البداية لـ${ctx.playerName(s.turn)}`);
@@ -363,6 +368,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
         if (isSkip(top)) throw new GameError('لا يمكن أخذ ورقة «تخطَّ» — اسحب من الكومة');
         hand.push(s.discard.pop()!);
         s.throwers.pop();
+        (s.log ??= []).push({ by, card: top, kind: 'take' });
         s.step = 'play';
         s.actions += 1;
         s.feed.push(`${name} أخذ ${p10CardName(top)} من المرمية`, { by });
@@ -422,6 +428,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
         const [card] = hand.splice(idx, 1);
         s.discard.push(card);
         s.throwers.push(by);
+        (s.log ??= []).push({ by, card, kind: 'throw' });
         // the groups the previous player changed stay marked until this player's turn is over
         if (s.lastGroups && s.lastGroups.by !== by) s.lastGroups = null;
         s.actions += 1;
@@ -473,6 +480,34 @@ export const phase10: GameModule<State, Phase10Settings> = {
     const hand = s.hands[bot];
     const key = `p:${s.hand}:${s.actions}`;
     const delay = randDelay(1000, 2500);
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      // the strong bot (see server/ai/cards-phase10.ts)
+      const next: string[] = [];
+      for (let id = nextActive(s, bot); id !== bot && next.length < s.seats.length; id = nextActive(s, id)) next.push(id);
+      const action = decideOnce(s, `${bot}:${key}`, () =>
+        p10BotAction(
+          {
+            me: bot,
+            step: s.step,
+            hand,
+            phase: currentPhase(s, bot),
+            laid: s.laid,
+            groups: s.groups,
+            discard: s.discard,
+            next,
+            counts: Object.fromEntries(s.active.map((id) => [id, s.hands[id]?.length ?? 0])),
+            phaseOf: Object.fromEntries(s.active.map((id) => [id, currentPhase(s, id)])),
+            skipped: s.skipped,
+            log: s.log ?? [],
+          },
+          level,
+        ),
+      );
+      ctx.bot(bot, key, action.type === 'hit' ? randDelay(800, 1600) : delay, action);
+      return;
+    }
+    // 'easy': the old bot
     if (s.step === 'draw') {
       ctx.bot(bot, key, delay, { type: botWantsTop(s, bot) ? 'drawDiscard' : 'drawDeck' });
       return;
