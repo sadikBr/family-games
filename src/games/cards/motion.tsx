@@ -104,6 +104,7 @@ class Registry {
   spots = new Map<number, Spot>();
   gone = new Map<string, Rect>();
   private seq = 0;
+  private refreshT: ReturnType<typeof setTimeout> | null = null;
   private staggerAt = 0;
   private staggerK = 0;
   private onFlight: (f: Omit<Flight, 'key'>) => void = () => {};
@@ -139,6 +140,22 @@ class Registry {
     const k = Math.min(this.staggerK, 9);
     this.staggerK += 1;
     return k * MOTION.stagger;
+  }
+  /**
+   * A card that does not render again keeps the place it was measured at, but the cards around it
+   * move it (a drawn card inserted before it in a sorted hand, a row that wraps differently): a
+   * moment after any card comes, goes or renders (once the glides are over), measure them all again.
+   */
+  refreshSoon() {
+    if (this.refreshT) clearTimeout(this.refreshT);
+    this.refreshT = setTimeout(() => {
+      this.refreshT = null;
+      for (const [k, s] of this.spots)
+        this.measure(s.node, s.rot, (r) => {
+          // a card gone meanwhile keeps the place it left from (see `gone`)
+          if (this.spots.get(k) === s) s.rect = r;
+        });
+    }, MOTION.glide + 40);
   }
   measure(node: View | null, rot: number, done: (r: Rect) => void) {
     const root = this.root;
@@ -285,6 +302,7 @@ export function CardMotion({ id, children, enter = 'none', from = 'top', source 
     return () => {
       const s = reg.spots.get(token);
       reg.spots.delete(token);
+      reg.refreshSoon();
       if (s?.rect && s.source) {
         reg.gone.set(id, s.rect);
         // only for a copy arriving in the same moment (same commit or the next one)
@@ -309,6 +327,7 @@ export function CardMotion({ id, children, enter = 'none', from = 'top', source 
       const cur = reg.spots.get(token);
       if (cur) cur.rect = r;
     });
+    reg.refreshSoon();
   });
 
   // arrival
