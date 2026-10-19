@@ -256,7 +256,7 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
           ) : view.buzzer && iBuzzed ? (
             <View style={{ gap: 8 }}>
               <Txt v="bold" center color={C.yellow}>
-                ضغطت الجرس — اكتب جوابك
+                الجرس لك — الجواب في الخانة أدناه
               </Txt>
               <Row gap={8}>
                 <Field
