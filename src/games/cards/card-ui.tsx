@@ -38,6 +38,7 @@ export function PlayingCard({
   glow,
   ring,
   onPress,
+  steady,
 }: {
   card: Card | null;
   size?: Size;
@@ -47,6 +48,12 @@ export function PlayingCard({
   /** a player's colour around the card (the card they just played) */
   ring?: string;
   onPress?: () => void;
+  /**
+   * a card of my hand: keep its tap target (disabled) while it can't be tapped. Taking the
+   * Pressable away remounts the card's image, which blanks it for a frame on the web whenever the
+   * turn changes.
+   */
+  steady?: boolean;
 }) {
   const w = WIDTH[size];
   // the lift and the dimming glide; the Pressable sits inside the lifted view so the raised card
@@ -66,9 +73,11 @@ export function PlayingCard({
   );
   return (
     <Animated.View style={look}>
-      {onPress ? (
+      {onPress || steady ? (
         <Pressable
+          disabled={!onPress}
           onPress={() => {
+            if (!onPress) return;
             haptic.tap();
             onPress();
           }}
