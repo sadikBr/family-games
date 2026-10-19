@@ -259,6 +259,9 @@ test('scoring: a 2-tile city scores 4; a follower put on the completing tile sco
   expect(s.breakdown.b.city).toBe(4);
   expect(s.supply.b).toBe(7);
   expect(s.followers).toEqual([]);
+  // the view says which follower went home (it was never on the board in any view)
+  const v = carca.view(ctx, s, 'a') as CarcaView;
+  expect(v.returned).toEqual({ n: 1, followers: [{ owner: 'b', x: 0, y: -1, f: 0 }] });
 });
 
 test('scoring: pennants add 2 each in a completed city', () => {

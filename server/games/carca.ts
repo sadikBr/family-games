@@ -66,6 +66,8 @@ export interface CarcaState {
   final: CarcaView['final'];
   /** the bot move worked out for a turn */
   botMove: ({ turnNo: number } & BotMove) | null;
+  /** the followers that went back to their owners at the latest scoring (for the app's animation) */
+  returned?: CarcaView['returned'];
 }
 
 const BREAK: Record<Group['kind'], CarcaScoreKind> = { road: 'road', city: 'city', monastery: 'monastery', field: 'farm' };
@@ -127,6 +129,7 @@ function scoreCompleted(ctx: GameCtx, s: CarcaState, x: number, y: number) {
     }
   }
   let scored = false;
+  const back: CarcaFollower[] = [];
   for (const g of done) {
     const held = followersIn(s, g);
     if (!held.length) continue;
@@ -135,7 +138,9 @@ function scoreCompleted(ctx: GameCtx, s: CarcaState, x: number, y: number) {
     for (const f of held) s.supply[f.owner] = (s.supply[f.owner] ?? 0) + 1;
     const gone = new Set(held);
     s.followers = s.followers.filter((f) => !gone.has(f));
+    back.push(...held);
   }
+  if (back.length) s.returned = { n: s.turnNo, followers: back.map((f) => ({ ...f })) };
   if (scored) ctx.fx('correct');
 }
 
@@ -427,6 +432,7 @@ export const carca: GameModule<CarcaState, CarcaSettings> = {
       total: s.settings.seconds * 1000,
       farmers: s.settings.farmers,
       final: s.final,
+      returned: s.returned ?? null,
     };
   },
 

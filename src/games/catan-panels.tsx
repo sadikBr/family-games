@@ -15,6 +15,8 @@ import { Btn, IconBtn } from '@/ui/btn';
 import { Txt, num } from '@/ui/txt';
 
 import { MiniIcon, RES_COLOR, ResIcon, SEAT_COLORS, SEAT_OUTLINE } from './catan-art';
+import type { Spots } from './catan-motion';
+import { SoftNumber } from './cards/motion';
 import { li } from './duel';
 import type { Helpers } from './helpers';
 
@@ -106,7 +108,7 @@ export function SeatDot({ seat, size = 12 }: { seat: number; size?: number }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: SEAT_COLORS[seat], borderWidth: 1.5, borderColor: seat === 3 ? '#EDE6D2' : SEAT_OUTLINE[seat] }} />;
 }
 
-export function PlayersPanel({ view, h, nm, width }: { view: CatanView; h: Helpers; nm: Namer; width: number }) {
+export function PlayersPanel({ view, h, nm, width, spots }: { view: CatanView; h: Helpers; nm: Namer; width: number; spots?: Spots }) {
   const per = width >= 520 ? 4 : 2;
   const w = (width - (per - 1) * 6) / per;
   return (
@@ -129,12 +131,18 @@ export function PlayersPanel({ view, h, nm, width }: { view: CatanView; h: Helpe
             </Row>
             <Row gap={7} style={{ marginTop: 1 }}>
               <SeatDot seat={seat} size={10} />
-              <Row gap={2}>
+              {/* where the resources earned by a roll land */}
+              <View ref={(n) => spots?.set(`cards:${id}`, n)} style={styles.count}>
                 <MiniIcon k="card" size={12} color={p.cards > 7 ? C.orange : C.muted} />
-                <Txt v="tiny" color={p.cards > 7 ? C.orange : C.muted}>
-                  {num(p.cards)}
-                </Txt>
-              </Row>
+                <SoftNumber
+                  value={p.cards}
+                  render={(v) => (
+                    <Txt v="tiny" color={v > 7 ? C.orange : C.muted}>
+                      {num(v)}
+                    </Txt>
+                  )}
+                />
+              </View>
               <Row gap={2}>
                 <MiniIcon k="dev" size={12} color={C.muted} />
                 <Txt v="tiny" color={C.muted}>
@@ -176,7 +184,7 @@ export function Hand({ hand, width, picked, onPick }: { hand: CatanResMap; width
         const body = (
           <View style={[styles.card, { width: w, height: w * 1.3, backgroundColor: n ? alpha(RES_COLOR[r], 0.28) : C.surface, borderColor: sel ? C.yellow : n ? alpha(RES_COLOR[r], 0.8) : C.border }]}>
             <ResIcon r={r} size={w * 0.5} />
-            <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: n ? C.text : C.dim }}>{num(n)}</Txt>
+            <SoftNumber value={n} render={(v) => <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: v ? C.text : C.dim }}>{num(v)}</Txt>} />
             <Txt v="tiny" color={n ? C.muted : C.dim} style={{ fontSize: 11, lineHeight: 14 }}>
               {RES_NAME[r]}
             </Txt>
@@ -610,6 +618,7 @@ export function BuildRow({ view, mode, onMode, onBuy, width }: { view: CatanView
 }
 
 const styles = StyleSheet.create({
+  count: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   log: { gap: 2, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 8 },
   player: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 5, paddingHorizontal: 7, borderWidth: 1.5, borderColor: C.border },
   card: { borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', gap: 0, paddingVertical: 2 },
