@@ -1,6 +1,6 @@
 /**
  * «البلوط» (Moroccan mode) — the pieces of the screen that differ from the Saudi game: the purchase
- * panel («أشتري» / «أمرّر», then the suit picker), the contract line «الأتو: الكوباص — الشاري: بابا»
+ * panel («شاري» / «باص», then the suit picker), the contract line «الأتو: الكوباص — الشاري: بابا»
  * and the end-of-hand breakdown (tricks, ديكس دي دير, announcements, بلوط-ريبلوط, دخل / كابو / ليتيج).
  */
 import { Pressable, View } from 'react-native';
@@ -114,7 +114,7 @@ function SuitBtn({ suit, width, onPress }: { suit: BSuit; width: number; onPress
   );
 }
 
-/** The purchase on my turn: «أشتري» / «أمرّر» (round 1), another suit or «أمرّر» (round 2). */
+/** The purchase on my turn: «شاري» / «باص» (round 1), another suit or «باص» (round 2). */
 export function MaBidPanel({ v, width, onCall }: { v: BalootView; width: number; onCall: (call: string, suit?: BSuit) => void }) {
   const opts = v.myOptions;
   if (!opts.length || !v.faceUp) return null;
@@ -127,7 +127,7 @@ export function MaBidPanel({ v, width, onCall }: { v: BalootView; width: number;
     <Animated.View entering={FadeIn.duration(200)} style={{ gap: 8 }}>
       {h2 ? (
         <Txt v="bold" center color={C.yellow}>
-          الجولة الثانية: اختر شكلاً آخر للأتو، أو مرّر
+          الجولة الثانية: اختر شكلاً آخر للأتو، أو «باص»
         </Txt>
       ) : (
         <Row center gap={4} wrap>
@@ -145,8 +145,8 @@ export function MaBidPanel({ v, width, onCall }: { v: BalootView; width: number;
         </Row>
       ) : null}
       <Row gap={8} center>
-        {take ? <Btn size="md" label="أشتري" color={C.yellow} style={{ width: forced ? width : (width - 8) / 2 }} onPress={() => onCall('hokm')} /> : null}
-        {pass ? <Btn size="md" label="أمرّر" ghost style={{ width: h2 ? width : (width - 8) / 2 }} onPress={() => onCall('pass')} /> : null}
+        {take ? <Btn size="md" label="شاري" color={C.yellow} style={{ width: forced ? width : (width - 8) / 2 }} onPress={() => onCall('hokm')} /> : null}
+        {pass ? <Btn size="md" label="باص" ghost style={{ width: h2 ? width : (width - 8) / 2 }} onPress={() => onCall('pass')} /> : null}
       </Row>
     </Animated.View>
   );

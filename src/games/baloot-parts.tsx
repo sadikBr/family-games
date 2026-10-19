@@ -29,7 +29,7 @@ export function contractText(c: BalootContract) {
 }
 
 function callText(v: BalootView, call: { call: string; suit?: BSuit }) {
-  if (v.rules === 'morocco') return call.call === 'pass' ? 'تمرير' : call.call === 'hokm2' ? maSuitName(call.suit ?? 'S') : 'شراء';
+  if (v.rules === 'morocco') return call.call === 'pass' ? 'باص' : call.call === 'hokm2' ? maSuitName(call.suit ?? 'S') : 'شاري';
   if (call.call === 'pass') return 'بس';
   if (call.call === 'sun') return 'صن';
   if (call.call === 'ashkal') return 'أشكل';

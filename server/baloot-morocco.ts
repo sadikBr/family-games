@@ -1,6 +1,6 @@
 /**
  * «البلوط» — the Moroccan rules (النمط المغربي) on the server, used when `settings.mode === 'morocco'`:
- * the purchase (الشرا: «أشتري» the face-up suit or pass, then another suit or pass, الفورص on a face-up
+ * the purchase (الشرا: «شاري» the face-up suit or pass, then another suit or pass, الفورص on a face-up
  * Jack), the announcements declared on the 2nd trick and shown on the 3rd, بلوط-ريبلوط, the scoring
  * (each team its own points, دخل, كابو 252, ليتيج carried over) and the game's end at 1000 (البيل on a
  * tie above it). The rest of the game (dealing, tricks, pauses, timers, turns) is the Saudi module's.
@@ -24,7 +24,7 @@ const teamName = (ctx: GameCtx, s: State, side: BSide) =>
 /* The purchase (الشرا)                                                */
 /* ------------------------------------------------------------------ */
 
-/** What the player whose turn it is may say: «أشتري» (or the forced take on a Jack) / another suit, or pass. */
+/** What the player whose turn it is may say: «شاري» (or the forced take on a Jack) / another suit, or pass. */
 export function maBidOptions(s: State, id: string): BalootOption[] {
   const b = s.bid;
   if (s.phase !== 'bid' || !b || s.redealAt !== null || b.queue[0] !== id || !s.faceUp) return [];
@@ -51,7 +51,7 @@ export function maBidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, 
     return 'play';
   }
   b.calls[by] = { call: 'pass' };
-  ctx.say?.(`تمرير من ${ctx.playerName(by)}`, by);
+  ctx.say?.(`باص: ${ctx.playerName(by)}`, by);
   if (b.queue.length) return null;
   if (b.round === 1) {
     b.round = 2;
