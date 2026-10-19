@@ -10,7 +10,9 @@
 import { RANKS, cardName, rankIndex, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, RondaSettings, RondaView } from '../../src/shared/protocol';
 import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { decideOnce } from '../ai/cards-memo';
+import { rondaBotCard } from '../ai/cards-ronda';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick } from '../util';
 
 const HAND_SIZE = 4;
@@ -389,6 +391,31 @@ export const ronda: GameModule<State, RondaSettings> = {
     if (!ctx.isBot(bot)) return;
     const hand = s.hands[bot];
     if (!hand.length) return;
+    const key = `play:${s.hand}:${s.deal}:${hand.length}`;
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      // the strong bot: look-ahead over the unseen cards (see server/ai/cards-ronda.ts)
+      const card = decideOnce(s, `${bot}:${key}`, () => rondaBotCard(
+        {
+          me: bot,
+          seats: s.seats,
+          sides: s.sides,
+          turnIdx: s.turnIdx,
+          dealerIdx: s.dealerIdx,
+          hand,
+          table: s.table,
+          seen: s.sides.flatMap((x) => s.captured[x.key] ?? []),
+          handCounts: Object.fromEntries(s.seats.map((id) => [id, s.hands[id].length])),
+          deckLeft: s.deck.length,
+          lastPlayed: s.lastPlayed,
+          chain: s.chain,
+        },
+        level,
+      ));
+      ctx.bot(bot, key, randDelay(1100, 2300), { type: 'play', card: card.id });
+      return;
+    }
+    // 'easy': the old greedy bot
     const prev = s.seats[(s.turnIdx - 1 + n(s)) % n(s)];
     let best: Card = pick(hand);
     let bestScore = -1;
@@ -414,7 +441,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       const dup = hand.find((c) => hand.filter((x) => x.rank === c.rank).length > 1);
       best = dup ?? pick(hand);
     }
-    ctx.bot(bot, `play:${s.hand}:${s.deal}:${hand.length}`, randDelay(1100, 2300), { type: 'play', card: best.id });
+    ctx.bot(bot, key, randDelay(1100, 2300), { type: 'play', card: best.id });
   },
 
   view(ctx, s, me): RondaView {

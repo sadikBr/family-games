@@ -8,7 +8,9 @@
 import { cardName, sortHand, type Card } from '../../src/shared/cards';
 import type { CardSide, KanzaSettings, KanzaView } from '../../src/shared/protocol';
 import { Feed, freshDeck, makeSides, randDelay, removeCard, sideOf, soloOf } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { kanzaBotMove } from '../ai/cards-kanza';
+import { decideOnce } from '../ai/cards-memo';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 
 const HAND_SIZE = 3;
@@ -204,6 +206,31 @@ export const kanza: GameModule<State, KanzaSettings> = {
     if (!ctx.isBot(bot)) return;
     const hand = s.hands[bot];
     if (!hand.length) return;
+    const key = `play:${s.hand}:${s.moves}`;
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      // the strong bot: look-ahead over the unseen cards (see server/ai/cards-kanza.ts)
+      const m = decideOnce(s, `${bot}:${key}`, () =>
+        kanzaBotMove(
+          {
+            me: bot,
+            seats: s.seats,
+            sides: s.sides,
+            turnIdx: s.turnIdx,
+            dealerIdx: s.dealerIdx,
+            hand,
+            table: s.table,
+            seen: s.sides.flatMap((x) => s.captured[x.key] ?? []),
+            handCounts: Object.fromEntries(s.seats.map((id) => [id, s.hands[id].length])),
+            deckLeft: s.deck.length,
+          },
+          level,
+        ),
+      );
+      ctx.bot(bot, key, randDelay(1200, 2400), { type: 'play', card: m.card.id, take: m.take.map((c) => c.id) });
+      return;
+    }
+    // 'easy': the old greedy bot
     let best: { card: Card; take: Card[]; score: number } | null = null;
     for (const c of hand) {
       for (const take of kanzaCaptures(s.table, c)) {
@@ -217,7 +244,7 @@ export const kanza: GameModule<State, KanzaSettings> = {
       const safe = sorted.find((c) => !s.table.some((t) => t.rank + c.rank === TARGET_SUM));
       best = { card: safe ?? sorted[0], take: [], score: 0 };
     }
-    ctx.bot(bot, `play:${s.hand}:${s.moves}`, randDelay(1200, 2400), {
+    ctx.bot(bot, key, randDelay(1200, 2400), {
       type: 'play',
       card: best.card.id,
       take: best.take.map((c) => c.id),
