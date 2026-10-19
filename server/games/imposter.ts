@@ -5,6 +5,7 @@ import { civilianClue, guessCategories, imposterClue, rankGuesses, suspicion, ti
 import { traitPool } from '../imposter-traits';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceFinal, voiceOnly } from '../voice-calls-party';
 
 interface State {
   settings: ImposterSettings;
@@ -161,7 +162,13 @@ function finish(ctx: GameCtx, s: State, accused: string | null, guessed: string 
   s.phase = 'result';
   ctx.fx('reveal');
   const who = s.imposters.map((id) => ctx.playerName(id)).join(' و');
-  ctx.say?.(imposterWins ? `الفوز للدخيل: ${who}، والكلمة: ${s.word}` : `الفوز للمواطنين! الدخيل: ${who}`);
+  // how it ended, then the winner side (never the word: the screens show it)
+  const how = guessCorrect === true ? PVOICE.guessRight : guessed !== null ? PVOICE.guessWrong : accused === null ? PVOICE.voteTie : !caught ? PVOICE.notImposter : null;
+  ctx.say?.(
+    imposterWins ? `الفوز للدخيل: ${who}، والكلمة: ${s.word}` : `الفوز للمواطنين! الدخيل: ${who}`,
+    undefined,
+    voiceAnd(how, imposterWins ? PVOICE.winImposter : PVOICE.winCivilians),
+  );
 }
 
 function checkAllIn(ctx: GameCtx, s: State) {
@@ -169,7 +176,7 @@ function checkAllIn(ctx: GameCtx, s: State) {
   if (s.phase === 'reveal' && active.every((id) => s.ready.has(id))) {
     s.phase = 'clues';
     ctx.fx('start');
-    ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`);
+    ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`, undefined, PVOICE.clues);
   } else if (s.phase === 'vote' && active.every((id) => s.votes.has(id))) {
     resolveVotes(ctx, s);
   }
@@ -203,7 +210,7 @@ function resolveVotes(ctx: GameCtx, s: State) {
     s.guessEndsAt = ctx.now + GUESS_MS;
     s.phase = 'guess';
     ctx.fx('buzz', accused);
-    ctx.say?.(`انكشاف ${ctx.playerName(accused)}: الدخيل! فرصة أخيرة لتخمين الكلمة`, accused);
+    ctx.say?.(`انكشاف ${ctx.playerName(accused)}: الدخيل! فرصة أخيرة لتخمين الكلمة`, accused, PVOICE.imposterCaught);
     return;
   }
   finish(ctx, s, accused, null);
@@ -257,7 +264,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
       case 'skipReady': {
         if (s.phase === 'reveal') {
           s.phase = 'clues';
-          ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`);
+          ctx.say?.(`وقت التلميحات: البداية مع ${ctx.playerName(s.order[0])}`, undefined, PVOICE.clues);
         }
         return;
       }
@@ -265,7 +272,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
         if (s.phase === 'clues') {
           s.phase = 'vote';
           ctx.fx('tick');
-          ctx.say?.('بدأ التصويت: من هو الدخيل؟');
+          ctx.say?.('بدأ التصويت: من هو الدخيل؟', undefined, PVOICE.vote);
         }
         return;
       }
@@ -295,6 +302,7 @@ export const imposter: GameModule<State, ImposterSettings> = {
           const w = finalWinner(s);
           if (w) ctx.fx('win', w);
           else ctx.fx('win');
+          voiceOnly(ctx, voiceFinal(ctx, s.participants, (id) => s.scores[id] ?? 0));
           return;
         }
         newRound(ctx, s);

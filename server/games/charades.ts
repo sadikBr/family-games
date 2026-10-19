@@ -12,6 +12,7 @@ import {
 import { CHARADES_ALL, type CharadesWord } from '../charades-content';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceOnly, voiceTeamsFinal } from '../voice-calls-party';
 
 export const COUNTDOWN_MS = 3000;
 const NOTICE_MS = 6000;
@@ -107,7 +108,7 @@ function endTurn(ctx: GameCtx, s: State) {
   ctx.fx('buzz');
   if (!wasPlaying) return;
   const pts = s.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'penalty' ? -1 : 0), 0);
-  ctx.say?.(`انتهى الوقت: ${TEAM_NAMES[activeTeam(s)]} ${pts} في هذا الدور`);
+  ctx.say?.(`انتهى الوقت: ${TEAM_NAMES[activeTeam(s)]} ${pts} في هذا الدور`, undefined, PVOICE.timeUp);
 }
 
 function finish(ctx: GameCtx, s: State) {
@@ -115,6 +116,7 @@ function finish(ctx: GameCtx, s: State) {
   s.endsAt = null;
   s.card = null;
   ctx.fx('win'); // a team win: no single target
+  voiceOnly(ctx, voiceTeamsFinal(s.teamScores));
 }
 
 function freeSkipsLeft(s: State) {
@@ -210,7 +212,8 @@ export const charades: GameModule<State, CharadesSettings> = {
           s.history.push({ word: s.card.word, result: 'ok' });
           s.teamScores[team] += 1;
           ctx.fx('correct');
-          ctx.say?.(`خمّنوها! ${TEAM_NAMES[team]}: ${s.history.filter((h) => h.result === 'ok').length} في هذا الدور`, by);
+          // the actor is silent: the voice calls the found word for the room (never the word itself)
+          ctx.say?.(`خمّنوها! ${TEAM_NAMES[team]}: ${s.history.filter((h) => h.result === 'ok').length} في هذا الدور`, by, PVOICE.right);
         } else {
           const free = freeSkipsLeft(s) > 0;
           s.skipsUsed += 1;
@@ -249,7 +252,7 @@ export const charades: GameModule<State, CharadesSettings> = {
         s.phase = 'play';
         s.endsAt = ctx.now + s.settings.seconds * 1000;
         drawCard(ctx, s);
-        ctx.say?.(`حان دور ${ctx.playerName(s.actorId)} في التمثيل ل${TEAM_NAMES[activeTeam(s)].slice(1)}`, s.actorId);
+        ctx.say?.(`حان دور ${ctx.playerName(s.actorId)} في التمثيل ل${TEAM_NAMES[activeTeam(s)].slice(1)}`, s.actorId, PVOICE.go);
         return true;
       }
       if (s.phase === 'play') {

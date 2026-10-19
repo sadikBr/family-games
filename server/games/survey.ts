@@ -25,6 +25,7 @@ import { matchAnswer, namesOf } from '../survey-match';
 import { readMs } from '../ai/social-quiz';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceOnly, voiceQuestion, voiceTeamRound, voiceTeamWin, type VoiceTeam } from '../voice-calls-party';
 
 /** pause on the round summary before the next round starts by itself */
 export const ROUND_END_MS = 12_000;
@@ -66,6 +67,14 @@ interface State {
 
 const other = (t: SurveyTeam): SurveyTeam => (t === 0 ? 1 : 0);
 const TEAM_NAME = ['الفريق الأحمر', 'الفريق الأزرق'] as const;
+const TEAM_KEY: [VoiceTeam, VoiceTeam] = ['red', 'blue'];
+
+/** What the voice says about the answer just checked: the board's answer when it was found, else «خَطَأٌ». */
+function answerVoice(s: State): string | undefined {
+  const e = s.last;
+  if (!e || e.kind === 'dup') return undefined;
+  return e.kind === 'hit' ? question(s).answers[e.slot ?? 0]?.text : e.kind === 'timeout' ? PVOICE.timeUp : PVOICE.wrong;
+}
 
 export function teamOf(s: State, id: string): SurveyTeam | null {
   if (s.teams[0].includes(id)) return 0;
@@ -125,7 +134,8 @@ function sayAnswer(ctx: GameCtx, s: State, was: SurveyView['phase']) {
       : was === 'play' && s.phase === 'steal' && s.control !== null
         ? ` — السرقة ل${TEAM_NAME[other(s.control)].slice(1)}`
         : '';
-  ctx.say?.(text + then, e.by);
+  const steal = was === 'play' && s.phase === 'steal';
+  ctx.say?.(text + then, e.by, voiceAnd(answerVoice(s), steal && PVOICE.steal));
 }
 
 function reveal(s: State, slot: number, team: SurveyTeam) {
@@ -151,6 +161,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.face = null;
   startFaceoff(ctx, s, 0);
   ctx.fx('start');
+  voiceOnly(ctx, voiceQuestion(q.q)); // the question, read aloud
 }
 
 /** Two players (one per team, rotating) step up to the buzzers. */
@@ -217,7 +228,13 @@ function endRound(ctx: GameCtx, s: State, team: SurveyTeam, stolen: boolean) {
   s.step++;
   setTimer(ctx, s, ROUND_END_MS);
   ctx.fx('reveal');
-  ctx.say?.(stolen ? `سرقة! ${TEAM_NAME[team]} يأخذ ${points} نقطة` : `انتهت الجولة: ${TEAM_NAME[team]} +${points}`);
+  // the answer that ended the round (every endRound follows an answer), then who takes the round
+  const last = answerVoice(s);
+  ctx.say?.(
+    stolen ? `سرقة! ${TEAM_NAME[team]} يأخذ ${points} نقطة` : `انتهت الجولة: ${TEAM_NAME[team]} +${points}`,
+    undefined,
+    voiceAnd(last, stolen ? PVOICE.stolen : voiceTeamRound(TEAM_KEY[team])),
+  );
 }
 
 function nextRound(ctx: GameCtx, s: State) {
@@ -237,6 +254,7 @@ function finish(ctx: GameCtx, s: State) {
   const [a, b] = s.scores;
   s.winner = a === b ? -1 : a > b ? 0 : 1;
   ctx.fx('win');
+  voiceOnly(ctx, s.winner === -1 ? PVOICE.tie : voiceTeamWin(TEAM_KEY[s.winner]));
 }
 
 /* ------------------------------------------------------------------ */

@@ -2,6 +2,7 @@ import type { CategoryInfo, HeadsUpSettings, HeadsUpView } from '../../src/share
 import { HEADSUP_CATEGORIES, type WordCategory } from '../content';
 import type { GameCtx, GameModule } from '../types';
 import { Deck, isNum, pick, shuffle } from '../util';
+import { PVOICE, voiceFinal, voiceOnly } from '../voice-calls-party';
 
 const COUNTDOWN_MS = 3500;
 
@@ -47,6 +48,7 @@ function goToTurn(ctx: GameCtx, s: State, turn: number) {
     s.endsAt = null;
     s.card = null;
     ctx.fx('win');
+    voiceOnly(ctx, voiceFinal(ctx, s.participants, (id) => s.scores[id] ?? 0));
     return;
   }
   s.turn = t;
@@ -64,7 +66,7 @@ function endTurn(ctx: GameCtx, s: State) {
   s.card = null;
   ctx.fx('buzz');
   const g = s.turnOrder[s.turn];
-  if (wasPlaying && g) ctx.say?.(`انتهى وقت ${ctx.playerName(g)}: ${s.history.filter((h) => h.ok).length} كلمات صحيحة`, g);
+  if (wasPlaying && g) ctx.say?.(`انتهى وقت ${ctx.playerName(g)}: ${s.history.filter((h) => h.ok).length} كلمات صحيحة`, g, PVOICE.timeUp);
 }
 
 export const headsup: GameModule<State, HeadsUpSettings> = {
@@ -133,7 +135,7 @@ export const headsup: GameModule<State, HeadsUpSettings> = {
       s.endsAt = ctx.now + s.settings.seconds * 1000;
       drawCard(ctx, s);
       const g = s.turnOrder[s.turn];
-      if (g) ctx.say?.(`التخمين الآن على ${ctx.playerName(g)}: صِفوا الكلمة`, g);
+      if (g) ctx.say?.(`التخمين الآن على ${ctx.playerName(g)}: صِفوا الكلمة`, g, PVOICE.go);
       return true;
     }
     if (s.phase === 'play') {

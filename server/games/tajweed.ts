@@ -9,6 +9,7 @@ import { type GameModule } from '../types';
 import { clamp, isNum, shuffle } from '../util';
 import { makeMcq, mcqOptions, type McqItem, type McqState } from './mcq';
 import { quranData } from './surah';
+import { ASK, voiceQuestion } from '../voice-calls-party';
 
 /** Words shown on each side of the coloured spot (a long verse is cut, with «…»). */
 const CONTEXT = 6;
@@ -86,6 +87,8 @@ const base = makeMcq<TajweedSettings>(
   'quiz', // the engine only uses the id for its own view, which this game replaces
   (ctx, settings, rounds) => qdeck(ctx, `tajweed:${settings.topic}`, tajweedPool(settings.topic)).deal(rounds).map(tajweedItem),
   (settings) => TAJWEED_BOT_SKILL[settings.topic] ?? 0.6,
+  // the voice never reads the verse: the question and the rules to choose from
+  { ask: (item) => voiceQuestion(ASK.tajweed, item.options) },
 );
 
 /** For result(): the highest `score` first; equal scores share a place. */

@@ -9,6 +9,7 @@ import type { DrawSettings, DrawStroke, DrawView } from '../../src/shared/protoc
 import { DRAW_WORDS } from '../content-extra';
 import type { GameCtx, GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceFinal, voiceOnly, voiceWord } from '../voice-calls-party';
 
 const CHOOSE_MS = 15000;
 /** the word and the round's points stay up this long (or until the host taps «التالي») */
@@ -100,10 +101,11 @@ function beginDrawing(ctx: GameCtx, s: State, word: string) {
   s.phase = 'draw';
   s.startedAt = ctx.now;
   s.endsAt = ctx.now + s.settings.seconds * 1000;
-  ctx.say?.(`حان دور ${ctx.playerName(drawer(s))} في الرسم: خمّنوا!`, drawer(s));
+  ctx.say?.(`حان دور ${ctx.playerName(drawer(s))} في الرسم: خمّنوا!`, drawer(s), PVOICE.guessIt);
 }
 
 function endTurn(ctx: GameCtx, s: State) {
+  const timeUp = s.phase === 'draw' && ctx.now >= s.endsAt;
   const pts: Record<string, number> = Object.fromEntries(s.order.map((id) => [id, 0]));
   for (const g of s.guessed) pts[g.id] = g.pts;
   pts[drawer(s)] = s.guessed.length ? Math.min(100, 30 + s.guessed.length * 20) : 0;
@@ -112,7 +114,8 @@ function endTurn(ctx: GameCtx, s: State) {
   s.phase = 'reveal';
   s.endsAt = ctx.now + DRAW_REVEAL_MS;
   ctx.fx('reveal');
-  ctx.say?.(`الكلمة كانت «${s.word}» — عرفها ${s.guessed.length} من ${s.order.length - 1}`, drawer(s));
+  // the reveal: the word is on every screen now («انْتَهَى الوَقْتُ» first when the clock ended the turn)
+  ctx.say?.(`الكلمة كانت «${s.word}» — عرفها ${s.guessed.length} من ${s.order.length - 1}`, drawer(s), voiceAnd(timeUp && PVOICE.timeUp, voiceWord(s.word)));
 }
 
 function advance(ctx: GameCtx, s: State) {
@@ -127,6 +130,7 @@ function advance(ctx: GameCtx, s: State) {
     const w = topScorer(s);
     if (w) ctx.fx('win', w);
     else ctx.fx('win');
+    voiceOnly(ctx, voiceFinal(ctx, s.order, (id) => s.scores[id] ?? 0));
     return;
   }
   startTurn(ctx, s);

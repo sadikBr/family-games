@@ -10,6 +10,7 @@ import { qdeck } from '../qdeck';
 import { shuffle } from '../util';
 import { makeMcq, mcqOptions } from './mcq';
 import { forFont } from './tajweed';
+import { ASK, voiceAnswer, voiceQuestion } from '../voice-calls-party';
 
 interface QuranData {
   surahs: { n: number; name: string; type: string; count: number }[];
@@ -58,4 +59,6 @@ export const surah = makeMcq<SurahSettings>(
     });
   },
   (settings) => SURAH_BOT_SKILL[settings.level],
+  // the voice never reads the verse itself: the question in plain words, the surah names, then «سورة …، الآية …»
+  { ask: (item) => voiceQuestion(ASK.surah, item.options), answer: (item) => voiceAnswer((item.ref ?? item.options[item.correct]).replace(' — ', '، ')) },
 );

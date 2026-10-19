@@ -21,6 +21,7 @@ import { MAP_PLACES, type MapPlace } from '../mapquiz-content';
 import { qdeck } from '../qdeck';
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr } from '../util';
+import { ASK, voiceAnswer, voiceAnd, voiceClosest, voiceFinal, voiceOnly } from '../voice-calls-party';
 import { soleWinner } from './mcq';
 
 export const MAPQUIZ_REVEAL_MS = 10_000;
@@ -72,6 +73,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.timerTotal = s.settings.seconds * 1000;
   s.endsAt = ctx.now + s.timerTotal;
   ctx.fx('start');
+  voiceOnly(ctx, ASK.where(s.places[s.round].name));
 }
 
 function reveal(ctx: GameCtx, s: State) {
@@ -87,12 +89,16 @@ function reveal(ctx: GameCtx, s: State) {
   s.phase = 'reveal';
   s.endsAt = ctx.now + MAPQUIZ_REVEAL_MS;
   ctx.fx('reveal');
+  // the closest pin, then the place's fact as the reveal shows it
+  const best = s.results.filter((r) => r.km !== null).sort((a, b) => a.km! - b.km!)[0];
+  voiceOnly(ctx, voiceAnd(best && best.points > 0 ? voiceClosest(ctx.playerName(best.id)) : null, voiceAnswer(place.fact ? `${place.name}، ${place.fact}` : place.name)));
 }
 
 function finish(ctx: GameCtx, s: State) {
   s.phase = 'final';
   s.endsAt = null;
   ctx.fx('win', soleWinner(s.scores));
+  if (s.participants.length) voiceOnly(ctx, voiceFinal(ctx, s.participants, (p) => s.scores[p] ?? 0));
 }
 
 function next(ctx: GameCtx, s: State) {

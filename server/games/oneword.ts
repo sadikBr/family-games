@@ -26,6 +26,7 @@ import { qdeck } from '../qdeck';
 import { conventionClue, expertGuess } from '../ai/social-oneword';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
+import { PVOICE, voiceGuesser, voicePlain } from '../voice-calls-party';
 
 /** the guesser's time */
 export const GUESS_MS = 45_000;
@@ -141,7 +142,7 @@ function startGuess(ctx: GameCtx, s: State) {
   setTimer(ctx, s, GUESS_MS);
   ctx.fx('start', s.guesser);
   const n = s.table.filter((c) => c.status === 'ok').length;
-  ctx.say?.(`التلميحات الباقية: ${n} — التخمين ${li(ctx.playerName(s.guesser))}`, s.guesser);
+  ctx.say?.(`التلميحات الباقية: ${n} — التخمين ${li(ctx.playerName(s.guesser))}`, s.guesser, voiceGuesser(ctx.playerName(s.guesser)));
 }
 
 function resolve(ctx: GameCtx, s: State, text: string | null, result: OnewordResult) {
@@ -181,7 +182,9 @@ function resolve(ctx: GameCtx, s: State, text: string | null, result: OnewordRes
         : result === 'pass'
           ? `تخمين ${name}: تجاوز — الكلمة «${word.w}»`
           : `انتهى وقت التخمين — الكلمة «${word.w}»`;
-  ctx.say?.(said, s.guesser);
+  // right / wrong / pass / time up — never the word (it is on the screens, the voice leaves it there)
+  const voice = result === 'right' ? PVOICE.right : result === 'wrong' ? PVOICE.wrong : result === 'pass' ? PVOICE.pass : PVOICE.timeUp;
+  ctx.say?.(said, s.guesser, voice);
 }
 
 function nextCard(ctx: GameCtx, s: State) {
@@ -195,7 +198,8 @@ function finish(ctx: GameCtx, s: State) {
   s.endsAt = null;
   s.step++;
   ctx.fx('win');
-  ctx.say?.(`النهاية: ${s.won} من ${s.settings.cards} — ${onewordRating(s.won, s.settings.cards).title}`);
+  const rating = onewordRating(s.won, s.settings.cards).title;
+  ctx.say?.(`النهاية: ${s.won} من ${s.settings.cards} — ${rating}`, undefined, voicePlain(rating));
 }
 
 /* ------------------------------------------------------------------ */

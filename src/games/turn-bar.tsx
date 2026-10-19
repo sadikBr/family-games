@@ -35,7 +35,8 @@ export function TurnBar({ room }: { room: RoomView }) {
   const showTurn = room.status === 'playing' && players.length > 0 && !everyone;
   if (showTurn !== pointed && (showTurn || everyone || room.status !== 'playing')) setPointed(showTurn);
   if (room.status !== 'playing') return null;
-  const said = room.said;
+  // a call that is only heard (an empty text, see Said.voice) has no line here
+  const said = room.said?.text ? room.said : null;
   const by = said?.by ? room.players.find((p) => p.id === said.by) : undefined;
   const holdSpace = !showTurn && pointed;
   if (!showTurn && !said && !holdSpace) return null;

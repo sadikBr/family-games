@@ -14,6 +14,7 @@ import { quizAnswer } from '../ai/social-quiz';
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 import { mcqOptions, soleWinner } from './mcq';
+import { ASK, voiceAnswer, voiceFinal, voiceOnly, voiceQuestion } from '../voice-calls-party';
 
 export const REVEAL_MS = 7000;
 
@@ -62,6 +63,9 @@ function ask(ctx: GameCtx, s: State) {
   s.startedAt = ctx.now;
   s.endsAt = ctx.now + s.seconds * 1000;
   ctx.fx('reveal');
+  // the voice never reads the verse: «who said it?» and the four names
+  const item = s.items[s.round - 1];
+  if (item) voiceOnly(ctx, voiceQuestion(ASK.qquote, item.options));
 }
 
 function reveal(ctx: GameCtx, s: State) {
@@ -77,6 +81,7 @@ function reveal(ctx: GameCtx, s: State) {
   });
   s.phase = 'reveal';
   s.endsAt = ctx.now + REVEAL_MS;
+  voiceOnly(ctx, voiceAnswer(`${item.options[item.correct]}، ${item.ref.replace(' — ', '، ')}`));
   // each phone plays «correct» or «wrong» for its own player (see useMyResultFx)
 }
 
@@ -141,6 +146,7 @@ export const qquote: GameModule<State, QquoteSettings> = {
         s.phase = 'final';
         s.endsAt = null;
         ctx.fx('win', soleWinner(s.scores));
+        voiceOnly(ctx, voiceFinal(ctx, s.participants, (p) => s.scores[p] ?? 0));
       } else ask(ctx, s);
     }
     return true;
