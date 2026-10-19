@@ -382,7 +382,11 @@ test('huroof: typed answers forgive spelling; buzz, wrong answer and timeout pas
   s.turn = 'red';
   huroof.act(ctx, s, 'r1', { type: 'pick', cell: 0 });
   expect(s.phase).toBe('question');
-  expect((huroof.view(ctx, s, 'g1') as any).question).toEqual({ text: s.question.text }); // the answer stays on the server
+  const words = s.question.text.split(/\s+/).length;
+  expect((huroof.view(ctx, s, 'g1') as any).question).toEqual({ text: '', hidden: words, frozen: false }); // revealed word by word
+  ctx.now += 60000;
+  huroof.tick!(ctx, s);
+  expect((huroof.view(ctx, s, 'g1') as any).question).toEqual({ text: s.question.text.split(/\s+/).join(' '), hidden: 0, frozen: false }); // the answer stays on the server
   huroof.act(ctx, s, 'g1', { type: 'buzz' });
   expect(s.phase).toBe('answer');
   huroof.act(ctx, s, 'r1', { type: 'answer', text: s.question.answer }); // not the one who buzzed

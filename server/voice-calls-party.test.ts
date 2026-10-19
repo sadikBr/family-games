@@ -177,13 +177,17 @@ test('voice: من هو؟ — every new clue is read, then the answer', () => {
 
 /* —— حروف —————————————————————————————————————————————————————————————————————— */
 
-test('voice: حروف — the letter and the question, silence on the buzzer, the cell for the team, the winning path', () => {
+test('voice: حروف — the letter, the question once fully shown, silence on the buzzer, the cell for the team, the winning path', () => {
   const { ctx, said } = fakeCtx();
   const s: any = huroof.start(ctx, ['a', 'b'], { ...DEFAULT_SETTINGS.huroof });
   const team = s.turn;
   const me = s.teams[team][0];
   huroof.act(ctx, s, me, { type: 'pick', cell: 3 });
-  expect(last(said).voice).toBe(`${voiceLetter(s.cells[3].letter)}. ${s.question.text}`);
+  expect(last(said).voice).toBe(voiceLetter(s.cells[3].letter));
+  // the question is read aloud when its last word appears
+  ctx.now += 60_000;
+  huroof.tick!(ctx, s);
+  expect(last(said)).toEqual({ text: '', voice: s.question.text });
   const n = said.length;
   huroof.act(ctx, s, me, { type: 'buzz' });
   expect(said.length).toBe(n + 1);

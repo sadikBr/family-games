@@ -4,24 +4,36 @@
  * Like the TV show, the first player to press the buzzer answers — here by typing it (spelling slips
  * are forgiven, see answerMatches). Right: the hexagon is theirs. Wrong or too slow: that team is
  * locked out and the other team can buzz. Red joins right ↔ left, green joins top ↔ bottom.
+ *
+ * The question is revealed word by word (the server keeps the schedule; views only carry the words shown
+ * so far and how many are still hidden, so nobody can read ahead in the payload). The buzzer works from
+ * the first word: pressing it freezes the reveal for everyone and the buzzer answers from that part. A
+ * wrong answer (or running out of time) shows the whole question at once, and the other team answers.
+ * The question's own timer only starts once the whole question is shown.
  */
 import { answerMatches, displayLetter, firstLetter } from '../../src/shared/arabic';
 import { HEX_N, hexWinPath } from '../../src/shared/islamic';
 import type { HuroofSettings, HuroofTeam, HuroofView } from '../../src/shared/protocol';
-import { huroofPick } from '../ai/social-huroof';
-import { quizSkill, readMs } from '../ai/social-quiz';
+import { huroofKnowShare, huroofPick } from '../ai/social-huroof';
+import { quizSkill } from '../ai/social-quiz';
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS, type Question } from '../content-islamic';
 import { qdeck } from '../qdeck';
-import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
-import { PVOICE, voiceAnd, voiceAnswer, voiceCell, voiceLetter, voiceTeamWin } from '../voice-calls-party';
+import { PVOICE, voiceAnd, voiceAnswer, voiceCell, voiceLetter, voiceOnly, voiceTeamWin } from '../voice-calls-party';
 
 /** how often an easy bot's answer is right (smart / expert bots know more: see ai/social-quiz) */
 const SKILL = 0.65;
 /** a bot that doesn't know the answer and tries anyway (nothing to lose) is right this often */
 const LUCKY = 0.2;
 const ANSWER_MS = 20_000;
+/** the pause before the first word of a question, then the time each word takes (both at the room's pace) */
+const REVEAL_LEAD_MS = 700;
+const WORD_MIN_MS = 350;
+const WORD_MAX_MS = 450;
+/** a word's base reveal time: a little longer for a long word */
+export const wordMs = (w: string) => Math.max(WORD_MIN_MS, Math.min(WORD_MAX_MS, 300 + 22 * w.length));
 const other = (t: HuroofTeam): HuroofTeam => (t === 'red' ? 'green' : 'red');
 
 /** Questions grouped by the first letter of their answer (only real letters, not numbers). */
@@ -45,6 +57,11 @@ interface State {
   turn: HuroofTeam;
   cell: number | null;
   question: { text: string; answer: string; wrong: string[] } | null;
+  /**
+   * The gradual reveal of `question`: its words, when the reveal started, when each word appears
+   * (absolute ms), and how many are shown. Frozen while someone answers; all shown after a miss.
+   */
+  reveal: { words: string[]; start: number; at: number[]; shown: number } | null;
   canAnswer: HuroofTeam[];
   buzzer: string | null;
   endsAt: number | null;
@@ -56,8 +73,11 @@ interface State {
   winner: HuroofTeam | null;
   winPath: number[] | null;
   feed: Feed;
-  /** smart / expert bots: whether each bot knows the current question's answer (`${attempt}|${bot}`) */
-  botKnows?: Record<string, boolean>;
+  /**
+   * Bots: a draw in [0, 1) per bot and attempt (`${attempt}|${bot}`); the bot knows the answer once the
+   * share of the question shown makes `skill × huroofKnowShare(level, share)` pass it (see botPlan).
+   */
+  botDraw?: Record<string, number>;
 }
 
 const teamOf = (s: State, id: string): HuroofTeam | null => (s.teams.red.includes(id) ? 'red' : s.teams.green.includes(id) ? 'green' : null);
@@ -92,12 +112,45 @@ export function refreshLetter(s: State, i: number): boolean {
   return true;
 }
 
-/** Open (or reopen) the buzzers for the teams that may still answer. */
+/** Start revealing the question word by word: a short pause, then one word every ~0.4 s (room pace). */
+function startReveal(ctx: GameCtx, s: State) {
+  const words = s.question!.text.split(/\s+/).filter(Boolean);
+  const at: number[] = [];
+  let t = ctx.now + paced(ctx, REVEAL_LEAD_MS);
+  for (const w of words) {
+    at.push(t);
+    t += paced(ctx, wordMs(w));
+  }
+  s.reveal = { words, start: ctx.now, at, shown: 0 };
+}
+
+const fullyShown = (s: State) => !s.reveal || s.reveal.shown >= s.reveal.words.length;
+
+/** The share of the question shown so far (0–1): all the bots may know of it. */
+export const shownShare = (s: State) => (s.reveal && s.reveal.words.length ? s.reveal.shown / s.reveal.words.length : 1);
+
+/** The whole question is now on every screen: start the question's timer and read it aloud. */
+function revealDone(ctx: GameCtx, s: State) {
+  if (s.phase === 'question' && s.endsAt === null) {
+    s.timerTotal = s.settings.seconds * 1000;
+    s.endsAt = ctx.now + s.timerTotal;
+  }
+  if (s.question) voiceOnly(ctx, s.question.text);
+}
+
+/** Show the rest of the question at once (after a miss). */
+function showAll(ctx: GameCtx, s: State) {
+  if (!s.reveal || fullyShown(s)) return;
+  s.reveal.shown = s.reveal.words.length;
+  revealDone(ctx, s);
+}
+
+/** Open (or reopen) the buzzers for the teams that may still answer. The timer waits for the whole question. */
 function openBuzzers(ctx: GameCtx, s: State) {
   s.phase = 'question';
   s.buzzer = null;
   s.timerTotal = s.settings.seconds * 1000;
-  s.endsAt = ctx.now + s.timerTotal;
+  s.endsAt = fullyShown(s) ? ctx.now + s.timerTotal : null;
 }
 
 /** A wrong (or missing) answer: lock that team out, give the other team its chance. */
@@ -107,13 +160,16 @@ function miss(ctx: GameCtx, s: State, team: HuroofTeam) {
   if (!s.canAnswer.length) {
     ctx.say?.(`لم يأخذ أحد الحرف: الجواب «${s.question?.answer ?? ''}»`, undefined, voiceAnd(PVOICE.wrong, voiceAnswer(s.question?.answer ?? '')));
     settle(s, null, null);
-  } else openBuzzers(ctx, s);
+  } else {
+    openBuzzers(ctx, s);
+    showAll(ctx, s); // the other team answers with the whole question
+  }
 }
 
 function settle(s: State, team: HuroofTeam | null, by: string | null) {
   const i = s.cell!;
   const q = s.question!;
-  s.last = { cell: i, team, answer: q.answer, by, id: ++s.lastN };
+  s.last = { cell: i, team, answer: q.answer, question: q.text, by, id: ++s.lastN };
   if (team) {
     s.cells[i].owner = team;
     s.turn = team;
@@ -134,6 +190,7 @@ function settle(s: State, team: HuroofTeam | null, by: string | null) {
   if (s.phase !== 'final') s.phase = 'pick';
   s.cell = null;
   s.question = null;
+  s.reveal = null;
   s.canAnswer = [];
   s.buzzer = null;
   s.endsAt = null;
@@ -158,6 +215,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       turn: Math.random() < 0.5 ? 'red' : 'green',
       cell: null,
       question: null,
+      reveal: null,
       canAnswer: [],
       buzzer: null,
       endsAt: null,
@@ -186,10 +244,11 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.canAnswer = ['red', 'green'];
       s.attempt += 1;
       s.wrong = null;
+      startReveal(ctx, s);
       openBuzzers(ctx, s);
       ctx.fx('reveal');
-      // the letter and the question, read aloud for everyone
-      ctx.say?.(`حرف «${displayLetter(s.cells[a.cell].letter)}» باختيار ${ctx.playerName(by)}: من يضغط أولاً؟`, by, `${voiceLetter(s.cells[a.cell].letter)}. ${s.question.text}`);
+      // the letter now; the question is read aloud once it is fully shown (revealDone)
+      ctx.say?.(`حرف «${displayLetter(s.cells[a.cell].letter)}» باختيار ${ctx.playerName(by)}: من يضغط أولاً؟`, by, voiceLetter(s.cells[a.cell].letter));
       return;
     }
     if (a.type === 'buzz') {
@@ -199,7 +258,8 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.buzzer = by;
       s.timerTotal = ANSWER_MS;
       s.endsAt = ctx.now + ANSWER_MS;
-      s.feed.push(`أول من ضغط الجرس: ${ctx.playerName(by)}`, { by });
+      // the reveal stops here for everyone: the answer comes from the part shown
+      s.feed.push(`أول من ضغط الجرس: ${ctx.playerName(by)}${fullyShown(s) ? '' : ' — قبل اكتمال السؤال'}`, { by });
       ctx.fx('throw', by);
       ctx.say?.(`الجرس لـ${ctx.playerName(by)}: في انتظار الجواب`, by);
       return;
@@ -227,6 +287,17 @@ export const huroof: GameModule<State, HuroofSettings> = {
   },
 
   tick(ctx, s) {
+    // the next words of the question (frozen while someone answers)
+    if (s.phase === 'question' && s.reveal && !fullyShown(s)) {
+      const r = s.reveal;
+      const before = r.shown;
+      while (r.shown < r.words.length && ctx.now >= r.at[r.shown]) r.shown += 1;
+      if (r.shown !== before) {
+        if (fullyShown(s)) revealDone(ctx, s);
+        return true;
+      }
+      return false;
+    }
     if ((s.phase !== 'question' && s.phase !== 'answer') || s.endsAt === null || ctx.now < s.endsAt) return false;
     if (s.phase === 'answer' && s.buzzer) {
       // the player who buzzed ran out of time: counts as a wrong answer
@@ -260,51 +331,48 @@ export const huroof: GameModule<State, HuroofSettings> = {
     if (!s.question) return;
     const q = s.question;
     const total = s.settings.seconds * 1000;
-    if (level === 'easy') {
-      // the old bots: always buzz, right about two times in three
-      if (s.phase === 'question') {
-        for (const t of s.canAnswer) {
-          const bot = s.teams[t].find((m) => bots.includes(m));
-          if (!bot) continue;
-          const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
-          // with humans on the team, the bot waits longer so people get to buzz first
-          const delay = humans ? randDelay(total * 0.55, total * 0.9) : randDelay(2500, total * 0.7);
-          ctx.bot(bot, `buzz:${s.attempt}:${t}`, delay, { type: 'buzz' });
-        }
-      }
-      if (s.phase === 'answer' && s.buzzer && bots.includes(s.buzzer)) {
-        const right = Math.random() < SKILL;
-        const text = right ? q.answer : q.wrong[Math.floor(Math.random() * q.wrong.length)];
-        ctx.bot(s.buzzer, `ans:${s.attempt}`, randDelay(2500, 5000), { type: 'answer', text });
-      }
-      return;
-    }
-    // smart / expert: a bot knows the answer or not, and only buzzes when it does — a wrong answer hands
-    // the other team a free try — unless the other team is already out (nothing to lose by trying)
-    const knows = (b: string) => ((s.botKnows ??= {})[`${s.attempt}|${b}`] ??= Math.random() < quizSkill(level, SKILL));
+    // a bot only ever looks at how much of the question is shown, never at the hidden words
+    const share = shownShare(s);
+    const full = share >= 1;
+    const draw = (b: string) => ((s.botDraw ??= {})[`${s.attempt}|${b}`] ??= Math.random());
+    /** whether the bot knows the answer from the part shown (`at` = a share of the question) */
+    const knows = (b: string, at = share) => draw(b) < quizSkill(level, SKILL) * huroofKnowShare(level, at);
     if (s.phase === 'question') {
-      const read = readMs(q.text.length);
       for (const t of s.canAnswer) {
         const team = s.teams[t].filter((m) => bots.includes(m));
         if (!team.length) continue;
-        const sure = team.find(knows);
-        const otherIn = s.canAnswer.some((x) => x !== t);
         const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
+        // with people on the team, a bot never presses before the whole question is shown, then leaves
+        // them a fair share of the timer
+        if (humans && !full) continue;
+        const key = `buzz:${s.attempt}:${t}`;
+        if (level === 'easy') {
+          // the old bots: wait for the whole question, then always buzz (right about two times in three)
+          if (!full) continue;
+          const delay = humans ? randDelay(total * 0.45, total * 0.8) : randDelay(1500, total * 0.6);
+          ctx.bot(team[0], key, delay, { type: 'buzz' });
+          continue;
+        }
+        // smart / expert: buzz only when the part shown is enough to know — a wrong answer hands the
+        // other team a free try — unless the other team is already out (nothing to lose by trying)
+        const sure = team.find((b) => knows(b));
+        const otherIn = s.canAnswer.some((x) => x !== t);
         if (sure) {
-          // read the question, then press; with people on the team, leave them a fair moment first
-          const ms = (level === 'expert' ? read : read * 1.4 + randDelay(500, 2000)) + randDelay(0, 700);
-          const delay = Math.min(total * 0.8, humans ? Math.max(ms, total * (level === 'expert' ? 0.35 : 0.5)) : ms);
-          ctx.bot(sure, `buzz:${s.attempt}:${t}`, Math.round(delay), { type: 'buzz' });
-        } else if (!otherIn) {
-          ctx.bot(team[0], `buzz:${s.attempt}:${t}`, randDelay(total * 0.6, total * 0.85), { type: 'buzz' });
+          // a reaction once it clicks (it has been reading along word by word)
+          const react = level === 'expert' ? randDelay(300, 900) : randDelay(900, 2200);
+          const delay = humans ? Math.min(total * 0.8, Math.max(react, total * (level === 'expert' ? 0.3 : 0.45))) : react;
+          ctx.bot(sure, key, Math.round(delay), { type: 'buzz' });
+        } else if (!otherIn && full) {
+          ctx.bot(team[0], key, randDelay(total * 0.6, total * 0.85), { type: 'buzz' });
         }
       }
     }
     if (s.phase === 'answer' && s.buzzer && bots.includes(s.buzzer)) {
-      const right = knows(s.buzzer) || Math.random() < LUCKY;
+      // the reveal is frozen: the bot answers from the part shown
+      const right = level === 'easy' ? Math.random() < SKILL : knows(s.buzzer) || Math.random() < LUCKY;
       const text = right ? q.answer : q.wrong[Math.floor(Math.random() * q.wrong.length)];
       // typing the answer: a moment to start, then a few letters a second
-      const typing = Math.min(ANSWER_MS * 0.6, 1200 + text.length * 220 + randDelay(0, 1000));
+      const typing = level === 'easy' ? randDelay(2500, 5000) : Math.min(ANSWER_MS * 0.6, 1200 + text.length * 220 + randDelay(0, 1000));
       ctx.bot(s.buzzer, `ans:${s.attempt}`, Math.round(typing), { type: 'answer', text });
     }
   },
@@ -317,7 +385,14 @@ export const huroof: GameModule<State, HuroofSettings> = {
       cells: s.cells,
       turn: s.turn,
       cell: s.cell,
-      question: s.question ? { text: s.question.text } : null,
+      // only the words shown so far: the rest never leaves the server before it is revealed
+      question: s.question
+        ? (() => {
+            const words = s.reveal?.words ?? s.question.text.split(/\s+/).filter(Boolean);
+            const shown = s.reveal ? s.reveal.shown : words.length;
+            return { text: words.slice(0, shown).join(' '), hidden: words.length - shown, frozen: s.phase === 'answer' && shown < words.length };
+          })()
+        : null,
       canAnswer: s.canAnswer,
       buzzer: s.buzzer,
       endsAt: s.endsAt,

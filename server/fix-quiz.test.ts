@@ -97,6 +97,8 @@ test('huroof: a letter never repeats a question in one game; when it runs out th
     huroof.act(ctx, s, s.turn === 'red' ? 'a' : 'b', { type: 'pick', cell: 0 });
     asked.add(s.question.text);
     ctx.now += 16000;
+    huroof.tick!(ctx, s); // the whole question is shown: its timer starts
+    ctx.now += 16000;
     huroof.tick!(ctx, s); // nobody buzzes
     expect(s.phase).toBe('pick');
   }

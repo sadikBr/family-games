@@ -20,6 +20,20 @@ import type { BotLevel, HuroofTeam } from '../../src/shared/protocol';
 
 type Owner = HuroofTeam | null;
 
+/**
+ * Of the bots that know a question's answer, the share that already know it once `shown` (0–1) of the
+ * question's words are on the screen. Bots never see the hidden words: they play a person who recognises
+ * the question sooner or later. Easy waits for the whole question; smart needs about half of it before
+ * anything clicks; expert can recognise it from about 40 % of it, more and more often as words come.
+ */
+export function huroofKnowShare(level: BotLevel, shown: number): number {
+  if (shown >= 1) return 1;
+  if (level === 'easy') return 0;
+  const [from, to, curve] = level === 'expert' ? [0.4, 1, 1.5] : [0.6, 1, 2];
+  if (shown <= from) return 0;
+  return Math.min(1, ((shown - from) / (to - from)) ** curve);
+}
+
 const CELLS = HEX_N * HEX_N;
 const FAR = 99;
 const NEIGHBORS: number[][] = [...Array(CELLS).keys()].map((i) => hexNeighbors(i));

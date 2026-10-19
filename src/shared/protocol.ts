@@ -1156,13 +1156,19 @@ export interface HuroofView {
   cells: { letter: string; owner: HuroofTeam | null }[];
   turn: HuroofTeam; // team choosing the next letter
   cell: number | null;
-  question: { text: string } | null;
+  /**
+   * The question as revealed so far: `text` = only the words shown (the rest stays on the server),
+   * `hidden` = words still to come, `frozen` = someone pressed the buzzer before the end (the reveal
+   * stopped there). A wrong answer shows the rest at once.
+   */
+  question: { text: string; hidden: number; frozen: boolean } | null;
   canAnswer: HuroofTeam[];
   buzzer: string | null;
   endsAt: number | null;
   timerTotal: number; // ms, for the timer bar
   wrong: { by: string; text: string; id: number } | null; // the last wrong answer typed
-  last: { cell: number; team: HuroofTeam | null; answer: string; by: string | null; id: number } | null;
+  /** the question settled last, its whole text (`question`, optional for older servers) and answer */
+  last: { cell: number; team: HuroofTeam | null; answer: string; question?: string; by: string | null; id: number } | null;
   winner: HuroofTeam | null;
   winPath: number[] | null;
   feed: FeedItem[];

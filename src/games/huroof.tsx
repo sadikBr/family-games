@@ -1,4 +1,7 @@
-/** «حروف» — claim letter hexagons: buzz first, then type the answer. Red joins right ↔ left, green joins top ↔ bottom. */
+/**
+ * «حروف» — claim letter hexagons: buzz first, then type the answer. Red joins right ↔ left, green joins top ↔ bottom.
+ * The question arrives word by word (the server only sends the words shown so far); the buzzer freezes it.
+ */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -95,6 +98,26 @@ function Grid({ view, size, canPick, onPick }: { view: HuroofView; size: number;
   );
 }
 
+/**
+ * The question as far as it is shown: each new word fades in, the words still to come are faint dots.
+ * Words are keyed by position, so only the new ones animate (after a wrong answer, the rest fades in).
+ */
+function QuestionWords({ text, hidden, frozen }: { text: string; hidden: number; frozen: boolean }) {
+  const words = text ? text.split(' ') : [];
+  return (
+    <View style={styles.words} accessibilityLabel={text}>
+      {words.map((w, i) => (
+        <Animated.View key={i} entering={FadeIn.duration(320)}>
+          <Txt v="h3">{w}</Txt>
+        </Animated.View>
+      ))}
+      {[...Array(hidden)].map((_, i) => (
+        <View key={`h${i}`} style={[styles.dot, frozen && styles.dotFrozen]} />
+      ))}
+    </View>
+  );
+}
+
 /** The two teams, in the same language as the player strip: the team picking now is framed in its colour. */
 function Teams({ view, h, mine }: { view: HuroofView; h: Helpers; mine: HuroofTeam | null }) {
   return (
@@ -153,6 +176,8 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
   const canAnswer = !!mine && view.canAnswer.includes(mine);
   const letter = view.cell !== null ? view.cells[view.cell].letter : null;
   const iBuzzed = view.phase === 'answer' && view.buzzer === h.me;
+  // words still to come (0 from an older server that sent the whole question)
+  const hidden = q?.hidden || 0;
   // what I type is kept per buzz, so a new question starts empty
   const answerKey = `${view.cell}:${view.buzzer}:${view.canAnswer.join()}`;
   const answer = typed.key === answerKey ? typed.text : '';
@@ -177,16 +202,27 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
           </Txt>
         </Animated.View>
       ) : q && letter ? (
-        <Animated.View key={q.text} entering={FadeIn.duration(200)} style={styles.panel}>
-          <Row gap={10}>
+        <Animated.View key={`q${view.cell}:${view.last?.id ?? 0}`} entering={FadeIn.duration(200)} style={styles.panel}>
+          <Row gap={10} style={{ alignItems: 'flex-start' }}>
             <View style={styles.letter}>
               <Txt style={{ fontFamily: F.display, fontSize: 30, lineHeight: 44, color: C.ink }}>{displayLetter(letter)}</Txt>
             </View>
-            <Txt v="h3" style={{ flex: 1 }}>
-              {q.text}
-            </Txt>
+            <QuestionWords text={q.text} hidden={hidden} frozen={!!q.frozen} />
           </Row>
-          <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick />
+          {q.frozen && view.buzzer ? (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.frozen}>
+              <Txt v="small" center color={C.yellow}>
+                أُوقف السؤال — الإجابة {iBuzzed ? 'لك' : li(h.player(view.buzzer).name)}
+              </Txt>
+            </Animated.View>
+          ) : null}
+          {view.endsAt ? (
+            <TimerBar endsAt={view.endsAt} total={view.timerTotal} onTick />
+          ) : (
+            <Txt v="tiny" center color={C.dim}>
+              السؤال يظهر كلمةً كلمة — الجرس متاح في أي لحظة
+            </Txt>
+          )}
           {view.wrong ? (
             <Animated.View key={view.wrong.id} entering={FadeIn.duration(200)}>
               <Txt v="small" center color={C.red}>
@@ -254,6 +290,11 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
           key={view.last.id}
           entering={FadeIn.duration(200)}
           style={[styles.last, view.last.team ? { borderColor: alpha(TEAM_COLOR[view.last.team], 0.7), backgroundColor: alpha(TEAM_COLOR[view.last.team], 0.12) } : null]}>
+          {view.last.question && !q ? (
+            <Txt v="tiny" center color={C.muted}>
+              {view.last.question}
+            </Txt>
+          ) : null}
           <Txt v="small" center>
             الجواب: «{view.last.answer}» — {view.last.team ? `الحرف ل${TEAM_NAME[view.last.team].slice(1)}` : 'لم يأخذه أحد'}
           </Txt>
@@ -271,5 +312,9 @@ const styles = StyleSheet.create({
   buzzerText: { fontFamily: F.display, fontSize: 30, lineHeight: 46, color: '#FFFFFF' },
   input: { flex: 1, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.yellow },
   letter: { width: 52, height: 52, borderRadius: 14, backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: INK },
-  last: { borderRadius: 14, borderWidth: 1.5, borderColor: C.borderStrong, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: C.surface },
+  words: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 2, minHeight: 52 },
+  dot: { width: 18, height: 8, borderRadius: 4, marginHorizontal: 2, backgroundColor: alpha(C.text, 0.14) },
+  dotFrozen: { backgroundColor: alpha(C.yellow, 0.28) },
+  frozen: { borderRadius: 12, borderWidth: 1.5, borderColor: alpha(C.yellow, 0.6), backgroundColor: alpha(C.yellow, 0.1), paddingVertical: 6, paddingHorizontal: 10 },
+  last: { gap: 4, borderRadius: 14, borderWidth: 1.5, borderColor: C.borderStrong, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: C.surface },
 });
