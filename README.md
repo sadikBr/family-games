@@ -12,6 +12,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الكونكان** | 2–4 | Spanish-deck rummy: draw, lay down sets (3–4 same number) or runs (3+ same suit), add to melds, discard. First to empty their hand wins the hand. Others count their cards (figures = 10). 100 = out. |
 | **البلوط** (Saudi Baloot) | 4 | Two partnerships of two, 32-card French deck. Bidding «صن» / «حكم» / «أشكل» / «بس» in two rounds around the face-up card, the Saudi follow / trump rules, projects (سرا، خمسين، مية، أربعمية) and «بلوت», doubling (دبل، ثري، فور، قهوة), خسرانة and كبوت, a «لنا / لهم» score sheet to 152 (or 100). Bots bid and play. |
 | **أونو فليب** (UNO FLIP) | 2–10 | Every card has a light side and a dark side. You see the active side of your own cards; everyone else sees the other side, so you know a bit about their hands. A Flip card turns the whole game over to the dark side (+5, Skip Everyone, Wild Draw Color). Say «أونو» with one card left or get caught for +2. Round winner scores the others' cards; first to 250 (adjustable) wins. |
+| **هزّ 2** | 2–4 | Moroccan deck, 5 cards each: match the number or the suit of the top card, or draw one. 7 is a joker that picks the suit; 2 makes the next player draw 2 and lose the turn unless they answer with a 2 (stacking up to 8); 1 and 10 play again (never finish on a 10); 12 skips the next player. Cards left in hand count against you; at 100 (adjustable) the fewest points win. |
 | **أربعة في صف** (Connect Four) | 2 | Drop discs; four in a row wins. Bot opponent (casual or strong), wins are counted across games. |
 | **الشطرنج** (Chess) | 2 | Full rules (castling, en passant, promotion, mate, stalemate, 50-move, repetition, insufficient material). Bot opponent. The rules engine is checked against standard perft counts. |
 | **الكذّاب** (Cheat / Liar) | 2–6 | Spanish deck: play 1–4 cards face down claiming a rank; anyone can shout «كذّاب!». First to empty their hand wins. |
@@ -182,7 +183,7 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   room.ts            Lobby, settings, sending each player only what they may see
   db.ts, groups.ts   Groups: SQLite storage (DATA_DIR / Railway volume), presence, «لنلعب», push notifications
   tournament.ts      Tournaments (league / knockout) and the groups' honour board
-  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
+  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, hez2, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
   content-extra.ts   Words for Codenames and Draw & Guess
