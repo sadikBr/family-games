@@ -44,8 +44,9 @@ import {
   type Played,
   type Project,
 } from '../../src/shared/baloot-rules';
-import type { CardSide, GameAction } from '../../src/shared/protocol';
+import type { BotLevel, CardSide, GameAction } from '../../src/shared/protocol';
 import { botBid, botPlay, botRaise } from '../baloot-bot';
+import { balootClaim, mindBid, mindPlay, mindRaise, type ClaimInfo } from '../ai/baloot-mind';
 import {
   isMorocco,
   maBelote,
@@ -61,7 +62,7 @@ import {
   maViewAnn,
 } from '../baloot-morocco';
 import { makeSides, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 
 /** a full trick stays on the table this long (everyone sees who took it) */
@@ -70,6 +71,8 @@ export const TRICK_PAUSE_MS = 2400;
 export const REDEAL_MS = 2600;
 /** the end-of-hand sheet stays this long (the host can deal sooner) */
 export const HAND_END_MS = 15_000;
+/** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
+export const CLAIM_REVEAL_MS = 3800;
 
 interface BidState {
   round: 1 | 2;
@@ -137,6 +140,14 @@ export interface State {
   pot: number;
   /** Moroccan rules — البيل: level at or above the target, a deciding hand */
   bel: boolean;
+  /** the tricks already collected this hand, who played what (what every phone has seen: the bots' memory) */
+  log: { plays: Played[]; boss: boolean }[];
+  /** the face-up card the buyer took (everyone saw it go into that hand) */
+  upCard: BCard | null;
+  /** «الباقي لنا»: a team certain to take every remaining trick, and who may claim it */
+  claim: ClaimInfo | null;
+  /** «الباقي لنا» was claimed: those hands are shown before the end of the hand */
+  claimed: { by: string; side: BSide; reveal: { by: string; cards: BCard[] }[] } | null;
   /** bumps on every change (bot keys, timer) */
   seq: number;
 }
@@ -192,6 +203,10 @@ function startHand(ctx: GameCtx, s: State) {
   s.maAvail = {};
   s.maDeclared = {};
   s.maShown = null;
+  s.log = [];
+  s.upCard = null;
+  s.claim = null;
+  s.claimed = null;
   ctx.fx('card');
   ctx.say?.(`اليد ${s.hand}: التوزيع من ${ctx.playerName(s.seats[s.dealer])} — الورقة المكشوفة ${(isMorocco(s) ? maCardLabel : cardLabel)(s.faceUp)}`);
 }
@@ -275,6 +290,7 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, suit: unk
 
 function finishBidding(ctx: GameCtx, s: State, mode: BMode, trump: BSuit | null, caller: string, buyer: string, call: 'sun' | 'hokm' | 'ashkal') {
   s.contract = { mode, trump, buyer, caller, call, mult: 1, gahwa: false };
+  s.upCard = s.faceUp;
   // the buyer takes the face-up card and 2 more, everyone else 3 (dealer's right first)
   for (const id of s.bid!.order) {
     if (id === buyer) s.hands[id].push(s.faceUp!, ...s.stock.splice(0, 2));
@@ -416,9 +432,60 @@ function showProjects(ctx: GameCtx, s: State) {
   ctx.fx('reveal');
 }
 
+/**
+ * «الباقي لنا»: the team takes every remaining trick (certain whatever anyone plays — checked again
+ * here). The hand ends as if it had been played out: every card left and the last trick's 10 go to
+ * that team; projects not declared yet are declared in full (as the default is), and «بلوت» /
+ * بلوط-ريبلوط counts for whoever holds K + Q of trumps, since every card would have been played.
+ */
+function claimHand(ctx: GameCtx, s: State, by: string) {
+  // s.claim is worked out again after every change (exactly, capped in nodes): the current position's
+  const claim = s.claim ?? balootClaim(s);
+  if (!claim || claim.by !== by) throw new GameError('لا يمكن إنهاء اليد الآن');
+  const c = s.contract!;
+  const trump = c.trump;
+  const ma = isMorocco(s);
+  // a trick already complete is collected first
+  if (s.pauseUntil !== null && s.trick.length === 4) collectTrick(s);
+  // declarations nobody had the chance to make yet (those who played have theirs): all of them, the default
+  if (!ma && s.trickNo === 1) {
+    for (const id of s.seats) s.declared[id] ??= s.avail[id] ?? [];
+    if (!s.shown) showProjects(ctx, s);
+  }
+  if (ma && s.trickNo <= 2) {
+    for (const id of s.seats) s.maDeclared[id] ??= s.maAvail[id] ?? [];
+    if (!s.maShown) maShowAnnouncements(ctx, s);
+  }
+  const holder = s.balootHolder;
+  if (holder && trump && !s.baloot.includes(holder) && (ma || !balootBlocked(s.declared[holder] ?? [], trump))) s.baloot.push(holder);
+  const side = claim.side;
+  const left = s.seats.flatMap((id) => s.hands[id]);
+  const onTable = s.trick.map((t) => t.card);
+  s.abnat[side] += [...left, ...onTable].reduce((t, x) => t + cardValue(x, trump), 0) + GROUND;
+  s.tricks[side] += (left.length + onTable.length) / 4;
+  s.claimed = { by, side, reveal: claim.reveal.map((id) => ({ by: id, cards: sortBaloot(s.hands[id], trump) })) };
+  s.claim = null;
+  s.turn = null;
+  s.trickWinner = null;
+  s.pauseUntil = ctx.now + CLAIM_REVEAL_MS;
+  ctx.say?.(`الباقي ل${teamName(ctx, s, side)} — أُنهيت اليد`, by);
+  ctx.fx('reveal');
+}
+
+/** The trick on the table goes to its taker's pile (the next one is not started). */
+function collectTrick(s: State) {
+  s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
+  s.played.push(...s.trick.map((t) => t.card));
+  (s.log ??= []).push({ plays: s.trick, boss: s.leadBoss });
+  s.turn = s.trickWinner;
+  s.trick = [];
+  s.trickWinner = null;
+}
+
 function endHand(ctx: GameCtx, s: State) {
   if (isMorocco(s)) {
     const won = maEndHand(ctx, s);
+    if (s.result && s.claimed) s.result.claimed = s.claimed.side;
     if (won) finish(ctx, s, won);
     else {
       s.nextAt = ctx.now + HAND_END_MS;
@@ -445,6 +512,7 @@ function endHand(ctx: GameCtx, s: State) {
     failed: out.failed,
     kaboot: out.kaboot,
     winner: out.winner,
+    ...(s.claimed ? { claimed: s.claimed.side } : {}),
   };
   s.scores.A += out.points.A;
   s.scores.B += out.points.B;
@@ -487,9 +555,15 @@ export function turnOf(s: State): string[] {
   return [];
 }
 
-/** The move a bot makes (also the move made for a player whose time ran out, with `timeout`). */
-export function decide(s: State, id: string, level: number, timeout = false): GameAction | null {
+/**
+ * The move a bot makes (also the move made for a player whose time ran out, with `timeout`).
+ * `level`: the room's bot strength — 'expert' / 'smart' simulate (../ai/baloot-mind.ts), 'easy' is the
+ * old relaxed bot; a number (1 / 2) is the old bot of that level (kept for the timeout move and tests).
+ */
+export function decide(s: State, id: string, lvl: BotLevel | number, timeout = false): GameAction | null {
   if (turnOf(s)[0] !== id) return null;
+  if (!timeout && (lvl === 'expert' || lvl === 'smart')) return mindDecide(s, id, lvl);
+  const level = typeof lvl === 'number' ? lvl : 1;
   if (s.phase === 'bid' && isMorocco(s)) return maDecideBid(s, id, level, timeout);
   if (s.phase === 'bid') {
     const options = bidOptions(s, id);
@@ -518,9 +592,30 @@ export function decide(s: State, id: string, level: number, timeout = false): Ga
   return { type: 'play', card: card.id, declare: s.trickNo === 1 ? (s.avail[id] ?? []).map(projectKey) : [] };
 }
 
+/** The expert / smart bots' move (simulations: ../ai/baloot-mind.ts). */
+function mindDecide(s: State, id: string, level: 'expert' | 'smart'): GameAction | null {
+  if (s.phase === 'bid') {
+    const options = bidOptions(s, id);
+    if (!options.length) return null;
+    const pick = mindBid(s, id, options, level);
+    return { type: 'bid', call: pick.call, suit: pick.suit };
+  }
+  if (s.phase === 'double') {
+    const step = s.raise!.step;
+    return { type: 'raise', raise: mindRaise(s, id, step, level) ? step : 'pass' };
+  }
+  const legal = playable(s, id);
+  if (!legal.length) return null;
+  const card = mindPlay(s, id, legal, level);
+  if (isMorocco(s)) return { type: 'play', card: card.id, declare: maBotDeclare(s, id) };
+  return { type: 'play', card: card.id, declare: s.trickNo === 1 ? (s.avail[id] ?? []).map(projectKey) : [] };
+}
+
+/** After every change: a new sequence number, the decision timer, and whether «الباقي لنا» is on. */
 function armTimer(ctx: GameCtx, s: State) {
   s.seq += 1;
   s.deadline = s.settings.timer > 0 && turnOf(s).length ? ctx.now + s.settings.timer * 1000 : null;
+  s.claim = s.claimed ? null : balootClaim(s);
 }
 
 /** Apply one move; false when it changed nothing. */
@@ -541,8 +636,15 @@ function step(ctx: GameCtx, s: State, by: string, a: GameAction): boolean {
     return true;
   }
   if (a.type === 'play') return playCard(ctx, s, by, a.card, a.declare);
+  if (a.type === 'claim' && s.phase === 'play' && !s.claimed) {
+    claimHand(ctx, s, by);
+    return true;
+  }
   return false;
 }
+
+/** the move a bot planned for a moment of a game (botPlan runs after every change: think once) */
+const planned = new WeakMap<State, { key: string; move: GameAction | null }>();
 
 export const baloot: GameModule<State, BalootSettings> = {
   id: 'baloot',
@@ -558,6 +660,10 @@ export const baloot: GameModule<State, BalootSettings> = {
       maShown: null,
       pot: 0,
       bel: false,
+      log: [],
+      upCard: null,
+      claim: null,
+      claimed: null,
       seats: participants.slice(),
       sides: makeSides(participants, true),
       scores: { A: 0, B: 0 },
@@ -614,8 +720,20 @@ export const baloot: GameModule<State, BalootSettings> = {
     if (s.phase === 'play' && s.pauseUntil !== null) {
       if (ctx.now < s.pauseUntil) return false;
       s.pauseUntil = null;
-      s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
-      s.played.push(...s.trick.map((t) => t.card));
+      if (s.claimed) {
+        // the claimed hand: every card is out, the last trick (and its 10) is the claimers'
+        s.played.push(...s.trick.map((t) => t.card), ...s.seats.flatMap((id) => s.hands[id]));
+        for (const id of s.seats) s.hands[id] = [];
+        s.trick = [];
+        s.lastTrick = { cards: [], winner: s.claimed.by };
+        endHand(ctx, s);
+        armTimer(ctx, s);
+        return true;
+      }
+      const trickCards = s.trick;
+      s.lastTrick = { cards: trickCards, winner: s.trickWinner! };
+      s.played.push(...trickCards.map((t) => t.card));
+      (s.log ??= []).push({ plays: trickCards, boss: s.leadBoss });
       if (s.trickNo >= 8) {
         endHand(ctx, s);
       } else {
@@ -657,13 +775,26 @@ export const baloot: GameModule<State, BalootSettings> = {
   },
 
   botPlan(ctx, s) {
+    // «الباقي لنا»: a bot claims at once (after a short, human-like pause)
+    if (s.claim && !s.claimed && ctx.isBot(s.claim.by)) {
+      ctx.bot(s.claim.by, `claim${s.hand}:${s.seq}`, randDelay(900, 1600), { type: 'claim', seq: s.seq });
+      return;
+    }
     const id = turnOf(s)[0];
     if (!id || !ctx.isBot(id)) return;
-    const move = decide(s, id, s.settings.level);
+    // the room's bot strength (the old per-game «level» setting is ignored); one decision per moment
+    const key = `m${s.hand}:${s.seq}`;
+    const memo = planned.get(s);
+    let move: GameAction | null;
+    if (memo?.key === key) move = memo.move;
+    else {
+      move = decide(s, id, botLevel(ctx));
+      planned.set(s, { key, move });
+    }
     if (!move) return;
     move.seq = s.seq;
     const delay = s.phase === 'play' ? randDelay(700, 1500) : randDelay(900, 1700);
-    ctx.bot(id, `m${s.hand}:${s.seq}`, delay, move);
+    ctx.bot(id, key, delay, move);
   },
 
   view(_ctx, s, me): BalootView {
@@ -714,6 +845,8 @@ export const baloot: GameModule<State, BalootSettings> = {
       winner: s.winner,
       pot: s.pot,
       bel: s.bel,
+      canClaim: !!s.claim && s.claim.by === me && !s.claimed,
+      claimed: s.claimed,
     };
   },
 
@@ -740,6 +873,7 @@ export const baloot: GameModule<State, BalootSettings> = {
     if (BALOOT_TARGETS[settings.mode === 'morocco' ? 'morocco' : 'saudi'].includes(patch.target as number)) settings.target = patch.target as number;
     if (patch.timer === 0 || patch.timer === 20 || patch.timer === 30 || patch.timer === 45) settings.timer = patch.timer;
     if (typeof patch.doubling === 'boolean') settings.doubling = patch.doubling;
+    // the old per-game bot level: still accepted (old apps), the room's «مستوى البوتات» decides now
     if (patch.level === 1 || patch.level === 2) settings.level = patch.level;
   },
 };

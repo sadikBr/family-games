@@ -9,7 +9,7 @@ export interface CarcaSettings {
   farmers: boolean;
   /** seconds per turn (0 = no limit); when time runs out the tile goes in the best spot, without a follower */
   seconds: 0 | 45 | 60 | 90;
-  /** bots: 1 = easy, 2 = strong */
+  /** no longer used (the bots follow the room's «مستوى البوتات»); kept so older apps can still send it */
   level: 1 | 2;
 }
 

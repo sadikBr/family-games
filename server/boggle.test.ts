@@ -212,7 +212,7 @@ test('grids: dice letters, at most 3 of a letter, enough everyday words, solver 
 
 test('bots: words come from the grid, stronger bots find more', () => {
   const { s } = setup(['a']);
-  const avg = (level: 'easy' | 'medium' | 'hard') => {
+  const avg = (level: 'easy' | 'smart' | 'expert') => {
     let n = 0;
     for (let i = 0; i < 40; i++) {
       const ws = botWords(s, level);
@@ -222,7 +222,7 @@ test('bots: words come from the grid, stronger bots find more', () => {
     }
     return n / 40;
   };
-  const e = avg('easy'), m = avg('medium'), h = avg('hard');
+  const e = avg('easy'), m = avg('smart'), h = avg('expert');
   expect(e).toBeLessThan(m);
   expect(m).toBeLessThan(h);
 });

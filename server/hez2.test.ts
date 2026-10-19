@@ -359,6 +359,8 @@ test('expert: remembers who drew — the next player is void in a suit, so that 
   // b had to draw on cups (no cups, no 7): with the 7, the expert sends the game back to cups
   const g = setup({ a: [c(3, 'cups'), c(4, 'swords'), c(6, 'coins')], b: [c(5, 'swords'), c(6, 'swords')] }, c(7, 'clubs'));
   g.s.voids = { b: { suits: ['cups'], ranks: [5], no7: true } };
+  // a fixed stock order: the look-ahead's sampled worlds then depend only on the seed below
+  g.s.deck.sort((x, y) => (x.id < y.id ? -1 : 1));
   g.s.topBy = 'a';
   g.s.choosing = 'a';
   // the look-ahead samples possible hands: over a few seeded decisions, cups wins clearly

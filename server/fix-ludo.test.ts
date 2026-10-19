@@ -19,6 +19,8 @@ function fakeCtx(bots: (id: string) => boolean = () => false) {
     playerName: (id) => id,
     memo: new Map(),
     bot: (by, _key, _delay, a) => void queue.push({ by, a }),
+    // these rules tests check the old bot (now the «سهل» level); the expert has its own tests (bots-misc)
+    botLevel: () => 'easy',
   };
   return { ctx, queue, fx };
 }

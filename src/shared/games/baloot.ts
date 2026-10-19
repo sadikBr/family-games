@@ -39,7 +39,7 @@ export interface BalootSettings {
   timer: number;
   /** دبل / ثري / فور / قهوة allowed */
   doubling: boolean;
-  /** 1 = beginner bots, 2 = strong bots */
+  /** the old per-game bot level (1 / 2): still accepted from old apps but ignored — the room's «مستوى البوتات» decides */
   level: number;
 }
 
@@ -91,6 +91,8 @@ export interface BalootHandResult {
   litige?: boolean;
   /** Moroccan rules: points carried over from earlier ليتيج hands that this hand's winner took */
   potWon?: number;
+  /** «الباقي لنا»: this team took the remaining tricks without playing them */
+  claimed?: BSide;
 }
 
 export interface BalootHistoryRow {
@@ -166,6 +168,10 @@ export interface BalootView {
   pot: number;
   /** Moroccan rules — البيل: both teams are level at or above the target, a deciding hand is played */
   bel: boolean;
+  /** «الباقي لنا»: every remaining trick is certain for my team and my hand shows it — I may end the hand */
+  canClaim?: boolean;
+  /** «الباقي لنا» was claimed: the claimer's hand (and the partner's if it was needed) shown to everyone */
+  claimed?: { by: string; side: BSide; reveal: { by: string; cards: BCard[] }[] } | null;
 }
 
 export const BALOOT_DEFAULTS: BalootSettings = { mode: 'saudi', target: 152, timer: 0, doubling: true, level: 2 };
@@ -192,6 +198,7 @@ export const BALOOT_INFO = {
     'تُحسب مشاريع الفريق صاحب أكبر مشروع فقط (الأعلى قيمة، ثم الأعلى ورقة، ثم الأسبق في اللعب). «بلوت» = K و Q الحكم في يد واحدة: نقطتان تُعلنان عند لعب الثانية منهما.',
     'إن جمع المشترون أقل من الخصوم فهي «خسرانة»: يأخذ الخصوم كل نقاط اليد والمشاريع. وعند التعادل يفوز المشترون. «كبوت» = كل الأكلات الثماني: 44 في الصن و25 في الحكم.',
     'الدبل: في الحكم يحق للخصم «دبل» (×2)، ثم للمشتري «ثري» (×3)، ثم «فور» (×4)، ثم «قهوة» وفيها يربح الفائز باليد اللعبة كلها. في الصن «دبل» فقط، إذا تجاوز المشترون 100 والخصوم دونها. في اليد المضاعفة يأخذ الفائز كل شيء.',
+    '«الباقي لنا»: إذا صارت كل الأكلات الباقية مضمونة لفريق مهما لُعب، يظهر لصاحب اليد زر لإنهاء اليد: تُكشف أوراقه، وتُحسب كل الأوراق الباقية والأرض لفريقه (ويُحسب «بلوت» لصاحبه).',
     'يفوز الفريق الذي يصل أولاً إلى 152 نقطة (أو الهدف الذي تختارونه). سجل النتائج يعرض «لنا» و«لهم».',
   ],
 };
@@ -211,6 +218,7 @@ export const BALOOT_MA_INFO = {
     'كاري (أربع أوراق من رقم واحد): أربع 10 = 200، أربع 6 = 150، أربع 1 أو 7 أو 12 أو 11 = 100. تُحسب إعلانات الفريق صاحب أقوى إعلان فقط: الكاري أولاً، ثم الأطول، ثم الأعلى، ثم تسلسل الطرونفو، ثم الأقرب إلى يمين الموزّع.',
     'إذا جمع فريق الشاري أكثر من الخصمين (الأكلات والإعلانات وبلوط) يأخذ كل فريق نقاطه. وإلا فهي «دخل»: يأخذ الخصمان 162 وكل الإعلانات، ولا يبقى لفريق الشاري إلا بلوط.',
     'كابو: الأكلات الثماني كلها = 252 مع الإعلانات (بلا ديكس دي دير). ليتيج: عند التعادل تُعلَّق نقاط الشاري وتذهب إلى من يربح اليد التالية، وتتراكم إن تكرر التعادل.',
+    '«الباقي لنا»: إذا صارت كل الأكلات الباقية مضمونة لفريق مهما لُعب، يظهر لصاحب اليد زر لإنهاء اليد: تُكشف أوراقه، وتُحسب كل الأوراق الباقية وديكس دي دير لفريقه (وبلوط-ريبلوط لصاحبهما).',
     'يفوز أول فريق يصل إلى 1000 (أو 500 في اللعبة القصيرة). إن تجاوزها الفريقان في اليد نفسها فالأعلى يفوز، وعند التساوي تُلعب يد فاصلة: «البيل».',
   ],
 };

@@ -30,9 +30,10 @@ import {
   type Board,
   type Group,
 } from '../../src/shared/carca-tiles';
+import type { BotLevel } from '../../src/shared/protocol';
 import { planMove, type BotMove } from '../carca-bot';
 import { randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 const LOG = 12;
@@ -269,12 +270,12 @@ function placeFollower(ctx: GameCtx, s: CarcaState, by: string, f: number | null
 
 /** The best spot for the tile, without a follower (time-outs, and a bot whose plan went stale). */
 function autoPlace(ctx: GameCtx, s: CarcaState) {
-  const m = movePlan(s, s.turn, false);
+  const m = movePlan(s, s.turn, false, 'expert');
   if (m) placeTile(ctx, s, s.turn, m.x, m.y, m.r);
   if (s.step === 'follower') placeFollower(ctx, s, s.turn, null);
 }
 
-function movePlan(s: CarcaState, id: string, withFollower: boolean): BotMove | null {
+function movePlan(s: CarcaState, id: string, withFollower: boolean, level: BotLevel): BotMove | null {
   return planMove({
     board: s.board,
     followers: s.followers,
@@ -284,8 +285,11 @@ function movePlan(s: CarcaState, id: string, withFollower: boolean): BotMove | n
     tilesLeft: s.pile.length,
     supply: s.supply[id] ?? 0,
     farmers: s.settings.farmers,
-    level: s.settings.level,
+    // the room's «مستوى البوتات» (the old per-game level setting is ignored)
+    level,
     withFollower,
+    // the tiles still to draw, in no particular order (everyone can count them from the board)
+    remaining: s.pile,
   });
 }
 
@@ -389,7 +393,7 @@ export const carca: GameModule<CarcaState, CarcaSettings> = {
     const id = s.turn;
     let changed = false;
     if (s.botMove?.turnNo !== s.turnNo && s.step === 'place') {
-      const m = movePlan(s, id, true);
+      const m = movePlan(s, id, true, botLevel(ctx));
       if (!m) return;
       s.botMove = { turnNo: s.turnNo, ...m };
       // everyone watches where the bot is about to put its tile

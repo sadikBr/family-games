@@ -9,7 +9,8 @@
 import { FINISH, SAFE, seatColors, trackIndex } from '../../src/shared/ludo';
 import type { LudoColor, LudoSettings, LudoView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { ludoBotMove } from '../ai/misc-ludo';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 interface State {
@@ -232,22 +233,7 @@ export const ludo: GameModule<State, LudoSettings> = {
       ctx.bot(bot, `roll:${s.moves}`, s.dice ? randDelay(1500, 1900) : randDelay(1000, 1400), { type: 'roll' });
       return;
     }
-    const color = colorOf(s, bot);
-    const can = movableTokens(s.tokens[bot], s.dice!, s.settings.exitOnOne);
-    const score = (t: number) => {
-      const from = s.tokens[bot][t];
-      const to = from < 0 ? 0 : from + s.dice!;
-      const at = trackIndex(color, to);
-      let v = to / 10;
-      if (to === FINISH) v += 40;
-      if (from < 0) v += 25;
-      if (at !== null && !SAFE.includes(at)) {
-        for (const seat of s.seats) if (seat.id !== bot && s.tokens[seat.id].some((p) => trackIndex(seat.color, p) === at)) v += 50;
-      }
-      if (at !== null && SAFE.includes(at)) v += 6;
-      return v + Math.random();
-    };
-    const best = can.sort((x, y) => score(y) - score(x))[0];
+    const best = ludoBotMove(s, bot, s.dice!, s.settings.exitOnOne, botLevel(ctx));
     // the dice land after ~1.2 s on the phones: the piece moves once the number has been seen
     ctx.bot(bot, `move:${s.moves}`, randDelay(1500, 1900), { type: 'move', token: best });
   },

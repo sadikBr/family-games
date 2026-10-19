@@ -5,7 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic, play } from '@/lib/sfx';
-import { BOGGLE_SECONDS, boggleWordPoints, type BoggleFound, type BoggleLevel, type BoggleResult, type BoggleView } from '@/shared/games/boggle';
+import { BOGGLE_SECONDS, boggleWordPoints, type BoggleFound, type BoggleResult, type BoggleView } from '@/shared/games/boggle';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Card, Row } from '@/ui/bits';
@@ -299,7 +299,7 @@ export function BoggleGame({ room, view }: { room: RoomView; view: BoggleView })
   );
 }
 
-/** Lobby settings: rounds, grid size, time, the shared-words rule and the bots' level. */
+/** Lobby settings: rounds, grid size, time and the shared-words rule (the bots follow the room's «مستوى البوتات»). */
 export function BoggleSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.boggle;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'boggle', patch });
@@ -324,17 +324,6 @@ export function BoggleSettings({ room, editable }: { room: RoomView; editable: b
         onChange={(v) => change({ seconds: Number(v) })}
       />
       <Toggle label="الكلمة التي وجدها أكثر من لاعب لا تُحسب" value={s.unique} editable={editable} onChange={(unique) => change({ unique })} />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'medium', label: 'متوسط' },
-          { key: 'hard', label: 'صعب' },
-        ]}
-        value={s.level}
-        editable={editable}
-        onChange={(level: BoggleLevel) => change({ level })}
-      />
     </View>
   );
 }

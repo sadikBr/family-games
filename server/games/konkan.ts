@@ -12,7 +12,9 @@ import { cardName, isKonkanMeld, rankIndex, sortHand, type Card } from '../../sr
 import type { KonkanViewPlus } from '../../src/shared/games/konkan';
 import type { KonkanMeld, KonkanSettings, KonkanView } from '../../src/shared/protocol';
 import { Feed, freshDeck, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { konkanBotAction } from '../ai/cards-konkan';
+import { decideOnce } from '../ai/cards-memo';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 
 const DEAL: Record<number, number> = { 2: 10, 3: 8, 4: 7 };
@@ -54,6 +56,8 @@ interface State {
   /** who threw each card of the discard pile (null: turned up at the deal) */
   throwers: (string | null)[];
   lastMeld: KonkanViewPlus['lastMeld'];
+  /** public history of the hand for the bots: face-up cards taken and cards thrown */
+  log?: { by: string; card: Card; kind: 'take' | 'throw' }[];
 }
 
 function nextActive(s: State, from: string): string {
@@ -85,6 +89,7 @@ function startHand(ctx: GameCtx, s: State) {
   s.handSummary = null;
   s.throwers = [null];
   s.lastMeld = null;
+  s.log = [];
   s.feed.clear();
   s.feed.push(`اليد ${s.hand} — ${per} أوراق لكل لاعب`);
   ctx.say?.(`اليد ${s.hand} — البداية لـ${ctx.playerName(s.turn)}`);
@@ -259,6 +264,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
         const card = s.discard.pop()!;
         hand.push(card);
         s.throwers.pop();
+        (s.log ??= []).push({ by, card, kind: 'take' });
         s.step = 'play';
         s.takenDiscard = card.id;
         s.actions += 1;
@@ -312,6 +318,7 @@ export const konkan: GameModule<State, KonkanSettings> = {
         const [card] = hand.splice(idx, 1);
         s.discard.push(card);
         s.throwers.push(by);
+        (s.log ??= []).push({ by, card, kind: 'throw' });
         // the highlight of the last group lasts until the next player has finished their turn
         if (s.lastMeld && s.lastMeld.by !== by) s.lastMeld = null;
         s.takenDiscard = null;
@@ -336,6 +343,34 @@ export const konkan: GameModule<State, KonkanSettings> = {
     const hand = s.hands[bot];
     const key = `k:${s.hand}:${s.actions}`;
     const delay = randDelay(900, 1800);
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      // the strong bot (see server/ai/cards-konkan.ts)
+      const next: string[] = [];
+      for (let id = nextActive(s, bot); id !== bot && next.length < s.seats.length; id = nextActive(s, id)) next.push(id);
+      const action = decideOnce(s, `${bot}:${key}`, () =>
+        konkanBotAction(
+          {
+            me: bot,
+            step: s.step,
+            hand,
+            melds: s.melds,
+            discard: s.discard,
+            takenDiscard: s.takenDiscard,
+            next,
+            handCounts: Object.fromEntries(s.active.map((id) => [id, s.hands[id].length])),
+            stockLeft: s.stock.length,
+            reshuffles: s.reshuffles ?? 0,
+            maxReshuffles: MAX_RESHUFFLES,
+            log: s.log ?? [],
+          },
+          level,
+        ),
+      );
+      ctx.bot(bot, key, delay, action);
+      return;
+    }
+    // 'easy': the old greedy bot
     if (s.step === 'draw') {
       const top = s.discard[s.discard.length - 1];
       const wantsTop =

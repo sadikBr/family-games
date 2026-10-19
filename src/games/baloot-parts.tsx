@@ -18,6 +18,7 @@ import { Txt, num } from '@/ui/txt';
 import type { Helpers } from './helpers';
 import { BalootCard, CARD_H, suitColor } from './baloot-card';
 import { SuitIcon } from './baloot-suit';
+import { ClaimNote } from './cards/claim';
 import { CardMotion, TurnHalo, WinGlow, useLeaving, type Side } from './cards/motion';
 
 export const RAISE_LABEL: Record<BalootRaise, string> = { double: 'دبل', triple: 'ثري', four: 'فور', gahwa: 'قهوة' };
@@ -529,6 +530,7 @@ export function HandBreakdown({ v, h }: { v: BalootView; h: Helpers }) {
           {t}
         </Txt>
       ))}
+      {r.claimed ? <ClaimNote mine={mine ? r.claimed === mine : null} /> : null}
       <Row gap={8}>
         <View style={{ flex: 1.3 }} />
         {cols.map((s) => (

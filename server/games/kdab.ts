@@ -9,9 +9,23 @@
  * Empty your hand (and survive the last challenge) to win.
  */
 import { RANKS, sortHand, type Card } from '../../src/shared/cards';
-import type { KdabSettings, KdabView } from '../../src/shared/protocol';
+import type { BotLevel, KdabSettings, KdabView } from '../../src/shared/protocol';
+import {
+  kdabCall,
+  kdabTurn,
+  knowGone,
+  knowPlay,
+  knowReveal,
+  lieChance,
+  newHabits,
+  newKnow,
+  type KdabHabits,
+  type KdabKnow,
+  type KdabKnowledge,
+} from '../ai/cards-kdab';
+import { decideOnce } from '../ai/cards-memo';
 import { Feed, freshDeck, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 const FINISH_MS = 5000; // time others get to challenge a player's last cards
@@ -47,6 +61,15 @@ interface State {
   feed: Feed;
   moves: number;
   botPlans: Record<string, number>; // bot → play id already judged for a challenge
+  /** what each player could know from their own seat (for the bots — see server/ai/cards-kdab.ts) */
+  know?: Record<string, KdabKnow>;
+  /** public habits: how often each player shouted «كذّاب», how often their revealed plays were lies */
+  habits?: KdabHabits;
+  /** the play that started the current pile, and the cards claimed in it so far */
+  pileStart?: number;
+  pileClaimed?: number;
+  /** bots that decided to call the last play */
+  botCalls?: Record<string, boolean>;
 }
 
 const cur = (s: State) => s.order[s.turnIdx];
@@ -80,6 +103,7 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
   const play = s.last!;
   const truthful = play.cards.every((c) => c.rank === play.rank);
   const taker = truthful ? caller : play.by;
+  noteChallenge(s, caller, taker, play, truthful);
   s.hands[taker].push(...s.pile);
   s.reveal = { id: ++s.revealN, caller, player: play.by, cards: play.cards, truthful, taker };
   s.revealUntil = ctx.now + REVEAL_MS;
@@ -108,6 +132,84 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
   const si = s.order.indexOf(starter);
   if (s.hands[starter].length > 0) s.turnIdx = si;
   else nextTurn(s, si);
+}
+
+/* ---------------- what each seat can know (bots only read their own) ---------------- */
+
+function knowOf(s: State, id: string): KdabKnow {
+  s.know ??= {};
+  return (s.know[id] ??= newKnow());
+}
+
+/** A play: the player knows where their cards went; the others only hear the claim. */
+function notePlay(s: State, by: string, cards: Card[], rank: number) {
+  const h = (s.habits ??= newHabits());
+  const ids = cards.map((c) => c.id);
+  for (const o of s.order) {
+    if (o !== by) h.chances[o] = (h.chances[o] ?? 0) + 1; // a chance to shout «كذّاب» about this play
+    knowPlay(knowOf(s, o), o, by, s.playN + 1, ids, rank, s.hands[by].length);
+  }
+}
+
+/** «كذّاب!»: the last play is shown to all, and the whole pile goes to the taker. */
+function noteChallenge(s: State, caller: string, taker: string, play: Play, truthful: boolean) {
+  const h = (s.habits ??= newHabits());
+  h.calls[caller] = (h.calls[caller] ?? 0) + 1;
+  h.shown[play.by] = (h.shown[play.by] ?? 0) + 1;
+  if (!truthful) h.lies[play.by] = (h.lies[play.by] ?? 0) + 1;
+  const shown = play.cards.map((c) => c.id);
+  for (const o of s.order) knowReveal(knowOf(s, o), o, taker, play.id, shown);
+}
+
+/** Everybody passed: the pile is put aside for good. */
+function notePileGone(s: State) {
+  for (const o of s.order) knowGone(knowOf(s, o));
+}
+
+/** What a bot knows from its own seat. */
+function knowledge(s: State, me: string): KdabKnowledge {
+  return {
+    me,
+    order: s.order,
+    hand: s.hands[me] ?? [],
+    handCounts: Object.fromEntries(s.order.map((id) => [id, s.hands[id].length])),
+    maxPlay: s.settings.maxPlay,
+    rank: s.rank,
+    pileCount: s.pile.length,
+    pileClaimed: s.pileClaimed ?? 0,
+    last: s.last ? { id: s.last.id, by: s.last.by, count: s.last.cards.length, rank: s.last.rank } : null,
+    lastStarted: !!s.last && s.pileStart === s.last.id,
+    finishing: !!s.last && s.finishing?.id === s.last.by,
+    know: knowOf(s, me),
+    habits: s.habits ?? newHabits(),
+  };
+}
+
+/** The 'smart' / 'expert' bots: card counting and calibrated bluffs (server/ai/cards-kdab.ts). */
+function strongBots(ctx: GameCtx, s: State, bots: string[], level: BotLevel) {
+  if (s.last && !s.called) {
+    const play = s.last;
+    for (const b of bots) {
+      if (b === play.by || s.botPlans[b] === play.id || !s.hands[b]) continue;
+      s.botPlans[b] = play.id;
+      const k = knowledge(s, b);
+      s.botCalls ??= {};
+      s.botCalls[b] = false;
+      if (kdabCall(k, level)) {
+        // sure calls come quicker, like a person who counted
+        const sure = lieChance(k) >= 0.9 || k.finishing;
+        ctx.bot(b, `call:${play.id}`, sure ? randDelay(900, 1700) : randDelay(1300, 2600), { type: 'call', play: play.id });
+        s.botCalls[b] = true;
+      }
+    }
+  }
+  const me = cur(s);
+  if (!bots.includes(me) || s.hands[me].length === 0) return;
+  // about to shout «كذّاب» on the play just made: don't play over it (the call settles the turn)
+  if (s.last && !s.called && s.botCalls?.[me] && s.botPlans[me] === s.last.id) return;
+  const key = `t:${s.moves}`;
+  const action = decideOnce(s, `${me}:${key}`, () => kdabTurn(knowledge(s, me), level));
+  ctx.bot(me, key, randDelay(1500, 2500), action);
 }
 
 export const kdab: GameModule<State, KdabSettings> = {
@@ -168,6 +270,7 @@ export const kdab: GameModule<State, KdabSettings> = {
         // everybody passed: the pile goes away and the last player to play starts afresh
         settleFinishing(ctx, s);
         if ((s.phase as KdabView['phase']) === 'final') return;
+        notePileGone(s);
         s.feed.push('مرّر الجميع — تُبعَد الكومة', {});
         ctx.say?.(`مرّر الجميع — تُبعَد الكومة، والبداية لـ${ctx.playerName(s.last!.by)}`);
         s.pile = [];
@@ -193,6 +296,12 @@ export const kdab: GameModule<State, KdabSettings> = {
       settleFinishing(ctx, s);
       if ((s.phase as KdabView['phase']) === 'final') return;
       s.hands[by] = hand.filter((c) => !ids.includes(c.id));
+      if (s.rank === null) {
+        s.pileStart = s.playN + 1;
+        s.pileClaimed = 0;
+      }
+      s.pileClaimed = (s.pileClaimed ?? 0) + cards.length;
+      notePlay(s, by, cards, rank);
       s.pile.push(...cards);
       s.rank = rank;
       s.last = { id: ++s.playN, by, cards, rank };
@@ -224,6 +333,12 @@ export const kdab: GameModule<State, KdabSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
+    const level = botLevel(ctx);
+    if (level !== 'easy') {
+      strongBots(ctx, s, bots, level);
+      return;
+    }
+    // 'easy': the old bots
     // challenges: each bot judges each play once
     if (s.last && !s.called) {
       const play = s.last;

@@ -167,8 +167,8 @@ test('view: the code and the others colours stay hidden', () => {
   expect((codebreak.view(ctx, s, 'b') as CodebreakView).code).toBeNull();
 });
 
-test('bots: every hard guess fits the clues; easy bots slip now and then', () => {
-  const opts = { pegs: 4, colors: 6, repeats: true, level: 'hard' as const };
+test('bots: every smart guess fits the clues; easy bots slip now and then', () => {
+  const opts = { pegs: 4, colors: 6, repeats: true, level: 'smart' as const };
   const codes = allCodes(4, 6, true);
   let total = 0;
   for (let game = 0; game < 30; game++) {

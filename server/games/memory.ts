@@ -2,7 +2,8 @@
 import { MEMORY_FACES } from '../../src/shared/memory';
 import type { MemorySettings, MemoryView } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
-import { GameError, type GameModule } from '../types';
+import { memoryBotFlip } from '../ai/misc-memory';
+import { GameError, botLevel, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 /** two cards that don't match stay face up this long before turning back */
@@ -18,7 +19,7 @@ interface State {
   peekUntil: number | null;
   pairs: Record<string, number>;
   phase: MemoryView['phase'];
-  seen: Record<number, string>; // what bots have seen (with imperfect memory)
+  seen: Record<number, string>; // every card that has been face up (what the bots may remember)
   moves: number;
 }
 
@@ -99,20 +100,7 @@ export const memory: GameModule<State, MemorySettings> = {
   botPlan(ctx, s, bots) {
     const id = s.order[s.turnIdx];
     if (s.phase !== 'play' || s.peekUntil !== null || !bots.includes(id)) return;
-    const hidden = s.deck.map((_, i) => i).filter((i) => !s.owners[i] && !s.flipped.includes(i));
-    // imperfect memory: a bot remembers each seen card with 70% chance
-    const memo = Object.entries(s.seen).filter(([i]) => !s.owners[Number(i)] && Math.random() < 0.7);
-    let pick: number;
-    if (s.flipped.length === 1) {
-      const face = s.deck[s.flipped[0]];
-      const known = memo.find(([i, f]) => f === face && Number(i) !== s.flipped[0]);
-      pick = known ? Number(known[0]) : hidden[Math.floor(Math.random() * hidden.length)];
-    } else {
-      const byFace = new Map<string, number[]>();
-      for (const [i, f] of memo) byFace.set(f, [...(byFace.get(f) ?? []), Number(i)]);
-      const pair = [...byFace.values()].find((v) => v.length >= 2);
-      pick = pair ? pair[0] : hidden[Math.floor(Math.random() * hidden.length)];
-    }
+    const pick = memoryBotFlip(s, botLevel(ctx));
     ctx.bot(id, `m:${s.moves}`, randDelay(700, 1200), { type: 'flip', card: pick });
   },
 
