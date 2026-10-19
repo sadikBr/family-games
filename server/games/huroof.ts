@@ -15,6 +15,7 @@ import { QUESTIONS, type Question } from '../content-islamic';
 import { qdeck } from '../qdeck';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceAnswer, voiceCell, voiceLetter, voiceTeamWin } from '../voice-calls-party';
 
 /** how often an easy bot's answer is right (smart / expert bots know more: see ai/social-quiz) */
 const SKILL = 0.65;
@@ -104,7 +105,7 @@ function miss(ctx: GameCtx, s: State, team: HuroofTeam) {
   s.canAnswer = s.canAnswer.filter((t) => t !== team);
   s.attempt += 1;
   if (!s.canAnswer.length) {
-    ctx.say?.(`لم يأخذ أحد الحرف: الجواب «${s.question?.answer ?? ''}»`);
+    ctx.say?.(`لم يأخذ أحد الحرف: الجواب «${s.question?.answer ?? ''}»`, undefined, voiceAnd(PVOICE.wrong, voiceAnswer(s.question?.answer ?? '')));
     settle(s, null, null);
   } else openBuzzers(ctx, s);
 }
@@ -187,7 +188,8 @@ export const huroof: GameModule<State, HuroofSettings> = {
       s.wrong = null;
       openBuzzers(ctx, s);
       ctx.fx('reveal');
-      ctx.say?.(`حرف «${displayLetter(s.cells[a.cell].letter)}» باختيار ${ctx.playerName(by)}: من يضغط أولاً؟`, by);
+      // the letter and the question, read aloud for everyone
+      ctx.say?.(`حرف «${displayLetter(s.cells[a.cell].letter)}» باختيار ${ctx.playerName(by)}: من يضغط أولاً؟`, by, `${voiceLetter(s.cells[a.cell].letter)}. ${s.question.text}`);
       return;
     }
     if (a.type === 'buzz') {
@@ -209,14 +211,16 @@ export const huroof: GameModule<State, HuroofSettings> = {
       if (answerMatches(text, s.question.answer)) {
         s.feed.push(`جواب صحيح من ${ctx.playerName(by)} — الحرف ل${TEAM_NAME[team].slice(1)}`, { by });
         ctx.fx('correct', by);
-        ctx.say?.(`${ctx.playerName(by)}: «${s.question.answer}» صحيح — الحرف ل${TEAM_NAME[team].slice(1)}`, by);
+        const said = `${ctx.playerName(by)}: «${s.question.answer}» صحيح — الحرف ل${TEAM_NAME[team].slice(1)}`;
         settle(s, team, by);
         if (s.winner) ctx.fx('win');
+        // the cell, or the winning path (a full path, or every cell taken)
+        ctx.say?.(said, by, s.winner ? voiceAnd(s.winPath ? PVOICE.fullPath : null, voiceTeamWin(s.winner)) : voiceAnd(PVOICE.right, voiceCell(team)));
       } else {
         s.wrong = { by, text, id: ++s.lastN };
         s.feed.push(`${ctx.playerName(by)}: «${text}» — خطأ`, { by });
         ctx.fx('buzz', by);
-        ctx.say?.(`${ctx.playerName(by)}: «${text}» خطأ`, by);
+        ctx.say?.(`${ctx.playerName(by)}: «${text}» خطأ`, by, PVOICE.wrong);
         miss(ctx, s, team);
       }
     }
@@ -229,11 +233,11 @@ export const huroof: GameModule<State, HuroofSettings> = {
       const team = teamOf(s, s.buzzer)!;
       s.wrong = { by: s.buzzer, text: '…', id: ++s.lastN };
       s.feed.push(`انتهى وقت ${ctx.playerName(s.buzzer)}`, { by: s.buzzer });
-      ctx.say?.(`انتهى وقت ${ctx.playerName(s.buzzer)}`, s.buzzer);
+      ctx.say?.(`انتهى وقت ${ctx.playerName(s.buzzer)}`, s.buzzer, PVOICE.timeUp);
       miss(ctx, s, team);
     } else {
       s.feed.push('انتهى الوقت — لم يضغط أحد الجرس');
-      ctx.say?.(`انتهى الوقت: الجواب «${s.question?.answer ?? ''}»`);
+      ctx.say?.(`انتهى الوقت: الجواب «${s.question?.answer ?? ''}»`, undefined, voiceAnd(PVOICE.timeUp, voiceAnswer(s.question?.answer ?? '')));
       settle(s, null, null);
     }
     return true;

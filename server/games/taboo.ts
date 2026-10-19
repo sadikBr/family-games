@@ -2,6 +2,7 @@ import type { TabooCardResult, TabooSettings, TabooView } from '../../src/shared
 import { TABOO_CARDS, type TabooCard } from '../content';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceOnly, voiceTeamsFinal } from '../voice-calls-party';
 
 interface State {
   settings: TabooSettings;
@@ -82,7 +83,7 @@ function endTurn(ctx: GameCtx, s: State) {
   s.lastBuzz = null;
   ctx.fx('tick');
   const pts = s.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'buzz' ? -1 : 0), 0);
-  ctx.say?.(`انتهى الوقت: ${TEAM_NAME[activeTeam(s)]} ${pts} في هذا الدور`);
+  ctx.say?.(`انتهى الوقت: ${TEAM_NAME[activeTeam(s)]} ${pts} في هذا الدور`, undefined, PVOICE.timeUp);
 }
 
 function teamOf(s: State, id: string): 0 | 1 | -1 {
@@ -185,7 +186,7 @@ export const taboo: GameModule<State, TabooSettings> = {
         s.endsAt = ctx.now + s.settings.seconds * 1000;
         drawCard(ctx, s);
         ctx.fx('start');
-        ctx.say?.(`بدأ الوقت: الشرح من ${ctx.playerName(s.describerId)} ل${TEAM_NAME[activeTeam(s)].slice(1)}`, s.describerId);
+        ctx.say?.(`بدأ الوقت: الشرح من ${ctx.playerName(s.describerId)} ل${TEAM_NAME[activeTeam(s)].slice(1)}`, s.describerId, PVOICE.go);
         return;
       case 'ok':
       case 'skip': {
@@ -208,7 +209,7 @@ export const taboo: GameModule<State, TabooSettings> = {
         s.history.push({ word: card.word, result: 'buzz' });
         s.teamScores[activeTeam(s)] -= 1;
         ctx.fx('buzz', by);
-        ctx.say?.(`«قالها» من ${ctx.playerName(by)}: نقطة أقل`, by);
+        ctx.say?.(`«قالها» من ${ctx.playerName(by)}: نقطة أقل`, by, PVOICE.taboo);
         drawCard(ctx, s);
         s.lastBuzz = { at: ctx.now, card, by };
         return;
@@ -230,6 +231,7 @@ export const taboo: GameModule<State, TabooSettings> = {
         if (s.turn >= totalTurns(s)) {
           s.phase = 'final';
           ctx.fx('win');
+          voiceOnly(ctx, voiceTeamsFinal(s.teamScores));
           return;
         }
         s.phase = 'ready';

@@ -88,19 +88,21 @@ export default function RoomScreen() {
   }, [fx, me]);
 
   // «قراءة الأحداث»: read the game's big calls aloud (never one that was already there when the screen opened)
+  // (0 = nothing was there: the game's very first call, e.g. a quiz's first question, is read)
   const said = room?.said ?? null;
+  const hasRoom = !!room;
   const lastSaid = useRef<number | null>(null);
   useEffect(() => {
-    if (!said) return;
+    if (!hasRoom) return;
     if (lastSaid.current === null) {
-      lastSaid.current = said.id;
+      lastSaid.current = said?.id ?? 0;
       return;
     }
-    if (said.id !== lastSaid.current) {
+    if (said && said.id !== lastSaid.current) {
       lastSaid.current = said.id;
       if (said.voice) speak(said.voice);
     }
-  }, [said]);
+  }, [said, hasRoom]);
 
   // «دورك!»: chime + buzz when the game starts waiting for me
   const myTurn = !!room?.myTurn;

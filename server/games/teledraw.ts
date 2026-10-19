@@ -31,6 +31,7 @@ import { drawingSize, simplifyPoints } from '../../src/shared/teledraw-geom';
 import { dealPhrases } from '../teledraw-content';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceBestDraw, voiceBestGuess, voiceBook } from '../voice-calls-party';
 
 /** time to pick the starting phrase */
 export const WRITE_MS = 45000;
@@ -107,6 +108,15 @@ export const holderOf = (s: TeledrawState, book: number, step: number) => s.seat
 const stepMs = (s: TeledrawState, kind: Kind) => (kind === 'write' ? WRITE_MS : (kind === 'draw' ? s.settings.drawSeconds : s.settings.guessSeconds) * 1000);
 
 const KIND_NAME: Record<Kind, string> = { write: 'اختيار الجمل', draw: 'وقت الرسم', guess: 'وقت التخمين' };
+const KIND_VOICE: Record<Kind, string> = { write: PVOICE.write, draw: PVOICE.draw, guess: PVOICE.guess };
+
+/** A written page (the phrase or a guess) read aloud at the reveal; a drawing or an empty page is silent. */
+const pageVoice = (p: TeledrawPage | undefined) => (p && p.kind !== 'draw' && !p.empty && !p.left && p.text ? p.text : undefined);
+/** The reveal's line for book `b` («الكشف: دفتر بابا (2 من 5)»; the first book shown is always «1»). */
+function bookLine(s: TeledrawState, b: number) {
+  const first = s.books.findIndex((x) => x.pages.length);
+  return `الكشف: دفتر ${s.names[s.books[b].owner]} (${b === first ? 1 : b + 1} من ${s.books.length})`;
+}
 
 function startStep(ctx: GameCtx, s: TeledrawState) {
   for (let guard = 0; guard < s.steps; guard++) {
@@ -126,7 +136,7 @@ function startStep(ctx: GameCtx, s: TeledrawState) {
       s.total = stepMs(s, kind);
       s.endsAt = ctx.now + s.total;
       ctx.fx('start');
-      ctx.say?.(kind === 'write' ? 'بداية اللعبة: اختيار جملة لكل دفتر' : `الصفحة ${s.step + 1} من ${s.steps}: ${KIND_NAME[kind]}`);
+      ctx.say?.(kind === 'write' ? 'بداية اللعبة: اختيار جملة لكل دفتر' : `الصفحة ${s.step + 1} من ${s.steps}: ${KIND_NAME[kind]}`, undefined, KIND_VOICE[kind]);
       return;
     }
     // nobody can play this step (only possible after people left): skip it
@@ -171,11 +181,11 @@ function endStep(ctx: GameCtx, s: TeledrawState) {
   if (s.step >= s.steps) {
     s.next = 'reveal';
     s.total = REVEAL_INTRO_MS;
-    ctx.say?.('اكتملت الدفاتر: حان وقت الكشف!');
+    ctx.say?.('اكتملت الدفاتر: حان وقت الكشف!', undefined, voiceAnd(missing > 0 && PVOICE.timeUp, PVOICE.reveal));
   } else {
     s.next = kindOf(s.step) === 'draw' ? 'draw' : 'guess';
     s.total = PASS_MS;
-    ctx.say?.(missing ? 'انتهى الوقت: الصفحات الناقصة تمرّ فارغة' : 'اكتملت الصفحات: الدفاتر تنتقل');
+    ctx.say?.(missing ? 'انتهى الوقت: الصفحات الناقصة تمرّ فارغة' : 'اكتملت الصفحات: الدفاتر تنتقل', undefined, missing ? PVOICE.timeUp : undefined);
   }
   s.endsAt = ctx.now + s.total;
 }
@@ -207,7 +217,8 @@ function startReveal(ctx: GameCtx, s: TeledrawState) {
     return;
   }
   ctx.fx('reveal');
-  ctx.say?.(`الكشف: دفتر ${s.names[s.books[s.rb].owner]} (1 من ${s.books.length})`, s.books[s.rb].owner);
+  // the book's owner, then its first page (the phrase) read aloud
+  ctx.say?.(`الكشف: دفتر ${s.names[s.books[s.rb].owner]} (1 من ${s.books.length})`, s.books[s.rb].owner, voiceAnd(voiceBook(s.names[s.books[s.rb].owner] ?? ''), pageVoice(s.books[s.rb].pages[0])));
   revealTimer(ctx, s);
 }
 
@@ -216,6 +227,9 @@ function turnPage(ctx: GameCtx, s: TeledrawState) {
   if (s.rp < book.pages.length - 1) {
     s.rp += 1;
     ctx.fx('card');
+    // a written page is read aloud (the line under the turn bar stays the same)
+    const v = pageVoice(book.pages[s.rp]);
+    if (v) ctx.say?.(bookLine(s, s.rb), book.owner, v);
     revealTimer(ctx, s);
     return;
   }
@@ -228,7 +242,7 @@ function turnPage(ctx: GameCtx, s: TeledrawState) {
   s.rb = nb;
   s.rp = 0;
   ctx.fx('reveal');
-  ctx.say?.(`الكشف: دفتر ${s.names[s.books[nb].owner]} (${nb + 1} من ${s.books.length})`, s.books[nb].owner);
+  ctx.say?.(`الكشف: دفتر ${s.names[s.books[nb].owner]} (${nb + 1} من ${s.books.length})`, s.books[nb].owner, voiceAnd(voiceBook(s.names[s.books[nb].owner] ?? ''), pageVoice(s.books[nb].pages[0])));
   revealTimer(ctx, s);
 }
 
@@ -244,7 +258,7 @@ function endReveal(ctx: GameCtx, s: TeledrawState) {
     s.confirmed = [];
     s.votes = {};
     ctx.fx('start');
-    ctx.say?.('وقت التصويت: أفضل رسمة وأطرف تخمين');
+    ctx.say?.('وقت التصويت: أفضل رسمة وأطرف تخمين', undefined, PVOICE.vote);
     return;
   }
   finish(ctx, s, false);
@@ -299,7 +313,11 @@ function finish(ctx: GameCtx, s: TeledrawState, voted: boolean) {
     const parts: string[] = [];
     if (bestDraw.length === 1) parts.push(`أفضل رسمة ${li(s.names[bestDraw[0].page.by] ?? '؟')}`);
     if (bestGuess.length === 1) parts.push(`أطرف تخمين ${li(s.names[bestGuess[0].page.by] ?? '؟')}`);
-    ctx.say?.(parts.length ? parts.join('، و') : 'انتهى التصويت: تعادل في الأصوات');
+    const voice = voiceAnd(
+      bestDraw.length === 1 && voiceBestDraw(s.names[bestDraw[0].page.by] ?? ''),
+      bestGuess.length === 1 && voiceBestGuess(s.names[bestGuess[0].page.by] ?? ''),
+    );
+    ctx.say?.(parts.length ? parts.join('، و') : 'انتهى التصويت: تعادل في الأصوات', undefined, voice ?? PVOICE.voteTie);
   } else ctx.say?.('انتهت الدفاتر: شكراً على الضحك!');
 }
 

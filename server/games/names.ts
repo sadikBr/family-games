@@ -22,6 +22,7 @@ import { NAMES_DICT } from '../bot-content';
 import { knownWord } from '../dictionary';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
+import { PVOICE, voiceFinal, voiceLetter, voiceOnly, voiceRoundTo } from '../voice-calls-party';
 
 const SPIN_MS = 3200;
 const GRACE_MS = 3000; // after STOP: last chance for answers to arrive
@@ -61,7 +62,7 @@ function checkAllDone(ctx: GameCtx, s: State) {
   s.phase = 'stopping';
   s.endsAt = ctx.now + GRACE_MS;
   ctx.fx('buzz');
-  ctx.say?.('أنهى الجميع الكتابة');
+  ctx.say?.('أنهى الجميع الكتابة', undefined, PVOICE.pensUp);
 }
 
 function newRound(ctx: GameCtx, s: State) {
@@ -144,6 +145,7 @@ function score(ctx: GameCtx, s: State) {
   ctx.say?.(
     top.length === 1 ? `أكثر نقاط في الجولة: ${ctx.playerName(top[0])} (+${best})` : `تعادل في الجولة: ${best} نقطة لكلٍّ من ${top.map((id) => ctx.playerName(id)).join(' و')}`,
     top.length === 1 ? top[0] : undefined,
+    top.length === 1 ? voiceRoundTo(ctx.playerName(top[0])) : PVOICE.tie,
   );
 }
 
@@ -229,7 +231,7 @@ export const names: GameModule<State, NamesSettings> = {
         s.stoppedBy = by;
         s.endsAt = ctx.now + GRACE_MS;
         ctx.fx('buzz', by);
-        ctx.say?.(`«ستوب» من ${ctx.playerName(by)}! ارفعوا الأقلام`, by);
+        ctx.say?.(`«ستوب» من ${ctx.playerName(by)}! ارفعوا الأقلام`, by, PVOICE.stop);
         return;
       }
       case 'forceStop': {
@@ -237,6 +239,7 @@ export const names: GameModule<State, NamesSettings> = {
         s.phase = 'stopping';
         s.endsAt = ctx.now + GRACE_MS;
         ctx.fx('buzz');
+        voiceOnly(ctx, PVOICE.pensUp);
         return;
       }
       case 'reject': {
@@ -271,6 +274,7 @@ export const names: GameModule<State, NamesSettings> = {
           const top = s.participants.filter((id) => (s.scores[id] ?? 0) === best);
           if (top.length === 1) ctx.fx('win', top[0]);
           else ctx.fx('win');
+          voiceOnly(ctx, voiceFinal(ctx, s.participants, (id) => s.scores[id] ?? 0));
           return;
         }
         newRound(ctx, s);
@@ -285,14 +289,14 @@ export const names: GameModule<State, NamesSettings> = {
       s.phase = 'write';
       s.endsAt = ctx.now + s.settings.seconds * 1000;
       ctx.fx('reveal');
-      ctx.say?.(`الحرف «${displayLetter(s.letter)}»: اكتبوا!`);
+      ctx.say?.(`الحرف «${displayLetter(s.letter)}»: اكتبوا!`, undefined, voiceLetter(s.letter));
       return true;
     }
     if (s.phase === 'write') {
       s.phase = 'stopping';
       s.endsAt = ctx.now + GRACE_MS;
       ctx.fx('buzz');
-      ctx.say?.('انتهى الوقت: ارفعوا الأقلام');
+      ctx.say?.('انتهى الوقت: ارفعوا الأقلام', undefined, PVOICE.timeUp);
       return true;
     }
     if (s.phase === 'stopping') {

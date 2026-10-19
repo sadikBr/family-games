@@ -23,6 +23,7 @@ import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 import { quranData } from './surah';
 import { forFont } from './tajweed';
+import { PVOICE, voiceAnd, voiceAnswer, voiceOnly, voiceQuestion } from '../voice-calls-party';
 
 /** How long the answer stays on screen unless everyone presses «تابع» first. */
 export const PROPHETS_REVEAL_MS = 16_000;
@@ -134,6 +135,9 @@ function ask(ctx: GameCtx, s: ProphetsState) {
   s.ready = [];
   s.endsAt = ctx.now + s.seconds * 1000;
   ctx.fx('card');
+  // the chapter is read aloud (our own narration, never the Quran text), then its question
+  const ch = s.chapters[s.chapter];
+  if (ch) voiceOnly(ctx, `${ch.title}. ${ch.text} ${voiceQuestion(ch.question, ch.options)}`);
 }
 
 function reveal(ctx: GameCtx, s: ProphetsState) {
@@ -147,6 +151,7 @@ function reveal(ctx: GameCtx, s: ProphetsState) {
   s.ready = [];
   s.endsAt = ctx.now + PROPHETS_REVEAL_MS;
   ctx.fx(right ? 'correct' : 'buzz');
+  voiceOnly(ctx, voiceAnd(right ? PVOICE.right : PVOICE.wrong, voiceAnswer(ch.options[ch.correct]) + (ch.after ? `. ${ch.after}` : '')));
 }
 
 function finish(ctx: GameCtx, s: ProphetsState, completed: boolean) {
@@ -155,6 +160,7 @@ function finish(ctx: GameCtx, s: ProphetsState, completed: boolean) {
   s.completed = completed;
   // a team result: no target, so every phone celebrates (or hears the gentle ending)
   ctx.fx(completed ? 'win' : 'skip');
+  voiceOnly(ctx, completed ? PVOICE.storyDone : PVOICE.storyNot);
 }
 
 function next(ctx: GameCtx, s: ProphetsState) {

@@ -23,6 +23,7 @@ import { quizChoice, quizDelay, quizSkill, readChars, readMs } from '../ai/socia
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
+import { PVOICE, voiceAnd, voiceAnswer, voiceBuilt, voiceOnly, voiceQuestion } from '../voice-calls-party';
 
 export const MOSQUE_REVEAL_MS = 5500;
 /** A finished piece gets a little longer on screen to enjoy it. */
@@ -99,6 +100,8 @@ function ask(ctx: GameCtx, s: MosqueState) {
   s.startedAt = ctx.now;
   s.endsAt = ctx.now + s.seconds * 1000;
   ctx.fx('card');
+  const item = s.items[s.round - 1];
+  if (item) voiceOnly(ctx, voiceQuestion(item.text, item.options));
 }
 
 function reveal(ctx: GameCtx, s: MosqueState) {
@@ -122,6 +125,9 @@ function reveal(ctx: GameCtx, s: MosqueState) {
   s.endsAt = ctx.now + (s.justBuilt.length ? MOSQUE_BUILT_MS : MOSQUE_REVEAL_MS);
   // each phone plays its own right / wrong sound; a finished piece is celebrated by everyone
   if (s.justBuilt.length) ctx.fx('reveal');
+  // the answer, then the piece that was just finished («اكْتَمَلَ بِنَاءُ المحراب»)
+  const piece = s.justBuilt.length ? MOSQUE_PIECES[s.justBuilt[s.justBuilt.length - 1]]?.label : null;
+  voiceOnly(ctx, voiceAnd(voiceAnswer(item.options[item.correct]), piece && voiceBuilt(piece)));
 }
 
 function finish(ctx: GameCtx, s: MosqueState, completed: boolean) {
@@ -129,6 +135,7 @@ function finish(ctx: GameCtx, s: MosqueState, completed: boolean) {
   s.endsAt = null;
   s.completed = completed;
   ctx.fx(completed ? 'win' : 'skip');
+  voiceOnly(ctx, completed ? PVOICE.mosqueDone : PVOICE.mosqueNot);
 }
 
 function next(ctx: GameCtx, s: MosqueState) {

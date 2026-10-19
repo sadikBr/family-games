@@ -24,6 +24,7 @@ import { qdeck } from '../qdeck';
 import { STEP_SEQS, type StepSeq } from '../steps-content';
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
+import { ASK, voiceFinal, voiceOnly, voiceOrder } from '../voice-calls-party';
 
 /** how long the answer stays on screen before the next round (the host may go on sooner) */
 export const STEPS_REVEAL_MS = 14_000;
@@ -85,6 +86,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.timerTotal = s.settings.seconds * 1000;
   s.endsAt = ctx.now + s.timerTotal;
   ctx.fx('start');
+  voiceOnly(ctx, ASK.steps(s.seqs[s.round].title));
 }
 
 function reveal(ctx: GameCtx, s: State) {
@@ -101,12 +103,14 @@ function reveal(ctx: GameCtx, s: State) {
   s.phase = 'reveal';
   s.endsAt = ctx.now + STEPS_REVEAL_MS;
   ctx.fx('reveal');
+  voiceOnly(ctx, voiceOrder(s.seqs[s.round].steps));
 }
 
 function finish(ctx: GameCtx, s: State) {
   s.phase = 'final';
   s.endsAt = null;
   ctx.fx('win', soleWinner(s.scores));
+  if (s.participants.length) voiceOnly(ctx, voiceFinal(ctx, s.participants, (p) => s.scores[p] ?? 0));
 }
 
 function next(ctx: GameCtx, s: State) {

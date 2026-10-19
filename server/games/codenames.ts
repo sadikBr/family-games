@@ -7,6 +7,7 @@ import type { CodeColor, CodenamesSettings, CodenamesView } from '../../src/shar
 import { CODENAMES_WORDS } from '../content-extra';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceCodeClue, voiceTeamWin } from '../voice-calls-party';
 
 type Team = 'red' | 'blue';
 
@@ -83,7 +84,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
     s.winner = other(s.turn);
     s.reason = 'assassin';
     ctx.fx('boom', by);
-    ctx.say?.(`الكلمة السوداء من ${ctx.playerName(by)}! الفوز ل${TEAM_NAME[s.winner].slice(1)}`, by);
+    ctx.say?.(`الكلمة السوداء من ${ctx.playerName(by)}! الفوز ل${TEAM_NAME[s.winner].slice(1)}`, by, voiceAnd(PVOICE.assassin, voiceTeamWin(s.winner)));
     return;
   }
   for (const t of ['red', 'blue'] as Team[]) {
@@ -92,7 +93,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
       s.winner = t;
       s.reason = 'words';
       ctx.fx('win');
-      ctx.say?.(`فاز ${TEAM_NAME[t]}: كشف كل كلماته`);
+      ctx.say?.(`فاز ${TEAM_NAME[t]}: كشف كل كلماته`, undefined, voiceTeamWin(t));
       return;
     }
   }
@@ -190,7 +191,8 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       s.phase = 'guess';
       s.log.push({ team: s.turn, clue: word, n, picks: [] });
       ctx.fx('reveal');
-      ctx.say?.(`تلميح ${TEAM_NAME[s.turn]}: «${word}» ${n === 0 ? '∞' : n}`, by);
+      // the clue as every screen shows it (the spymaster gives it publicly)
+      ctx.say?.(`تلميح ${TEAM_NAME[s.turn]}: «${word}» ${n === 0 ? '∞' : n}`, by, voiceCodeClue(word, n));
       return;
     }
     if (s.phase !== 'guess' || myTeam !== s.turn || s.spymasters[myTeam] === by) return;

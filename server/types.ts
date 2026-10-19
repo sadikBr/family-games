@@ -19,7 +19,8 @@ export interface GameCtx {
    * `by` = who made the move (their avatar is shown). Broadcast to all: never put hidden information
    * in it (which card was stolen, someone's role…). Optional so tests' fake contexts can skip it.
    * `voice` = a short call read aloud by phones that turned on «قراءة الأحداث» (see Said.voice): only
-   * for the moments worth hearing (a روندا, a bid, a دقة…), never for every card.
+   * for the moments worth hearing (a روندا, a bid, a دقة…), never for every card. An empty `text` is a
+   * call that is only heard (no line under the turn bar): see voiceOnly in voice-calls-party.ts.
    */
   say?(text: string, by?: string, voice?: string): void;
   /**

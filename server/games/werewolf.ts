@@ -16,6 +16,7 @@ import { tieHash } from '../ai/social-imposter';
 import { emptyPublic, protectScores, threatScores, top, villageScores, type WolfPublic } from '../ai/social-werewolf';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceDead, voiceHunter, voiceMayor, voiceOnly, voiceOut } from '../voice-calls-party';
 
 interface State {
   settings: WerewolfSettings;
@@ -59,6 +60,30 @@ interface State {
   /** what everyone has seen (deaths, who was voted out, the bots' accusations): what smart bots reason from */
   pub?: WolfPublic;
 }
+
+/** The winner side, read aloud (the roles come out on the screens at the same moment). */
+const WIN_VOICE: Record<WolfWinner, string> = {
+  wolves: PVOICE.winWolves,
+  village: PVOICE.winVillage,
+  tanner: PVOICE.winTanner,
+  whitewolf: PVOICE.winWhite,
+};
+
+/**
+ * The narrator's calls when a night step begins. Only the steps everyone can predict from the public role
+ * list (a role's step comes every night, even once its holder is dead); the big bad wolf's step is left
+ * silent, since it stops once a wolf has died (that would tell whether a dead player was a wolf).
+ */
+const STEP_VOICE: Partial<Record<WolfStep, string>> = {
+  sleep: PVOICE.night,
+  wolves: PVOICE.wolves,
+  whitewolf: PVOICE.whitewolf,
+  guard: PVOICE.guard,
+  doctor: PVOICE.doctor,
+  seer: PVOICE.seer,
+  witch: PVOICE.witch,
+  vote: PVOICE.vote,
+};
 
 const WIN_TEXT: Record<WolfWinner, string> = {
   wolves: 'فازت الذئاب!',
@@ -123,7 +148,8 @@ function setSteps(s: State, steps: WolfStep[]) {
   s.step = steps[0];
 }
 
-function startNight(ctx: GameCtx, s: State) {
+/** `before`: the call made just before in the same action (a vote result…), kept in front of «اللَّيْلُ». */
+function startNight(ctx: GameCtx, s: State, before?: string) {
   s.phase = 'night';
   s.day += 1;
   setSteps(s, nightSteps(s));
@@ -142,6 +168,7 @@ function startNight(ctx: GameCtx, s: State) {
   s.accusations = [];
   s.accShown = 0;
   ctx.fx('tick');
+  voiceOnly(ctx, voiceAnd(before, STEP_VOICE.sleep));
 }
 
 function checkWinner(s: State): WolfWinner | null {
@@ -156,18 +183,20 @@ function checkWinner(s: State): WolfWinner | null {
   return null;
 }
 
-function finishIfWon(ctx: GameCtx, s: State): boolean {
+/** `before`: what the voice said just before in this action (a death, a vote), said again before the winner. */
+function finishIfWon(ctx: GameCtx, s: State, before?: string): boolean {
   const w = checkWinner(s);
   if (!w) return false;
-  endGame(ctx, s, w);
+  endGame(ctx, s, w, before);
   return true;
 }
 
-function endGame(ctx: GameCtx, s: State, w: WolfWinner | null) {
+function endGame(ctx: GameCtx, s: State, w: WolfWinner | null, before?: string) {
   s.winner = w;
   s.phase = 'over';
   if (w) s.log.push(WIN_TEXT[w]);
   ctx.fx('win');
+  if (w) voiceOnly(ctx, voiceAnd(before, WIN_VOICE[w]));
 }
 
 const name = (ctx: GameCtx, id: string | null) => (id ? ctx.playerName(id) : 'لا أحد');
@@ -211,16 +240,22 @@ function resolveNight(ctx: GameCtx, s: State) {
   s.hunterTarget = null;
   s.auto = {};
   ctx.fx(deaths.length ? 'death' : 'reveal');
-  if (!hunterDied) finishIfWon(ctx, s);
+  // «الصَّبَاحُ، الضَّحِيَّةُ …» (who died is public now; who was attacked and saved stays secret)
+  const morning = voiceAnd(PVOICE.morning, deaths.length ? voiceDead(deaths.map((d) => ctx.playerName(d))) : PVOICE.noDeath);
+  voiceOnly(ctx, morning);
+  if (!hunterDied) finishIfWon(ctx, s, morning);
 }
 
-function advance(ctx: GameCtx, s: State) {
+/** `before`: the call made just before in the same action (the hunter's shot, a new mayor), kept in front. */
+function advance(ctx: GameCtx, s: State, before?: string) {
   if (s.stepIdx + 1 < s.steps.length) {
     s.stepIdx += 1;
     s.step = s.steps[s.stepIdx];
+    const v = STEP_VOICE[s.step];
+    if (v) voiceOnly(ctx, voiceAnd(before, v));
     return;
   }
-  if (s.phase === 'day' && !finishIfWon(ctx, s)) startNight(ctx, s);
+  if (s.phase === 'day' && !finishIfWon(ctx, s, before)) startNight(ctx, s, before);
 }
 
 /** Insert follow-up steps (hunter / mayor) right after the current one. */
@@ -232,7 +267,8 @@ function eliminate(ctx: GameCtx, s: State, target: string | null) {
   s.lastEliminated = target;
   if (!target) {
     s.log.push(`النهار ${s.day}: لم يُقصَ أحد`);
-    if (!finishIfWon(ctx, s)) startNight(ctx, s);
+    voiceOnly(ctx, PVOICE.noOut);
+    if (!finishIfWon(ctx, s, PVOICE.noOut)) startNight(ctx, s, PVOICE.noOut);
     return;
   }
   const wasMayor = s.mayorId === target;
@@ -240,35 +276,41 @@ function eliminate(ctx: GameCtx, s: State, target: string | null) {
   (s.pub ??= emptyPublic()).out[target] = s.day;
   s.log.push(`النهار ${s.day}: القرية أقصت ${name(ctx, target)}`);
   ctx.fx('death', target);
-  if (s.roles[target] === 'tanner') return endGame(ctx, s, 'tanner');
+  // the vote result (never the role: that only shows at the end)
+  const out = voiceOut(ctx.playerName(target));
+  voiceOnly(ctx, out);
+  if (s.roles[target] === 'tanner') return endGame(ctx, s, 'tanner', out);
   const follow: WolfStep[] = [];
   if (s.roles[target] === 'hunter') {
     follow.push('hunter');
     s.hunterAfter = 'day';
   }
   if (wasMayor) follow.push('mayor');
-  if (!follow.includes('hunter') && finishIfWon(ctx, s)) return;
-  if (!follow.length) return void startNight(ctx, s);
+  if (!follow.includes('hunter') && finishIfWon(ctx, s, out)) return;
+  if (!follow.length) return void startNight(ctx, s, out);
   s.auto = {};
   s.mayorPick = null;
   insertNext(s, follow);
-  advance(ctx, s);
+  advance(ctx, s, out);
 }
 
 function hunterShoot(ctx: GameCtx, s: State) {
   const t = s.hunterTarget;
+  let shot: string | undefined;
   if (t && s.alive[t]) {
     const wasMayor = s.mayorId === t;
     kill(s, t);
     (s.pub ??= emptyPublic()).out[t] = s.day;
     s.log.push(`الصيّاد أخذ معه ${name(ctx, t)}`);
     ctx.fx('death', t);
+    shot = voiceHunter(ctx.playerName(t));
+    voiceOnly(ctx, shot);
     if (wasMayor && !s.steps.slice(s.stepIdx + 1).includes('mayor')) insertNext(s, ['mayor']);
   }
   s.hunterAfter = null;
   s.hunterTarget = null;
-  if (finishIfWon(ctx, s)) return;
-  advance(ctx, s);
+  if (finishIfWon(ctx, s, shot)) return;
+  advance(ctx, s, shot);
 }
 
 function setMayor(ctx: GameCtx, s: State) {
@@ -279,7 +321,9 @@ function setMayor(ctx: GameCtx, s: State) {
   if (p) s.log.push(prev ? `${name(ctx, prev)} سلّم العمادة إلى ${name(ctx, p)}` : `انتخبت القرية ${name(ctx, p)} عمدة`);
   else if (prev) s.log.push('لم يعد للقرية عمدة');
   ctx.fx('reveal');
-  advance(ctx, s);
+  const mayor = p ? voiceMayor(ctx.playerName(p)) : undefined;
+  voiceOnly(ctx, mayor);
+  advance(ctx, s, mayor);
 }
 
 function resetGame(ctx: GameCtx, s: State) {

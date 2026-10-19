@@ -3,6 +3,7 @@ import { SPY_MINUTES, type SpyHow, type SpyResult, type SpySettings, type SpyVie
 import { SPY_LOCATIONS, type SpyLocation } from '../spy-content';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceFinal, voiceOnly } from '../voice-calls-party';
 
 /** Seconds the spy has to name the location after revealing themselves. */
 export const SPY_GUESS_MS = 30_000;
@@ -135,7 +136,13 @@ function endRound(ctx: GameCtx, s: State, winners: 'spies' | 'civilians', how: S
   s.failed = null;
   ctx.fx('reveal');
   const spies = s.spies.map((id) => ctx.playerName(id)).join(' و');
-  ctx.say?.(winners === 'spies' ? `الفوز للجاسوس: ${spies}، والمكان: ${s.location.name}` : `الفوز للمواطنين! الجاسوس: ${spies}`);
+  // how it ended, then the winner side (never the location: the screens show it)
+  const end: Partial<Record<SpyHow, string>> = { wrongAccuse: PVOICE.notSpy, tie: PVOICE.voteTie, guessRight: PVOICE.guessRight, guessWrong: PVOICE.guessWrong };
+  ctx.say?.(
+    winners === 'spies' ? `الفوز للجاسوس: ${spies}، والمكان: ${s.location.name}` : `الفوز للمواطنين! الجاسوس: ${spies}`,
+    undefined,
+    how === 'spyLeft' ? undefined : voiceAnd(end[how], winners === 'spies' ? PVOICE.winSpy : PVOICE.winCivilians),
+  );
 }
 
 function finishGame(ctx: GameCtx, s: State) {
@@ -149,6 +156,7 @@ function finishGame(ctx: GameCtx, s: State) {
   const top = ids.filter((id) => (s.scores[id] ?? 0) === best);
   if (top.length === 1) ctx.fx('win', top[0]);
   else ctx.fx('win');
+  if (ids.length) voiceOnly(ctx, voiceFinal(ctx, ids, (id) => s.scores[id] ?? 0));
 }
 
 /** Resolve the open accusation once its outcome is certain (or `force`: with the votes in so far). */
@@ -171,7 +179,7 @@ function checkAccusation(ctx: GameCtx, s: State, force = false) {
     s.failed = { by: acc.by, target: acc.target, yes, no, until: ctx.now + NOTICE_MS };
     s.accusation = null;
     ctx.fx('skip');
-    ctx.say?.(`فشل اتّهام ${ctx.playerName(acc.target)} (نعم ${yes} · لا ${no}) — يستمر اللعب`);
+    ctx.say?.(`فشل اتّهام ${ctx.playerName(acc.target)} (نعم ${yes} · لا ${no}) — يستمر اللعب`, undefined, PVOICE.accuseFailed);
     resume(ctx, s);
   }
 }
@@ -282,7 +290,7 @@ export const spy: GameModule<State, SpySettings> = {
         pause(ctx, s);
         s.phase = 'accuse';
         ctx.fx('buzz', target);
-        ctx.say?.(`اتّهام من ${ctx.playerName(by)} لـ${ctx.playerName(target)}: صوّتوا!`, by);
+        ctx.say?.(`اتّهام من ${ctx.playerName(by)} لـ${ctx.playerName(target)}: صوّتوا!`, by, PVOICE.accuse);
         checkAccusation(ctx, s);
         return;
       }
@@ -307,7 +315,7 @@ export const spy: GameModule<State, SpySettings> = {
         s.guessEndsAt = ctx.now + SPY_GUESS_MS;
         s.failed = null;
         ctx.fx('reveal', by);
-        ctx.say?.(`انكشاف ${ctx.playerName(by)}: الجاسوس! فرصة لتخمين المكان`, by);
+        ctx.say?.(`انكشاف ${ctx.playerName(by)}: الجاسوس! فرصة لتخمين المكان`, by, PVOICE.spyCaught);
         return;
       case 'spyGuess':
         if (s.phase !== 'spyGuess' || by !== s.guesserId || !isStr(a.location) || !s.locations.includes(a.location)) return;
@@ -339,7 +347,7 @@ export const spy: GameModule<State, SpySettings> = {
       s.endsAt = null;
       s.finalVotes = new Map();
       ctx.fx('tick');
-      ctx.say?.('انتهى الوقت: صوّتوا على من تشكّون فيه');
+      ctx.say?.('انتهى الوقت: صوّتوا على من تشكّون فيه', undefined, voiceAnd(PVOICE.timeUp, PVOICE.vote));
       return true;
     }
     if (s.failed && ctx.now >= s.failed.until) {

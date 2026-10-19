@@ -1627,6 +1627,7 @@ export type Pace = 'slow' | 'normal' | 'fast';
 /** A move announced by the game: «روبو لعب ٧ أوروص». */
 export interface Said {
   id: number;
+  /** empty for a call that is only heard (`voice`): the turn bar shows no line for it */
   text: string;
   by?: string;
   /**

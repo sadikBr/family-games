@@ -7,6 +7,7 @@ import type { WaveSettings, WaveView } from '../../src/shared/protocol';
 import { WAVE_SPECTRUMS } from '../content-games2';
 import { GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { PVOICE, voiceAnd, voiceClosest, voiceClue, voiceFinal, voiceOnly } from '../voice-calls-party';
 
 const GUESS_MS = 90_000;
 export const CLUE_MS = 60_000;
@@ -83,6 +84,7 @@ function reveal(ctx: GameCtx, s: State) {
   ctx.say?.(
     best && best.points > 0 ? `الهدف كان عند ${s.target}: أقرب تخمين من ${ctx.playerName(best.id)} (+${best.points})` : `الهدف كان عند ${s.target}: لم يقترب أحد`,
     best && best.points > 0 ? best.id : undefined,
+    best && best.points > 0 ? voiceAnd(best.points >= 4 && PVOICE.bullseye, voiceClosest(ctx.playerName(best.id))) : PVOICE.nobodyClose,
   );
 }
 
@@ -136,7 +138,7 @@ export const wave: GameModule<State, WaveSettings> = {
       s.clue = clue;
       s.phase = 'guess';
       s.endsAt = ctx.now + GUESS_MS;
-      ctx.say?.(`تلميح ${ctx.playerName(by)}: «${clue}» — حرّكوا المؤشر`, by);
+      ctx.say?.(`تلميح ${ctx.playerName(by)}: «${clue}» — حرّكوا المؤشر`, by, voiceClue(clue));
       return;
     }
     if (a.type === 'guess') {
@@ -164,6 +166,7 @@ export const wave: GameModule<State, WaveSettings> = {
         const w = topScorer(s);
         if (w) ctx.fx('win', w);
         else ctx.fx('win');
+        voiceOnly(ctx, voiceFinal(ctx, s.players, (id) => s.scores[id] ?? 0));
       } else newRound(ctx, s);
     }
     return true;

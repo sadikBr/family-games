@@ -3,6 +3,7 @@ import { potatoAnswerPool } from '../bot-content';
 import { POTATO_PROMPTS } from '../content';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, randInt } from '../util';
+import { PVOICE, voiceAnd, voiceBurnt, voiceFinal, voiceOnly } from '../voice-calls-party';
 
 const MIN_HOLD_MS = 700; // you must at least *say* a word before throwing
 
@@ -136,7 +137,7 @@ export const potato: GameModule<State, PotatoSettings> = {
         s.receivedAt = ctx.now;
         s.explodeAt = ctx.now + randInt(min * 1000, max * 1000);
         ctx.fx('start');
-        ctx.say?.(`اشتعلت البطاطا! الموضوع: ${s.category}`, s.holderId);
+        ctx.say?.(`اشتعلت البطاطا! الموضوع: ${s.category}`, s.holderId, PVOICE.potatoOn);
         return;
       }
       case 'throw': {
@@ -169,6 +170,8 @@ export const potato: GameModule<State, PotatoSettings> = {
           const top = s.participants.filter((id) => (s.burns[id] ?? 0) === least);
           if (top.length === 1) ctx.fx('win', top[0]);
           else ctx.fx('win');
+          // fewest burns wins
+          voiceOnly(ctx, voiceFinal(ctx, s.participants, (id) => -(s.burns[id] ?? 0)));
           return;
         }
         newRound(ctx, s, s.loserId ?? pick(s.participants));
@@ -185,7 +188,7 @@ export const potato: GameModule<State, PotatoSettings> = {
       s.burns[s.holderId] = (s.burns[s.holderId] ?? 0) + 1;
       s.explodeAt = null;
       ctx.fx('boom', s.holderId);
-      ctx.say?.(`بوم! انفجرت البطاطا في يد ${ctx.playerName(s.holderId)}`, s.holderId);
+      ctx.say?.(`بوم! انفجرت البطاطا في يد ${ctx.playerName(s.holderId)}`, s.holderId, voiceAnd(PVOICE.boom, voiceBurnt(ctx.playerName(s.holderId))));
       return true;
     }
     // the holder's phone went to sleep: toss the potato to someone else

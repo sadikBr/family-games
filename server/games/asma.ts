@@ -13,6 +13,7 @@ import { qdeck } from '../qdeck';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, shuffle } from '../util';
 import { makeMcq, mcqOptions, soleWinner, type McqItem, type McqState } from './mcq';
+import { ASK, voiceAnswer, voiceAnd, voiceQuestion, voiceWinner, PVOICE } from '../voice-calls-party';
 
 /** memory: a Name and a meaning that don't match stay face up this long */
 export const PEEK_MS = 2500;
@@ -50,6 +51,18 @@ const matchEngine = makeMcq<AsmaSettings>(
       .deal(rounds)
       .map((idx, i) => asmaItem(idx, settings.dir === 'mix' ? (i % 2 ? 'meaning' : 'name') : settings.dir)),
   () => BOT_SKILL,
+  {
+    ask: (item) => {
+      const it = item as AsmaItem;
+      const nm = ASMA_NAMES[it.idx];
+      return it.shows === 'name' ? voiceQuestion(ASK.meaning(nm.name), it.options) : voiceQuestion(ASK.name(nm.meaning), it.options);
+    },
+    answer: (item) => {
+      const it = item as AsmaItem;
+      const nm = ASMA_NAMES[it.idx];
+      return voiceAnswer(it.shows === 'name' ? nm.meaning : nm.name);
+    },
+  },
 );
 
 interface MemoryState {
@@ -115,7 +128,7 @@ function memoryEnd(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>) {
   s.g.peekUntil = null;
   ctx.fx('win', soleWinner(s.g.pairs));
   const w = soleWinner(s.g.pairs);
-  ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)}` : 'انتهت اللعبة بالتعادل');
+  ctx.say?.(w ? `انتهت اللعبة: الفوز لـ${ctx.playerName(w)}` : 'انتهت اللعبة بالتعادل', undefined, w ? voiceWinner(ctx.playerName(w)) : PVOICE.tie);
 }
 
 function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: string, card: unknown) {
@@ -137,7 +150,8 @@ function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: str
     // the pair stays in `flipped` (shown as just found) until the next flip
     g.last = { idx: g.deck[x].idx, by };
     ctx.fx('correct', by);
-    ctx.say?.(`زوج لـ${ctx.playerName(by)}: «${ASMA_NAMES[g.deck[x].idx].name}» ومعناه، ودورٌ آخر`, by);
+    // the Name of the pair, read aloud (it is face up on every screen)
+    ctx.say?.(`زوج لـ${ctx.playerName(by)}: «${ASMA_NAMES[g.deck[x].idx].name}» ومعناه، ودورٌ آخر`, by, voiceAnd(PVOICE.pair, ASMA_NAMES[g.deck[x].idx].name));
     if (g.owners.every(Boolean)) memoryEnd(ctx, s);
   } else {
     g.peekUntil = ctx.now + PEEK_MS;

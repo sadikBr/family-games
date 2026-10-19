@@ -6,6 +6,7 @@ import type { GameId, McqResult, McqView } from '../../src/shared/protocol';
 import { easyDelay, quizAnswer } from '../ai/social-quiz';
 import { botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
+import { voiceAnswer, voiceFinal, voiceOnly, voiceQuestion } from '../voice-calls-party';
 
 export interface McqItem {
   text: string;
@@ -16,6 +17,17 @@ export interface McqItem {
 }
 
 const REVEAL_MS = 7000;
+
+/**
+ * «قراءة الأحداث بصوت»: what the voice reads at the start of a round and at the reveal. By default the
+ * question with its options (when they are short), then «الجَوَابُ: …».
+ */
+export interface McqVoice {
+  ask?(item: McqItem): string;
+  answer?(item: McqItem): string;
+}
+const askVoice = (v: McqVoice | undefined, item: McqItem) => v?.ask?.(item) ?? voiceQuestion(item.text, item.options);
+const answerVoice = (v: McqVoice | undefined, item: McqItem) => v?.answer?.(item) ?? voiceAnswer(item.options[item.correct]);
 const BOT_SKILL = 0.7;
 
 export interface McqState<S> {
@@ -32,7 +44,7 @@ export interface McqState<S> {
   scores: Record<string, number>;
 }
 
-function reveal(ctx: GameCtx, s: McqState<unknown>) {
+function reveal(ctx: GameCtx, s: McqState<unknown>, voice?: McqVoice) {
   const item = s.items[s.round - 1];
   const total = s.seconds * 1000;
   s.results = s.participants.map((id) => {
@@ -45,6 +57,7 @@ function reveal(ctx: GameCtx, s: McqState<unknown>) {
   });
   s.phase = 'reveal';
   s.endsAt = ctx.now + REVEAL_MS;
+  voiceOnly(ctx, answerVoice(voice, item));
   // no shared sound here: each phone plays «correct» or «wrong» for its own player (see quiz.tsx)
 }
 
@@ -69,7 +82,7 @@ export function placesByScore(ids: string[], scores: Record<string, number>): st
 /** When an easy bot answers: mostly in the second half of the timer, sometimes earlier. */
 export const botAnswerDelay = easyDelay;
 
-function ask(ctx: GameCtx, s: McqState<unknown>) {
+function ask(ctx: GameCtx, s: McqState<unknown>, voice?: McqVoice) {
   s.round += 1;
   s.answers = {};
   s.results = null;
@@ -77,6 +90,8 @@ function ask(ctx: GameCtx, s: McqState<unknown>) {
   s.startedAt = ctx.now;
   s.endsAt = ctx.now + s.seconds * 1000;
   ctx.fx('reveal');
+  const item = s.items[s.round - 1];
+  if (item) voiceOnly(ctx, askVoice(voice, item));
 }
 
 export function makeMcq<S extends { rounds: number; seconds: number }>(
@@ -85,6 +100,7 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
   build: (ctx: GameCtx, settings: S, rounds: number) => McqItem[],
   /** How often easy bots pick the right answer (default 70%); smart and expert bots know more (see ai/social-quiz). */
   botSkill: (settings: S) => number = () => BOT_SKILL,
+  voice?: McqVoice,
 ): GameModule<McqState<S>, S> {
   return {
     id,
@@ -105,7 +121,7 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
         scores: Object.fromEntries(participants.map((p) => [p, 0])),
       };
       ctx.fx('start');
-      ask(ctx, s);
+      ask(ctx, s, voice);
       return s;
     },
 
@@ -115,18 +131,19 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
       if (!isNum(a.choice) || a.choice < 0 || a.choice >= item.options.length) return;
       s.answers[by] = { choice: a.choice, at: ctx.now };
       const waiting = s.participants.filter((p) => !s.answers[p] && (ctx.isConnected(p) || ctx.isBot(p)));
-      if (!waiting.length) reveal(ctx, s);
+      if (!waiting.length) reveal(ctx, s, voice);
     },
 
     tick(ctx, s) {
       if (s.endsAt === null || ctx.now < s.endsAt) return false;
-      if (s.phase === 'ask') reveal(ctx, s);
+      if (s.phase === 'ask') reveal(ctx, s, voice);
       else if (s.phase === 'reveal') {
         if (s.round >= s.items.length) {
           s.phase = 'final';
           s.endsAt = null;
           ctx.fx('win', soleWinner(s.scores));
-        } else ask(ctx, s);
+          voiceOnly(ctx, voiceFinal(ctx, s.participants, (p) => s.scores[p] ?? 0));
+        } else ask(ctx, s, voice);
       }
       return true;
     },
@@ -170,7 +187,7 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
     onLeave(ctx, s, who) {
       if (s.phase !== 'ask') return;
       const waiting = s.participants.filter((p) => p !== who && !s.answers[p] && (ctx.isConnected(p) || ctx.isBot(p)));
-      if (!waiting.length) reveal(ctx, s);
+      if (!waiting.length) reveal(ctx, s, voice);
     },
   };
 }

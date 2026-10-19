@@ -11,7 +11,8 @@ import { answerExact, answerMatches, norm } from '../../src/shared/arabic';
 import { WHO, WHO_ALIASES, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
 import { qdeck } from '../qdeck';
 import { readMs } from '../ai/social-quiz';
-import { botLevel, type GameModule } from '../types';
+import { botLevel, type GameCtx, type GameModule } from '../types';
+import { voiceAnswer, voiceFinal, voiceOnly } from '../voice-calls-party';
 import { isNum, isStr, randInt, shuffle } from '../util';
 import { soleWinner } from './mcq';
 
@@ -83,7 +84,8 @@ const done = (s: State, id: string) => !!s.guesses[id] || (s.settings.typed === 
 const allDone = (ctx: { isConnected(id: string): boolean; isBot(id: string): boolean }, s: State) =>
   s.participants.every((p) => done(s, p) || !(ctx.isConnected(p) || ctx.isBot(p)));
 
-function newRound(now: number, s: State) {
+function newRound(ctx: GameCtx, s: State) {
+  const now = ctx.now;
   s.round += 1;
   const e = s.entries[s.round - 1];
   const same = shuffle(WHO.filter((w) => w.cat === e.cat && w.name !== e.name)).slice(0, OPTIONS - 1);
@@ -97,9 +99,11 @@ function newRound(now: number, s: State) {
   s.botSure = {};
   s.nextClueAt = now + CLUE_MS;
   s.endsAt = null;
+  voiceOnly(ctx, e.clues[0]); // the first clue, read aloud
 }
 
-function finishRound(now: number, s: State) {
+function finishRound(ctx: GameCtx, s: State) {
+  const now = ctx.now;
   const ans = answerIdx(s);
   s.results = s.participants.map((id) => {
     const g = s.guesses[id];
@@ -113,6 +117,7 @@ function finishRound(now: number, s: State) {
   s.shown = s.entries[s.round - 1].clues.length;
   s.nextClueAt = null;
   s.endsAt = now + REVEAL_MS;
+  voiceOnly(ctx, voiceAnswer(s.entries[s.round - 1].name));
 }
 
 /** The clue (1-based) at which a smart / expert bot recognises the answer; 0 = never sure. */
@@ -160,7 +165,7 @@ export const whois: GameModule<State, WhoisSettings> = {
       botAt: {},
     };
     ctx.fx('start');
-    newRound(ctx.now, s);
+    newRound(ctx, s);
     return s;
   },
 
@@ -179,7 +184,7 @@ export const whois: GameModule<State, WhoisSettings> = {
       if (!isNum(a.choice) || a.choice < 0 || a.choice >= s.options.length) return;
       s.guesses[by] = { choice: a.choice, clue: s.shown };
     }
-    if (allDone(ctx, s)) finishRound(ctx.now, s);
+    if (allDone(ctx, s)) finishRound(ctx, s);
   },
 
   tick(ctx, s) {
@@ -189,16 +194,18 @@ export const whois: GameModule<State, WhoisSettings> = {
       s.nextClueAt = last ? null : ctx.now + CLUE_MS;
       s.endsAt = last ? ctx.now + LAST_MS : null;
       ctx.fx('tick');
+      voiceOnly(ctx, s.entries[s.round - 1].clues[s.shown - 1]); // each new clue, read aloud
       return true;
     }
     if (s.endsAt === null || ctx.now < s.endsAt) return false;
-    if (s.phase === 'ask') finishRound(ctx.now, s);
+    if (s.phase === 'ask') finishRound(ctx, s);
     else if (s.phase === 'reveal') {
       if (s.round >= s.entries.length) {
         s.phase = 'final';
         s.endsAt = null;
         ctx.fx('win', soleWinner(s.scores));
-      } else newRound(ctx.now, s);
+        voiceOnly(ctx, voiceFinal(ctx, s.participants, (p) => s.scores[p] ?? 0));
+      } else newRound(ctx, s);
     }
     return true;
   },
@@ -266,7 +273,7 @@ export const whois: GameModule<State, WhoisSettings> = {
   },
 
   onLeave(ctx, s) {
-    if (s.phase === 'ask' && allDone(ctx, s)) finishRound(ctx.now, s);
+    if (s.phase === 'ask' && allDone(ctx, s)) finishRound(ctx, s);
   },
 
   result(s) {
