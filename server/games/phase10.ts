@@ -37,6 +37,7 @@ import { decideOnce } from '../ai/cards-memo';
 import { p10BotAction } from '../ai/cards-phase10';
 import { Feed, randDelay } from '../cardkit';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
+import { voiceWin } from '../voice-calls';
 import { isNum, isStr, shuffle } from '../util';
 
 const HAND_SIZE = 10;
@@ -135,7 +136,10 @@ function finish(ctx: GameCtx, s: State, winner: string | null) {
   s.winner = winner;
   s.phase = 'final';
   s.nextAt = null;
-  if (winner) ctx.fx('win', winner);
+  if (winner) {
+    ctx.fx('win', winner);
+    ctx.say?.(`الفوز لـ${ctx.playerName(winner)}`, winner, voiceWin(ctx.playerName(winner)));
+  }
 }
 
 function endHand(ctx: GameCtx, s: State, out: string | null) {
@@ -155,7 +159,7 @@ function endHand(ctx: GameCtx, s: State, out: string | null) {
     if (row.done) s.progress[row.id] = (s.progress[row.id] ?? 0) + 1;
   }
   if (out) s.feed.push(`${ctx.playerName(out)} أنهى أوراقه!`, { by: out });
-  ctx.say?.(out ? `نفدت أوراق ${ctx.playerName(out)} — انتهت اليد ${s.hand}` : `انتهت الأوراق — انتهت اليد ${s.hand}`, out ?? undefined);
+  ctx.say?.(out ? `نفدت أوراق ${ctx.playerName(out)} — انتهت اليد ${s.hand}` : `انتهت الأوراق — انتهت اليد ${s.hand}`, out ?? undefined, out ? `اليَدُ لِ${ctx.playerName(out)}` : undefined);
   const finishers = s.active.filter((id) => (s.progress[id] ?? 0) >= s.phases.length);
   if (finishers.length) {
     const best = finishers.slice().sort((a, b) => s.scores[a] - s.scores[b] || Number(b === out) - Number(a === out))[0];
@@ -397,7 +401,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
         s.laid.push(by);
         s.actions += 1;
         s.feed.push(`${name} وضع المرحلة ${phase}!`, { by });
-        ctx.say?.(`المرحلة ${phase} لـ${name}: ${phaseLabel(phase)}`, by);
+        ctx.say?.(`المرحلة ${phase} لـ${name}: ${phaseLabel(phase)}`, by, 'مَرْحَلَةٌ كَامِلَةٌ');
         ctx.fx('correct', by);
         if (!hand.length) endHand(ctx, s, by);
         return;
@@ -433,6 +437,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
         if (s.lastGroups && s.lastGroups.by !== by) s.lastGroups = null;
         s.actions += 1;
         let said = '';
+        let voice: string | undefined;
         if (isSkip(card)) {
           const targets = skipTargets(s, by);
           const target = isStr(a.target) && targets.includes(a.target) ? a.target : targets.includes(nextActive(s, by)) ? nextActive(s, by) : targets[0];
@@ -441,6 +446,7 @@ export const phase10: GameModule<State, Phase10Settings> = {
             s.skipEvent = { id: ++s.skipSeq, by, target };
             s.feed.push(`${name} رمى «تخطَّ» على ${ctx.playerName(target)}`, { by });
             said = `«تخطَّ» من ${name} على ${ctx.playerName(target)}: الدور القادم ضائع`;
+            voice = 'تَخَطَّ';
             ctx.fx('skip', target);
           } else {
             s.feed.push(`${name} رمى «تخطَّ»`, { by });
@@ -452,14 +458,14 @@ export const phase10: GameModule<State, Phase10Settings> = {
           said = `ورقة مرمية من ${name}: ${p10CardName(card)}`;
           ctx.fx('card');
         }
-        ctx.say?.(said, by);
+        ctx.say?.(said, by, voice);
         if (!hand.length) {
           endHand(ctx, s, by);
           return;
         }
         const lost: string[] = [];
         s.turn = nextTurn(ctx, s, by, lost);
-        if (lost.length) ctx.say?.(`${said} — دور ضائع لـ${lost.map((id) => ctx.playerName(id)).join(' و')}`, by);
+        if (lost.length) ctx.say?.(`${said} — دور ضائع لـ${lost.map((id) => ctx.playerName(id)).join(' و')}`, by, voice);
         s.step = 'draw';
         return;
       }
