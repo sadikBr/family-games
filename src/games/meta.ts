@@ -21,6 +21,8 @@ import { STEPS_INFO } from '@/shared/games/steps';
 import { MAPQUIZ_INFO } from '@/shared/games/mapquiz';
 import { PROPHETS_INFO } from '@/shared/games/prophets';
 import { MOSQUE_INFO } from '@/shared/games/mosque';
+import { HEZ2_INFO, hez2Variant } from '@/shared/games/hez2';
+import { RAMI_INFO, ramiVariantInfo } from '@/shared/games/rami';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
 import { GAME_ALIASES, MIN_PLAYERS } from '@/shared/protocol';
@@ -81,10 +83,12 @@ export const GAMES: Record<GameId, GameMeta> = {
   qquote: { id: 'qquote', minPlayers: MIN_PLAYERS.qquote, ...QQUOTE_INFO },
   tajweed: { id: 'tajweed', minPlayers: MIN_PLAYERS.tajweed, ...TAJWEED_INFO },
   asma: { id: 'asma', minPlayers: MIN_PLAYERS.asma, ...ASMA_INFO },
+  hez2: { id: 'hez2', minPlayers: MIN_PLAYERS.hez2, ...HEZ2_INFO, variant: (s) => hez2Variant(s.hez2) },
   steps: { id: 'steps', minPlayers: MIN_PLAYERS.steps, ...STEPS_INFO },
   mapquiz: { id: 'mapquiz', minPlayers: MIN_PLAYERS.mapquiz, ...MAPQUIZ_INFO },
   prophets: { id: 'prophets', minPlayers: MIN_PLAYERS.prophets, ...PROPHETS_INFO },
   mosque: { id: 'mosque', minPlayers: MIN_PLAYERS.mosque, ...MOSQUE_INFO },
+  rami: { id: 'rami', minPlayers: MIN_PLAYERS.rami, ...RAMI_INFO, variant: (s) => (s.rami ? ramiVariantInfo(s.rami) : null) },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -328,7 +332,7 @@ export const GAMES: Record<GameId, GameMeta> = {
       'لاعبان (أو لاعب وبوت). X يبدأ، والأدوار تتبدّل في كل لعبة.',
       'اضغط على خانة فارغة لتضع علامتك. أول من يصفّ ثلاثة في خط يفوز.',
       'اختر حجم اللوحة في الإعدادات: من ٣×٣ إلى ٩×٩. على ٤×٤ و٥×٥ تحتاج أربعة في خط، ومن ٦×٦ خمسة.',
-      'على ٣×٣ البوت القوي لا يخسر أبداً — جرّب أن تتعادل معه!',
+      'على ٣×٣ البوت «الخبير» لا يخسر أبداً — جرّب أن تتعادل معه!',
     ],
   },
   sudoku: {
@@ -554,7 +558,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'baloot', 'touti', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
@@ -565,5 +569,5 @@ export const GAME_GROUPS: { title: string; short: string; icon: IconName; games:
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
   { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
-  { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'touti', 'konkan', 'kdab', 'unoflip', 'phase10'] },
+  { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'touti', 'konkan', 'kdab', 'unoflip', 'hez2', 'phase10', 'rami'] },
 ];

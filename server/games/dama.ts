@@ -9,7 +9,8 @@
 import type { DamaSettings, DamaView } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { damaBot } from '../ai/boards-dama';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 export type Move = { from: number; path: number[]; captures: number[] };
@@ -153,6 +154,8 @@ interface State {
   reason: DamaView['reason'];
   moves: number;
   score: Record<string, number>;
+  /** the bot's choice for the current move (worked out once per move) */
+  botCache?: { moves: number; move: Move | null } | null;
 }
 
 /** «لماما»، «للحسن»: a name after the preposition لـ (announcements never conjugate a verb for the player). */
@@ -180,7 +183,7 @@ function finishIfOver(ctx: GameCtx, s: State) {
   }
 }
 
-/** Bot: biggest capture, else a move that doesn't hang a piece, preferring promotion. */
+/** The 'easy' bot: biggest capture, else a move that doesn't hang a piece, preferring promotion. */
 export function botMove(b: number[], side: 1 | -1, opts: DamaOpts): Move | null {
   const moves = legalMoves(b, side, opts);
   if (!moves.length) return null;
@@ -261,7 +264,11 @@ export const dama: GameModule<State, DamaSettings> = {
     if (s.phase !== 'play') return;
     const bot = s.turn === 1 ? s.white : s.black;
     if (!ctx.isBot(bot)) return;
-    const m = botMove(s.board, s.turn, s.settings);
+    if (s.botCache?.moves !== s.moves) {
+      const level = botLevel(ctx);
+      s.botCache = { moves: s.moves, move: level === 'easy' ? botMove(s.board, s.turn, s.settings) : damaBot(s.board, s.turn, s.settings, level, { quiet: s.quiet }) };
+    }
+    const m = s.botCache.move;
     if (m) ctx.bot(bot, `move:${s.moves}`, randDelay(900, 1700), { type: 'move', from: m.from, to: m.path[m.path.length - 1] });
   },
 

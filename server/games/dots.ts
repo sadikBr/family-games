@@ -7,7 +7,7 @@ import { DOTS_SIZES, dotsBoxLines, dotsLineBoxes, dotsLineCount, type DotsLevel,
 import { randDelay } from '../cardkit';
 import { dotsBotLine } from '../dots-ai';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 interface State {
@@ -156,7 +156,9 @@ export const dots: GameModule<State, DotsSettings> = {
     if (!id || !bots.includes(id)) return;
     if (s.botCache?.moves !== s.moves) {
       const drawn = s.lines.map((x) => x >= 0);
-      s.botCache = { moves: s.moves, line: dotsBotLine(s.n, drawn, s.settings.level) };
+      // the room's «مستوى البوتات» (the old per-game level is ignored)
+      const level = botLevel(ctx);
+      s.botCache = { moves: s.moves, line: dotsBotLine(s.n, drawn, level === 'expert' ? 'expert' : level === 'smart' ? 'medium' : 'easy') };
     }
     // a quicker hand while eating a chain
     const delay = s.lastBoxes.length && s.seats[s.lines[s.last ?? 0]] === id ? randDelay(380, 650) : randDelay(650, 1150);

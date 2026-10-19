@@ -5,6 +5,7 @@ import { KonkanGame } from './cards/konkan';
 import { RondaGame } from './cards/ronda';
 import { TrisGame } from './cards/tris';
 import { UnoFlipGame } from './cards/unoflip';
+import { Hez2Game } from './hez2';
 import { CodenamesGame } from './codenames';
 import { DamaGame } from './dama';
 import { DrawGame } from './draw';
@@ -40,6 +41,7 @@ import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
+import { RamiGame } from './rami';
 import { SudokuGame } from './sudoku';
 import { XoGame } from './xo';
 import { HajjGame } from './hajj';
@@ -77,6 +79,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <TrisGame room={room} view={view} />;
     case 'konkan':
       return <KonkanGame room={room} view={view} />;
+    case 'hez2':
+      return <Hez2Game room={room} view={view} />;
     case 'unoflip':
       return <UnoFlipGame room={room} view={view} />;
     case 'ludo':
@@ -165,6 +169,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <ProphetsGame room={room} view={view} />;
     case 'mosque':
       return <MosqueGame room={room} view={view} />;
+    case 'rami':
+      return <RamiGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

@@ -3,7 +3,8 @@ import { BN, botShot, randomFleet } from '../../src/shared/battleship';
 import type { BattleshipSettings, BattleshipView, ShotResult } from '../../src/shared/protocol';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { battleshipExpert } from '../ai/boards-battleship';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum } from '../util';
 
 interface State {
@@ -107,7 +108,10 @@ export const battleship: GameModule<State, BattleshipSettings> = {
     if (!bots.includes(id) || s.botAt === s.moves) return;
     s.botAt = s.moves;
     const enemy = enemyOf(s, id);
-    const cell = botShot(s.shots[id], sunkShips(s.fleets[enemy], s.shots[id]), s.settings.level);
+    // only what the bot's own phone shows: its shots and the enemy ships already sunk
+    const sunk = sunkShips(s.fleets[enemy], s.shots[id]);
+    const level = botLevel(ctx); // the room's «مستوى البوتات» (the old per-game level is ignored)
+    const cell = level === 'expert' ? battleshipExpert(s.shots[id], sunk) : botShot(s.shots[id], sunk, level === 'smart' ? 2 : 1);
     ctx.bot(id, `f:${s.moves}`, randDelay(900, 1500), { type: 'fire', cell });
   },
 

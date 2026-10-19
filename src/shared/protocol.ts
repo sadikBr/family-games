@@ -28,6 +28,8 @@ import { STEPS_DEFAULTS, type StepsSettings, type StepsView } from './games/step
 import { MAPQUIZ_DEFAULTS, type MapquizSettings, type MapquizView } from './games/mapquiz';
 import { PROPHETS_DEFAULTS, type ProphetsSettings, type ProphetsView } from './games/prophets';
 import { MOSQUE_DEFAULTS, type MosqueSettings, type MosqueView } from './games/mosque';
+import { HEZ2_DEFAULTS, type Hez2Settings, type Hez2View } from './games/hez2';
+import { RAMI_DEFAULTS, type RamiSettings, type RamiView } from './games/rami';
 import type { TournamentConfig, TournamentFormat, TournamentView } from './tournament';
 export type { Phase10Settings, Phase10View } from './games/phase10';
 export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
@@ -52,6 +54,8 @@ export type { StepsSettings, StepsView } from './games/steps';
 export type { MapquizSettings, MapquizView } from './games/mapquiz';
 export type { ProphetsSettings, ProphetsView } from './games/prophets';
 export type { MosqueSettings, MosqueView } from './games/mosque';
+export type { Hez2Settings, Hez2View } from './games/hez2';
+export type { RamiSettings, RamiView } from './games/rami';
 
 export type { Card } from './cards';
 
@@ -67,6 +71,7 @@ export type GameId =
   | 'tris'
   | 'konkan'
   | 'unoflip'
+  | 'hez2'
   | 'ludo'
   | 'codenames'
   | 'dama'
@@ -111,7 +116,8 @@ export type GameId =
   | 'steps'
   | 'mapquiz'
   | 'prophets'
-  | 'mosque';
+  | 'mosque'
+  | 'rami';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -125,6 +131,7 @@ export const GAME_IDS: GameId[] = [
   'tris',
   'konkan',
   'unoflip',
+  'hez2',
   'ludo',
   'codenames',
   'dama',
@@ -170,10 +177,11 @@ export const GAME_IDS: GameId[] = [
   'mapquiz',
   'prophets',
   'mosque',
+  'rami',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'touti'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -188,6 +196,7 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   tris: 4,
   konkan: 2,
   unoflip: 2,
+  hez2: 2,
   ludo: 2,
   codenames: 4,
   dama: 2,
@@ -233,10 +242,11 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   mapquiz: 1,
   prophets: 1,
   mosque: 1,
+  rami: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, touti: 4 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, rami: 6, touti: 4 };
 
 /**
  * Games that were merged into another one: older apps may still ask for them (room create, change of
@@ -471,6 +481,7 @@ export interface AllSettings {
   tris: TrisSettings;
   konkan: KonkanSettings;
   unoflip: UnoSettings;
+  hez2: Hez2Settings;
   ludo: LudoSettings;
   codenames: CodenamesSettings;
   dama: DamaSettings;
@@ -516,6 +527,7 @@ export interface AllSettings {
   mapquiz: MapquizSettings;
   prophets: ProphetsSettings;
   mosque: MosqueSettings;
+  rami: RamiSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -530,6 +542,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   tris: { target: 31 },
   konkan: { limit: 100 },
   unoflip: { target: 250 },
+  hez2: HEZ2_DEFAULTS,
   ludo: { exitOnOne: false, podium: false, quick: false },
   codenames: { assassin: true },
   dama: { flyingKings: true, backCapture: true, maxCapture: true },
@@ -575,6 +588,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   mapquiz: MAPQUIZ_DEFAULTS,
   prophets: PROPHETS_DEFAULTS,
   mosque: MOSQUE_DEFAULTS,
+  rami: RAMI_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1407,6 +1421,7 @@ export type GameView =
   | TrisView
   | KonkanView
   | UnoView
+  | Hez2View
   | LudoView
   | CodenamesView
   | DamaView
@@ -1449,7 +1464,8 @@ export type GameView =
   | StepsView
   | MapquizView
   | ProphetsView
-  | MosqueView;
+  | MosqueView
+  | RamiView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

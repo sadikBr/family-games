@@ -5,19 +5,20 @@
  * - memory («الذاكرة»): Name cards and meaning cards face down; turn two over, a Name with its own meaning is
  *   a pair (you keep it and play again), otherwise the turn passes — like «الذاكرة».
  */
+import type { BotLevel } from '../../src/shared/protocol';
 import { ASMA_PAIRS, type AsmaCard, type AsmaMatchView, type AsmaMemoryView, type AsmaSettings, type AsmaView } from '../../src/shared/games/asma';
 import { ASMA_NAMES, type AsmaName } from '../asma-content';
 import { randDelay } from '../cardkit';
 import { qdeck } from '../qdeck';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, shuffle } from '../util';
 import { makeMcq, mcqOptions, soleWinner, type McqItem, type McqState } from './mcq';
 
 /** memory: a Name and a meaning that don't match stay face up this long */
 export const PEEK_MS = 2500;
 const BOT_SKILL = 0.7;
-/** memory bots remember each card they saw with this chance */
-const BOT_MEMORY = 0.7;
+/** memory bots remember each card they saw with this chance, by the room's bot strength */
+const BOT_MEMORY: Record<BotLevel, number> = { easy: 0.7, smart: 0.88, expert: 0.98 };
 
 interface AsmaItem extends McqItem {
   shows: 'name' | 'meaning';
@@ -145,7 +146,7 @@ function memoryFlip(ctx: GameCtx, s: Extract<State, { mode: 'memory' }>, by: str
 }
 
 /** A bot's pick: a known matching card if it remembers one, else an unseen card, else any. */
-export function memoryBotPick(g: MemoryState, remember: (card: number) => boolean = () => Math.random() < BOT_MEMORY): number {
+export function memoryBotPick(g: MemoryState, remember: (card: number) => boolean = () => Math.random() < BOT_MEMORY.easy): number {
   const open = (i: number) => !g.owners[i] && !g.flipped.includes(i);
   const known = g.seen.filter((i) => open(i) && remember(i));
   const hidden = g.deck.map((_, i) => i).filter(open);
@@ -248,7 +249,8 @@ export const asma: GameModule<State, AsmaSettings> = {
     const g = s.g;
     const id = g.order[g.turnIdx];
     if (s.phase !== 'play' || g.peekUntil !== null || !id || !(bots.includes(id) || ctx.isBot(id))) return;
-    ctx.bot(id, `m:${g.moves}`, randDelay(900, 1500), { type: 'flip', card: memoryBotPick(g) });
+    const memory = BOT_MEMORY[botLevel(ctx)];
+    ctx.bot(id, `m:${g.moves}`, randDelay(900, 1500), { type: 'flip', card: memoryBotPick(g, () => Math.random() < memory) });
   },
 
   view(_ctx, s, me): AsmaView {

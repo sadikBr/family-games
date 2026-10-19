@@ -9,8 +9,13 @@
  *   opponent has to open the first chain; it keeps control by declining the last two boxes of a
  *   chain (the "double-cross") when that wins more later, and it opens the chain or loop that
  *   costs least, opening two-box chains in the middle so they can't be double-crossed back.
+ * - expert (the room's «خبير»): hard, plus an exact search of the safe-line phase while up to 26 safe
+ *   lines are left (with a deadline) and Monte-Carlo playouts of that phase before then, each scored
+ *   with the chain endgame — so it fights for the long-chain parity from the middle game on — and an
+ *   exact alpha-beta solver for the chain phase itself (branching chains included).
  */
 import { dotsBoxLines, dotsLineBoxes, dotsLineCount, type DotsLevel } from '../src/shared/games/dots';
+import { BUDGET } from './ai/boards-search';
 
 type Lines = boolean[];
 
@@ -204,17 +209,18 @@ function hardOpen(n: number, lines: Lines) {
 /**
  * Late in the game, with few safe lines left, whoever draws the last safe line makes the other
  * open the first chain. Search the safe lines (memoised by which of them are drawn, with a node
- * budget) and score each end position with the chain endgame. Null when it's too big to search.
+ * budget and an optional deadline) and score each end position with the chain endgame. Null when
+ * it's too big to search.
  */
-function safeSearch(n: number, lines: Lines, safe: number[], budget = 20000): number | null {
-  if (safe.length > 14) return null;
+function safeSearch(n: number, lines: Lines, safe: number[], budget = 20000, limit = 14, deadline = Infinity): number | null {
+  if (safe.length > limit) return null;
   const memo = new Map<number, number>();
   const ls = lines.slice();
   let nodes = 0;
   const val = (mask: number): number => {
     const hit = memo.get(mask);
     if (hit !== undefined) return hit;
-    if (++nodes > budget) throw new Error('budget');
+    if (++nodes > budget || ((nodes & 1023) === 0 && performance.now() > deadline)) throw new Error('budget');
     let best = -Infinity;
     safe.forEach((e, i) => {
       if (mask & (1 << i) || !dotsLineBoxes(n, e).every((b) => boxSides(n, ls, b) <= 1)) return;
@@ -244,14 +250,171 @@ function safeSearch(n: number, lines: Lines, safe: number[], budget = 20000): nu
   }
 }
 
+/**
+ * Too many safe lines to search: Monte-Carlo. For each safe line, play the rest of the safe phase out
+ * at random a few times (both sides drawing safe lines until none is left) and score the chains and
+ * loops that result with the chain endgame, for the side that then has to open one. Pick the line
+ * with the best average — it steers the long-chain parity our way.
+ */
+function mcSafe(n: number, lines: Lines, safe: number[], deadline: number): number {
+  const boxes = n * n;
+  const sides0 = new Int8Array(boxes);
+  for (let b = 0; b < boxes; b++) sides0[b] = boxSides(n, lines, b);
+  const lineBoxes = lines.map((_, e) => dotsLineBoxes(n, e));
+  const sum = new Float64Array(safe.length);
+  const runs = new Int32Array(safe.length);
+  const ls = lines.slice();
+  const sides = new Int8Array(boxes);
+  const isSafe = (e: number) => !ls[e] && lineBoxes[e].every((b) => sides[b] <= 1);
+  const draw = (e: number) => {
+    ls[e] = true;
+    for (const b of lineBoxes[e]) sides[b] += 1;
+  };
+  for (let round = 0; round < 32 && performance.now() < deadline; round++) {
+    for (let k = 0; k < safe.length; k++) {
+      for (let e = 0; e < ls.length; e++) ls[e] = lines[e];
+      sides.set(sides0);
+      draw(safe[k]);
+      let opener = 1; // 1 = the opponent must move next
+      let pool = safe.filter((e) => isSafe(e));
+      while (pool.length) {
+        draw(pool[Math.floor(Math.random() * pool.length)]);
+        opener ^= 1;
+        pool = pool.filter((e) => isSafe(e));
+      }
+      // opener 1: the opponent opens first (good for us when their opener value is negative)
+      const v = openerValue(components(n, ls).map((c) => ({ len: c.boxes.length, loop: c.loop })));
+      sum[k] += opener ? -v : v;
+      runs[k] += 1;
+    }
+  }
+  let best = safe[0], bestV = -Infinity;
+  for (let k = 0; k < safe.length; k++) {
+    const v = runs[k] ? sum[k] / runs[k] : -Infinity;
+    if (v > bestV) {
+      bestV = v;
+      best = safe[k];
+    }
+  }
+  return best;
+}
+
+/**
+ * Exact endgame: alpha-beta over the remaining lines (net boxes for the side to move), with a
+ * transposition table keyed by the set of undrawn lines. Captures are always taken first, except the
+ * one real choice of the chain endgame: declining the last two boxes of a chain (drawing the far line
+ * instead), which hands them over and keeps control. Null when it doesn't finish before the deadline.
+ */
+function endgame(n: number, lines: Lines, deadline: number): number | null {
+  const free = undrawn(lines);
+  if (free.length > 52) return null;
+  const bit = new Map<number, number>();
+  free.forEach((e, k) => bit.set(e, 2 ** k));
+  const ls = lines.slice();
+  const boxes = n * n;
+  const sides = new Int8Array(boxes);
+  for (let b = 0; b < boxes; b++) sides[b] = boxSides(n, lines, b);
+  const lineBoxes = new Map(free.map((e) => [e, dotsLineBoxes(n, e)]));
+  const boxLines = Array.from({ length: boxes }, (_, b) => dotsBoxLines(n, b));
+  let key = free.reduce((a, e) => a + bit.get(e)!, 0);
+  const tt = new Map<number, { v: number; f: 0 | 1 | 2 }>();
+  let nodes = 0;
+  class Late extends Error {}
+  const draw = (e: number) => {
+    ls[e] = true;
+    key -= bit.get(e)!;
+    let k = 0;
+    for (const b of lineBoxes.get(e)!) if (++sides[b] === 4) k++;
+    return k;
+  };
+  const erase = (e: number) => {
+    ls[e] = false;
+    key += bit.get(e)!;
+    for (const b of lineBoxes.get(e)!) sides[b]--;
+  };
+  const openLine = (b: number, not = -1) => boxLines[b].find((x) => !ls[x] && x !== not)!;
+  const options = (): number[] => {
+    const caps: number[] = [];
+    const declines: number[] = [];
+    for (let b = 0; b < boxes; b++) {
+      if (sides[b] !== 3) continue;
+      const e = openLine(b);
+      const nb = lineBoxes.get(e)!.find((x) => x !== b);
+      if (nb !== undefined && sides[nb] === 2) {
+        const f = openLine(nb, e);
+        if (!declines.includes(f)) declines.push(f);
+        caps.push(e);
+      } else return [e]; // a box that can be taken without any choice: take it
+    }
+    if (caps.length) return [...new Set(caps)].concat(declines.filter((f) => !caps.includes(f)));
+    // no capture: every line, the ones giving away least first
+    const out = free.filter((e) => !ls[e]);
+    const cost = (e: number) => lineBoxes.get(e)!.reduce((a, b) => a + (sides[b] === 2 ? 1 : 0), 0);
+    return out.sort((a, z) => cost(a) - cost(z));
+  };
+  const neg = (alpha: number, beta: number, left: number): number => {
+    if (!left) return 0;
+    if ((++nodes & 1023) === 0 && (performance.now() > deadline || nodes > (BUDGET.maxNodes ?? Infinity) * 4)) throw new Late();
+    const hit = tt.get(key);
+    if (hit) {
+      if (hit.f === 0) return hit.v;
+      if (hit.f === 1 && hit.v >= beta) return hit.v;
+      if (hit.f === 2 && hit.v <= alpha) return hit.v;
+    }
+    const a0 = alpha;
+    let best = -Infinity;
+    for (const e of options()) {
+      const k = draw(e);
+      const v = k ? k + neg(alpha - k, beta - k, left - 1) : -neg(-beta, -alpha, left - 1);
+      erase(e);
+      if (v > best) best = v;
+      if (v > alpha) alpha = v;
+      if (alpha >= beta) break;
+    }
+    tt.set(key, { v: best, f: best <= a0 ? 2 : best >= beta ? 1 : 0 });
+    return best;
+  };
+  try {
+    let best = -1, bestV = -Infinity;
+    for (const e of options()) {
+      const k = draw(e);
+      const v = k ? k + neg(bestV - k, Infinity, free.length - 1) : -neg(-Infinity, -bestV, free.length - 1);
+      erase(e);
+      if (v > bestV) {
+        bestV = v;
+        best = e;
+      }
+    }
+    return best;
+  } catch (e) {
+    if (e instanceof Late) return null;
+    throw e;
+  }
+}
+
 /** The line a bot draws. `lines` must have at least one undrawn line. */
-export function dotsBotLine(n: number, lines: Lines, level: DotsLevel): number {
+export function dotsBotLine(n: number, lines: Lines, level: DotsLevel | 'expert', timeMs = BUDGET.expert): number {
   const caps = captureLines(n, lines);
   if (level === 'easy') return caps.length ? bestCapture(n, lines, caps) : pick(undrawn(lines));
-  if (caps.length) return level === 'hard' ? hardCapture(n, lines, caps) : bestCapture(n, lines, caps);
+  const strong = level === 'hard' || level === 'expert';
   const safe = safeLines(n, lines);
-  if (safe.length) return (level === 'hard' ? safeSearch(n, lines, safe) : null) ?? pick(safe);
-  return level === 'hard' ? hardOpen(n, lines) : cheapest(n, lines, undrawn(lines), false);
+  const t0 = performance.now();
+  if (level === 'expert' && (!safe.length || undrawn(lines).length <= 22)) {
+    // the chain endgame (or a nearly full grid): solve it exactly when there is time
+    const e = endgame(n, lines, t0 + timeMs * (safe.length ? 0.5 : 0.8));
+    if (e !== null) return e;
+  }
+  if (caps.length) return strong ? hardCapture(n, lines, caps) : bestCapture(n, lines, caps);
+  if (safe.length) {
+    if (level === 'expert') {
+      // search the end of the safe phase exactly when it fits, otherwise sample it
+      const deadline = t0 + timeMs;
+      const nodes = Math.min(400000, (BUDGET.maxNodes ?? Infinity) * 20);
+      return safeSearch(n, lines, safe, nodes, 26, deadline) ?? (safe.length > 1 ? mcSafe(n, lines, safe, deadline) : safe[0]);
+    }
+    return (level === 'hard' ? safeSearch(n, lines, safe) : null) ?? pick(safe);
+  }
+  return strong ? hardOpen(n, lines) : cheapest(n, lines, undrawn(lines), false);
 }
 
 export const emptyLines = (n: number): Lines => Array(dotsLineCount(n)).fill(false);

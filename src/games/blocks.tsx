@@ -24,12 +24,11 @@ import {
   snapPlacement,
   type SeatCtx,
 } from '@/shared/blocks-rules';
-import type { BlocksLevel, BlocksView } from '@/shared/games/blocks';
+import type { BlocksView } from '@/shared/games/blocks';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Card, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { ChipPicker } from '@/ui/controls';
 import { Confetti, Podium } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
@@ -448,22 +447,10 @@ function OthersTrays({ view, h }: { view: BlocksView; h: Helpers }) {
   );
 }
 
-/** Lobby settings: bot strength (the board size follows the number of players). */
-export function BlocksSettings({ room, editable }: { room: RoomView; editable: boolean }) {
-  const settings = room.settings.blocks;
-  const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'blocks', patch });
+/** Lobby settings: nothing to choose (the board size follows the number of players; the bots' strength is the room's). */
+export function BlocksSettings(_props: { room: RoomView; editable: boolean }) {
   return (
     <View style={{ gap: 8 }}>
-      <Txt v="bold">قوة البوت</Txt>
-      <ChipPicker
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'hard', label: 'صعب' },
-        ]}
-        value={settings.level}
-        editable={editable}
-        onChange={(level: BlocksLevel) => change({ level })}
-      />
       <Txt v="small" color={C.muted}>
         لاعبان: لوحة ١٤×١٤ والبداية قرب الوسط. ٣ أو ٤ لاعبين: لوحة ٢٠×٢٠ من الأركان.
       </Txt>

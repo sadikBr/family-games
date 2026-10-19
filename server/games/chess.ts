@@ -3,7 +3,8 @@ import { START_FEN, botMove, fromFen, inCheck, legalMoves, makeMove, repKey, res
 import type { ChessSettings, ChessView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { chessBot } from '../ai/boards-chess';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
 
 const NAME: Record<string, string> = { p: 'الجندي', n: 'الحصان', b: 'الفيل', r: 'الرخ', q: 'الوزير', k: 'الملك' };
@@ -113,7 +114,8 @@ export const chess: GameModule<State, ChessSettings> = {
     const id = s.pos.turn === 'w' ? s.white : s.black;
     if (!bots.includes(id) || s.botPly === s.ply) return; // think once per turn
     s.botPly = s.ply;
-    const m = botMove(s.pos, s.settings.level);
+    const level = botLevel(ctx); // the room's «مستوى البوتات» (the old per-game level is ignored)
+    const m = level === 'easy' ? botMove(s.pos, 1) : chessBot(s.pos, s.reps, level);
     if (m) ctx.bot(id, `mv:${s.ply}`, randDelay(900, 1700), { type: 'move', from: m.from, to: m.to, promo: m.promo });
   },
 

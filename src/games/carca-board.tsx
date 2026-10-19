@@ -4,7 +4,7 @@
  * on a big enough board picks a cell (or, during the follower step, the nearest free feature of the
  * tile just placed). Built on the touch responder, so it works inside the room's scroll view.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type GestureResponderEvent, type NativeTouchEvent } from 'react-native';
 import { Circle, G, Rect, Svg } from 'react-native-svg';
 
@@ -12,6 +12,7 @@ import { IconBtn } from '@/ui/btn';
 import type { CarcaFollower, CarcaTilePlaced } from '@/shared/games/carca';
 import { TILES, UNIT, rotatePoint } from '@/shared/carca-tiles';
 
+import { ArrivalLayer, fKey, tKey, useArrivals } from './carca-motion';
 import { Meeple, TileAt, colorOf } from './carca-tile';
 
 const U = UNIT;
@@ -48,6 +49,9 @@ interface Props {
   fitKey?: string;
   onCell?: (x: number, y: number) => void;
   onSpot?: (f: number) => void;
+  /** the board's root view, and its pan/zoom after each render (followers fly back from it) */
+  nodeRef?: (n: View | null) => void;
+  onTransform?: (s: number, tx: number, ty: number) => void;
 }
 
 interface Xf {
@@ -61,16 +65,14 @@ interface Xf {
 /* Layers                                                              */
 /* ------------------------------------------------------------------ */
 
-function Tiles({ board, followers, colors }: { board: CarcaTilePlaced[]; followers: CarcaFollower[]; colors: Record<string, number> }) {
+function Tiles({ board, followers, colors, hidden }: { board: CarcaTilePlaced[]; followers: CarcaFollower[]; colors: Record<string, number>; hidden: Set<string> }) {
   const at = new Map(board.map((p) => [`${p.x},${p.y}`, p]));
   return (
     <G>
-      {board.map((p) => (
-        <TileAt key={`${p.x},${p.y}`} t={p.t} r={p.r} x={p.x * U} y={p.y * U} size={U} />
-      ))}
+      {board.map((p) => (hidden.has(`t${tKey(p)}`) ? null : <TileAt key={`${p.x},${p.y}`} t={p.t} r={p.r} x={p.x * U} y={p.y * U} size={U} />))}
       {followers.map((f, i) => {
         const p = at.get(`${f.x},${f.y}`);
-        if (!p) return null;
+        if (!p || hidden.has(`f${fKey(f)}`)) return null;
         const feat = TILES[p.t].feats[f.f];
         const [sx, sy] = rotatePoint(feat.spot, p.r);
         return <Meeple key={i} x={f.x * U + sx} y={f.y * U + sy} size={28} color={colors[f.owner] ?? 0} lying={feat.k === 'field'} />;
@@ -151,12 +153,15 @@ function pointsOf(e: GestureResponderEvent): { x: number; y: number }[] {
 }
 
 export function CarcaBoard(props: Props) {
-  const { board, followers, colors, width, height, onCell, onSpot, options } = props;
+  const { board, followers, colors, width, height, onCell, onSpot, options, spots, preview, last, fitKey, nodeRef, onTransform } = props;
   const b = bounds(board);
-  const key = `${b.minX},${b.maxX},${b.minY},${b.maxY},${Math.round(width)},${Math.round(height)},${props.fitKey ?? ''}`;
+  const key = `${b.minX},${b.maxX},${b.minY},${b.maxY},${Math.round(width)},${Math.round(height)},${fitKey ?? ''}`;
   const [xf, setXf] = useState<Xf | null>(null);
   const cur = xf && xf.key === key ? xf : fitTo(b, width, height, key);
   const gesture = useRef<Gesture | null>(null);
+  // a tile / follower that just arrived settles into place (drawn over the board meanwhile)
+  const { fx, hidden } = useArrivals(board, followers, preview);
+  useEffect(() => onTransform?.(cur.s, cur.tx, cur.ty));
 
   const clampScale = (s: number) => Math.max(MIN_PX / U, Math.min(MAX_PX / U, s));
   const zoomAt = (from: Xf, s: number, px: number, py: number): Xf => {
@@ -236,13 +241,14 @@ export function CarcaBoard(props: Props) {
   const zoomBy = (k: number) => setXf(zoomAt(cur, cur.s * k, width / 2, height / 2));
 
   return (
-    <View style={[styles.wrap, { width, height }]}>
+    <View ref={nodeRef} style={[styles.wrap, { width, height }]}>
       <Svg width={width} height={height}>
         <G transform={`translate(${cur.tx} ${cur.ty}) scale(${cur.s})`}>
-          <Tiles board={board} followers={followers} colors={colors} />
-          <Marks spots={props.spots} preview={props.preview} last={props.last} options={options} />
+          <Tiles board={board} followers={followers} colors={colors} hidden={hidden} />
+          <Marks spots={spots} preview={preview} last={last} options={options} />
         </G>
       </Svg>
+      {fx ? <ArrivalLayer fx={fx} board={board} colors={colors} last={last} xf={cur} /> : null}
       {/* a child-less layer on top, so touch coordinates are always relative to the board */}
       <View
         style={StyleSheet.absoluteFill}

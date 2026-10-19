@@ -12,7 +12,9 @@ import {
   type WolfStep,
   type WolfWinner,
 } from '../../src/shared/protocol';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { tieHash } from '../ai/social-imposter';
+import { emptyPublic, protectScores, threatScores, top, villageScores, type WolfPublic } from '../ai/social-werewolf';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
 
 interface State {
@@ -54,6 +56,8 @@ interface State {
   accShown: number;
   /** why the game ended early (e.g. the narrator left) */
   endNote: string | null;
+  /** what everyone has seen (deaths, who was voted out, the bots' accusations): what smart bots reason from */
+  pub?: WolfPublic;
 }
 
 const WIN_TEXT: Record<WolfWinner, string> = {
@@ -183,6 +187,7 @@ function resolveNight(ctx: GameCtx, s: State) {
   s.lastGuard = s.guardSave;
   const mayorWasAlive = !!s.mayorId && s.alive[s.mayorId];
   for (const d of deaths) kill(s, d);
+  for (const d of deaths) (s.pub ??= emptyPublic()).nightDead[d] = s.day;
 
   const parts = [`الليلة ${s.day}: اختارت الذئاب ${name(ctx, s.wolvesTarget)}`];
   if (s.steps.includes('bigwolf')) parts.push(`الذئب الكبير اختار ${name(ctx, s.bigwolfTarget)}`);
@@ -232,6 +237,7 @@ function eliminate(ctx: GameCtx, s: State, target: string | null) {
   }
   const wasMayor = s.mayorId === target;
   kill(s, target);
+  (s.pub ??= emptyPublic()).out[target] = s.day;
   s.log.push(`النهار ${s.day}: القرية أقصت ${name(ctx, target)}`);
   ctx.fx('death', target);
   if (s.roles[target] === 'tanner') return endGame(ctx, s, 'tanner');
@@ -254,6 +260,7 @@ function hunterShoot(ctx: GameCtx, s: State) {
   if (t && s.alive[t]) {
     const wasMayor = s.mayorId === t;
     kill(s, t);
+    (s.pub ??= emptyPublic()).out[t] = s.day;
     s.log.push(`الصيّاد أخذ معه ${name(ctx, t)}`);
     ctx.fx('death', t);
     if (wasMayor && !s.steps.slice(s.stepIdx + 1).includes('mayor')) insertNext(s, ['mayor']);
@@ -284,6 +291,7 @@ function resetGame(ctx: GameCtx, s: State) {
   s.lastEliminated = undefined;
   s.log = [];
   s.seerKnown = {};
+  s.pub = emptyPublic();
   s.accusedDay = 0;
   s.healUsed = false;
   s.poisonUsed = false;
@@ -314,6 +322,152 @@ function canPick(s: State, target: string): boolean {
     default:
       return true;
   }
+}
+
+/**
+ * Smart / expert bots (see ai/social-werewolf): night picks and day accusations from what was seen and
+ * said — deaths, who was voted out, who accused whom — plus only what the bot's own role tells it.
+ * Smart bots add a little noise to the same reasoning.
+ */
+function smartPlan(ctx: GameCtx, s: State, expert: boolean): boolean {
+  let changed = false;
+  const pub = (s.pub ??= emptyPublic());
+  const alive = aliveIds(s);
+  const seen = { participants: s.participants, alive: s.alive, mayorId: s.mayorId, pub };
+  const noise = (m: Map<string, number>) => {
+    if (!expert) for (const [k, v] of m) m.set(k, v + Math.random() * 0.8);
+    return m;
+  };
+  const tie = (salt: string) => (id: string) => tieHash(`${s.day}|${salt}|${id}`);
+  const botAlive = (r: WolfRole) => {
+    const id = holder(s, r);
+    return id && s.alive[id] && ctx.isBot(id) ? id : null;
+  };
+  const pack = alive.filter((id) => isWolfRole(s.roles[id]));
+  const prey = alive.filter((id) => !isWolfRole(s.roles[id]));
+  /** what a village bot thinks (a seer adds what it checked) */
+  const suspicionOf = (b: string) => {
+    const m = noise(villageScores(seen, b, !isWolfRole(s.roles[b])));
+    if (s.roles[b] === 'seer') for (const [id, wolf] of Object.entries(s.seerKnown)) if (m.has(id)) m.set(id, wolf ? 100 : -100);
+    return m;
+  };
+
+  if (s.phase === 'night' && !s.auto[s.step as WolfPickStep]) {
+    if (s.step === 'wolves' && !s.wolvesTarget && pack.length && pack.every((id) => ctx.isBot(id)) && prey.length) {
+      // the pack silences whoever is onto it (likely the seer), the mayor, or someone the village trusts
+      s.wolvesTarget = top(noise(threatScores(seen, pack, prey)), tie('wolves'));
+      s.auto.wolves = changed = true;
+    }
+    if (s.step === 'bigwolf' && !s.bigwolfTarget && botAlive('bigwolf')) {
+      const more = prey.filter((id) => id !== s.wolvesTarget);
+      if (more.length) s.bigwolfTarget = top(noise(threatScores(seen, pack, more)), tie('big'));
+      s.auto.bigwolf = changed = true;
+    }
+    const white = s.step === 'whitewolf' ? botAlive('whitewolf') : null;
+    if (white) {
+      // alone at the end: thin the pack once it can spare a wolf, or when few villagers are left; the
+      // pack-mate the village suspects least (the village will deal with the others)
+      const mates = pack.filter((id) => id !== white);
+      if (mates.length && (mates.length >= 2 || prey.length <= 2)) {
+        const village = villageScores(seen, null);
+        s.whitewolfTarget = [...mates].sort((a, b) => (village.get(a) ?? 0) - (village.get(b) ?? 0))[0];
+      }
+      s.auto.whitewolf = changed = true;
+    }
+    const guard = s.step === 'guard' && !s.guardSave ? botAlive('guard') : null;
+    if (guard) {
+      const options = alive.filter((id) => id !== s.lastGuard);
+      if (options.length) s.guardSave = top(noise(protectScores(seen, options, guard)), tie('guard'));
+      s.auto.guard = changed = true;
+    }
+    const doc = s.step === 'doctor' && !s.doctorSave ? botAlive('doctor') : null;
+    if (doc) {
+      s.doctorSave = top(noise(protectScores(seen, alive, doc)), tie('doctor'));
+      s.auto.doctor = changed = true;
+    }
+    const seer = s.step === 'seer' && !s.seerCheck ? botAlive('seer') : null;
+    if (seer) {
+      // look at the most suspicious player not checked yet
+      const scores = suspicionOf(seer);
+      const target = top(scores, tie('seer'), (id) => id in s.seerKnown) ?? top(scores, tie('seer'));
+      if (target) {
+        s.seerCheck = target;
+        s.seerKnown[target] = isWolfRole(s.roles[target]);
+        s.auto.seer = changed = true;
+      }
+    }
+    const witch = s.step === 'witch' ? botAlive('witch') : null;
+    if (witch) {
+      // the narrator shows the witch tonight's victims
+      const victims = [s.wolvesTarget, s.bigwolfTarget].filter((id): id is string => !!id && s.alive[id]);
+      if (!s.healUsed && victims.length) {
+        const mine = victims.find((id) => id === witch);
+        // a saved villager is worth as much tonight as later
+        if (mine || expert || Math.random() < 0.7) s.witchHeal = mine ?? victims[0];
+      }
+      if (!s.poisonUsed && s.day >= 2) {
+        const scores = suspicionOf(witch);
+        for (const v of victims) scores.delete(v);
+        const ranked = [...scores].sort((a, b) => b[1] - a[1]);
+        // only on a strong, clear suspicion: poisoning a villager helps the wolves
+        if (ranked.length && ranked[0][1] >= 2.5 && ranked[0][1] - (ranked[1]?.[1] ?? 0) >= 1) s.witchPoison = ranked[0][0];
+      }
+      s.auto.witch = changed = true;
+    }
+  }
+
+  if (s.step === 'hunter' && !s.hunterTarget && !s.auto.hunter) {
+    const hunter = holder(s, 'hunter');
+    if (hunter && ctx.isBot(hunter) && alive.some((id) => id !== hunter)) {
+      // takes the most suspicious player along
+      s.hunterTarget = top(suspicionOf(hunter), tie('hunter'), (id) => id === hunter || !s.alive[id]);
+      s.auto.hunter = changed = true;
+    }
+  }
+
+  // a dying bot mayor names their successor: a wolf hands it to the pack, a villager to the least suspicious
+  if (s.step === 'mayor' && s.mayorId && !s.alive[s.mayorId] && ctx.isBot(s.mayorId) && !s.auto.mayor && alive.length) {
+    const m = s.mayorId;
+    if (isWolfRole(s.roles[m]) && pack.length) s.mayorPick = pack[0];
+    else {
+      const scores = villageScores(seen, m);
+      s.mayorPick = [...alive].sort((a, b) => (scores.get(a) ?? 0) - (scores.get(b) ?? 0))[0];
+    }
+    s.auto.mayor = changed = true;
+  }
+
+  // day: bots speak up one after another, each hearing the ones before
+  if (s.phase === 'day' && s.accusedDay !== s.day) {
+    s.accusedDay = s.day;
+    s.accusations = [];
+    s.accShown = 0;
+    let at = ctx.now;
+    for (const b of shuffle(alive.filter((id) => ctx.isBot(id)))) {
+      const others = alive.filter((id) => id !== b);
+      if (!others.length) continue;
+      const role = s.roles[b];
+      let target: string | null;
+      if (isWolfRole(role)) {
+        // a wolf joins in on the innocent the village already suspects most
+        target = top(noise(villageScores(seen, null)), tie(`w${b}`), (id) => id === b || isWolfRole(s.roles[id]) || !s.alive[id]);
+      } else if (role === 'tanner') {
+        target = pick(others); // the tanner wants to look odd
+      } else {
+        const scores = suspicionOf(b);
+        const best = top(scores, tie('village'), (id) => !s.alive[id]);
+        // only with real evidence (bots agree on ties): a villager with nothing to go on keeps quiet rather
+        // than throw a blind accusation that would drown out the ones that mean something
+        target = best && (scores.get(best) ?? 0) >= 0.9 ? best : null;
+        if (!target) continue;
+      }
+      if (!target) target = pick(others);
+      at += 2000 + Math.random() * 2000; // one every 2–4 s
+      s.accusations.push({ by: b, target, at });
+      pub.acc.push({ day: s.day, by: b, target });
+    }
+    changed = true;
+  }
+  return changed;
 }
 
 export const werewolf: GameModule<State, WerewolfSettings> = {
@@ -480,6 +634,7 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
 
   botPlan(ctx, s) {
     if (s.phase === 'over') return false;
+    if (botLevel(ctx) !== 'easy') return smartPlan(ctx, s, botLevel(ctx) === 'expert');
     let changed = false;
     const alive = aliveIds(s);
     const isBotAlive = (r: WolfRole) => {
@@ -579,13 +734,14 @@ export const werewolf: GameModule<State, WerewolfSettings> = {
         if (isWolfRole(s.roles[b])) {
           const innocents = others.filter((id) => !isWolfRole(s.roles[id]));
           target = pick(innocents.length ? innocents : others);
-        } else if (knownWolf && knownWolf !== b && (b === seerBot || Math.random() < 0.5)) {
+        } else if (knownWolf && b === seerBot) {
           target = knownWolf;
         } else {
           target = pick(others);
         }
         at += 2000 + Math.random() * 2000; // one every 2–4 s
         s.accusations.push({ by: b, target, at });
+        (s.pub ??= emptyPublic()).acc.push({ day: s.day, by: b, target });
       }
       changed = true;
     }

@@ -319,6 +319,7 @@ test('bot team-mates wait for the people, then vote quickly once everyone else h
   prophets.botPlan!(ctx, s, ['bot']);
   expect(ctx.jobs.length).toBe(1);
   expect(ctx.jobs[0].at - ctx.now).toBeGreaterThanOrEqual(Math.min(2500, s.seconds * 250));
+  ctx.now += 10_000; // the person votes after reading the question
   prophets.act(ctx, s, 'a', { type: 'vote', choice: 0 });
   prophets.botPlan!(ctx, s, ['bot']);
   expect(ctx.jobs.length).toBe(2);

@@ -189,6 +189,7 @@ test('bot team-mates let the people answer first', () => {
   mosque.botPlan!(ctx, s, ['bot']);
   expect(ctx.jobs.length).toBe(1);
   expect(ctx.jobs[0].at - ctx.now).toBeGreaterThanOrEqual(Math.min(2500, s.seconds * 250));
+  ctx.now += 8000; // the person answers after reading the question
   mosque.act(ctx, s, 'a', { type: 'answer', choice: 0 });
   mosque.botPlan!(ctx, s, ['bot']);
   expect(ctx.jobs[1].at - ctx.now).toBeLessThanOrEqual(1600);

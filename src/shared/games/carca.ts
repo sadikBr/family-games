@@ -84,6 +84,12 @@ export interface CarcaView {
   /** ms per turn (0 = no limit) */
   total: number;
   farmers: boolean;
+  /**
+   * The followers that went back to their owners at the latest scoring, and the turn it happened in
+   * (lets the app show them going home, even one put on a feature that the same tile completed).
+   * Optional: older servers don't send it.
+   */
+  returned?: { n: number; followers: CarcaFollower[] } | null;
   final: {
     winners: string[];
     /** players who left during the game */

@@ -7,7 +7,8 @@ import { CENTER, PIECES, applyMove, botMove, botPlace, movesFor, other, type Sid
 import type { KharbgaSettings, KharbgaView } from '../../src/shared/protocol';
 import { Feed, randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { kharbgaBot, kharbgaPlace } from '../ai/boards-kharbga';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 const QUIET_LIMIT = 80; // moves in a row without a capture → the game ends on piece count
@@ -202,11 +203,13 @@ export const kharbga: GameModule<State, KharbgaSettings> = {
     const id = idOf(s, s.turn);
     if (!bots.includes(id) || s.botAt === s.moves) return;
     s.botAt = s.moves;
+    const level = botLevel(ctx); // the room's «مستوى البوتات» (the old per-game level is ignored)
     if (s.phase === 'place') {
-      ctx.bot(id, `p:${s.moves}`, randDelay(350, 700), { type: 'place', cell: botPlace(s.board, s.turn) });
+      const cell = level === 'easy' ? botPlace(s.board, s.turn) : kharbgaPlace(s.board, s.turn, level);
+      ctx.bot(id, `p:${s.moves}`, randDelay(350, 700), { type: 'place', cell });
       return;
     }
-    const m = botMove(s.board, s.turn, s.chainFrom, s.firstMove, s.settings.level);
+    const m = level === 'easy' ? botMove(s.board, s.turn, s.chainFrom, s.firstMove, 1) : kharbgaBot(s.board, s.turn, s.chainFrom, s.firstMove, level, { quiet: s.quiet });
     if (m) ctx.bot(id, `m:${s.moves}`, randDelay(800, 1400), { type: 'move', from: m.from, to: m.to });
   },
 

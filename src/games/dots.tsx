@@ -5,7 +5,7 @@ import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, w
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { DOTS_SIZES, dotsBoxLines, type DotsLevel, type DotsView } from '@/shared/games/dots';
+import { DOTS_SIZES, dotsBoxLines, type DotsView } from '@/shared/games/dots';
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
@@ -276,7 +276,7 @@ export function DotsGame({ room, view }: { room: RoomView; view: DotsView }) {
   );
 }
 
-/** Lobby settings: grid size and bot strength. */
+/** Lobby settings: grid size (the bots' strength is the room's «مستوى البوتات»). */
 export function DotsSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const settings = room.settings.dots;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'dots', patch });
@@ -288,17 +288,6 @@ export function DotsSettings({ room, editable }: { room: RoomView; editable: boo
         value={String(settings.size)}
         editable={editable}
         onChange={(v) => change({ size: Number(v) })}
-      />
-      <Txt v="bold">قوة البوت</Txt>
-      <ChipPicker
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'medium', label: 'متوسط' },
-          { key: 'hard', label: 'صعب' },
-        ]}
-        value={settings.level}
-        editable={editable}
-        onChange={(level: DotsLevel) => change({ level })}
       />
     </View>
   );

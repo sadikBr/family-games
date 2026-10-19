@@ -10,7 +10,8 @@ import type { McqResult, WhoisSettings, WhoisView } from '../../src/shared/proto
 import { answerExact, answerMatches, norm } from '../../src/shared/arabic';
 import { WHO, WHO_ALIASES, WHO_CAT_LABEL, type WhoEntry } from '../content-islamic';
 import { qdeck } from '../qdeck';
-import { type GameModule } from '../types';
+import { readMs } from '../ai/social-quiz';
+import { botLevel, type GameModule } from '../types';
 import { isNum, isStr, randInt, shuffle } from '../util';
 import { soleWinner } from './mcq';
 
@@ -18,10 +19,22 @@ const CLUE_MS = 7000;
 const LAST_MS = 9000; // time after the last clue
 const REVEAL_MS = 5500;
 const OPTIONS = 6;
-/** Chance that a bot dares to guess at clue 1, 2, 3, 4 (it always guesses at the last one)… */
+/** Easy bots: chance that a bot dares to guess at clue 1, 2, 3, 4 (it always guesses at the last one)… */
 export const BOT_GO = [0.15, 0.3, 0.55, 1];
 /** …and how often that guess is right. */
 export const BOT_RIGHT = [0.45, 0.6, 0.75, 0.85];
+
+/**
+ * Smart / expert bots play like a person who waits until they are sure: each round they recognise the
+ * answer at some clue (an expert usually at the first or second one) and guess right then, almost always
+ * right; the points only depend on the clue, so there is no reason to gamble earlier. If they never
+ * recognise it they try their best guess at the last clue.
+ * BOT_SURE[level][k] = chance to recognise it at clue k+1 (the rest: never sure).
+ */
+export const BOT_SURE: Record<'smart' | 'expert', number[]> = { smart: [0.22, 0.3, 0.22, 0.14], expert: [0.45, 0.3, 0.14, 0.07] };
+const SURE_RIGHT = { smart: 0.95, expert: 0.98 };
+/** right at the last clue without being sure */
+const LAST_RIGHT = { smart: 0.55, expert: 0.7 };
 
 interface State {
   settings: WhoisSettings;
@@ -39,6 +52,8 @@ interface State {
   results: McqResult[] | null;
   scores: Record<string, number>;
   botAt: Record<string, { clue: number; go: boolean; right: boolean }>;
+  /** smart / expert bots: the clue at which each bot recognises this round's answer (0 = never) */
+  botSure?: Record<string, number>;
 }
 
 const answerIdx = (s: State) => s.options.indexOf(s.entries[s.round - 1].name);
@@ -79,6 +94,7 @@ function newRound(now: number, s: State) {
   s.tries = {};
   s.results = null;
   s.botAt = {};
+  s.botSure = {};
   s.nextClueAt = now + CLUE_MS;
   s.endsAt = null;
 }
@@ -97,6 +113,17 @@ function finishRound(now: number, s: State) {
   s.shown = s.entries[s.round - 1].clues.length;
   s.nextClueAt = null;
   s.endsAt = now + REVEAL_MS;
+}
+
+/** The clue (1-based) at which a smart / expert bot recognises the answer; 0 = never sure. */
+function sureAt(level: 'smart' | 'expert', clues: number): number {
+  let x = Math.random();
+  const table = BOT_SURE[level];
+  for (let k = 0; k < clues; k++) {
+    x -= table[Math.min(k, table.length - 1)] * (k < table.length ? 1 : 0);
+    if (x < 0) return k + 1;
+  }
+  return 0;
 }
 
 /** For result(): the highest `score` first; equal scores share a place. */
@@ -179,21 +206,37 @@ export const whois: GameModule<State, WhoisSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase !== 'ask') return;
     // at each new clue a bot decides whether to guess now; early guesses are rare and less often right
-    const last = s.entries[s.round - 1].clues.length;
+    const e = s.entries[s.round - 1];
+    const last = e.clues.length;
+    const level = botLevel(ctx);
     for (const b of bots) {
       if (!s.participants.includes(b) || s.guesses[b] || lockedOut(s, b)) continue;
       if (s.botAt[b]?.clue !== s.shown) {
-        const k = Math.min(s.shown, BOT_GO.length) - 1;
-        s.botAt[b] = { clue: s.shown, go: s.shown >= last || Math.random() < BOT_GO[k], right: Math.random() < BOT_RIGHT[k] };
+        if (level === 'easy') {
+          const k = Math.min(s.shown, BOT_GO.length) - 1;
+          s.botAt[b] = { clue: s.shown, go: s.shown >= last || Math.random() < BOT_GO[k], right: Math.random() < BOT_RIGHT[k] };
+        } else {
+          const sure = ((s.botSure ??= {})[b] ??= sureAt(level, last));
+          const known = sure > 0 && s.shown >= sure;
+          s.botAt[b] = { clue: s.shown, go: known || s.shown >= last, right: Math.random() < (known ? SURE_RIGHT[level] : LAST_RIGHT[level]) };
+        }
       }
       const plan = s.botAt[b];
       if (!plan.go) continue;
       const ans = answerIdx(s);
       const wrong = [...s.options.keys()].filter((k) => k !== ans);
       const choice = plan.right ? ans : wrong[randInt(0, wrong.length - 1)];
+      // read the new clue (and type the name), always well before the next clue
+      const read = readMs(e.clues[s.shown - 1]?.length ?? 30);
       // typed: one try per clue
-      if (s.settings.typed) ctx.bot(b, `g:${s.round}:${s.shown}`, randInt(2500, 5000), { type: 'guess', text: s.options[choice] });
-      else ctx.bot(b, `g:${s.round}`, randInt(1500, 4500), { type: 'guess', choice });
+      if (s.settings.typed) {
+        const typing = s.options[choice].length * 180;
+        const delay = level === 'easy' ? randInt(2500, 5000) : Math.min(CLUE_MS - 800, Math.max(2200, read + typing));
+        ctx.bot(b, `g:${s.round}:${s.shown}`, delay, { type: 'guess', text: s.options[choice] });
+      } else {
+        const delay = level === 'easy' ? randInt(1500, 4500) : Math.min(CLUE_MS - 800, Math.max(1500, read + randInt(300, 1200)));
+        ctx.bot(b, `g:${s.round}`, delay, { type: 'guess', choice });
+      }
     }
   },
 

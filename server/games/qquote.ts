@@ -10,9 +10,10 @@ import { QQUOTES, type QquoteEntry } from '../qquote-content';
 import { verseRef, verseSlice } from '../qquote-quran';
 import { forFont } from './tajweed';
 import { qdeck } from '../qdeck';
-import { type GameCtx, type GameModule } from '../types';
-import { isNum, randInt, shuffle } from '../util';
-import { botAnswerDelay, mcqOptions, soleWinner } from './mcq';
+import { quizAnswer } from '../ai/social-quiz';
+import { botLevel, type GameCtx, type GameModule } from '../types';
+import { isNum, shuffle } from '../util';
+import { mcqOptions, soleWinner } from './mcq';
 
 export const REVEAL_MS = 7000;
 
@@ -20,7 +21,7 @@ export const REVEAL_MS = 7000;
 const MAX_LEVEL: Record<QquoteLevel, number> = { easy: 1, medium: 2, hard: 3 };
 export const qquotePool = (level: QquoteLevel): QquoteEntry[] => QQUOTES.filter((q) => q.level <= MAX_LEVEL[level]);
 
-/** Bots know the famous stories well, the details less. */
+/** Easy bots know the famous stories well, the details less (smart / expert: see ai/social-quiz). */
 export const QQUOTE_BOT_SKILL: Record<QquoteLevel, number> = { easy: 0.75, medium: 0.6, hard: 0.5 };
 
 export interface QquoteItem {
@@ -152,12 +153,11 @@ export const qquote: GameModule<State, QquoteSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase !== 'ask') return;
     const item = s.items[s.round - 1];
+    const level = botLevel(ctx);
     for (const b of bots) {
       if (!s.participants.includes(b) || s.answers[b]) continue;
-      const right = Math.random() < QQUOTE_BOT_SKILL[s.settings.level];
-      const wrong = [...item.options.keys()].filter((k) => k !== item.correct);
-      const choice = right ? item.correct : wrong[randInt(0, wrong.length - 1)];
-      ctx.bot(b, `ans:${s.round}`, botAnswerDelay(s.seconds), { type: 'answer', choice });
+      const { choice, delay } = quizAnswer(level, QQUOTE_BOT_SKILL[s.settings.level], item, s.seconds);
+      ctx.bot(b, `ans:${s.round}`, delay, { type: 'answer', choice });
     }
   },
 

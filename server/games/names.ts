@@ -20,13 +20,16 @@ import {
 import { GAME_LETTERS, displayLetter, similarAnswers, startsWithLetter } from '../../src/shared/arabic';
 import { NAMES_DICT } from '../bot-content';
 import { knownWord } from '../dictionary';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick, shuffle } from '../util';
 
 const SPIN_MS = 3200;
 const GRACE_MS = 3000; // after STOP: last chance for answers to arrive
 const CATS = NAMES_CATEGORIES.map((c) => c.key);
-const BOT_SKILL = 0.72; // chance a bot finds an answer for a category
+/** chance a bot finds an answer for a category, by the room's bot strength */
+const BOT_SKILL = { easy: 0.72, smart: 0.86, expert: 0.96 };
+/** a person needs about this long to think of and type one answer (expert bots aren't faster than that) */
+const EXPERT_CELL_MS = 4500;
 
 interface State {
   settings: NamesSettings;
@@ -142,6 +145,22 @@ function score(ctx: GameCtx, s: State) {
     top.length === 1 ? `أكثر نقاط في الجولة: ${ctx.playerName(top[0])} (+${best})` : `تعادل في الجولة: ${best} نقطة لكلٍّ من ${top.map((id) => ctx.playerName(id)).join(' و')}`,
     top.length === 1 ? top[0] : undefined,
   );
+}
+
+const randBetween = (a: number, b: number) => a + Math.random() * (b - a);
+
+/**
+ * A bot's answer for one box, or null when it finds none. Easy: any word of its list. Smart / expert: a word
+ * the dictionary check knows (always true of the list) and, since a shared answer scores half, one of the
+ * less obvious words: the lists run from the most common to the rarest, so they skip the first part.
+ */
+export function namesBotAnswer(s: { letter: string }, cat: string, level: 'easy' | 'smart' | 'expert', rnd: () => number = Math.random): string | null {
+  const pool = (NAMES_DICT[cat]?.[s.letter] ?? []).filter((w) => startsWithLetter(w, s.letter));
+  if (!pool.length || rnd() > BOT_SKILL[level]) return null;
+  if (level === 'easy') return pick(pool);
+  const skip = Math.floor(pool.length * (level === 'expert' ? 0.4 : 0.2));
+  const rare = pool.length - skip >= 2 ? pool.slice(skip) : pool;
+  return rare[Math.floor(rnd() * rare.length)];
 }
 
 /** For result(): the highest `score` first; equal scores share a place. */
@@ -289,18 +308,28 @@ export const names: GameModule<State, NamesSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase !== 'write' || s.endsAt === null) return;
     const window = Math.max(5000, s.endsAt - ctx.now);
+    const level = botLevel(ctx);
     for (const bot of bots) {
       const planKey = `${s.round}|${bot}`;
       if (!s.participants.includes(bot) || s.botPlanned.has(planKey)) continue;
       s.botPlanned.add(planKey);
       // bots "write" one box after another, like a person would
       let at = 2500 + Math.random() * 3000;
-      const step = Math.min(7000, (window * 0.6) / CATS.length);
+      const step = level === 'expert' ? Math.min(EXPERT_CELL_MS, (window * 0.6) / CATS.length) : Math.min(7000, (window * (level === 'smart' ? 0.5 : 0.6)) / CATS.length);
+      let filled = 0;
       for (const cat of shuffle(CATS)) {
         at += step * (0.6 + Math.random() * 0.8);
-        const pool = NAMES_DICT[cat]?.[s.letter] ?? [];
-        if (!pool.length || Math.random() > BOT_SKILL) continue;
-        ctx.bot(bot, `ans:${s.round}:${cat}`, Math.round(at), { type: 'answer', cat, text: pick(pool) });
+        const text = namesBotAnswer(s, cat, level);
+        if (!text) continue;
+        filled++;
+        ctx.bot(bot, `ans:${s.round}:${cat}`, Math.round(at), { type: 'answer', cat, text });
+      }
+      // with «ستوب» on, an expert that filled every box calls it once it has checked them (a person who
+      // knows their words well), never in the first half of the time
+      if (level === 'expert' && s.settings.stop && filled === CATS.length) {
+        const total = s.settings.seconds * 1000;
+        const stopAt = Math.max(at + randBetween(1500, 3000), total * 0.5);
+        if (stopAt < window - 1000) ctx.bot(bot, `stop:${s.round}`, Math.round(stopAt), { type: 'stop' });
       }
     }
   },
