@@ -408,6 +408,8 @@ test('hot potato with bots: bots throw and shout a word', async () => {
 
 test('werewolf with bots: bot roles act automatically, bots accuse in the day', async () => {
   const { host } = await roomWithBots(1, 5, 'werewolf');
+  // «سهل» bots all speak up in the day (smart / expert villagers stay quiet until they have a reason)
+  host.send({ t: 'room', action: { type: 'botLevel', level: 'easy' } });
   host.send({ t: 'room', action: { type: 'settings', game: 'werewolf', patch: { hunter: false } } });
   host.send({ t: 'room', action: { type: 'start' } });
   await settle();
