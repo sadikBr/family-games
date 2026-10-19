@@ -26,12 +26,12 @@ import { OnewordSettings } from './oneword';
 import { BoggleSettings } from './boggle';
 import { QquoteSettings } from './qquote';
 import { TajweedSettings } from './tajweed';
-import { QwordSettings } from './qword';
 import { AsmaSettings } from './asma';
 import { StepsSettings } from './steps';
 import { MapquizSettings } from './mapquiz';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
+import { WordleSettings } from './wordle';
 
 function settingsFor<G extends GameId>(room: RoomView, game: G) {
   const settings = room.settings[game];
@@ -78,8 +78,6 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <QquoteSettings room={room} editable={editable} />;
     case 'tajweed':
       return <TajweedSettings room={room} editable={editable} />;
-    case 'qword':
-      return <QwordSettings room={room} editable={editable} />;
     case 'asma':
       return <AsmaSettings room={room} editable={editable} />;
     case 'steps':
@@ -336,10 +334,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       const { settings, change } = settingsFor(room, 'wave');
       return <Stepper label="كم مرة يعطي كل لاعب التلميح" value={settings.rounds} min={1} max={3} editable={editable} onChange={(rounds) => change({ rounds })} />;
     }
-    case 'wordle': {
-      const { settings, change } = settingsFor(room, 'wordle');
-      return <Stepper label="عدد الكلمات" value={settings.rounds} min={1} max={10} editable={editable} onChange={(rounds) => change({ rounds })} />;
-    }
+    case 'wordle':
+      return <WordleSettings room={room} editable={editable} />;
     case 'huroof': {
       const { settings, change } = settingsFor(room, 'huroof');
       return <Stepper label="وقت الإجابة" value={settings.seconds} min={10} max={40} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />;

@@ -21,6 +21,7 @@ import {
   type Pace,
   type Said,
   PACES,
+  resolveGame,
   type RoomView,
   type ServerMsg,
 } from '../src/shared/protocol';
@@ -56,7 +57,6 @@ import { oneword } from './games/oneword';
 import { boggle } from './games/boggle';
 import { qquote } from './games/qquote';
 import { tajweed } from './games/tajweed';
-import { qword } from './games/qword';
 import { asma } from './games/asma';
 import { steps } from './games/steps';
 import { mapquiz } from './games/mapquiz';
@@ -147,7 +147,6 @@ const MODULES: Record<GameId, AnyModule> = {
   boggle,
   qquote,
   tajweed,
-  qword,
   asma,
   steps,
   mapquiz,
@@ -533,14 +532,18 @@ export class Room {
     const isHost = by === this.hostId;
     switch (a.type) {
       case 'game': {
-        if (!isHost || this.status !== 'lobby' || !GAME_IDS.includes(a.game)) return;
+        // an older app may still ask for a game that became part of another one (e.g. «كلمة قرآنية»)
+        const want = resolveGame(a.game);
+        if (!isHost || this.status !== 'lobby' || !want) return;
         if (this.tournament && this.tournament.stage !== 'setup') return;
-        this.game = a.game;
+        this.game = want.game;
+        if (want.settings) this.patchSettings(want.game, want.settings);
         break;
       }
       case 'settings': {
-        if (!isHost || this.status !== 'lobby' || !GAME_IDS.includes(a.game)) return;
-        this.patchSettings(a.game, a.patch ?? {});
+        const want = resolveGame(a.game);
+        if (!isHost || this.status !== 'lobby' || !want) return;
+        this.patchSettings(want.game, { ...(a.patch ?? {}), ...(want.settings ?? {}) });
         break;
       }
       case 'pace': {
@@ -652,7 +655,7 @@ export class Room {
       case 'tournament': {
         // set up (or change) the tournament in the waiting room
         if (this.status !== 'lobby' || (t && t.stage !== 'setup' && t.stage !== 'final')) return;
-        const config = cleanConfig(a.config);
+        const config = cleanConfig(this.unalias(a.config));
         if (!config) return;
         if (t && t.stage === 'setup') t.config = config;
         else this.tournament = new Tournament(config);
@@ -861,6 +864,35 @@ export class Room {
     this.broadcast();
   }
 
+  /** A new room opened on an old game id (see resolveGame): its settings, e.g. the Quran words. */
+  preset(game: GameId, settings: Record<string, unknown> | null) {
+    if (settings) this.patchSettings(game, settings);
+  }
+
+  /**
+   * A tournament from an older app may list games that became part of another one: they are played as
+   * that game, with its settings (an old «كلمة قرآنية» is «كلمة السر» with the Quran words — or the
+   * mix when the tournament also has «كلمة السر» itself).
+   */
+  private unalias(raw: unknown): unknown {
+    if (!raw || typeof raw !== 'object') return raw;
+    const o = raw as Record<string, unknown>;
+    const presets: { game: GameId; settings: Record<string, unknown> }[] = [];
+    const plain = new Set<string>();
+    const one = (v: unknown) => {
+      const want = resolveGame(v);
+      if (!want) return v;
+      if (want.settings) presets.push({ game: want.game, settings: want.settings });
+      else plain.add(want.game);
+      return want.game;
+    };
+    const out: Record<string, unknown> = { ...o, game: one(o.game) };
+    if (Array.isArray(o.games)) out.games = o.games.map(one);
+    if (Array.isArray(o.perRound)) out.perRound = o.perRound.map(one);
+    for (const p of presets) this.patchSettings(p.game, p.game === 'wordle' && plain.has('wordle') ? { ...p.settings, words: 'mix' } : p.settings);
+    return out;
+  }
+
   private patchSettings(game: GameId, patch: Record<string, unknown>) {
     const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
     const int = (v: unknown, d: number, min: number, max: number) =>
@@ -969,9 +1001,6 @@ export class Room {
         break;
       case 'wave':
         this.settings.wave.rounds = int(patch.rounds, this.settings.wave.rounds, 1, 3);
-        break;
-      case 'wordle':
-        this.settings.wordle.rounds = int(patch.rounds, this.settings.wordle.rounds, 1, 10);
         break;
       case 'huroof':
         this.settings.huroof.seconds = int(patch.seconds, this.settings.huroof.seconds, 10, 40);

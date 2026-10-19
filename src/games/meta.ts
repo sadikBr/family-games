@@ -15,7 +15,6 @@ import { ONEWORD_INFO } from '@/shared/games/oneword';
 import { BOGGLE_INFO } from '@/shared/games/boggle';
 import { QQUOTE_INFO } from '@/shared/games/qquote';
 import { TAJWEED_INFO } from '@/shared/games/tajweed';
-import { QWORD_INFO } from '@/shared/games/qword';
 import { ASMA_INFO } from '@/shared/games/asma';
 import { STEPS_INFO } from '@/shared/games/steps';
 import { MAPQUIZ_INFO } from '@/shared/games/mapquiz';
@@ -23,7 +22,7 @@ import { PROPHETS_INFO } from '@/shared/games/prophets';
 import { MOSQUE_INFO } from '@/shared/games/mosque';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
-import { MIN_PLAYERS } from '@/shared/protocol';
+import { GAME_ALIASES, MIN_PLAYERS } from '@/shared/protocol';
 
 export interface GameMeta {
   id: GameId;
@@ -37,6 +36,29 @@ export interface GameMeta {
   /** the cover text for the room's settings, when they change the game's rules (e.g. Moroccan Baloot) */
   variant?: (settings: AllSettings) => { tagline: string; howTo: string[] } | null;
 }
+
+/** «كلمة السر» with the Quran words (formerly its own game, «كلمة قرآنية»). */
+const WORDLE_QURAN = {
+  tagline: 'خمّن كلمة من القرآن الكريم في ست محاولات.',
+  howTo: [
+    'الكلمة السرية من خمسة حروف، وهي كلمة وردت في القرآن الكريم: اسم نبي أو سورة أو مكان، أو اسم من أسماء الله الحسنى، أو كلمة قرآنية معروفة.',
+    'لكل لاعب ست محاولات على هاتفه. بعد كل محاولة: الأخضر حرف في مكانه، والأصفر حرف موجود في مكان آخر، والرمادي حرف غير موجود.',
+    'تُكتب الهمزة على الألف ألفاً (أ إ آ = ا)، والألف المقصورة ياءً (ى = ي)، والتاء المربوطة ة كما هي. «ال» تُحسب من الحروف.',
+    'تُقبل كل كلمة من خمسة حروف وردت في القرآن أو في القاموس.',
+    'تظهر ألوان محاولات الآخرين دون حروفها. النقاط: (7 − عدد المحاولات) × 100، و100 إضافية لأول من يجدها.',
+    'في وضع السباق تنتهي الجولة حين يجد أحدهم الكلمة. بعد كل جولة تظهر آية وردت فيها الكلمة مع اسم السورة ورقم الآية.',
+  ],
+};
+const WORDLE_MIX = {
+  tagline: 'كلمات عامة وكلمات قرآنية: خمّن الكلمة من 5 حروف في 6 محاولات.',
+  howTo: [
+    'الجميع يبحثون عن الكلمة نفسها في الوقت نفسه: كلمة عامة مرة، وكلمة من القرآن الكريم مرة.',
+    'بعد كل محاولة: الأخضر حرف صحيح في مكانه، الأصفر حرف موجود في مكان آخر، والرمادي غير موجود.',
+    'تُكتب الهمزة على الألف ألفاً (أ إ آ = ا)، والألف المقصورة ياءً (ى = ي). تُقبل كل كلمة من خمسة حروف وردت في القرآن أو في القاموس.',
+    'ترى ألوان الآخرين دون حروفهم. كلما وجدتها بمحاولات أقل ربحت أكثر، وأول من يجدها يربح 100 إضافية.',
+    'بعد كل كلمة قرآنية تظهر آية وردت فيها. وفي وضع السباق تنتهي الجولة حين يجد أحدهم الكلمة.',
+  ],
+};
 
 export const GAMES: Record<GameId, GameMeta> = {
   phase10: { id: 'phase10', minPlayers: MIN_PLAYERS.phase10, ...PHASE10_INFO },
@@ -56,7 +78,6 @@ export const GAMES: Record<GameId, GameMeta> = {
   boggle: { id: 'boggle', minPlayers: MIN_PLAYERS.boggle, ...BOGGLE_INFO },
   qquote: { id: 'qquote', minPlayers: MIN_PLAYERS.qquote, ...QQUOTE_INFO },
   tajweed: { id: 'tajweed', minPlayers: MIN_PLAYERS.tajweed, ...TAJWEED_INFO },
-  qword: { id: 'qword', minPlayers: MIN_PLAYERS.qword, ...QWORD_INFO },
   asma: { id: 'asma', minPlayers: MIN_PLAYERS.asma, ...ASMA_INFO },
   steps: { id: 'steps', minPlayers: MIN_PLAYERS.steps, ...STEPS_INFO },
   mapquiz: { id: 'mapquiz', minPlayers: MIN_PLAYERS.mapquiz, ...MAPQUIZ_INFO },
@@ -255,7 +276,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   wordle: {
     id: 'wordle',
     title: 'كلمة السر',
-    tagline: 'خمّن الكلمة المخفية من 5 حروف في 6 محاولات.',
+    tagline: 'خمّن الكلمة المخفية من 5 حروف في 6 محاولات — كلمات عامة أو قرآنية.',
     color: '#5B6296',
     minPlayers: MIN_PLAYERS.wordle,
     maxPlayers: 12,
@@ -263,7 +284,9 @@ export const GAMES: Record<GameId, GameMeta> = {
       'الجميع يبحثون عن الكلمة نفسها في الوقت نفسه.',
       'بعد كل محاولة: الأخضر حرف صحيح في مكانه، الأصفر حرف موجود في مكان آخر، والرمادي غير موجود.',
       'ترى ألوان الآخرين دون حروفهم. كلما وجدتها بمحاولات أقل ربحت أكثر، وأول من يجدها يربح 100 إضافية.',
+      'من الإعدادات: كلمات عامة، أو كلمات قرآنية (اسم نبي أو سورة أو مكان…) تظهر بعدها آية وردت فيها الكلمة، أو مزيج منهما. وفي وضع السباق تنتهي الجولة حين يجد أحدهم الكلمة.',
     ],
+    variant: (s) => (s.wordle?.words === 'quran' ? WORDLE_QURAN : s.wordle?.words === 'mix' ? WORDLE_MIX : null),
   },
   kharbga: {
     id: 'kharbga',
@@ -529,12 +552,15 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'baloot', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'baloot', 'unoflip', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
 
-/** Grouping for the home screen (`short`: the filter chip). */
+// an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
+for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
+
+/** Grouping for the home screen (`short`: the filter chip). A game may sit in two groups («كلمة السر»: words and, for its Quran words, Islamic). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
   { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble', 'boggle'] },
-  { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'qword', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
+  { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'connect4', 'battleship'] },
   { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
   { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'konkan', 'kdab', 'unoflip', 'phase10'] },
