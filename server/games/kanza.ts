@@ -12,6 +12,7 @@ import { kanzaBotMove } from '../ai/cards-kanza';
 import { decideOnce } from '../ai/cards-memo';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
+import { VOICE, voiceAnd, voiceTeam, voiceWin } from '../voice-calls';
 
 const HAND_SIZE = 3;
 const TABLE_START = 4;
@@ -171,6 +172,9 @@ export const kanza: GameModule<State, KanzaSettings> = {
     }
     removeCard(hand, card.id);
     s.moves += 1;
+    // the move is told once at the end: the winner of the game (if it ends now) is read aloud with it
+    let said = '';
+    let voice: string | undefined;
     if (take.length) {
       s.table = s.table.filter((c) => !take.includes(c));
       const side = sideOf(s.sides, by);
@@ -179,12 +183,15 @@ export const kanza: GameModule<State, KanzaSettings> = {
       const pts = [card, ...take].reduce((t, c) => t + kanzaPoints(c), 0);
       const gold = [card, ...take].some((c) => c.suit === 'coins');
       s.feed.push(`${ctx.playerName(by)} جمع 15${gold ? ' بأوروص' : ''}`, { by, points: pts });
-      ctx.say?.(`أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(take.length + 1)} بـ ${cardName(card)} (+${pts})`, by);
-      ctx.fx(take.some((c) => c.suit === 'coins' && c.rank === 1) || (card.suit === 'coins' && card.rank === 1) ? 'reveal' : 'correct', by);
+      said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(take.length + 1)} بـ ${cardName(card)} (+${pts})`;
+      const ace = take.some((c) => c.suit === 'coins' && c.rank === 1) || (card.suit === 'coins' && card.rank === 1);
+      // the 1 of coins (20 points) is the hand's big moment: read aloud
+      if (ace) voice = VOICE.kanzaAce;
+      ctx.fx(ace ? 'reveal' : 'correct', by);
     } else {
       s.table.push(card);
       s.feed.push(`${ctx.playerName(by)} رمى ${cardName(card)}`, { by });
-      ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)}`, by);
+      said = `ورقة من ${ctx.playerName(by)}: ${cardName(card)}`;
       ctx.fx('card');
     }
     s.lastPlay = { by, card, took: take };
@@ -198,6 +205,8 @@ export const kanza: GameModule<State, KanzaSettings> = {
       }
       if (s.seats.every((id) => s.hands[id].length === 0)) endHand(ctx, s);
     }
+    const won = (s.phase as KanzaView['phase']) === 'final' && s.winner ? s.sides.find((x) => x.key === s.winner) : undefined;
+    ctx.say?.(said, by, voiceAnd(voice, won && voiceWin(voiceTeam(won.members.map((m) => ctx.playerName(m))))));
   },
 
   botPlan(ctx, s) {

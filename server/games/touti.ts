@@ -34,6 +34,7 @@ import { expertBid, expertCard, expertTrump, findClaim, outlook, type BidOutlook
 import { bestTrump, botBid, botPlay, reachChance } from '../touti-bot';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
+import { SUIT_VOICE, VOICE, voiceBid, voiceTeam, voiceTrump, voiceWin } from '../voice-calls';
 
 /** a full trick stays on the table this long (everyone sees who took it) */
 export const TRICK_PAUSE_MS = 2400;
@@ -160,24 +161,26 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: unknown) {
   const b = s.bid!;
   if (b.turn !== by) throw new GameError('ليس دورك');
   const name = ctx.playerName(by);
+  // read aloud: «بَاصْ» or the number bid («مْيَة وْعِشْرِينْ»), on every say of this move
+  const voice = call === 'pass' ? VOICE.pass : typeof call === 'number' ? voiceBid(call) : undefined;
   if (call === 'pass') {
     s.auction.push({ by, call: 'pass' });
     b.calls[by] = 'pass';
     b.active = b.active.filter((p) => p !== by);
-    ctx.say?.(`باص: ${name}`, by);
+    ctx.say?.(`باص: ${name}`, by, voice);
   } else {
     if (typeof call !== 'number' || !bidOptions(s, by).includes(call)) throw new GameError('مزايدة غير صالحة');
     s.auction.push({ by, call });
     b.calls[by] = call;
     b.high = call;
     b.highBy = by;
-    ctx.say?.(`مزايدة من ${name}: ${call}`, by);
+    ctx.say?.(`مزايدة من ${name}: ${call}`, by, voice);
     ctx.fx('throw');
   }
   // the auction is over: everyone passed (a new deal), the last bidder stands alone, or 230
   if (!b.highBy && !b.active.length) {
     s.redealAt = ctx.now + REDEAL_MS;
-    ctx.say?.('لا مزايدة — توزيع جديد');
+    ctx.say?.('لا مزايدة — توزيع جديد', undefined, voice);
     ctx.fx('buzz');
     return;
   }
@@ -185,7 +188,7 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: unknown) {
     s.phase = 'trump';
     s.bidder = b.highBy;
     s.contract = b.high;
-    ctx.say?.(`الشاري: ${ctx.playerName(b.highBy)} بـ ${b.high} — اختيار الطرونفو`, b.highBy);
+    ctx.say?.(`الشاري: ${ctx.playerName(b.highBy)} بـ ${b.high} — اختيار الطرونفو`, b.highBy, voice);
     ctx.fx('correct', b.highBy);
     return;
   }
@@ -201,7 +204,7 @@ function chooseTrump(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.phase = 'play';
   s.trickNo = 1;
   s.turn = s.seats[(s.dealer + 1) % 4];
-  ctx.say?.(`الطرونفو: ${suitName(s.trump)} — الشاري: ${ctx.playerName(by)} (${s.contract})`, by);
+  ctx.say?.(`الطرونفو: ${suitName(s.trump)} — الشاري: ${ctx.playerName(by)} (${s.contract})`, by, voiceTrump(SUIT_VOICE[s.trump]));
   ctx.fx('reveal');
 }
 
@@ -269,7 +272,7 @@ function sing(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.sung.push({ by, suit: pair.suit, points: pair.points, trick: s.trickNo - 1 });
   // one pair after each trick taken
   s.singQueue = [];
-  ctx.say?.(`غناء من ${ctx.playerName(by)}: 12 و11 ${suitName(pair.suit)}${pair.suit === s.trump ? ' (الطرونفو)' : ''} +${pair.points}`, by);
+  ctx.say?.(`غناء من ${ctx.playerName(by)}: 12 و11 ${suitName(pair.suit)}${pair.suit === s.trump ? ' (الطرونفو)' : ''} +${pair.points}`, by, VOICE.sing);
   ctx.fx('reveal');
 }
 
@@ -297,7 +300,7 @@ function endHand(ctx: GameCtx, s: State) {
   s.phase = 'handEnd';
   s.turn = null;
   const gainer = out.success ? bidSide : other(bidSide);
-  ctx.say?.(`نهاية اليد ${s.hand}: ${out.made} من ${s.contract}${out.success ? '' : ' (تغطيس)'} — ${s.contract} لـ${teamName(ctx, s, gainer)}`);
+  ctx.say?.(`نهاية اليد ${s.hand}: ${out.made} من ${s.contract}${out.success ? '' : ' (تغطيس)'} — ${s.contract} لـ${teamName(ctx, s, gainer)}`, undefined, out.success ? undefined : VOICE.taghtis);
   const t = s.settings.target;
   if (s.scores.A >= t || s.scores.B >= t) finish(ctx, s, s.scores.A >= t ? 'A' : 'B');
   else {
@@ -314,7 +317,7 @@ function finish(ctx: GameCtx, s: State, side: TSide | null) {
   s.deadline = null;
   s.singQueue = [];
   if (side) {
-    ctx.say?.(`الفوز لـ${teamName(ctx, s, side)}`);
+    ctx.say?.(`الفوز لـ${teamName(ctx, s, side)}`, undefined, voiceWin(voiceTeam(s.sides.find((x) => x.key === side)!.members.map((m) => ctx.playerName(m)))));
     ctx.fx('win');
   }
 }
@@ -428,7 +431,7 @@ function claim(ctx: GameCtx, s: State, by: string) {
   s.turn = null;
   s.trickWinner = by;
   s.trickNo = TRICKS;
-  ctx.say?.(`الباقي ل${teamName(ctx, s, side)} — أُنهيت اليد`, by);
+  ctx.say?.(`الباقي ل${teamName(ctx, s, side)} — أُنهيت اليد`, by, VOICE.claim);
   ctx.fx('reveal');
 }
 

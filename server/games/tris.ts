@@ -11,6 +11,7 @@ import { trisClaim, trisMindPlay, trisSimOf } from '../ai/tris-mind';
 import { freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
+import { VOICE, voiceHand, voiceTeam, voiceWin } from '../voice-calls';
 
 const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
 /** a full trick stays on the table this long before it is collected (everyone sees who took it) */
@@ -125,7 +126,7 @@ function claimHand(ctx: GameCtx, s: State, by: string) {
   s.phase = 'trickEnd';
   s.pauseUntil = ctx.now + CLAIM_REVEAL_MS;
   const team = s.sides.find((x) => x.key === claim.side)!.members.map((m) => ctx.playerName(m)).join(' و');
-  ctx.say?.(`الباقي لفريق ${team} — أُنهيت اليد`, by);
+  ctx.say?.(`الباقي لفريق ${team} — أُنهيت اليد`, by, VOICE.claim);
   ctx.fx('reveal');
 }
 
@@ -166,12 +167,19 @@ export function trisBotCard(s: State, bot: string, level: 'easy' | 'smart' | 'ex
 function endHand(ctx: GameCtx, s: State) {
   s.handSummary = s.sides.map((x) => ({ side: x.key, points: Math.floor(s.handThirds[x.key] / 3) }));
   for (const row of s.handSummary) s.scores[row.side] += row.points;
-  ctx.say?.(
-    `انتهت اليد: ${s.sides.map((x) => `${x.members.map((m) => ctx.playerName(m)).join(' و')} +${s.handSummary!.find((r) => r.side === x.key)?.points ?? 0}`).join(' · ')}`,
-  );
   const [a, b] = [s.scores.A, s.scores.B];
   const t = s.settings.target;
-  if ((a >= t || b >= t) && a !== b) {
+  const over = (a >= t || b >= t) && a !== b;
+  // read aloud: the winner of the game, or the side that took more of this hand
+  const names = (side: string) => voiceTeam(s.sides.find((x) => x.key === side)!.members.map((m) => ctx.playerName(m)));
+  const [ra, rb] = s.sides.map((x) => s.handSummary!.find((r) => r.side === x.key)?.points ?? 0);
+  const voice = over ? voiceWin(names(a > b ? 'A' : 'B')) : ra !== rb ? voiceHand(names(s.sides[ra > rb ? 0 : 1].key)) : undefined;
+  ctx.say?.(
+    `انتهت اليد: ${s.sides.map((x) => `${x.members.map((m) => ctx.playerName(m)).join(' و')} +${s.handSummary!.find((r) => r.side === x.key)?.points ?? 0}`).join(' · ')}`,
+    undefined,
+    voice,
+  );
+  if (over) {
     s.winner = a > b ? 'A' : 'B';
     s.phase = 'final';
     ctx.fx('win');

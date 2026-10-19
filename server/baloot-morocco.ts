@@ -7,12 +7,16 @@
  */
 import { maLegal, annKey, bestAnnSide, findAnnouncements, maScoreHand, maSuitName, ANN_NAME, MA_BELOTE, type Ann } from '../src/shared/baloot-morocco';
 import { B_SUITS } from '../src/shared/baloot-rules';
-import type { BalootCall, BalootOption, BCard, BProjectView, BSide, BSuit } from '../src/shared/games/baloot';
+import type { BalootCall, BalootOption, BCard, BProjectView, BSide, BSuit, MAnnKind } from '../src/shared/games/baloot';
 import type { GameAction } from '../src/shared/protocol';
 import { hokmStrength } from './baloot-bot';
 import type { State } from './games/baloot';
 import { GameError, type GameCtx } from './types';
 import { isStr } from './util';
+import { B_SUIT_VOICE_MA, VOICE, voiceTrump } from './voice-calls';
+
+/** An announcement as it is read aloud: «تِيرْسْ», «كَارْتْ», «سَانْكْ», «كَارِي». */
+export const maAnnVoice = (k: MAnnKind) => ({ tierce: VOICE.tierce, quarte: VOICE.quarte, quinte: VOICE.quinte, carre: VOICE.carre })[k];
 
 export const isMorocco = (s: State) => s.settings.mode === 'morocco';
 
@@ -47,24 +51,24 @@ export function maBidCall(ctx: GameCtx, s: State, by: string, call: BalootCall, 
     const trump = call === 'hokm' ? s.faceUp!.suit : (suit as BSuit);
     const forced = call === 'hokm' && s.faceUp!.rank === 'J' && b.order[0] === by;
     b.calls[by] = { call, suit: trump };
-    maDeal(ctx, s, by, trump, forced);
+    maDeal(ctx, s, by, trump, forced, call === 'hokm2');
     return 'play';
   }
   b.calls[by] = { call: 'pass' };
-  ctx.say?.(`باص: ${ctx.playerName(by)}`, by);
+  ctx.say?.(`باص: ${ctx.playerName(by)}`, by, VOICE.pass);
   if (b.queue.length) return null;
   if (b.round === 1) {
     b.round = 2;
     b.calls = {};
     b.queue = b.order.slice();
-    ctx.say?.('لا شراء في الجولة الأولى — الجولة الثانية: طرونفو بشكل آخر');
+    ctx.say?.('لا شراء في الجولة الأولى — الجولة الثانية: طرونفو بشكل آخر', undefined, VOICE.pass);
     return null;
   }
   return 'redeal';
 }
 
 /** The taker (الشاري) gets the face-up card + 2, everyone else 3 (dealer's right first). */
-function maDeal(ctx: GameCtx, s: State, buyer: string, trump: BSuit, forced: boolean) {
+function maDeal(ctx: GameCtx, s: State, buyer: string, trump: BSuit, forced: boolean, second: boolean) {
   s.contract = { mode: 'hokm', trump, buyer, caller: buyer, call: 'hokm', mult: 1, gahwa: false };
   s.upCard = s.faceUp;
   for (const id of s.bid!.order) {
@@ -74,7 +78,9 @@ function maDeal(ctx: GameCtx, s: State, buyer: string, trump: BSuit, forced: boo
   s.faceUp = null;
   for (const id of s.seats) s.maAvail[id] = findAnnouncements(s.hands[id], trump);
   s.balootHolder = s.seats.find((id) => ['K', 'Q'].every((r) => s.hands[id].some((c) => c.suit === trump && c.rank === r))) ?? null;
-  ctx.say?.(`الشاري: ${ctx.playerName(buyer)} — الطرونفو: ${maSuitName(trump)}${forced ? ' (الفورص)' : ''}`, buyer);
+  // read aloud: «شَارِي», the suit named in the 2nd round («الطْرُونْفُو الكُوبَاصْ»), or «الفُورْصْ»
+  const voice = forced ? VOICE.forced : second ? voiceTrump(B_SUIT_VOICE_MA[trump]) : VOICE.shari;
+  ctx.say?.(`الشاري: ${ctx.playerName(buyer)} — الطرونفو: ${maSuitName(trump)}${forced ? ' (الفورص)' : ''}`, buyer, voice);
   ctx.fx('correct', buyer);
 }
 
@@ -160,12 +166,14 @@ export function maEndHand(ctx: GameCtx, s: State): BSide | null {
   s.turn = null;
   ctx.say?.(
     `نهاية اليد ${s.hand}: ${teamName(ctx, s, 'A')} +${out.points.A}، ${teamName(ctx, s, 'B')} +${out.points.B}${tag ? ` — ${tag}` : ''}`,
+    undefined,
+    out.kaboot ? VOICE.capot : out.failed ? VOICE.dkhal : out.litige ? VOICE.litige : undefined,
   );
   const t = s.settings.target;
   if (s.scores.A < t && s.scores.B < t) return null;
   if (s.scores.A !== s.scores.B) return s.scores.A > s.scores.B ? 'A' : 'B';
   s.bel = true;
-  ctx.say?.('تعادل فوق الهدف — البيل: يد فاصلة');
+  ctx.say?.('تعادل فوق الهدف — البيل: يد فاصلة', undefined, VOICE.bel);
   return null;
 }
 

@@ -39,6 +39,7 @@ import { botDiscard, botDraw, botPlay, type BotAction, type Seat } from '../rami
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import type { BotLevel } from '../../src/shared/protocol';
 import { isNum, isStr, shuffle } from '../util';
+import { VOICE, voiceAnd, voiceWin } from '../voice-calls';
 
 export const ROUND_END_MS = RAMI_ROUND_END_MS;
 /** The discard pile goes back into the stock at most this many times per round. */
@@ -188,15 +189,18 @@ function endRound(ctx: GameCtx, s: State, out: string | null, forfeit: string | 
     gained[row.id] = row.points;
   }
   s.history.push(gained);
+  // read aloud: «رامي» / «رامي سيك», and the winner when the game ends with this round
+  const champion = s.active.some((id) => s.scores[id] >= s.settings.limit) ? leader(s) : null;
+  const win = champion ? voiceWin(ctx.playerName(champion)) : undefined;
   if (out) {
     s.feed.push(s.sec ? `${ctx.playerName(out)}: رامي سيك!` : `${ctx.playerName(out)}: رامي!`, { by: out });
-    ctx.say?.(s.sec ? `رامي سيك ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}` : `رامي ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}`, out);
+    ctx.say?.(s.sec ? `رامي سيك ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}` : `رامي ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}`, out, voiceAnd(s.sec ? VOICE.ramiSec : VOICE.rami, win));
   } else if (forfeit) {
     s.feed.push(`${ctx.playerName(forfeit)}: خسارة الجولة`, { by: forfeit });
-    ctx.say?.(`خسارة الجولة ${li(ctx.playerName(forfeit))}: الورقة المأخوذة لم تنزل (+100)`, forfeit);
+    ctx.say?.(`خسارة الجولة ${li(ctx.playerName(forfeit))}: الورقة المأخوذة لم تنزل (+100)`, forfeit, win);
   } else {
     s.feed.push('انتهت الأوراق — انتهت الجولة');
-    ctx.say?.(`انتهت الكومة — انتهت الجولة ${s.round}`);
+    ctx.say?.(`انتهت الكومة — انتهت الجولة ${s.round}`, undefined, win);
   }
   if (s.active.some((id) => s.scores[id] >= s.settings.limit)) {
     finishGame(ctx, s, leader(s));
@@ -319,7 +323,8 @@ function lay(ctx: GameCtx, s: State, by: string, raw: unknown) {
   const n = check.melds.length;
   const what = n === 1 ? 'تشكيلة' : n === 2 ? 'تشكيلتان' : `${n} تشكيلات`;
   s.feed.push(first ? `${name}: نزلة أولى (${check.value})` : `${name}: ${what}`, { by });
-  ctx.say?.(first && talaj(s) && left > 1 ? `نزلة أولى ${li(name)}: ${what} بـ${check.value} نقطة` : `نزلة ${li(name)}: ${what}`, by);
+  // read aloud: a player's first lay-down («نزلة»), not the later ones
+  ctx.say?.(first && talaj(s) && left > 1 ? `نزلة أولى ${li(name)}: ${what} بـ${check.value} نقطة` : `نزلة ${li(name)}: ${what}`, by, first ? VOICE.firstLay : undefined);
   ctx.fx('correct', by);
   if (!hand.length) endRound(ctx, s, by);
 }

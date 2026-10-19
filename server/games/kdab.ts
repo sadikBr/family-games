@@ -27,6 +27,7 @@ import { decideOnce } from '../ai/cards-memo';
 import { Feed, freshDeck, randDelay } from '../cardkit';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
+import { VOICE, voiceWin } from '../voice-calls';
 
 const FINISH_MS = 5000; // time others get to challenge a player's last cards
 /** the cards shown by a «كذّاب!» stay face up at least this long, even if someone plays meanwhile */
@@ -90,7 +91,7 @@ function finishWin(ctx: GameCtx, s: State, id: string) {
   s.winner = id;
   s.phase = 'final';
   s.feed.push(`${ctx.playerName(id)} تخلّص من كل أوراقه!`, { by: id });
-  ctx.say?.(`الفوز لـ${ctx.playerName(id)}: لا أوراق باقية!`, id);
+  ctx.say?.(`الفوز لـ${ctx.playerName(id)}: لا أوراق باقية!`, id, voiceWin(ctx.playerName(id)));
   ctx.fx('win', id);
 }
 
@@ -112,6 +113,7 @@ function challenge(ctx: GameCtx, s: State, caller: string) {
       ? `«كذّاب!» من ${ctx.playerName(caller)} في غير محلّه — الكومة لـ${ctx.playerName(caller)}`
       : `«كذّاب!» من ${ctx.playerName(caller)} في محلّه — الكومة لـ${ctx.playerName(play.by)}`,
     caller,
+    truthful ? VOICE.kdabTruth : VOICE.kdabLie,
   );
   s.feed.push(
     truthful ? `${ctx.playerName(caller)} قال «كذّاب» — لكن ${ctx.playerName(play.by)} كان صادقاً! ${ctx.playerName(caller)} يأخذ الكومة` : `${ctx.playerName(caller)} كشف ${ctx.playerName(play.by)}! الكذّاب يأخذ الكومة`,

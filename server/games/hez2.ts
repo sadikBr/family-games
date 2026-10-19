@@ -29,6 +29,7 @@ import { randDelay } from '../cardkit';
 import { decide, type Void } from '../hez2-bot';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
+import { SUIT_VOICE, voiceHez, voiceRound, voiceWin } from '../voice-calls';
 
 export const OVER_MS = HEZ2_OVER_MS;
 export const ROUND_END_MS = HEZ2_ROUND_END_MS;
@@ -206,8 +207,10 @@ function endRound(ctx: GameCtx, s: State, winner: string | null, stuck = false) 
   s.moves += 1;
   const reached = s.seats.some((id) => (s.scores[id] ?? 0) >= s.settings.target);
   s.winner = reached ? ranking(s)[0] : null;
-  if (stuck) ctx.say?.(`لا أوراق للسحب — انتهت الجولة${winner ? `، الأقل نقاطاً: ${name(ctx, winner)}` : ''}`);
-  else if (winner) ctx.say?.(`انتهت الجولة — الفوز بها ${li(name(ctx, winner))}`, winner);
+  // read aloud: the winner of the round (the game's winner is read when the game ends, in tick)
+  const voice = winner ? voiceRound(name(ctx, winner)) : undefined;
+  if (stuck) ctx.say?.(`لا أوراق للسحب — انتهت الجولة${winner ? `، الأقل نقاطاً: ${name(ctx, winner)}` : ''}`, undefined, voice);
+  else if (winner) ctx.say?.(`انتهت الجولة — الفوز بها ${li(name(ctx, winner))}`, winner, voice);
   ctx.fx('reveal', winner ?? undefined);
 }
 
@@ -236,17 +239,19 @@ function playCard(ctx: GameCtx, s: State, by: string, card: Card) {
     const victim = at(s, 1);
     if (empty && !s.settings.lastTwo) {
       // the table's way: the penalty lands at once and the round is over
+      const stacked = s.pending;
       const k = drawN(s, victim, s.pending);
       s.pending = 0;
       setEvent(s, { kind: 'two', by, target: victim, n: k });
-      ctx.say?.(`${lead} — ${cardsText(k)} على ${name(ctx, victim)}`, by);
+      ctx.say?.(`${lead} — ${cardsText(k)} على ${name(ctx, victim)}`, by, voiceHez(stacked));
       ctx.fx('buzz', victim);
       endRound(ctx, s, by);
       return;
     }
     if (empty) s.out = by;
     setEvent(s, { kind: 'two', by, target: victim, n: s.pending });
-    ctx.say?.(`${lead} — ${s.pending} للسحب على ${name(ctx, victim)}`, by);
+    // «هزّ 2», «هزّ 4»… (the 2s stack)
+    ctx.say?.(`${lead} — ${s.pending} للسحب على ${name(ctx, victim)}`, by, voiceHez(s.pending));
     advance(ctx, s, 1);
     return;
   }
@@ -337,7 +342,8 @@ export const hez2: GameModule<State, Hez2Settings> = {
       s.choosing = null;
       s.moves += 1;
       setEvent(s, { kind: 'suit', by, suit });
-      ctx.say?.(`اللون من اختيار ${name(ctx, by)}: ${SUIT_INFO[suit].name}`, by);
+      // read aloud: the suit the 7 asks for
+      ctx.say?.(`اللون من اختيار ${name(ctx, by)}: ${SUIT_INFO[suit].name}`, by, SUIT_VOICE[suit]);
       advance(ctx, s, 1);
       return;
     }
@@ -412,7 +418,7 @@ export const hez2: GameModule<State, Hez2Settings> = {
       s.overAt = null;
       if (s.winner) {
         s.phase = 'final';
-        ctx.say?.(`الفوز ${li(name(ctx, s.winner))} بـ${s.scores[s.winner] ?? 0} نقطة`, s.winner);
+        ctx.say?.(`الفوز ${li(name(ctx, s.winner))} بـ${s.scores[s.winner] ?? 0} نقطة`, s.winner, voiceWin(name(ctx, s.winner)));
         ctx.fx('win', s.winner);
       } else {
         s.phase = 'roundEnd';

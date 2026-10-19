@@ -14,6 +14,7 @@ import { decideOnce } from '../ai/cards-memo';
 import { rondaBotCard } from '../ai/cards-ronda';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, pick } from '../util';
+import { VOICE, voiceAnd, voiceTeam, voiceWin } from '../voice-calls';
 
 const HAND_SIZE = 4;
 
@@ -53,6 +54,18 @@ export const rondaBase = (sides: number) => (sides === 2 ? 20 : 13);
 
 /** «ورقتين» / «3 أوراق» / «11 ورقة» */
 export const cardsWord = (k: number) => (k === 1 ? 'ورقة' : k === 2 ? 'ورقتان' : k <= 10 ? `${k} أوراق` : `${k} ورقة`);
+
+/** «الفَوْزُ لِبابا» for the side that won the game (the voice of the last call), or nothing yet. */
+function winVoice(ctx: GameCtx, s: State): string | undefined {
+  if (s.phase !== 'final' || !s.winner) return undefined;
+  const side = s.sides.find((x) => x.key === s.winner);
+  return side ? voiceWin(voiceTeam(side.members.map((m) => ctx.playerName(m)))) : undefined;
+}
+
+/** The voice of a روندا / ترينكا banner: its strongest call. */
+function announceVoice(text: string): string {
+  return text.includes('ترينكا') ? VOICE.trinka : text.includes('روندتان') ? VOICE.rondatan : VOICE.ronda;
+}
 
 function setAnnounce(s: State, by: string | null, text: string) {
   s.announce = { by, text, id: ++s.announceN };
@@ -175,7 +188,7 @@ function startHand(ctx: GameCtx, s: State) {
   dealRound(ctx, s);
   // a روندا / ترينكا at the first deal: say it (the banner shows it on the felt too)
   const call = s.announce as State['announce'];
-  if (call) ctx.say?.(call.text.replace(/\n/g, ' — '), call.by ?? undefined);
+  if (call) ctx.say?.(call.text.replace(/\n/g, ' — '), call.by ?? undefined, voiceAnd(announceVoice(call.text), winVoice(ctx, s)));
 }
 
 function endHand(ctx: GameCtx, s: State) {
@@ -200,7 +213,7 @@ function endHand(ctx: GameCtx, s: State) {
  * with the king (الراي) is +5 for the dealer's side. Playing the ace (اللاص) as that card, or taking
  * nothing with it, is +5 for the other side(s).
  */
-function dealerEatsTable(ctx: GameCtx, s: State, by: string, card: Card, took: boolean): { ended: boolean; said: string } {
+function dealerEatsTable(ctx: GameCtx, s: State, by: string, card: Card, took: boolean): { ended: boolean; said: string; voice?: string } {
   if (by !== s.seats[s.dealerIdx]) return { ended: false, said: '' };
   const side = sideOf(s.sides, by);
   const name = ctx.playerName(by);
@@ -213,17 +226,17 @@ function dealerEatsTable(ctx: GameCtx, s: State, by: string, card: Card, took: b
   if (took && card.rank === 12) {
     s.feed.push('المفرّق ياكل القاعة بالراي! +5', { by, points: 5 });
     setAnnounce(s, by, 'المفرّق ياكل القاعة بالراي! +5');
-    return { ended: addPoints(ctx, s, side, 5), said: 'المفرّق ياكل القاعة بالراي: +5' };
+    return { ended: addPoints(ctx, s, side, 5), said: 'المفرّق ياكل القاعة بالراي: +5', voice: VOICE.dealerKing };
   }
   if (card.rank === 1 || !took) {
     const why = took ? 'آخر ورقة للمفرّق هي الواحد' : 'آخر ورقة للمفرّق بلا أخذ';
     const gain = `+5 ${others.length > 1 ? 'لكل خصم' : 'للخصم'}`;
     s.feed.push(`${why}: ${gain}`, { points: 5 });
     setAnnounce(s, null, `${why}\n${gain}`);
-    for (const k of others) if (addPoints(ctx, s, k, 5)) return { ended: true, said: `${why}: ${gain}` };
-    return { ended: false, said: `${why}: ${gain}` };
+    for (const k of others) if (addPoints(ctx, s, k, 5)) return { ended: true, said: `${why}: ${gain}`, voice: VOICE.dealerFive };
+    return { ended: false, said: `${why}: ${gain}`, voice: VOICE.dealerFive };
   }
-  return { ended: false, said: took ? 'المفرّق ياكل القاعة' : '' };
+  return took ? { ended: false, said: 'المفرّق ياكل القاعة', voice: VOICE.dealerEats } : { ended: false, said: '' };
 }
 
 function findCapture(table: Card[], card: Card): Card[] {
@@ -304,6 +317,8 @@ export const ronda: GameModule<State, RondaSettings> = {
     let ended = false;
 
     let said = '';
+    // the call read aloud (only the table's calls: دقة، ف جوج، ميسا… — never an ordinary card)
+    let voice: string | undefined;
     const chain = s.chain && s.chain.by === prev && s.chain.rank === card.rank && s.chain.side !== side ? s.chain : null;
     if (chain) {
       // the third (or fourth) card of the rank right after a دقة: take those cards from the other pile
@@ -322,6 +337,7 @@ export const ronda: GameModule<State, RondaSettings> = {
       const label = same >= 4 ? 'ف ثلاثة! +10' : 'ف جوج! +5';
       s.feed.push(`${label} لـ${ctx.playerName(by)}`, { by, points: pts });
       setAnnounce(s, by, label);
+      voice = same >= 4 ? VOICE.fTlata : VOICE.fJouj;
       said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(count)} بـ ${cardName(card)} — +${pts}`;
       ctx.fx('reveal', by);
       s.chain = same < 4 ? { by, side, rank: card.rank, cards: [...chain.cards, card] } : null;
@@ -346,6 +362,7 @@ export const ronda: GameModule<State, RondaSettings> = {
         s.feed.push('ميسا! +1', { by, points: 1 });
       }
       if (pts) setAnnounce(s, by, wasDaqa && missa ? 'دقة وميسا! +2' : wasDaqa ? 'دقة! +1' : 'ميسا! +1');
+      if (pts) voice = wasDaqa && missa ? VOICE.daqaMissa : wasDaqa ? VOICE.daqa : VOICE.missa;
       said = `أخذٌ لـ${ctx.playerName(by)}: ${cardsWord(took.length + 1)} بـ ${cardName(card)}${wasDaqa && missa ? ' — دقة وميسا!' : wasDaqa ? ' — دقة!' : missa ? ' — ميسا!' : ''}`;
       ctx.fx(pts ? 'reveal' : 'correct', by);
       s.lastPlayed = null;
@@ -367,21 +384,38 @@ export const ronda: GameModule<State, RondaSettings> = {
       const r = dealerEatsTable(ctx, s, by, card, !!chain || took.length > 0);
       ended = r.ended;
       if (r.said) said += ` — ${r.said}`;
+      voice = voiceAnd(voice, r.voice);
     }
-    ctx.say?.(said, by);
-    if (ended) return;
+    // the play is told once, with the voice of the move (and the winner when the game ends now)
+    const tell = () => ctx.say?.(said, by, voiceAnd(voice, winVoice(ctx, s)));
+    if (ended) {
+      tell();
+      return;
+    }
 
     s.turnIdx = (s.turnIdx + 1) % n(s);
-    if (s.seats.every((id) => s.hands[id].length === 0)) {
+    if (!s.seats.every((id) => s.hands[id].length === 0)) tell();
+    else {
       if (s.deck.length) {
+        tell();
         const before = s.announceN;
         const won = dealRound(ctx, s, took.length > 0);
         // a روندا / ترينكا at this deal scores: it replaces the play in the announcement line
         // (the play itself stays on the felt)
-        if (s.announceN !== before && s.announce) ctx.say?.(s.announce.text.replace(/\n/g, ' — '), s.announce.by ?? undefined);
+        if (s.announceN !== before && s.announce) {
+          ctx.say?.(s.announce.text.replace(/\n/g, ' — '), s.announce.by ?? undefined, voiceAnd(announceVoice(s.announce.text), winVoice(ctx, s)));
+        }
         if (won) return;
-        if (s.seats.every((id) => s.hands[id].length === 0)) endHand(ctx, s);
-      } else endHand(ctx, s);
+        if (s.seats.every((id) => s.hands[id].length === 0)) {
+          // (the deck had too few cards to deal: the hand ends here, the play is told again with the winner)
+          endHand(ctx, s);
+          if ((s.phase as RondaView['phase']) === 'final') tell();
+        }
+      } else {
+        // the end of the hand says nothing of its own: the last play carries the winner, if any
+        endHand(ctx, s);
+        tell();
+      }
     }
   },
 

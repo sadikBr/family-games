@@ -16,6 +16,7 @@ import { konkanBotAction } from '../ai/cards-konkan';
 import { decideOnce } from '../ai/cards-memo';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
+import { VOICE, voiceAnd, voiceWin } from '../voice-calls';
 
 const DEAL: Record<number, number> = { 2: 10, 3: 8, 4: 7 };
 /** The discard pile goes back into the stock at most this many times per hand. */
@@ -104,15 +105,21 @@ function endHand(ctx: GameCtx, s: State, winner: string | null) {
   });
   for (const row of s.handSummary) s.scores[row.id] += row.points;
   if (winner) s.feed.push(`${ctx.playerName(winner)}: كونكان!`, { by: winner });
-  ctx.say?.(winner ? `كونكان لـ${ctx.playerName(winner)}! انتهت اليد` : 'انتهت الأوراق — لا فائز في هذه اليد', winner ?? undefined);
   const out = s.active.filter((id) => s.scores[id] >= s.settings.limit);
+  const left = s.active.filter((id) => !out.includes(id));
+  // read aloud: «كونكان» for the one who went out, and the winner when the game ends here
+  const champion = left.length <= 1 ? (left[0] ?? s.seats.slice().sort((a, b) => s.scores[a] - s.scores[b])[0]) : null;
+  ctx.say?.(
+    winner ? `كونكان لـ${ctx.playerName(winner)}! انتهت اليد` : 'انتهت الأوراق — لا فائز في هذه اليد',
+    winner ?? undefined,
+    voiceAnd(winner && VOICE.konkan, champion && voiceWin(ctx.playerName(champion))),
+  );
   for (const id of out) s.feed.push(`${ctx.playerName(id)} خرج من اللعبة`, { by: id });
-  s.active = s.active.filter((id) => !out.includes(id));
+  s.active = left;
   if (s.active.length <= 1) {
-    s.winner =
-      s.active[0] ?? s.seats.slice().sort((a, b) => s.scores[a] - s.scores[b])[0];
+    s.winner = champion;
     s.phase = 'final';
-    ctx.fx('win', s.winner);
+    ctx.fx('win', champion ?? undefined);
   } else {
     s.phase = 'handEnd';
     ctx.fx(winner ? 'reveal' : 'tick');

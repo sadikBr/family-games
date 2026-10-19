@@ -26,6 +26,7 @@ import { unoColor, unoObserve, unoTurn, type UnoKnowledge, type UnoMemory } from
 import { Feed, randDelay } from '../cardkit';
 import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
+import { VOICE, voiceAnd, voiceRound, voiceWin } from '../voice-calls';
 
 const HAND = 7;
 const CATCH_PENALTY = 2;
@@ -137,8 +138,9 @@ function endRound(ctx: GameCtx, s: State, winner: string) {
   s.scores[winner] = (s.scores[winner] ?? 0) + points;
   s.roundSummary = { winner, points, hands };
   s.feed.push(`${name(ctx, winner)} أنهى أوراقه: +${points}`, { by: winner, points });
-  ctx.say?.(`الجولة لـ${name(ctx, winner)}: +${points}`, winner);
-  if (s.scores[winner] >= s.settings.target) {
+  const over = s.scores[winner] >= s.settings.target;
+  ctx.say?.(`الجولة لـ${name(ctx, winner)}: +${points}`, winner, over ? voiceWin(name(ctx, winner)) : voiceRound(name(ctx, winner)));
+  if (over) {
     s.phase = 'final';
     s.winner = winner;
     ctx.fx('win', winner);
@@ -361,7 +363,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       s.unoSaid.add(by);
       if (s.catchable === by) s.catchable = null;
       s.feed.push(`${name(ctx, by)}: أونو!`, { by });
-      ctx.say?.(`أونو من ${name(ctx, by)}!`, by);
+      ctx.say?.(`أونو من ${name(ctx, by)}!`, by, VOICE.uno);
       ctx.fx('correct', by);
       return;
     }
@@ -372,7 +374,7 @@ export const unoflip: GameModule<State, UnoSettings> = {
       drawN(s, target, CATCH_PENALTY);
       s.catchable = null;
       s.feed.push(`${name(ctx, by)} أمسك ${name(ctx, target)} بدون «أونو»: +${CATCH_PENALTY}`, { by: target });
-      ctx.say?.(`لا «أونو» من ${name(ctx, target)}: ${CATCH_PENALTY} للسحب (كشفٌ من ${name(ctx, by)})`, by);
+      ctx.say?.(`لا «أونو» من ${name(ctx, target)}: ${CATCH_PENALTY} للسحب (كشفٌ من ${name(ctx, by)})`, by, VOICE.unoCaught);
       ctx.fx('buzz', target);
       return;
     }
@@ -384,8 +386,10 @@ export const unoflip: GameModule<State, UnoSettings> = {
       s.color = c;
       s.feed.push(`${name(ctx, by)} اختار ${UNO_COLOR_INFO[c].name}`, { by });
       s.moves += 1;
+      const then = s.choosing.then;
       const effect = afterColor(ctx, s);
-      ctx.say?.(`اللون من اختيار ${name(ctx, by)}: ${UNO_COLOR_INFO[c].name}${effect}`, by);
+      // read aloud: the wild cards that punish the next player (+2, draw until the colour)
+      ctx.say?.(`اللون من اختيار ${name(ctx, by)}: ${UNO_COLOR_INFO[c].name}${effect}`, by, then === 'draw2' ? VOICE.plus2 : then === 'drawColor' ? VOICE.wildColor : undefined);
       return;
     }
 
@@ -438,7 +442,9 @@ export const unoflip: GameModule<State, UnoSettings> = {
       if (hand.length === 1 && !s.unoSaid.has(by)) s.catchable = by;
       if (hand.length !== 1) s.unoSaid.delete(by);
       const effect = applyEffect(ctx, s, by, f);
-      ctx.say?.(`ورقة من ${name(ctx, by)}: ${faceName(f)}${effect}${s.choosing ? ' — واختيار لون' : ''}`, by);
+      // read aloud: a flip and the cards that punish everyone (+5, skip everyone) — never a plain card
+      const voice = f.kind === 'flip' ? VOICE.flip : f.kind === 'draw5' ? VOICE.plus5 : f.kind === 'skipAll' ? VOICE.skipAll : undefined;
+      ctx.say?.(`ورقة من ${name(ctx, by)}: ${faceName(f)}${effect}${s.choosing ? ' — واختيار لون' : ''}`, by, voiceAnd(voice));
       if (hand.length === 0) {
         // a last Wild ends the round right away; draw penalties still land first
         const ch = s.choosing as State['choosing']; // set by applyEffect
