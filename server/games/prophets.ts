@@ -17,7 +17,8 @@ import {
 } from '../../src/shared/games/prophets';
 import { STORIES, type Chapter } from '../prophets-stories';
 import { qdeck } from '../qdeck';
-import { type GameCtx, type GameModule } from '../types';
+import { quizChoice, quizDelay, quizSkill, readChars, readMs } from '../ai/social-quiz';
+import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 import { quranData } from './surah';
@@ -25,7 +26,7 @@ import { forFont } from './tajweed';
 
 /** How long the answer stays on screen unless everyone presses «تابع» first. */
 export const PROPHETS_REVEAL_MS = 16_000;
-/** How often a bot team-mate votes for the right answer. */
+/** How often an easy bot team-mate votes for the right answer (smart / expert: see ai/social-quiz). */
 export const PROPHETS_BOT_SKILL = 0.75;
 
 const STORY_IDS = PROPHETS_STORIES.map((s) => s.key);
@@ -236,15 +237,25 @@ export const prophets: GameModule<ProphetsState, ProphetsSettings> = {
     if (!mine.length) return;
     if (s.phase === 'ask') {
       const ch = s.chapters[s.chapter];
+      const level = botLevel(ctx);
       // bots are team-mates, not leaders: they leave the people time to think, unless everyone else has voted
       const peopleWaiting = s.participants.some((p) => !bots.includes(p) && !s.votes[p] && ctx.isConnected(p));
       for (const b of mine) {
         if (s.votes[b]) continue;
-        const right = Math.random() < PROPHETS_BOT_SKILL;
-        const wrong = ch.options.map((_, i) => i).filter((i) => i !== ch.correct);
-        const choice = right ? ch.correct : wrong[randInt(0, wrong.length - 1)];
-        if (peopleWaiting) ctx.bot(b, `vote:${s.chapter}`, botAnswerDelay(s.seconds), { type: 'vote', choice });
-        else ctx.bot(b, `vote-now:${s.chapter}`, randInt(700, 1800), { type: 'vote', choice });
+        const { choice, sure } = quizChoice(ch.correct, ch.options.length, quizSkill(level, PROPHETS_BOT_SKILL));
+        // with people still thinking: an easy bot votes late; smarter ones once they've read the question
+        // (never before half the timer, so nobody feels rushed)
+        const delay =
+          level === 'easy'
+            ? botAnswerDelay(s.seconds)
+            : Math.max(s.seconds * 500, quizDelay(level, s.seconds, readChars(ch.question, ch.options), sure));
+        if (peopleWaiting) ctx.bot(b, `vote:${s.chapter}`, delay, { type: 'vote', choice });
+        // nobody else to wait for: vote soon, but not before a person could have read the question
+        else {
+          const started = (s.endsAt ?? ctx.now) - s.seconds * 1000;
+          const read = readMs(readChars(ch.question, ch.options));
+          ctx.bot(b, `vote-now:${s.chapter}`, Math.max(randInt(700, 1800), read - (ctx.now - started)), { type: 'vote', choice });
+        }
       }
     } else if (s.phase === 'reveal') {
       for (const b of mine) if (!s.ready.includes(b)) ctx.bot(b, `ready:${s.chapter}`, randInt(3500, 6000), { type: 'ready' });

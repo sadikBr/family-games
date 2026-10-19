@@ -4,7 +4,7 @@ import { View, useWindowDimensions } from 'react-native';
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { MAPQUIZ_REGIONS, type MapquizLevel, type MapquizPoint, type MapquizRegion, type MapquizSettings as Settings, type MapquizView } from '@/shared/games/mapquiz';
+import { MAPQUIZ_REGIONS, type MapquizPoint, type MapquizRegion, type MapquizSettings as Settings, type MapquizView } from '@/shared/games/mapquiz';
 import type { RoomView } from '@/shared/protocol';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, Stepper } from '@/ui/controls';
@@ -123,11 +123,6 @@ export function MapquizGame({ room, view }: { room: RoomView; view: MapquizView 
 /* Lobby settings                                                      */
 /* ------------------------------------------------------------------ */
 
-const LEVELS: { key: MapquizLevel; label: string }[] = [
-  { key: 'easy', label: 'سهل' },
-  { key: 'medium', label: 'متوسط' },
-  { key: 'hard', label: 'صعب' },
-];
 const REGIONS = (Object.keys(MAPQUIZ_REGIONS) as MapquizRegion[]).map((key) => ({ key, label: MAPQUIZ_REGIONS[key].label }));
 
 export function MapquizSettings({ room, editable }: { room: RoomView; editable: boolean }) {
@@ -139,8 +134,6 @@ export function MapquizSettings({ room, editable }: { room: RoomView; editable: 
       <Stepper label="وقت الجولة" value={s.seconds} min={10} max={45} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${num(v)} ث`} />
       <Txt v="bold">الخريطة</Txt>
       <ChipPicker<MapquizRegion> editable={editable} value={s.region} onChange={(region) => change({ region })} options={REGIONS} />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker<MapquizLevel> editable={editable} value={s.level} onChange={(level) => change({ level })} options={LEVELS} />
     </View>
   );
 }

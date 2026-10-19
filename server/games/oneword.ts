@@ -23,7 +23,8 @@ import { randDelay } from '../cardkit';
 import { ONEWORD_WORDS, type OnewordWord } from '../oneword-content';
 import { clueKey, clueProblem, cleanClue, duplicates, guessMatches, sameClue } from '../oneword-match';
 import { qdeck } from '../qdeck';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { conventionClue, expertGuess } from '../ai/social-oneword';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
 
 /** the guesser's time */
@@ -375,17 +376,25 @@ export const oneword: GameModule<State, OnewordSettings> = {
 
   botPlan(ctx, s, bots) {
     const isBot = (id: string) => bots.includes(id) || ctx.isBot(id);
+    // the room's bot strength (the old per-game «مستوى البوتات» is kept in the settings but ignored)
+    const level = botLevel(ctx);
     if (s.botMemo.step !== s.step) s.botMemo = { step: s.step, clues: {} };
     const memo = s.botMemo;
     switch (s.phase) {
       case 'clues': {
         const ms = s.settings.seconds * 1000;
-        const chosen = [...Object.values(s.written), ...Object.values(memo.clues)];
-        for (const g of giversOf(s)) {
+        const givers = giversOf(s);
+        const humans = givers.some((g) => !isBot(g));
+        const botGivers = givers.filter(isBot);
+        // a bot never sees what the others wrote; easy / smart bots only steer clear of the other bots' picks
+        const chosen = Object.values(memo.clues);
+        for (const g of givers) {
           if (!isBot(g) || g in s.written) continue;
-          const text = (memo.clues[g] ??= botClue(s.word!, chosen));
+          const text = (memo.clues[g] ??= level === 'expert' ? conventionClue(s.word!, botGivers.indexOf(g), humans) : botClue(s.word!, chosen));
           chosen.push(text);
-          ctx.bot(g, `clue:${s.step}`, randDelay(3000, Math.min(14_000, ms * 0.5)), { type: 'clue', step: s.step, text });
+          // thinking of a clue and typing it, like a person
+          const delay = level === 'expert' ? randDelay(3000, Math.min(9000, ms * 0.35)) : randDelay(3000, Math.min(14_000, ms * 0.5));
+          ctx.bot(g, `clue:${s.step}`, delay, { type: 'clue', step: s.step, text });
         }
         return;
       }
@@ -397,7 +406,9 @@ export const oneword: GameModule<State, OnewordSettings> = {
       case 'guess': {
         if (!isBot(s.guesser)) return;
         const clues = s.table.filter((c) => c.status === 'ok' && c.text).map((c) => c.text!);
-        if (memo.guess === undefined) memo.guess = botGuess(clues, s.settings.level, s.used.filter((k) => k !== clueKey(s.word!.w)));
+        // the words already played this game can't come back (the current one's key is in the list too)
+        const played = s.used.filter((k) => k !== clueKey(s.word!.w));
+        if (memo.guess === undefined) memo.guess = level === 'expert' ? expertGuess(clues, played) : botGuess(clues, level === 'smart' ? 'hard' : 'medium', played);
         const g = memo.guess;
         ctx.bot(s.guesser, `guess:${s.step}`, randDelay(3500, 8000), g ? { type: 'guess', step: s.step, text: g } : { type: 'pass', step: s.step });
         return;

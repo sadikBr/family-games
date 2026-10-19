@@ -3,6 +3,7 @@
  * map on their own phone. Points by the great-circle distance to the real spot (see mapquizPoints):
  * 1000 within 25 km, then fewer the farther the pin. The reveal shows the spot, every pin and distance.
  */
+import type { BotLevel } from '../../src/shared/protocol';
 import {
   MAPQUIZ_REGIONS,
   distanceKm,
@@ -18,7 +19,7 @@ import {
 import { randDelay } from '../cardkit';
 import { MAP_PLACES, type MapPlace } from '../mapquiz-content';
 import { qdeck } from '../qdeck';
-import { type GameCtx, type GameModule } from '../types';
+import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr } from '../util';
 import { soleWinner } from './mcq';
 
@@ -110,11 +111,17 @@ function maybeReveal(ctx: GameCtx, s: State) {
 /* Bots                                                                */
 /* ------------------------------------------------------------------ */
 
-/** Typical miss (km) of a bot's pin. */
-export const BOT_ERROR_KM: Record<MapquizLevel, number> = { easy: 500, medium: 200, hard: 60 };
+/** Typical miss (km) of a bot's pin, by the old per-game level (kept so old apps' settings still parse). */
+export const BOT_ERROR_KM: Record<MapquizLevel | 'expert', number> = { easy: 500, medium: 200, hard: 60, expert: 18 };
+
+/**
+ * The room's bot strength as a typical miss: easy = the old default «متوسط», smart = «صعب», expert = a
+ * person who knows the map well (most pins within the 25 km of a perfect score).
+ */
+const SKILL: Record<BotLevel, MapquizLevel | 'expert'> = { easy: 'medium', smart: 'hard', expert: 'expert' };
 
 /** A bot's pin: near the place, off by a random distance (half-normal around its level's typical miss). */
-export function botGuess(place: MapquizPoint, level: MapquizLevel, region: MapquizRegion, rnd: () => number = Math.random): MapquizPoint {
+export function botGuess(place: MapquizPoint, level: MapquizLevel | 'expert', region: MapquizRegion, rnd: () => number = Math.random): MapquizPoint {
   // Box–Muller
   const u = Math.max(1e-9, rnd());
   const v = rnd();
@@ -195,10 +202,15 @@ export const mapquiz: GameModule<State, MapquizSettings> = {
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
     const place = s.places[s.round];
+    const level = botLevel(ctx);
     for (const b of s.participants) {
       if (s.guesses[b] || !(bots.includes(b) || ctx.isBot(b))) continue;
-      const g = botGuess(place, s.settings.level, s.settings.region);
-      const delay = randDelay(Math.max(2500, s.timerTotal * 0.35), s.timerTotal * 0.85);
+      const g = botGuess(place, SKILL[level], s.settings.region);
+      // the score doesn't depend on speed: an expert still takes a few seconds to find the spot and confirm
+      const delay =
+        level === 'expert'
+          ? randDelay(Math.min(3000, s.timerTotal * 0.3), Math.min(8000, s.timerTotal * 0.6))
+          : randDelay(Math.max(2500, s.timerTotal * 0.35), s.timerTotal * 0.85);
       ctx.bot(b, `guess:${s.round}`, delay, { type: 'guess', round: s.round + 1, lat: g.lat, lon: g.lon });
     }
   },

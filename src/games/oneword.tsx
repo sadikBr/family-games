@@ -290,7 +290,7 @@ export function OnewordGame({ room, view }: { room: RoomView; view: OnewordView 
   );
 }
 
-/** Lobby settings: number of cards, time for the clues, bot level. */
+/** Lobby settings: number of cards, time for the clues (bots play at the room's «مستوى البوتات»). */
 export function OnewordSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.oneword;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'oneword', patch });
@@ -309,17 +309,6 @@ export function OnewordSettings({ room, editable }: { room: RoomView; editable: 
         value={String(s.seconds)}
         onChange={(v) => change({ seconds: Number(v) })}
         options={ONEWORD_SECONDS.map((sec) => ({ key: String(sec), label: `${sec} ث` }))}
-      />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        editable={editable}
-        value={s.level}
-        onChange={(level) => change({ level })}
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'medium', label: 'متوسط' },
-          { key: 'hard', label: 'صعب' },
-        ]}
       />
     </View>
   );

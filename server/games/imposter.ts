@@ -1,8 +1,9 @@
 import type { ImposterResult, ImposterSettings, ImposterView } from '../../src/shared/protocol';
 import { IMPOSTER_HINTS } from '../bot-content';
 import { IMPOSTER_CATEGORIES, type WordCategory } from '../content';
+import { civilianClue, guessCategories, imposterClue, rankGuesses, suspicion, tieHash } from '../ai/social-imposter';
 import { traitPool } from '../imposter-traits';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, shuffle } from '../util';
 
 interface State {
@@ -57,7 +58,13 @@ function newRound(ctx: GameCtx, s: State) {
   s.round += 1;
   s.botClues = {};
   const used = new Set<string>();
-  for (const id of s.participants) if (ctx.isBot(id)) s.botClues[id] = botClue(s, id, used);
+  const level = botLevel(ctx);
+  if (level === 'easy') {
+    for (const id of s.participants) if (ctx.isBot(id)) s.botClues[id] = botClue(s, id, used);
+  } else {
+    // in speaking order: each bot hears the bot clues said before its own
+    for (const id of s.order) if (ctx.isBot(id)) s.botClues[id] = smartClue(s, id, used, level === 'expert' ? 1 : 3);
+  }
   ctx.fx('start');
 }
 
@@ -81,6 +88,45 @@ function botClue(s: State, id: string, used: Set<string>): string {
   const clue = fresh.length ? pick(fresh) : pool.length ? pick(pool) : 'ممم';
   used.add(clue);
   return clue;
+}
+
+/**
+ * Smart / expert clue (see ai/social-imposter): a civilian proves it knows the word without narrowing it
+ * down to fewer than three words; an imposter says what a civilian would most likely say after the clues
+ * it has heard (its partners' don't count), using the category only when its phone shows it.
+ */
+function smartClue(s: State, id: string, used: Set<string>, top: number): string {
+  const imposter = s.imposters.includes(id);
+  const before = s.order.slice(0, s.order.indexOf(id));
+  const heard = before.filter((p) => s.botClues[p] && !(imposter && s.imposters.includes(p))).map((p) => s.botClues[p]);
+  const clue = imposter
+    ? imposterClue(s.settings.hintForImposter || s.settings.category !== 'random' ? s.category : null, heard, used, Math.random, top)
+    : civilianClue(s.category, s.word, heard, used, Math.random, top);
+  used.add(clue);
+  return clue;
+}
+
+/** Who a smart / expert bot votes for, from the bot clues on screen (never from anyone's hidden role). */
+function smartVote(s: State, bot: string, expert: boolean): string {
+  const others = s.participants.filter((id) => id !== bot);
+  const clues = Object.fromEntries(others.filter((id) => s.botClues[id]).map((id) => [id, s.botClues[id]]));
+  const order = (m: Map<string, number>) =>
+    [...m].sort((a, b) => b[1] - a[1] || tieHash(`${s.round}|${a[0]}`) - tieHash(`${s.round}|${b[0]}`)).map(([id]) => id);
+  if (!s.imposters.includes(bot)) {
+    const ranked = order(suspicion(s.category, s.word, others, clues, s.imposters.length));
+    // smart: now and then follows a hunch instead
+    return !expert && Math.random() < 0.25 ? pick(ranked.slice(0, 3)) : ranked[0];
+  }
+  // an imposter (and its partners, the same way) piles onto the civilian the others are most likely to
+  // blame: it reads the clues as a civilian would with the word its own clue was built around
+  const partners = s.imposters.filter((id) => id !== bot);
+  const civ = others.filter((id) => !partners.includes(id));
+  const heard = Object.entries(clues).filter(([id]) => !partners.includes(id)).map(([, c]) => c);
+  const cat = s.settings.hintForImposter || s.settings.category !== 'random' ? s.category : guessCategories(heard)[0];
+  if (!cat || !civ.length) return pick(civ.length ? civ : others);
+  const guess = rankGuesses(cat, cat.words, heard)[0]?.w;
+  if (!guess) return pick(civ);
+  return order(suspicion(cat, guess, civ, clues, s.imposters.length))[0];
 }
 
 const rand = (min: number, max: number) => Math.round(min + Math.random() * (max - min));
@@ -289,26 +335,29 @@ export const imposter: GameModule<State, ImposterSettings> = {
   },
 
   botPlan(ctx, s, bots) {
+    const level = botLevel(ctx);
     for (const bot of bots) {
       if (!s.participants.includes(bot)) continue;
       const isImp = s.imposters.includes(bot);
       if (s.phase === 'reveal' && !s.ready.has(bot)) {
         ctx.bot(bot, `ready:${s.round}`, rand(1200, 3500), { type: 'ready' });
       }
-      if (s.phase === 'vote' && !s.votes.has(bot)) {
+      if (s.phase === 'vote' && !s.votes.has(bot) && level !== 'easy') {
+        ctx.bot(bot, `vote:${s.round}`, rand(2500, 6000), { type: 'vote', target: smartVote(s, bot, level === 'expert') });
+      } else if (s.phase === 'vote' && !s.votes.has(bot)) {
         const others = s.participants.filter((id) => id !== bot);
+        // the old casual vote: imposter bots blame someone who isn't a partner (they see their partners),
+        // civilian bots pick anyone (no peeking at who the imposter is)
         const civilians = others.filter((id) => !s.imposters.includes(id));
-        const impostersLeft = others.filter((id) => s.imposters.includes(id));
-        // civilian bots have a little "intuition"; imposter bots blame a civilian
-        const target = isImp
-          ? pick(civilians.length ? civilians : others)
-          : impostersLeft.length && Math.random() < 0.35
-            ? pick(impostersLeft)
-            : pick(others);
+        const target = isImp ? pick(civilians.length ? civilians : others) : pick(others);
         ctx.bot(bot, `vote:${s.round}`, rand(2500, 6000), { type: 'vote', target });
       }
       if (s.phase === 'guess' && s.guesserId === bot && s.guessOptions) {
-        const word = Math.random() < 0.35 ? s.word : pick(s.guessOptions);
+        const clues = s.participants.filter((id) => s.botClues[id] && !s.imposters.includes(id)).map((id) => s.botClues[id]);
+        const ranked = rankGuesses(s.category, s.guessOptions, clues);
+        // easy: the old lucky guess; smart: one of the two that fit best; expert: the best fit
+        const word =
+          level === 'easy' ? (Math.random() < 0.35 ? s.word : pick(s.guessOptions)) : level === 'smart' ? pick(ranked.slice(0, 2)).w : ranked[0].w;
         ctx.bot(bot, `guess:${s.round}`, rand(2500, 4500), { type: 'guess', word });
       }
     }
