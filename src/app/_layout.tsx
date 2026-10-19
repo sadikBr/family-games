@@ -18,6 +18,7 @@ import { loadProfile } from '@/lib/profile';
 import { initPush } from '@/lib/push';
 import { loadServerOverride } from '@/lib/server-url';
 import { initSfx } from '@/lib/sfx';
+import { initSpeech } from '@/lib/speech';
 import { C } from '@/theme';
 import { Toast } from '@/ui/controls';
 
@@ -39,7 +40,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadProfile(), loadServerOverride(), client.init(), initSfx()]).finally(() => {
+    Promise.all([loadProfile(), loadServerOverride(), client.init(), initSfx(), initSpeech()]).finally(() => {
       setReady(true);
       // connected while the app is open: the family sees who is here, and group calls arrive
       client.start();

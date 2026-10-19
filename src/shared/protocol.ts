@@ -1629,6 +1629,11 @@ export interface Said {
   id: number;
   text: string;
   by?: string;
+  /**
+   * A short call to read aloud on phones that turned on «قراءة الأحداث» («روندا»، «باص»، «شاري»…),
+   * written with the vowel marks the phone's Arabic voice needs to say it the Moroccan way.
+   */
+  voice?: string;
 }
 export const PACES: Pace[] = ['slow', 'normal', 'fast'];
 export const PACE_LABEL: Record<Pace, string> = { slow: 'بطيئة', normal: 'عادية', fast: 'سريعة' };

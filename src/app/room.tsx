@@ -16,6 +16,7 @@ import { goBack } from '@/lib/nav';
 import { notePlayed } from '@/lib/prefs';
 import { isRemoteServer } from '@/lib/server-url';
 import { alertTurn, playFx } from '@/lib/sfx';
+import { speak } from '@/lib/speech';
 import { C } from '@/theme';
 import { Icon } from '@/art/icons';
 import { Card, IconBubble, Pill, Row } from '@/ui/bits';
@@ -85,6 +86,21 @@ export default function RoomScreen() {
       playFx(fx.kind, me, fx.target);
     }
   }, [fx, me]);
+
+  // «قراءة الأحداث»: read the game's big calls aloud (never one that was already there when the screen opened)
+  const said = room?.said ?? null;
+  const lastSaid = useRef<number | null>(null);
+  useEffect(() => {
+    if (!said) return;
+    if (lastSaid.current === null) {
+      lastSaid.current = said.id;
+      return;
+    }
+    if (said.id !== lastSaid.current) {
+      lastSaid.current = said.id;
+      if (said.voice) speak(said.voice);
+    }
+  }, [said]);
 
   // «دورك!»: chime + buzz when the game starts waiting for me
   const myTurn = !!room?.myTurn;

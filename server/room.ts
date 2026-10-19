@@ -297,8 +297,8 @@ export class Room {
       fx: (kind: FxKind, target?: string) => {
         this.fx = { id: ++this.fxCounter, kind, target };
       },
-      say: (text: string, by?: string) => {
-        this.said = { id: ++this.saidCounter, text, by };
+      say: (text: string, by?: string, voice?: string) => {
+        this.said = { id: ++this.saidCounter, text, by, ...(voice ? { voice } : {}) };
       },
       botLevel: () => this.botLevel,
       isConnected: (id) => this.players.some((p) => p.id === id && p.connected),

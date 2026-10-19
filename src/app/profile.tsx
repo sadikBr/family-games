@@ -16,6 +16,7 @@ import { Header } from '@/ui/controls';
 import { Field } from '@/ui/field';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
+import { SpeakToggle } from '@/games/speak-toggle';
 
 export default function ProfileScreen() {
   // first launch; `next`: where to go once the name is chosen (e.g. a group invite link)
@@ -109,6 +110,12 @@ export default function ProfileScreen() {
           ))}
         </Row>
       </Card>
+
+      {!isFirst ? (
+        <Card>
+          <SpeakToggle />
+        </Card>
+      ) : null}
 
       {!isFirst ? (
         <Card>

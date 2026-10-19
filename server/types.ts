@@ -18,8 +18,10 @@ export interface GameCtx {
    * Shown under the turn bar on every phone, so a fast move by someone else is never missed.
    * `by` = who made the move (their avatar is shown). Broadcast to all: never put hidden information
    * in it (which card was stolen, someone's role…). Optional so tests' fake contexts can skip it.
+   * `voice` = a short call read aloud by phones that turned on «قراءة الأحداث» (see Said.voice): only
+   * for the moments worth hearing (a روندا, a bid, a دقة…), never for every card.
    */
-  say?(text: string, by?: string): void;
+  say?(text: string, by?: string, voice?: string): void;
   /**
    * How strong the bots should play (the room's «البوتات» setting). Optional so tests' fake contexts
    * can skip it: read it through `botLevel(ctx)` below, which defaults to 'expert'.

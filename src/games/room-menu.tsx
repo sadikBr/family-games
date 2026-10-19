@@ -17,6 +17,7 @@ import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 import { GAMES } from './meta';
+import { SpeakToggle } from './speak-toggle';
 
 /** A link that opens the app straight on the join screen with the code filled in. */
 export const joinLink = (code: string) => `familygames://join?code=${code}`;
@@ -52,6 +53,7 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
               <Btn flex size="md" icon="share" label="ادعُ أحداً" onPress={() => shareRoom(room)} />
               <Btn size="md" ghost icon={muted ? 'mute' : 'sound'} label={muted ? 'الصوت مطفأ' : 'الصوت'} onPress={() => setMuted(!muted)} />
             </Row>
+            <SpeakToggle />
 
             <Txt v="bold" color={C.muted}>
               سرعة البوتات{isHost ? '' : ' (يغيّرها المضيف)'}
