@@ -131,7 +131,7 @@ export function RoundEnd({ room, view, h }: { room: RoomView; view: RamiView; h:
         ? `خسارة الجولة ${li(h.player(view.forfeit).name)}`
         : 'انتهت الكومة';
   const sub = final
-    ? `أقل مجموع بعد ${num(view.history.length)} ${view.history.length > 10 || view.history.length < 3 ? 'جولة' : 'جولات'} — المجموع الأقل يفوز`
+    ? `بعد ${num(view.history.length)} ${view.history.length > 10 || view.history.length < 3 ? 'جولة' : 'جولات'} — المجموع الأقل يفوز`
     : view.forfeit
       ? 'الورقة المأخوذة من المرمية لم تنزل في الدور نفسه'
       : mine
@@ -167,7 +167,11 @@ export function RoundEnd({ room, view, h }: { room: RoomView; view: RamiView; h:
       </View>
       {view.roundSummary ? (
         <HandRows
-          title={`الجولة ${num(view.round)} — كل ورقة 10، الجوكر 20، وبلا نزول 100${view.sec ? ' (رامي سيك: 200 والضعف)' : ''}`}
+          title={
+            view.variant === 'sample'
+              ? `الجولة ${num(view.round)} — سامبل: 100 على كل من لم يخرج`
+              : `الجولة ${num(view.round)} — كل ورقة 10، الجوكر 20، وبلا نزول 100${view.sec ? ' (رامي سيك: 200 والضعف)' : ''}`
+          }
           rows={view.roundSummary.map((r) => ({
             key: r.id,
             players: [h.player(r.id)],

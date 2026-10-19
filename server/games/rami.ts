@@ -33,6 +33,7 @@ import {
   swapIndex,
   swapped,
 } from '../../src/shared/rami-rules';
+import { li } from '../../src/shared/li';
 import { Feed, randDelay } from '../cardkit';
 import { botDiscard, botDraw, botPlay, type BotAction, type Seat } from '../rami-bot';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
@@ -146,7 +147,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.actions += 1;
   s.feed.clear();
   s.feed.push(`الجولة ${s.round} — ${per} ورقة لكل لاعب، و${per + 1} للبادئ`);
-  ctx.say?.(`الجولة ${s.round} — البداية لـ${ctx.playerName(s.turn)}: ${per + 1} ورقة`);
+  ctx.say?.(`الجولة ${s.round} — البداية ${li(ctx.playerName(s.turn))}: ${per + 1} ورقة`);
   ctx.fx('card');
   armTimer(ctx, s);
 }
@@ -189,10 +190,10 @@ function endRound(ctx: GameCtx, s: State, out: string | null, forfeit: string | 
   s.history.push(gained);
   if (out) {
     s.feed.push(s.sec ? `${ctx.playerName(out)}: رامي سيك!` : `${ctx.playerName(out)}: رامي!`, { by: out });
-    ctx.say?.(s.sec ? `رامي سيك لـ${ctx.playerName(out)}! انتهت الجولة ${s.round}` : `رامي لـ${ctx.playerName(out)}! انتهت الجولة ${s.round}`, out);
+    ctx.say?.(s.sec ? `رامي سيك ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}` : `رامي ${li(ctx.playerName(out))}! انتهت الجولة ${s.round}`, out);
   } else if (forfeit) {
     s.feed.push(`${ctx.playerName(forfeit)}: خسارة الجولة`, { by: forfeit });
-    ctx.say?.(`خسارة الجولة لـ${ctx.playerName(forfeit)}: الورقة المأخوذة لم تنزل (+100)`, forfeit);
+    ctx.say?.(`خسارة الجولة ${li(ctx.playerName(forfeit))}: الورقة المأخوذة لم تنزل (+100)`, forfeit);
   } else {
     s.feed.push('انتهت الأوراق — انتهت الجولة');
     ctx.say?.(`انتهت الكومة — انتهت الجولة ${s.round}`);
@@ -318,7 +319,7 @@ function lay(ctx: GameCtx, s: State, by: string, raw: unknown) {
   const n = check.melds.length;
   const what = n === 1 ? 'تشكيلة' : n === 2 ? 'تشكيلتان' : `${n} تشكيلات`;
   s.feed.push(first ? `${name}: نزلة أولى (${check.value})` : `${name}: ${what}`, { by });
-  ctx.say?.(first && talaj(s) && left > 1 ? `نزلة أولى لـ${name}: ${what} بـ${check.value} نقطة` : `نزلة لـ${name}: ${what}`, by);
+  ctx.say?.(first && talaj(s) && left > 1 ? `نزلة أولى ${li(name)}: ${what} بـ${check.value} نقطة` : `نزلة ${li(name)}: ${what}`, by);
   ctx.fx('correct', by);
   if (!hand.length) endRound(ctx, s, by);
 }
@@ -355,7 +356,7 @@ function swapJoker(ctx: GameCtx, s: State, by: string, meldId: unknown, cardId: 
   s.actions += 1;
   const name = ctx.playerName(by);
   s.feed.push(`${name}: استرجع الجوكر`, { by });
-  ctx.say?.(`جوكر مسترجع لـ${name} مقابل ${ramiCardName(card)}`, by);
+  ctx.say?.(`جوكر مسترجع ${li(name)} مقابل ${ramiCardName(card)}`, by);
   ctx.fx('correct', by);
 }
 
