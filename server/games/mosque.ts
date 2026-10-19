@@ -196,7 +196,8 @@ export const mosque: GameModule<MosqueState, MosqueSettings> = {
       // team-mates: an easy bot lets the people answer first; smarter ones answer within the first half of
       // the timer (the fast bricks) — answers stay hidden until the reveal, so nobody is rushed or copied
       const delay = level === 'easy' ? botAnswerDelay(s.seconds) : Math.min(s.seconds * 470, quizDelay(level, s.seconds, readChars(item.text, item.options), sure));
-      if (peopleWaiting) ctx.bot(b, `ans:${s.round}`, delay, { type: 'answer', choice });
+      // with people still answering, never before they had a fair moment to read (2.5 s at least)
+      if (peopleWaiting) ctx.bot(b, `ans:${s.round}`, Math.max(delay, Math.min(2500, s.seconds * 250)), { type: 'answer', choice });
       // nobody else to wait for: answer soon, but not before a person could have read the question
       else ctx.bot(b, `ans-now:${s.round}`, Math.max(randInt(600, 1600), Math.min(delay, readMs(readChars(item.text, item.options))) - (ctx.now - s.startedAt)), { type: 'answer', choice });
     }
