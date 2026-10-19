@@ -204,7 +204,7 @@ test('wave: the clue-giver is stable when someone else leaves, and the clue move
 test('wordle: once half of the players are done the round is cut to a minute', () => {
   const ctx = fakeCtx();
   const s: any = wordle.start(ctx, ['a', 'b', 'c', 'd'], { rounds: 1 });
-  const answer = s.words[0];
+  const answer = s.words[0].word;
   wordle.act(ctx, s, 'a', { type: 'guess', word: answer });
   expect(s.endsAt).toBe(ctx.now + 4 * 60_000);
   wordle.act(ctx, s, 'b', { type: 'guess', word: answer });

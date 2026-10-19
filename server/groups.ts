@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { cleanGroupName, GROUP_CODE_ALPHABET, GROUP_CODE_LEN, isExpoPushToken, MAX_GROUP_MEMBERS, MAX_GROUPS_PER_PLAYER, normalizeGroupCode } from '../src/shared/groups';
-import { GAME_IDS, type ClientMsg, type GameId, type GroupInfo, type GroupRequest, type PlayerInfo, type ServerMsg } from '../src/shared/protocol';
+import { resolveGame, type ClientMsg, type GameId, type GroupInfo, type GroupRequest, type PlayerInfo, type ServerMsg } from '../src/shared/protocol';
 import type { GroupRow, Store } from './db';
 import { send, type Room, type Sock } from './room';
 import { buildHonor } from './tournament';
@@ -279,9 +279,12 @@ export class GroupHub {
       return;
     }
 
-    const game = (GAME_IDS as string[]).includes(g.lastGame ?? '') ? (g.lastGame as GameId) : FIRST_GROUP_GAME;
+    // the group's last game — an old id that became part of another game opens that game (with its preset)
+    const want = resolveGame(g.lastGame);
+    const game = want?.game ?? FIRST_GROUP_GAME;
     const members = this.store.members(g.id);
     const r = this.deps.createRoom(player, game);
+    if (want?.settings) r.preset(game, want.settings);
     r.group = {
       id: g.id,
       name: g.name,

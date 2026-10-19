@@ -5,13 +5,21 @@
  *
  * Use it instead of hand-made score rows so every game reads the same way. Two to four players
  * sit on one line; more wrap onto as many lines as needed, always fitting a 320 px phone.
+ *
+ * A numeric score that grows counts up to its new value, and the gain («+3») floats up once above
+ * it (`gains={false}` keeps just the count-up). Nothing moves in the first moments after the strip
+ * appears (a screen that just opened shows the scores as they are).
  */
+import { useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
+import { CountUp } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
+
+import { FloatUp, useSettled } from './touch-motion';
 
 export interface StripEntry {
   id: string;
@@ -25,8 +33,9 @@ export interface StripEntry {
   out?: boolean;
 }
 
-export function PlayerStrip({ room, entries, active = [] }: { room: RoomView; entries: StripEntry[]; active?: string[] }) {
+export function PlayerStrip({ room, entries, active = [], gains = true }: { room: RoomView; entries: StripEntry[]; active?: string[]; gains?: boolean }) {
   const { width } = useWindowDimensions();
+  const settled = useSettled();
   const inner = Math.min(width - 32, 560);
   const n = entries.length;
   // chips per line: everyone on one line up to 4 (3 on narrow phones), then wrap evenly
@@ -74,14 +83,35 @@ export function PlayerStrip({ room, entries, active = [] }: { room: RoomView; en
                 </Txt>
               ) : null}
             </View>
-            {e.score !== undefined ? (
-              <Txt v="bold" color={on ? C.text : C.yellow} style={{ fontSize: small ? 15 : 17 }}>
-                {typeof e.score === 'number' ? num(e.score) : e.score}
-              </Txt>
-            ) : null}
+            {e.score !== undefined ? <Score score={e.score} on={on} small={small} live={settled} gains={gains} /> : null}
           </View>
         );
       })}
     </Row>
+  );
+}
+
+/** The chip's number: counts up when it grows, with the gain floating up once above it. */
+function Score({ score, on, small, live, gains }: { score: number | string; on: boolean; small: boolean; live: boolean; gains: boolean }) {
+  // the previous score, to see what was gained (only changes seen while the strip is settled float)
+  const [st, setSt] = useState({ score, gain: 0, k: 0 });
+  if (st.score !== score) {
+    const gain = typeof score === 'number' && typeof st.score === 'number' && live && gains ? score - st.score : 0;
+    setSt({ score, gain, k: gain > 0 ? st.k + 1 : st.k });
+  }
+  const color = on ? C.text : C.yellow;
+  return (
+    <View>
+      <Txt v="bold" color={color} style={{ fontSize: small ? 15 : 17 }}>
+        {typeof score === 'number' ? <CountUp value={score} enabled={live} /> : score}
+      </Txt>
+      {st.k > 0 ? (
+        <FloatUp key={st.k} style={{ bottom: '70%', left: -14, right: -14, alignItems: 'center' }}>
+          <Txt v="tiny" color={C.yellow} style={{ fontSize: 13 }}>
+            {num(`+${st.gain}`)}
+          </Txt>
+        </FloatUp>
+      ) : null}
+    </View>
   );
 }

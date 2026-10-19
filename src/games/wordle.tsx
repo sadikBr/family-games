@@ -1,14 +1,22 @@
-/** «كلمة السر» — race to find the hidden 5-letter word. Arabic on-screen keyboard, no system keyboard needed. */
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+/**
+ * «كلمة السر» — race to find the hidden 5-letter word. Arabic on-screen keyboard, no system keyboard needed.
+ * The word set is a lobby setting: everyday words, words of the Quran (with the kind of word as a hint and,
+ * after the round, a verse where the word appears, in the Amiri Quran font), or a mix of both.
+ * The letters of a guess turn over one after another to show their colours; the keyboard takes the new
+ * colours once the row has finished turning.
+ */
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
+import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import type { RoomView, WordleMark, WordleView } from '@/shared/protocol';
+import type { RoomView, WordleMark, WordleSettings as Settings, WordleView, WordleWords } from '@/shared/protocol';
 import { KEY_ROWS } from '@/shared/wordle';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
+import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
 import { TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
@@ -17,30 +25,49 @@ import { Spectator } from './common';
 import { helpers } from './helpers';
 import { McqFinal, RoundHeader } from './islamic-ui';
 import { useRefusedFlash } from './wordle-ui';
+import { FlipTile, MARK_BG, MiniTile, TileRow, flipTotal, useSettled } from './wordle-tile';
 
-const MARK_BG: Record<WordleMark, string> = { g: '#2FB67C', y: '#F2B33D', x: '#5B6080' };
 const RANK: Record<WordleMark, number> = { g: 3, y: 2, x: 1 };
 
-function Tile({ ch, mark, size, active, bad }: { ch: string; mark?: WordleMark; size: number; active?: boolean; bad?: boolean }) {
-  return (
-    <View
-      style={[
-        styles.tile,
-        { width: size, height: size },
-        mark ? { backgroundColor: MARK_BG[mark], borderColor: MARK_BG[mark] } : ch ? styles.tileFilled : null,
-        active && !ch && styles.tileActive,
-        bad && styles.tileBad,
-      ]}>
-      <Txt style={{ fontFamily: F.display, fontSize: size * 0.5, lineHeight: size * 0.75, color: mark ? '#FFFFFF' : C.text }}>{ch}</Txt>
-    </View>
-  );
+/** The chip above the grid: the kind of word when it is known. */
+function wordLabel(v: WordleView): string {
+  if (v.hint) return v.hint;
+  if (v.quran) return 'كلمة من القرآن';
+  if (v.words === 'mix') return v.quran === false ? 'كلمة عامة' : 'كلمة عامة أو قرآنية';
+  return 'كلمة السر';
+}
+
+/**
+ * The row of my grid that is turning over right now (-1: none). A row turns over when the server accepts
+ * a guess while the screen is open, not when the screen opens on rows that were already there.
+ */
+function useTurningRow(view: WordleView, settled: boolean): number {
+  const n = view.myRows.length;
+  const [seen, setSeen] = useState({ round: view.round, n, turning: -1 });
+  let cur = seen;
+  if (seen.round !== view.round || seen.n !== n) {
+    const grew = seen.round === view.round && n === seen.n + 1 && settled;
+    cur = { round: view.round, n, turning: grew ? n - 1 : -1 };
+    setSeen(cur);
+  }
+  const turning = cur.turning;
+  const total = flipTotal(view.length);
+  useEffect(() => {
+    if (turning < 0) return;
+    const t = setTimeout(() => setSeen((s) => (s.turning === turning ? { ...s, turning: -1 } : s)), total + 40);
+    return () => clearTimeout(t);
+  }, [turning, total]);
+  return turning;
 }
 
 export function WordleGame({ room, view }: { room: RoomView; view: WordleView }) {
   const h = helpers(room);
   const contentWidth = useContentWidth();
+  const { height } = useWindowDimensions();
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
   const refused = useRefusedFlash();
+  const settled = useSettled();
+  const turning = useTurningRow(view, settled);
   if (view.phase === 'final') return <McqFinal room={room} scores={view.scores} game="wordle" h={h} />;
   if (!(h.me in view.scores)) return <Spectator room={room} />;
 
@@ -50,17 +77,23 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
   const solved = view.myRows.some((r) => r.marks.every((m) => m === 'g'));
   const out = solved || view.myRows.length >= view.maxTries;
   const playing = view.phase === 'play' && !out;
-  const tile = Math.min(56, (contentWidth - 30) / view.length);
+  // the grid shrinks a little once the round is over (room for the verse and the scores),
+  // and on short screens, so the keyboard stays in view under the six rows
+  const tile = Math.max(34, Math.min(view.phase === 'reveal' ? 40 : 54, (contentWidth - 30) / view.length, (height - 390) / 6.5));
   // the keyboard has 6px padding and 4px gaps: 11 keys on the top rows, 8 keys + enter + delete on the last
   const keysW = contentWidth - 12;
   const keyW = Math.floor(Math.min(36, (keysW - 10 * 4) / 11));
   const wideW = Math.floor(Math.min(64, (keysW - 9 * 4 - 8 * keyW) / 2));
+  const timerTotal = view.timerTotal ?? (view.hurried ? 60000 : 240000);
 
-  // best colour seen for each letter, for the keyboard
+  // best colour seen for each letter, for the keyboard (a row still turning over counts once it is done)
   const best: Record<string, WordleMark> = {};
-  for (const r of view.myRows) [...r.guess].forEach((ch, i) => {
-    const m = r.marks[i];
-    if (!best[ch] || RANK[m] > RANK[best[ch]]) best[ch] = m;
+  view.myRows.forEach((r, ri) => {
+    if (ri === turning) return;
+    [...r.guess].forEach((ch, i) => {
+      const m = r.marks[i];
+      if (!best[ch] || RANK[m] > RANK[best[ch]]) best[ch] = m;
+    });
   });
 
   const press = (k: string) => {
@@ -76,8 +109,19 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
 
   return (
     <>
-      <RoundHeader label={`الكلمة ${num(view.round)} من ${num(view.rounds)}`} round={0} rounds={0} />
-      {view.phase === 'play' ? <TimerBar endsAt={view.endsAt} total={view.hurried ? 60000 : 240000} /> : null}
+      <RoundHeader
+        label={wordLabel(view)}
+        round={view.round}
+        rounds={view.rounds}
+        right={
+          view.race ? (
+            <Txt v="tiny" color={C.orange}>
+              سباق
+            </Txt>
+          ) : undefined
+        }
+      />
+      {view.phase === 'play' ? <TimerBar endsAt={view.endsAt} total={timerTotal} /> : null}
       {view.hurried ? (
         <Txt v="small" center color={C.yellow}>
           نصف اللاعبين أنهوا — بقيت دقيقة على الأكثر
@@ -90,18 +134,25 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
           const current = r === view.myRows.length && playing;
           // once the round is over only the tries are left, to leave room for the results
           if (view.phase === 'reveal' && !row) return null;
-          const tiles = (
-            <Row gap={6}>
+          return (
+            <TileRow key={r} refused={current ? refused : undefined}>
               {Array.from({ length: view.length }, (_, i) => (
-                <Tile key={i} size={tile} ch={row ? [...row.guess][i] : current ? (letters[i] ?? '') : ''} mark={row?.marks[i]} active={current && i === letters.length} bad={current && refused} />
+                <FlipTile
+                  key={i}
+                  index={i}
+                  size={tile}
+                  animate={settled}
+                  ch={row ? [...row.guess][i] : current ? (letters[i] ?? '') : ''}
+                  mark={row?.marks[i]}
+                  active={current && i === letters.length}
+                />
               ))}
-            </Row>
+            </TileRow>
           );
-          return <View key={r}>{tiles}</View>;
         })}
       </View>
 
-      {out && view.phase === 'play' ? (
+      {out && view.phase === 'play' && turning < 0 ? (
         <Animated.View entering={FadeIn.duration(200)}>
           <Txt v="bold" center color={solved ? C.green : C.orange}>
             {solved ? `أحسنت! وجدتها في ${num(view.myRows.length)} محاولات — في انتظار الآخرين` : `انتهت محاولاتك — الكلمة: «${view.answer ?? ''}»`}
@@ -110,10 +161,18 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
       ) : null}
 
       {view.phase === 'reveal' ? (
-        <View style={{ gap: 8 }}>
+        <Animated.View entering={FadeIn.duration(220)} style={{ gap: 8 }}>
           <Txt v="title" center>
             الكلمة: «{view.answer}»
           </Txt>
+          {view.verse ? (
+            <View style={styles.verseCard}>
+              <Txt style={styles.verse}>﴿{view.verse.text}﴾</Txt>
+              <Txt v="small" center color={C.yellow}>
+                {view.verse.ref}
+              </Txt>
+            </View>
+          ) : null}
           {view.results
             ? [...view.results]
                 .sort((x, y) => y.points - x.points)
@@ -132,7 +191,7 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
                   </Row>
                 ))
             : null}
-        </View>
+        </Animated.View>
       ) : null}
 
       {playing ? (
@@ -165,7 +224,7 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
         </View>
       ) : null}
 
-      {view.others.length ? (
+      {view.others.length && view.phase === 'play' ? (
         <Row gap={10} wrap center>
           {view.others.map((o) => (
             <View key={o.id} style={styles.other}>
@@ -174,7 +233,7 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
                 {Array.from({ length: Math.max(1, o.rows.length) }, (_, r) => (
                   <Row key={r} gap={2}>
                     {Array.from({ length: view.length }, (_, i) => (
-                      <View key={i} style={[styles.mini, o.rows[r] ? { backgroundColor: MARK_BG[o.rows[r][i]] } : null]} />
+                      <MiniTile key={i} index={i} mark={o.rows[r]?.[i]} animate={settled} />
                     ))}
                   </Row>
                 ))}
@@ -187,14 +246,33 @@ export function WordleGame({ room, view }: { room: RoomView; view: WordleView })
   );
 }
 
+const WORD_SETS: { key: WordleWords; label: string }[] = [
+  { key: 'general', label: 'كلمات عامة' },
+  { key: 'quran', label: 'كلمات قرآنية' },
+  { key: 'mix', label: 'مزيج' },
+];
+
+/** Lobby settings: the word set, number of words, race mode, the hint for Quran words. */
+export function WordleSettings({ room, editable }: { room: RoomView; editable: boolean }) {
+  const s = room.settings.wordle;
+  const words = s.words ?? 'general';
+  const change = (patch: Partial<Settings>) => client.roomAction({ type: 'settings', game: 'wordle', patch });
+  return (
+    <View style={{ gap: 10 }}>
+      <Txt v="bold">الكلمات</Txt>
+      <ChipPicker editable={editable} value={words} onChange={(w) => change({ words: w })} options={WORD_SETS} />
+      <Stepper label="عدد الكلمات" value={s.rounds} min={1} max={10} editable={editable} onChange={(rounds) => change({ rounds })} />
+      <Toggle label="سباق: تنتهي الجولة حين يجد أحدهم الكلمة" value={s.race ?? false} editable={editable} onChange={(race) => change({ race })} />
+      {words !== 'general' ? <Toggle label="تلميح: نوع الكلمة القرآنية (نبي، سورة، مكان…)" value={s.hint ?? true} editable={editable} onChange={(hint) => change({ hint })} /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  tile: { alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 2, borderColor: C.borderStrong, backgroundColor: C.surface },
-  tileFilled: { borderColor: alpha('#FFFFFF', 0.55) },
-  tileActive: { borderColor: C.yellow },
-  tileBad: { borderColor: C.red, backgroundColor: alpha(C.red, 0.18) },
   keyboard: { gap: 5, backgroundColor: C.bg3, borderRadius: 16, padding: 6 },
   key: { height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
   other: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: C.surface, borderRadius: 14, padding: 6, borderWidth: 1.5, borderColor: C.border },
   result: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
-  mini: { width: 9, height: 9, borderRadius: 2, backgroundColor: C.surfaceStrong },
+  verseCard: { backgroundColor: '#0F4D3A', borderRadius: 18, padding: 12, gap: 4, borderWidth: 2, borderColor: alpha('#F4C02E', 0.5) },
+  verse: { fontFamily: F.quran, fontSize: 20, lineHeight: 42, color: '#FFF8E6', textAlign: 'center', writingDirection: 'rtl' },
 });
