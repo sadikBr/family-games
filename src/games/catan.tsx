@@ -23,7 +23,8 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { SEAT_NAMES } from './catan-art';
-import { CatanBoard, boardHeight, type Target, type TargetKind } from './catan-board';
+import { CatanBoard, ResourceFlights, boardHeight, useProduceFx, type Target, type TargetKind } from './catan-board';
+import { Spots } from './catan-motion';
 import { BankSheet, BuildRow, DevPanel, DiscardPanel, Hand, LogList, OfferSheet, PlayersPanel, SeatDot, TradeIn, TradeOut, namer, type BuildKind, type Namer } from './catan-panels';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { winLine } from './duel';
@@ -142,6 +143,10 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
   const [modeState, setModeState] = useState<{ turn: number; m: BuildKind } | null>(null);
   const [sheetState, setSheetState] = useState<{ turn: number; s: 'bank' | 'offer' } | null>(null);
   const [zoom, setZoom] = useState(false);
+  // the hex I just sent the robber to: it stays drawn there until the server answers (no glide back)
+  const [sentRobber, setSentRobber] = useState<{ at: string; h: number } | null>(null);
+  const [spots] = useState(() => new Spots());
+  const produce = useProduceFx(view);
 
   if (view.phase === 'final' && view.final) return <Final room={room} view={view} h={h} nm={nm} width={width} />;
 
@@ -181,7 +186,10 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
     if (t.kind === 'settle') h.act('settle', { v: t.id });
     else if (t.kind === 'city') h.act('city', { v: t.id });
     else if (t.kind === 'road') h.act('road', { e: t.id });
-    else h.act('robber', { h: t.id });
+    else {
+      h.act('robber', { h: t.id });
+      setSentRobber({ at, h: t.id });
+    }
     setPick(null);
     if (view.phase === 'main') setModeState(null);
   };
@@ -198,14 +206,23 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
   const waitingOnMe = mine || myDiscard > 0 || (!!tradeIn && !(h.me in tradeIn.answers));
 
   const board = (
-    <CatanBoard view={view} width={bw} kind={kind} ids={ids} sel={pick} mySeat={me?.seat ?? 0} onTarget={onTarget}>
+    <CatanBoard
+      view={view}
+      width={bw}
+      kind={kind}
+      ids={ids}
+      sel={pick}
+      mySeat={me?.seat ?? 0}
+      robberAt={sentRobber?.at === at ? sentRobber.h : null}
+      onTarget={onTarget}
+      nodeRef={(n) => spots.set('board', n)}>
       <ThrownDice values={view.dice} rollId={view.rollId} width={bw} height={boardHeight(bw)} size={Math.min(64, bw * 0.13)} linger={1600} />
     </CatanBoard>
   );
 
   return (
-    <>
-      <PlayersPanel view={view} h={h} nm={nm} width={width} />
+    <View ref={(n) => spots.setRoot(n)} style={{ gap: 14 }}>
+      <PlayersPanel view={view} h={h} nm={nm} width={width} spots={spots} />
 
       <View style={[styles.turnBar, waitingOnMe && { borderColor: C.yellow }]}>
         <Row gap={8}>
@@ -342,7 +359,12 @@ export function CatanGame({ room, view }: { room: RoomView; view: CatanView }) {
       {me ? <DevPanel view={view} h={h} /> : null}
 
       <LogList view={view} me={h.me} nm={nm} count={7} />
-    </>
+
+      {/* resources floating from the hexes to the players who earn them */}
+      <View pointerEvents="none" style={styles.overlay}>
+        {produce ? <ResourceFlights key={produce.k} fx={produce} spots={spots} boardWidth={bw} /> : null}
+      </View>
+    </View>
   );
 }
 
@@ -393,6 +415,7 @@ export function CatanSettings({ room, editable }: { room: RoomView; editable: bo
 }
 
 const styles = StyleSheet.create({
+  overlay: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, direction: 'ltr', zIndex: 100, elevation: 30 },
   turnBar: { gap: 6, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 2, borderColor: 'transparent' },
   confirm: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.bg2, borderRadius: 14, padding: 8, borderWidth: 2, borderColor: C.yellow },
   finalRow: { gap: 6, backgroundColor: C.surface, borderRadius: 14, padding: 10, borderWidth: 2, borderColor: 'transparent' },

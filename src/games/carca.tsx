@@ -24,6 +24,8 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { CarcaBoard, type BoardOptions } from './carca-board';
+import { CarcaSpots, ReturnFlights, useReturns } from './carca-motion';
+import { CountUp, Settle, useSettled } from './catan-motion';
 import { Meeple, MeepleIcon, TileView } from './carca-tile';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { winLine } from './duel';
@@ -60,7 +62,7 @@ function eventText(e: CarcaEvent, h: Helpers): string {
  * framed and tinted in their colour, «(أنت)» for me), with what this game needs on it: the colour of
  * their followers, the score and the followers left.
  */
-function Players({ view, h, width }: { view: CarcaView; h: Helpers; width: number }) {
+function Players({ view, h, width, stage, countAt = 0 }: { view: CarcaView; h: Helpers; width: number; stage?: CarcaSpots; countAt?: number }) {
   const n = view.order.length;
   const per = n === 3 || n === 5 ? 3 : 2;
   const w = Math.floor((width - (per - 1) * 6) / per);
@@ -79,13 +81,10 @@ function Players({ view, h, width }: { view: CarcaView; h: Helpers; width: numbe
               </Txt>
             </Row>
             <Row gap={4} style={{ justifyContent: 'space-between' }}>
-              <Txt v="bold" color={on ? C.text : C.yellow} style={{ fontSize: 17 }}>
-                {num(view.scores[id] ?? 0)}
-              </Txt>
-              <View accessibilityLabel={`الأتباع الباقون: ${view.supply[id] ?? 0}`} style={styles.supply}>
-                <Txt v="tiny" color={C.muted}>
-                  {num(view.supply[id] ?? 0)}
-                </Txt>
+              {/* the points count up once the followers that earned them are back */}
+              <CountUp value={view.scores[id] ?? 0} delay={countAt} render={num} v="bold" color={on ? C.text : C.yellow} style={{ fontSize: 17 }} />
+              <View ref={(n) => stage?.set(`supply:${id}`, n)} accessibilityLabel={`الأتباع الباقون: ${view.supply[id] ?? 0}`} style={styles.supply}>
+                <CountUp value={view.supply[id] ?? 0} delay={countAt} render={num} v="tiny" color={C.muted} />
                 <MeepleIcon color={view.colors[id] ?? 0} size={12} />
               </View>
             </Row>
@@ -238,6 +237,9 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
   const [sel, setSel] = useState<{ turnNo: number; x: number; y: number; r: number } | null>(null);
   const [rot, setRot] = useState<{ turnNo: number; r: number }>({ turnNo: 0, r: 0 });
   const [pick, setPick] = useState<{ turnNo: number; f: number } | null>(null);
+  const [stage] = useState(() => new CarcaSpots());
+  const settled = useSettled();
+  const returns = useReturns(view);
 
   if (view.phase === 'final') return <Final room={room} view={view} h={h} width={width} boardH={fullH} />;
 
@@ -315,8 +317,8 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
   const bigSize = Math.min(180, Math.round(width * 0.58));
 
   return (
-    <>
-      <Players view={view} h={h} width={width} />
+    <View ref={(n) => stage.setRoot(n)} style={{ gap: 14 }}>
+      <Players view={view} h={h} width={width} stage={stage} countAt={returns?.countAt ?? 0} />
       {view.total > 0 ? <TimerBar endsAt={view.endsAt} total={view.total} onTick={myTurn} /> : null}
       <Row gap={8} style={{ justifyContent: 'space-between' }}>
         <Txt v="bold" color={myTurn ? C.yellow : C.muted} style={{ flex: 1 }} numberOfLines={2}>
@@ -340,6 +342,8 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
         options={options}
         onCell={onCell}
         onSpot={(f) => setPick({ turnNo: view.turnNo, f })}
+        nodeRef={(n) => stage.set('board', n)}
+        onTransform={(s, tx, ty) => stage.setXf(s, tx, ty)}
       />
 
       {!playing ? <Spectator room={room} /> : null}
@@ -358,9 +362,12 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
       ) : tile ? (
         <Card style={{ padding: 10 }}>
           <Row gap={10}>
-            <View style={[styles.tileBox, { borderColor: myTurn ? C.yellow : view.turn ? h.player(view.turn).color : C.border }]}>
-              <TileView t={tile} r={shownR} size={tileSize} />
-            </View>
+            {/* the tile just drawn settles into its card */}
+            <Settle key={`${view.turnNo}:${tile}`} animate={settled} drop={6}>
+              <View style={[styles.tileBox, { borderColor: myTurn ? C.yellow : view.turn ? h.player(view.turn).color : C.border }]}>
+                <TileView t={tile} r={shownR} size={tileSize} />
+              </View>
+            </Settle>
             {placing ? (
               <View style={{ flex: 1, gap: 8 }}>
                 <Row gap={10} center style={{ direction: 'ltr' }}>
@@ -386,7 +393,12 @@ export function CarcaGame({ room, view }: { room: RoomView; view: CarcaView }) {
       ) : null}
 
       <Log view={view} h={h} n={4} />
-    </>
+
+      {/* followers that scored go back to their owners */}
+      <View pointerEvents="none" style={styles.overlay}>
+        {returns ? <ReturnFlights key={returns.k} fx={returns} spots={stage} /> : null}
+      </View>
+    </View>
   );
 }
 
@@ -433,5 +445,6 @@ const styles = StyleSheet.create({
   spotOn: { borderWidth: 2, borderColor: '#FFFFFF' },
   player: { backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 8, borderWidth: 1.5, borderColor: C.border },
   supply: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  overlay: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, direction: 'ltr', zIndex: 100, elevation: 30 },
   scoreRow: { paddingVertical: 4, paddingHorizontal: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.04)' },
 });
