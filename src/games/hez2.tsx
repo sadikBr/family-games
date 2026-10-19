@@ -1,5 +1,5 @@
 /** «هزّ 2» — the screen: the other players' hands, the table (stock, pile, suit to follow), my hand. */
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
@@ -60,8 +60,10 @@ export function Hez2Game({ room, view }: { room: RoomView; view: Hez2View }) {
  * The other players: avatar, cards left, points, and their hand face down. The first card of each fan
  * is where that player's cards fly from onto the pile (`seat:<id>`).
  */
-function Opponents({ view, h }: { view: Hez2View; h: Helpers }) {
+function Opponents({ view, h, compact }: { view: Hez2View; h: Helpers; compact: boolean }) {
   const others = view.participants.filter((id) => id !== h.me);
+  const av = compact ? 26 : 32;
+  const back = compact ? 22 : 26;
   return (
     <View style={{ gap: 6 }}>
       {others.map((id) => {
@@ -72,10 +74,10 @@ function Opponents({ view, h }: { view: Hez2View; h: Helpers }) {
           <View
             key={id}
             accessibilityLabel={`${p.name}: ${cardsWord(k)}، ${num(view.scores[id] ?? 0)} نقطة${active ? ' — الدور الآن' : ''}`}
-            style={[styles.opp, active && { borderColor: p.color, backgroundColor: alpha(p.color, 0.18) }]}>
+            style={[styles.opp, compact && { paddingVertical: 3 }, active && { borderColor: p.color, backgroundColor: alpha(p.color, 0.18) }]}>
             <View>
-              <TurnHalo active={active} size={32} color={p.color} />
-              <Avatar player={p} size={32} />
+              <TurnHalo active={active} size={av} color={p.color} />
+              <Avatar player={p} size={av} />
             </View>
             <View style={{ width: 74 }}>
               <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13 }}>
@@ -105,9 +107,9 @@ function Opponents({ view, h }: { view: Hez2View; h: Helpers }) {
             </View>
             <View style={styles.fan}>
               {Array.from({ length: Math.max(1, Math.min(k, 12)) }, (_, i) => (
-                <CardMotion key={i} id={i === 0 ? `seat:${id}` : `opp:${id}:${i}`} enter="deal" from="bottom" style={{ marginStart: i === 0 ? 0 : -15 }}>
+                <CardMotion key={i} id={i === 0 ? `seat:${id}` : `opp:${id}:${i}`} enter="deal" from="bottom" style={{ marginStart: i === 0 ? 0 : -Math.round(back * 0.58) }}>
                   {/* an empty hand keeps an invisible first card: the seat stays a flight origin */}
-                  {k ? <SpanishCard card={null} width={26} /> : <View style={{ width: 26, height: 39 }} />}
+                  {k ? <SpanishCard card={null} width={back} /> : <View style={{ width: back, height: back * 1.5 }} />}
                 </CardMotion>
               ))}
             </View>
@@ -181,12 +183,25 @@ function handOverlap(k: number, room: number): number {
   return Math.round(HAND_W - step);
 }
 
+const PLAIN_LINE = 'اختر ورقة واضغطها مرة ثانية للعب';
+
+/** What to do now, on my turn. */
+function instruction(view: Hez2View, me: string): string {
+  if (view.pending) return view.playable.length ? `ردّ بـ2 أو اسحب ${cardsWord(view.pending)}` : `لا 2 في يدك — اسحب ${cardsWord(view.pending)}`;
+  if (view.drawn && view.playable.length) return 'الورقة المسحوبة تصلح — العبها أو مرّر';
+  if (!view.playable.length) return view.myHand.length === 1 && view.myHand[0].rank === 10 ? 'لا تنتهي الأوراق بالخادم — اسحب ورقة' : 'لا توجد ورقة مناسبة — اسحب';
+  if (view.again === me) return 'دور إضافي — العب ورقة أخرى';
+  return PLAIN_LINE;
+}
+
 function Table({ view, h, tap, myTurn }: { view: Hez2View; h: Helpers; tap: ReturnType<typeof useTapToPlay>; myTurn: boolean }) {
   const stage = useCardStage();
   const accent = useAccent();
   const width = useContentWidth();
+  // short phones (320×640…): thinner player rows and a smaller pile, so the hand stays on screen
+  const compact = useWindowDimensions().height < 720;
   const overlap = handOverlap(view.myHand.length, width - 20);
-  const topW = Math.min(88, Math.floor(width / 4.2));
+  const topW = Math.min(compact ? 66 : 88, Math.floor(width / 4.2));
   const stockW = Math.round(topW * 0.8);
   const selected = view.myHand.find((c) => c.id === tap.selected) ?? null;
   // a single card drawn glides from the stock; several at once (a penalty) are dealt in turn
@@ -202,13 +217,9 @@ function Table({ view, h, tap, myTurn }: { view: Hez2View; h: Helpers; tap: Retu
   const over = view.phase === 'over';
   const ev = view.event;
 
-  // one instruction line, shown on my turn only (the turn bar already says whose turn it is)
-  let turnText = 'اختر ورقة واضغطها مرة ثانية للعب';
-  if (view.pending && view.playable.length) turnText = `ردّ بـ2 أو اسحب ${cardsWord(view.pending)}`;
-  else if (view.pending) turnText = `لا 2 في يدك — اسحب ${cardsWord(view.pending)}`;
-  else if (view.drawn && view.playable.length) turnText = 'الورقة المسحوبة تصلح — العبها أو مرّر';
-  else if (!view.playable.length) turnText = view.myHand.length === 1 && view.myHand[0].rank === 10 ? 'لا تنتهي الأوراق بالخادم — اسحب ورقة' : 'لا توجد ورقة مناسبة — اسحب';
-  else if (view.again === h.me) turnText = 'دور إضافي — العب ورقة أخرى';
+  // one instruction line, shown on my turn only (the turn bar already says whose turn it is); while it
+  // is not my turn the line fades out keeping its plain text, so it never flashes another one
+  const turnText = myTurn ? instruction(view, h.me) : PLAIN_LINE;
 
   const banner = ev
     ? {
@@ -229,7 +240,7 @@ function Table({ view, h, tap, myTurn }: { view: Hez2View; h: Helpers; tap: Retu
 
   return (
     <>
-      <Opponents view={view} h={h} />
+      <Opponents view={view} h={h} compact={compact} />
 
       <Felt active={myTurn} minHeight={0}>
         {/* what the next card must follow, and what is pending */}
@@ -476,7 +487,7 @@ export function Hez2Settings({ room, editable }: { room: RoomView; editable: boo
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'hez2', patch });
   return (
     <View style={{ gap: 8 }}>
-      <Stepper label="نهاية اللعبة عند" value={s.target} min={HEZ2_TARGETS[0]} max={HEZ2_TARGETS[HEZ2_TARGETS.length - 1]} step={50} editable={editable} onChange={(target) => change({ target })} />
+      <Stepper label="حدّ النقاط" value={s.target} min={HEZ2_TARGETS[0]} max={HEZ2_TARGETS[HEZ2_TARGETS.length - 1]} step={50} editable={editable} onChange={(target) => change({ target })} />
       <Toggle label="آخر ورقة 2: لا تنتهي الجولة حتى تُسحب عقوبتها" value={s.lastTwo} editable={editable} onChange={(lastTwo) => change({ lastTwo })} />
       <Txt v="tiny" color={C.dim}>
         {s.lastTwo ? 'إن ردّ الجميع بـ2 وعادت العقوبة إلى صاحبها، يسحبها ويكمل اللعب.' : 'يسحب اللاعب التالي العقوبة وتنتهي الجولة فوراً.'}
