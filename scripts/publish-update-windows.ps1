@@ -66,7 +66,8 @@ $Message = ($Message -replace '[^A-Za-z0-9._:-]+', '-').Trim('-')
 if (-not $Message) { $Message = "update-$(Get-Date -Format 'yyyy-MM-dd-HHmm')" }
 
 Step "Publishing the update ($Message)"
-& bunx eas-cli update --channel preview --platform android "--message=$Message" --non-interactive
+# --environment: EAS requires it in non-interactive mode (the server address is set above anyway)
+& bunx eas-cli update --channel preview --platform android --environment preview "--message=$Message" --non-interactive
 if ($LASTEXITCODE -ne 0) { Fail 'eas update failed (see the messages above).' }
 
 Write-Host ''

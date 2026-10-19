@@ -6,14 +6,20 @@ import { DEFAULT_PORT } from '@/shared/protocol';
 
 const KEY = 'fg.serverUrl.v1';
 
+/** The family's deployed server: a release build (an APK or an over-the-air update) built without
+ * EXPO_PUBLIC_SERVER_URL still finds it, instead of looking for a server on the phone itself. */
+const DEPLOYED_SERVER = 'wss://family-games-production-a937.up.railway.app';
+
 /**
  * Where is the game server?
  * 1. EXPO_PUBLIC_SERVER_URL (for a deployed server)
- * 2. In development: the same computer that runs `expo start` (all phones already reach it)
+ * 2. A release build: the deployed server
+ * 3. In development: the same computer that runs `expo start` (all phones already reach it)
  */
 export function defaultServerUrl(): string {
   const env = process.env.EXPO_PUBLIC_SERVER_URL;
   if (env && !env.includes('REPLACE-ME')) return normalizeServerUrl(env);
+  if (!__DEV__ && Platform.OS !== 'web') return normalizeServerUrl(DEPLOYED_SERVER);
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
     return `ws://${window.location.hostname}:${DEFAULT_PORT}/ws`;
   }
