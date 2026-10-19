@@ -44,8 +44,10 @@ function Strokes({ strokes, size }: { strokes: TeledrawStroke[]; size: number })
 /** A finished drawing on its sheet of paper; `note` («(لا شيء)»…) is written in the middle of an empty one. */
 export function Sketch({ strokes, size, note, frame }: { strokes: TeledrawStroke[]; size: number; note?: string; frame?: string }) {
   return (
-    <View style={[styles.paper, { width: size, height: size, borderRadius: size < 160 ? 12 : 18, borderColor: frame ?? '#151726' }]}>
+    <View style={[styles.pad, { width: size, height: size, borderRadius: size < 160 ? 12 : 18 }]}>
       <Strokes strokes={strokes} size={size} />
+      {/* the frame on top, like the pad: the drawing keeps the exact place it was drawn at */}
+      <View style={[styles.frame, { borderRadius: size < 160 ? 12 : 18, borderColor: frame ?? '#151726' }]} pointerEvents="none" />
       {note ? (
         <View style={styles.note}>
           <Txt v={size < 160 ? 'small' : 'h2'} color="#8B88A8" center>
@@ -188,7 +190,6 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
 }
 
 const styles = StyleSheet.create({
-  paper: { alignSelf: 'center', backgroundColor: PAPER, borderRadius: 18, borderWidth: 3, overflow: 'hidden' },
   // the drawing pad: the frame is drawn on top, so the drawing area is the whole square (coordinates match)
   pad: { alignSelf: 'center', backgroundColor: PAPER, borderRadius: 18, overflow: 'hidden' },
   frame: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 3 },
