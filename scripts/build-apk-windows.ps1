@@ -162,6 +162,15 @@ $env:NODE_ENV = 'production'
 
 # --- generate the native Android project from app.json (fresh every time)
 Step 'Generating the Android project (expo prebuild)'
+# a Gradle daemon left from an earlier build keeps files in android\build open, and prebuild can't
+# delete the folder (EBUSY): stop it first
+$oldGradle = Join-Path $root 'android\gradlew.bat'
+if (Test-Path $oldGradle) {
+  Push-Location (Join-Path $root 'android')
+  & .\gradlew.bat --stop | Out-Null
+  Pop-Location
+  Start-Sleep -Seconds 2
+}
 if ($useBun) { bunx expo prebuild --platform android --clean --no-install } else { npx expo prebuild --platform android --clean --no-install }
 if ($LASTEXITCODE -ne 0) { Fail 'expo prebuild failed.' }
 Set-Content -Path (Join-Path $root 'android\local.properties') -Value ('sdk.dir=' + ($AndroidHome -replace '\\', '\\')) -Encoding ASCII
@@ -175,7 +184,8 @@ if ($AllAbis) { $abis = 'armeabi-v7a,arm64-v8a,x86,x86_64' }
 Step "Building the APK ($variant, $abis) - 10 to 30 minutes the first time"
 Push-Location (Join-Path $root 'android')
 try {
-  & .\gradlew.bat $task "-PreactNativeArchitectures=$abis"
+  # --no-daemon: Gradle exits with the build, so it holds no files open for the next run
+  & .\gradlew.bat $task "-PreactNativeArchitectures=$abis" --no-daemon
   if ($LASTEXITCODE -ne 0) { Fail 'The Gradle build failed (see the messages above).' }
 } finally {
   Pop-Location
