@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { haptic, play } from '@/lib/sfx';
@@ -187,6 +187,45 @@ export function PopIn({ children, k }: { children: ReactNode; k: string | number
 /* Scores                                                              */
 /* ------------------------------------------------------------------ */
 
+const COUNT_STEPS = 8;
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+
+/**
+ * The number to show for `value`: when it grows it counts up from the old one in a few calm steps
+ * (~0.5 s, ease-out); when it drops it changes at once. `from` makes it count up on mount too (the
+ * round's results: from the total before the round), after `delay` ms. `enabled: false` (screen
+ * just opened) or reduced motion → always `value`.
+ */
+export function useCountUp(value: number, { from, delay = 0, ms = 480, enabled = true }: { from?: number; delay?: number; ms?: number; enabled?: boolean } = {}) {
+  const reduced = useReducedMotion();
+  const live = enabled && !reduced;
+  const [st, setSt] = useState(() => ({ to: value, from: live && from !== undefined && from < value ? from : value, t: 0, delay }));
+  const shown = st.t >= COUNT_STEPS || st.from === st.to ? st.to : Math.round(st.from + (st.to - st.from) * easeOut(st.t / COUNT_STEPS));
+  if (st.to !== value) setSt({ to: value, from: live && value > shown ? shown : value, t: 0, delay: 0 });
+  useEffect(() => {
+    if (st.t >= COUNT_STEPS || st.from === st.to) return;
+    const id = setTimeout(() => setSt((s) => (s === st ? { ...s, t: s.t + 1 } : s)), (st.t === 0 ? st.delay : 0) + ms / COUNT_STEPS);
+    return () => clearTimeout(id);
+  }, [st, ms]);
+  return st.to !== value ? value : shown;
+}
+
+/** A number that counts up (see useCountUp); put it inside a Txt. `render` formats it (default `num`). */
+export function CountUp({ value, from, delay, enabled, render = num }: { value: number; from?: number; delay?: number; enabled?: boolean; render?: (v: number) => string }) {
+  const shown = useCountUp(value, { from, delay, enabled });
+  return <>{render(shown)}</>;
+}
+
+/** False for the first ~0.7 s after mount: a screen that just opened shows its numbers as they are. */
+function useSettledSoon() {
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(true), 700);
+    return () => clearTimeout(t);
+  }, []);
+  return settled;
+}
+
 const MEDAL = [C.yellow, '#C9CED8', '#D08A55'];
 
 function RankBadge({ rank }: { rank: number }) {
@@ -219,6 +258,8 @@ export function Scoreboard({
     .sort((a, b) => (lowIsBetter ? a.s - b.s : b.s - a.s));
   const ranks: number[] = [];
   for (let i = 0; i < rows.length; i++) ranks.push(i > 0 && rows[i].s === rows[i - 1].s ? ranks[i - 1] : i);
+  // a score that grows while the board is on screen counts up to its new value
+  const settled = useSettledSoon();
   return (
     <View style={{ gap: 6 }}>
       {rows.map(({ p, s }, i) => (
@@ -228,7 +269,9 @@ export function Scoreboard({
           <Txt v="bold" style={{ flex: 1 }} numberOfLines={1}>
             {p.name}
           </Txt>
-          <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 26 }}>{num(s)}</Txt>
+          <Txt style={{ fontFamily: F.black, fontSize: 18, lineHeight: 26 }}>
+            <CountUp value={s} enabled={settled} />
+          </Txt>
           <Txt v="tiny" color={C.dim}>
             {unit}
           </Txt>

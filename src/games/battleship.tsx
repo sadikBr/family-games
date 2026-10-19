@@ -1,7 +1,7 @@
 /** «معركة السفن» — your fleet stays on your phone; fire at the other sea until every ship sinks. */
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { haptic } from '@/lib/sfx';
@@ -18,30 +18,55 @@ import { MarkIn } from '@/ui/motion';
 import { PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
+import { EASE, Ripple, useSettled } from './touch-motion';
 
 const INK = '#151726';
 const SEA = '#2F7FD0';
 const SEA_DARK = '#2A74C2';
 
-function Ship({ cells, cell, color, dim }: { cells: number[]; cell: number; color: string; dim?: boolean }) {
+/**
+ * A ship. `live` (the game has settled): a ship that appears (an enemy ship just sunk) fades in, and
+ * a change of colour (one of mine sinking) tints gently, just after the hit's ripple.
+ */
+function Ship({ cells, cell, color, dim, live }: { cells: number[]; cell: number; color: string; dim?: boolean; live?: boolean }) {
+  const reduced = useReducedMotion();
+  const fade = !!live && !reduced;
+  const tint = useSharedValue(color);
+  const shown = useSharedValue(fade ? 0 : 1);
+  useEffect(() => {
+    tint.set(fade ? withDelay(220, withTiming(color, { duration: 520, easing: EASE })) : color);
+  }, [color, fade, tint]);
+  useEffect(() => {
+    shown.set(withDelay(220, withTiming(1, { duration: 450, easing: EASE })));
+  }, [shown]);
+  const anim = useAnimatedStyle(() => ({ backgroundColor: tint.get(), opacity: shown.get() * (dim ? 0.55 : 1) }));
   const rs = cells.map((c) => Math.floor(c / BN)), cs = cells.map((c) => c % BN);
   const r0 = Math.min(...rs), c0 = Math.min(...cs);
   const w = (Math.max(...cs) - c0 + 1) * cell, hgt = (Math.max(...rs) - r0 + 1) * cell;
   return (
-    <View
+    <Animated.View
       pointerEvents="none"
-      style={[styles.ship, { left: c0 * cell + 2, top: r0 * cell + 2, width: w - 4, height: hgt - 4, borderRadius: Math.min(w, hgt) / 2, backgroundColor: color }, dim && { opacity: 0.55 }]}
+      style={[styles.ship, { left: c0 * cell + 2, top: r0 * cell + 2, width: w - 4, height: hgt - 4, borderRadius: Math.min(w, hgt) / 2 }, anim]}
     />
   );
 }
 
-function Shot({ r, size }: { r: ShotResult; size: number }) {
+/** A shot on the sea. `fresh` (just fired, game settled): a hit ripples once, a miss makes a small splash ring. */
+function Shot({ r, size, fresh, edge }: { r: ShotResult; size: number; fresh: boolean; edge: number }) {
+  // the ring is centred in the cell (its frame, when it is the last shot, takes `edge` px inside it)
+  const c = size / 2 - edge;
   return r === 'hit' ? (
-    <Animated.View entering={MarkIn} style={[styles.hit, { width: size * 0.62, height: size * 0.62, borderRadius: size }]}>
-      <View style={[styles.hitIn, { width: size * 0.26, height: size * 0.26, borderRadius: size }]} />
-    </Animated.View>
+    <>
+      {fresh ? <Ripple cx={c} cy={c} size={size} color="#FFE08A" from={0.5} to={1.7} ms={700} width={2.5} /> : null}
+      <Animated.View entering={fresh ? MarkIn : undefined} style={[styles.hit, { width: size * 0.62, height: size * 0.62, borderRadius: size }]}>
+        <View style={[styles.hitIn, { width: size * 0.26, height: size * 0.26, borderRadius: size }]} />
+      </Animated.View>
+    </>
   ) : (
-    <Animated.View entering={FadeIn.duration(200)} style={[styles.miss, { width: size * 0.26, height: size * 0.26, borderRadius: size }]} />
+    <>
+      {fresh ? <Ripple cx={c} cy={c} size={size * 0.62} color={alpha('#FFFFFF', 0.9)} from={0.35} to={1.2} ms={480} width={1.5} /> : null}
+      <Animated.View entering={fresh ? FadeIn.duration(200) : undefined} style={[styles.miss, { width: size * 0.26, height: size * 0.26, borderRadius: size }]} />
+    </>
   );
 }
 
@@ -51,12 +76,15 @@ function Sea({
   shots,
   onFire,
   last,
+  live,
 }: {
   size: number;
   ships: { cells: number[]; color: string; dim?: boolean }[];
   shots: Record<number, ShotResult>;
   onFire?: (cell: number) => void;
   last?: number | null;
+  /** the game has settled: new shots and sinking ships animate (never on a screen that just opened) */
+  live?: boolean;
 }) {
   const cell = size / BN;
   return (
@@ -66,8 +94,8 @@ function Sea({
           const r = Math.floor(i / BN), c = i % BN;
           return <View key={i} pointerEvents="none" style={[styles.water, { left: c * cell, top: r * cell, width: cell, height: cell }, (r + c) % 2 === 1 && { backgroundColor: SEA_DARK }]} />;
         })}
-        {ships.map((s, k) => (
-          <Ship key={k} cells={s.cells} cell={cell} color={s.color} dim={s.dim} />
+        {ships.map((s) => (
+          <Ship key={s.cells[0]} cells={s.cells} cell={cell} color={s.color} dim={s.dim} live={live} />
         ))}
         {Array.from({ length: BN * BN }, (_, i) => {
           const r = Math.floor(i / BN), c = i % BN;
@@ -79,7 +107,7 @@ function Sea({
               onPress={() => onFire?.(i)}
               accessibilityLabel={`${'ABCDEFGHIJ'[c]}${r + 1}`}
               style={({ pressed }) => [styles.tap, { left: c * cell, top: r * cell, width: cell, height: cell }, pressed && { backgroundColor: alpha(C.yellow, 0.4) }, last === i && styles.last]}>
-              {shot ? <Shot r={shot} size={cell} /> : null}
+              {shot ? <Shot r={shot} size={cell} fresh={!!live} edge={last === i ? 2 : 0} /> : null}
             </Pressable>
           );
         })}
@@ -93,6 +121,7 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
   const { width } = useWindowDimensions();
   const big = Math.min(width - 30, 420);
   const [resign, setResign] = useState(false);
+  const settled = useSettled();
   // the sea being fired at is the big one: mine while the other player shoots. The switch waits a
   // moment so the result of the last shot stays in view before the seas swap.
   const want = view.phase === 'play' && view.turn !== h.me ? 'mine' : 'enemy';
@@ -181,6 +210,7 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
           ...view.enemySunk.map((cells) => ({ cells, color: '#5B6080' })),
         ]}
         shots={view.myShots}
+        live={settled}
         last={view.last && view.last.by === h.me ? view.last.cell : null}
         onFire={
           myTurn
@@ -198,7 +228,7 @@ export function BattleshipGame({ room, view }: { room: RoomView; view: Battleshi
       <Txt v="tiny" center color={C.muted}>
         أسطولك
       </Txt>
-      <Sea size={size} ships={myFleet} shots={view.enemyShots} last={view.last && view.last.by !== h.me ? view.last.cell : null} />
+      <Sea size={size} ships={myFleet} shots={view.enemyShots} live={settled} last={view.last && view.last.by !== h.me ? view.last.cell : null} />
     </View>
   );
 
