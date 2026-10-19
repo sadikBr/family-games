@@ -105,13 +105,18 @@ export function similarAnswers(a: string, b: string): boolean {
   return editDistance(x, y) <= (n >= 8 ? 2 : 1);
 }
 
+/** Letters of Moroccan/Persian keyboards → the Arabic letters they're written with. */
+const KEYBOARD_LETTERS: Record<string, string> = { ڭ: 'كجقغ', ݣ: 'كجقغ', گ: 'كجقغ', ک: 'ك', ڤ: 'ف', پ: 'ب', چ: 'جش', ی: 'ي' };
+
 /**
  * «اسم ولد اسم بنت»: does the answer really start with this letter? The article «ال» is not skipped,
  * so «الرباط» does not count for ر — and, being just the article, not for ا either. A hamza on the
  * alif means it is part of the word: «ألمانيا» and «إلياس» count for ا.
  */
 export function startsWithLetter(word: string, letter: string): boolean {
-  const raw = word.trim().replace(DIACRITICS, '');
+  const raw = word.trim().replace(DIACRITICS, '').replace(/^[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+/, '');
   if (raw.startsWith('ال') && raw.length > 3) return false;
-  return norm(raw)[0] === letter;
+  const first = norm(raw)[0];
+  // «ڭلميم» counts for ك (also ج ق غ, the ways «ڭ» is written)
+  return first === letter || (KEYBOARD_LETTERS[first] ?? '').includes(letter);
 }

@@ -18,7 +18,7 @@ const KNOWN_LOW: Record<string, string[]> = {
 
 test('names words: one list per game category, big enough', () => {
   expect<string[]>([...CATS].sort()).toEqual(NAMES_CATEGORIES.map((c) => c.key).sort());
-  const min: Record<NamesWordCategory, number> = { boy: 650, girl: 500, animal: 300, plant: 300, thing: 500, country: 700, job: 350 };
+  const min: Record<NamesWordCategory, number> = { boy: 730, girl: 570, animal: 340, plant: 315, thing: 590, country: 1000, job: 410 };
   for (const cat of CATS) expect([cat, NAMES_WORDS[cat].length >= min[cat]]).toEqual([cat, true]);
 });
 
