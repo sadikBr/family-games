@@ -1,7 +1,7 @@
 /** «التوتي» — the screen: table, auction, trump choice, «الغناء», my hand, the score sheet and the end of each hand. */
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
@@ -18,10 +18,11 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import { useTapToPlay } from './cards/card-ui';
-import { CardStage, SoftNumber, useCardLook } from './cards/motion';
+import { ClaimButton, ClaimNote, ClaimReveal } from './cards/claim';
+import { CardStage, EASE, MOTION, SoftNumber, useCardLook } from './cards/motion';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { BidPanel, ClaimReveal, ContractBar, HandBreakdown, HandFan, InfoRow, ScoreSheet, SingPanel, SungLine, Table, ToutiCard, TrumpPanel } from './touti-parts';
+import { BidPanel, ContractBar, HandBreakdown, HandFan, InfoRow, ScoreSheet, SingPanel, SungLine, Table, ToutiCard, TrumpPanel } from './touti-parts';
 
 const teamNames = (v: ToutiView, h: Helpers, side: TSide) =>
   v.sides.find((x) => x.key === side)!.members.map((m) => h.player(m).name).join(' و');
@@ -91,6 +92,7 @@ function HandEnd({ room, v, h }: { room: RoomView; v: ToutiView; h: Helpers }) {
           نهاية اليد {num(v.hand)}
         </Txt>
       )}
+      {v.result?.claimed ? <ClaimNote mine={v.result.claimed === mySide} /> : null}
       <HandBreakdown v={v} h={h} />
       <ScoreSheet v={v} h={h} />
       {final ? <PlayAgain room={room} /> : <NextHand v={v} h={h} />}
@@ -159,20 +161,29 @@ function TableScreen({ v, h, tap, playing }: { v: ToutiView; h: Helpers; tap: Re
         <SungLine sung={v.sung} h={h} trump={v.trump} />
       </View>
 
-      <ClaimReveal v={v} h={h} />
+      {/* «الباقي لنا»: the option above my hand, then the claimer's cards face up */}
+      {v.canClaim && !v.claimed ? <ClaimButton onPress={() => h.act('claim')} /> : null}
+      {v.claimed ? (
+        <ClaimReveal
+          claimed={v.claimed}
+          mySide={mySide}
+          sideNames={(side) => teamNames(v, h, side as TSide)}
+          h={h}
+          renderCard={(c) => <ToutiCard card={c} width={Math.max(28, Math.min(40, Math.floor((cw - 40) / 10)))} />}
+        />
+      ) : null}
 
       {singing ? <SingPanel v={v} width={Math.min(cw, 360)} onSing={(suit) => h.act('sing', { suit })} /> : null}
 
-      <View style={{ gap: 4 }}>
-        {/* every remaining trick is certain: end the hand at once (calm, above the hand) */}
-        {playing && v.canClaim ? <Btn size="md" icon="check" label="الباقي لنا — أنهِ اليد" ghost onPress={() => h.act('claim')} /> : null}
+      {/* the hand glides down (instead of jumping) when the claim option comes */}
+      <Animated.View layout={LinearTransition.duration(MOTION.glide).easing(EASE)} style={{ gap: 4 }}>
         {v.phase === 'play' && !singing ? <KeptHint text={hint} show={playing} /> : null}
         <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? (c) => tap.tap(c.id) : undefined} />
         {/* the button keeps its place for the whole play: nothing jumps when a card is selected or played */}
         {v.phase === 'play' && !singing ? (
           <View style={{ minHeight: 56, justifyContent: 'center' }}>{selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={tap.play} /> : null}</View>
         ) : null}
-      </View>
+      </Animated.View>
 
       {v.phase === 'bid' && myTurn ? <BidPanel v={v} width={cw} onBid={(bid) => h.act('bid', { bid })} /> : null}
       {v.phase === 'trump' && myTurn ? <TrumpPanel v={v} width={cw} onPick={(suit) => h.act('trump', { suit })} /> : null}

@@ -30,7 +30,7 @@ import {
 } from '../../src/shared/touti-rules';
 import type { BotLevel } from '../../src/shared/protocol';
 import { makeSides, randDelay } from '../cardkit';
-import { expertBid, expertCard, expertTrump, outlook, takesAll, type BidOutlook, type Knowledge, type Sim } from '../touti-ai';
+import { expertBid, expertCard, expertTrump, findClaim, outlook, type BidOutlook, type Knowledge, type Sim } from '../touti-ai';
 import { bestTrump, botBid, botPlay, reachChance } from '../touti-bot';
 import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
@@ -41,8 +41,8 @@ export const TRICK_PAUSE_MS = 2400;
 export const REDEAL_MS = 2600;
 /** the end-of-hand sheet stays this long (the host can deal sooner) */
 export const HAND_END_MS = 15_000;
-/** «الباقي لنا»: the claiming team's cards stay face up this long before the hand ends */
-export const CLAIM_MS = 3500;
+/** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
+export const CLAIM_REVEAL_MS = 3800;
 
 interface BidState {
   /** dealer's right first, dealer last */
@@ -85,10 +85,10 @@ export interface State {
   /** finished tricks this hand (what the bots remember) and every call of the auction */
   done: { by: string; card: Card }[][];
   auction: { by: string; call: ToutiCall }[];
-  /** «الباقي لنا»: the leader whose team takes every remaining trick for sure (checked at each trick's start) */
-  claimable: string | null;
-  /** a claim being shown: the claiming team's cards face up until `until`, then the hand ends */
-  claim: { by: string; side: TSide; cards: Record<string, Card[]>; gain: number; until: number } | null;
+  /** «الباقي لنا»: a team certain to take every remaining trick, and who may claim it (worked out after every change) */
+  claim: { by: string; side: TSide; reveal: string[] } | null;
+  /** «الباقي لنا» was claimed: those hands are shown until `until`, then the hand ends */
+  claimed: { by: string; side: TSide; reveal: { by: string; cards: Card[] }[]; until: number } | null;
   /** the expert bots' auction outlook, per player, for this hand */
   outlooks: Record<string, BidOutlook>;
   result: ToutiHandResult | null;
@@ -138,8 +138,8 @@ function startHand(ctx: GameCtx, s: State) {
   s.singQueue = [];
   s.done = [];
   s.auction = [];
-  s.claimable = null;
   s.claim = null;
+  s.claimed = null;
   s.outlooks = {};
   s.result = null;
   s.nextAt = null;
@@ -203,7 +203,6 @@ function chooseTrump(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.turn = s.seats[(s.dealer + 1) % 4];
   ctx.say?.(`الطرونفو: ${suitName(s.trump)} — الشاري: ${ctx.playerName(by)} (${s.contract})`, by);
   ctx.fx('reveal');
-  checkClaim(s);
 }
 
 /* ------------------------------------------------------------------ */
@@ -213,7 +212,7 @@ function chooseTrump(ctx: GameCtx, s: State, by: string, suit: unknown) {
 const rules = (s: State) => ({ partnerFree: s.settings.partnerFree });
 
 export function playable(s: State, id: string): Card[] {
-  if (s.phase !== 'play' || s.pauseUntil !== null || s.claim || s.singQueue.length || s.turn !== id) return [];
+  if (s.phase !== 'play' || s.pauseUntil !== null || s.claimed || s.singQueue.length || s.turn !== id) return [];
   return legalCards(s.hands[id], s.trick, s.trump!, rules(s));
 }
 
@@ -226,7 +225,6 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown): boolean 
   if (!playable(s, by).some((x) => x.id === cardId)) throw new GameError(illegalReason(hand, s.trick, s.trump!));
   const card = hand.splice(hand.findIndex((x) => x.id === cardId), 1)[0];
   s.trick.push({ by, card });
-  s.claimable = null;
   ctx.fx('card');
   const head = `ورقة من ${ctx.playerName(by)}: ${cardLabel(card)}`;
   if (s.trick.length < 4) {
@@ -264,7 +262,6 @@ function sing(ctx: GameCtx, s: State, by: string, suit: unknown) {
   if (s.singQueue[0] !== by) throw new GameError('ليس دورك');
   if (suit === null || suit === 'skip') {
     s.singQueue.shift();
-    if (!s.singQueue.length) checkClaim(s);
     return;
   }
   const pair = singOptions(s, by).find((p) => p.suit === suit);
@@ -272,7 +269,6 @@ function sing(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.sung.push({ by, suit: pair.suit, points: pair.points, trick: s.trickNo - 1 });
   // one pair after each trick taken
   s.singQueue = [];
-  checkClaim(s);
   ctx.say?.(`غناء من ${ctx.playerName(by)}: 12 و11 ${suitName(pair.suit)}${pair.suit === s.trump ? ' (الطرونفو)' : ''} +${pair.points}`, by);
   ctx.fx('reveal');
 }
@@ -331,7 +327,7 @@ export function turnOf(s: State): string[] {
   if (s.phase === 'bid') return s.bid && s.redealAt === null ? [s.bid.turn] : [];
   if (s.phase === 'trump') return s.bidder ? [s.bidder] : [];
   if (s.phase === 'play') {
-    if (s.pauseUntil !== null || s.claim) return [];
+    if (s.pauseUntil !== null || s.claimed) return [];
     if (s.singQueue.length) return [s.singQueue[0]];
     return s.turn ? [s.turn] : [];
   }
@@ -342,15 +338,20 @@ export function turnOf(s: State): string[] {
 /* «الباقي لنا»                                                        */
 /* ------------------------------------------------------------------ */
 
-/** The real table, every hand known (for the claim check). */
-function simOf(s: State): Sim {
+/** The real table, every hand known (for the claim check); a complete trick → the next one. Null: nothing left to play. */
+function simOf(s: State): Sim | null {
+  if (s.phase !== 'play' || s.claimed || !s.trump) return null;
+  const paused = s.pauseUntil !== null;
+  if (paused && (s.trickNo >= TRICKS || !s.trickWinner)) return null;
+  const turn = paused ? s.trickWinner : s.turn;
+  if (!turn) return null;
   return {
     hands: s.seats.map((id) => s.hands[id].slice()),
-    trick: s.trick.map((t) => ({ s: s.seats.indexOf(t.by), card: t.card })),
-    turn: s.seats.indexOf(s.turn ?? s.seats[0]),
-    trump: s.trump!,
+    trick: paused ? [] : s.trick.map((t) => ({ s: s.seats.indexOf(t.by), card: t.card })),
+    turn: s.seats.indexOf(turn),
+    trump: s.trump,
     partnerFree: s.settings.partnerFree,
-    left: TRICKS - s.trickNo + 1,
+    left: TRICKS - s.trickNo + (paused ? 0 : 1),
     pts: [s.cards.A, s.cards.B],
     bidTeam: s.seats.indexOf(s.bidder!) % 2,
     bid: s.contract!,
@@ -360,23 +361,49 @@ function simOf(s: State): Sim {
   };
 }
 
-/** At the start of a trick (2 or more left): does the leader's team take every remaining trick whatever happens? */
-export function checkClaim(s: State) {
-  s.claimable = null;
-  if (s.phase !== 'play' || s.trick.length || s.singQueue.length || !s.turn || TRICKS - s.trickNo + 1 < 2) return;
-  if (takesAll(simOf(s), s.seats.indexOf(s.turn) % 2)) s.claimable = s.turn;
+/** the last position asked (the same one comes back after a pause, a view, a timer) */
+const claimMemo = new WeakMap<State, { key: string; claim: State['claim'] }>();
+
+/** After every change: is some team certain to take every remaining trick (2 or more)? Exact, capped in nodes. */
+export function refreshClaim(s: State) {
+  const x = simOf(s);
+  if (!x) {
+    s.claim = null;
+    return;
+  }
+  const key = `${s.hand}|${x.hands.map((h) => h.map((c) => c.id).join('.')).join(',')}|${x.trick.map((t) => t.card.id).join('.')}|${x.turn}`;
+  const memo = claimMemo.get(s);
+  if (memo?.key === key) {
+    s.claim = memo.claim;
+    return;
+  }
+  const f = findClaim(x);
+  s.claim = f ? { by: s.seats[f.seat], side: f.team === 0 ? 'A' : 'B', reveal: f.reveal.map((seat) => s.seats[seat]) } : null;
+  claimMemo.set(s, { key, claim: s.claim });
 }
 
 /**
- * «الباقي لنا — أنهِ اليد»: the claiming team's cards are shown to everyone, it takes every remaining
- * card and الدير (and, if it bought, the pairs it can still sing, one per trick left before the last).
+ * «الباقي لنا — أنهِ اليد»: the team takes every remaining trick (certain whatever anyone plays). The
+ * hand ends as if it had been played out: every card left and الدير go to that team; if it bought,
+ * the pairs its players can still sing count too (one per trick left before the last — singing is
+ * what a bidding team always does), since those tricks would all be theirs.
  */
 function claim(ctx: GameCtx, s: State, by: string) {
-  if (s.claimable !== by || s.turn !== by) throw new GameError('لا يمكن إنهاء اليد الآن');
-  const side = sideOf(s, by);
+  if (!s.claim || s.claim.by !== by) throw new GameError('لا يمكن إنهاء اليد الآن');
+  const { side, reveal } = s.claim;
+  // a trick already complete goes to its taker first
+  if (s.pauseUntil !== null && s.trick.length === 4) {
+    s.pauseUntil = null;
+    s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
+    s.played.push(...s.trick.map((t) => t.card));
+    s.done.push(s.trick);
+    s.trick = [];
+    s.trickNo += 1;
+  }
+  const onTable = s.trick.map((t) => t.card);
   const left = TRICKS - s.trickNo + 1;
   const team = s.sides.find((x) => x.key === side)!.members;
-  const gain = s.seats.reduce((t, id) => t + s.hands[id].reduce((u, c) => u + cardPoints(c), 0), 0) + T_LAST;
+  const gain = [...s.seats.flatMap((id) => s.hands[id]), ...onTable].reduce((t, c) => t + cardPoints(c), 0) + T_LAST;
   if (side === sideOf(s, s.bidder!)) {
     let windows = left - 1;
     for (const id of [by, ...team.filter((m) => m !== by)]) {
@@ -389,16 +416,19 @@ function claim(ctx: GameCtx, s: State, by: string) {
   }
   s.cards[side] += gain;
   s.tricks[side] += left;
-  s.claim = { by, side, cards: Object.fromEntries(team.map((id) => [id, sortTouti(s.hands[id], s.trump)])), gain, until: ctx.now + CLAIM_MS };
+  s.claimed = { by, side, reveal: reveal.map((id) => ({ by: id, cards: sortTouti(s.hands[id], s.trump) })), until: ctx.now + CLAIM_REVEAL_MS };
   for (const id of s.seats) {
     s.played.push(...s.hands[id]);
     s.hands[id] = [];
   }
-  s.claimable = null;
+  s.played.push(...onTable);
+  s.trick = [];
+  s.claim = null;
+  s.singQueue = [];
   s.turn = null;
   s.trickWinner = by;
   s.trickNo = TRICKS;
-  ctx.say?.(`الباقي لـ${teamName(ctx, s, side)}: +${gain} مع الدير`, by);
+  ctx.say?.(`الباقي لـ${teamName(ctx, s, side)} — أُنهيت اليد (+${gain} مع الدير)`, by);
   ctx.fx('reveal');
 }
 
@@ -453,7 +483,7 @@ export function decide(s: State, id: string, level: BotLevel, timeout = false): 
     return { type: 'sing', suit: best ? best.suit : null };
   }
   // bots always claim the rest when it is certain
-  if (s.claimable === id) return { type: 'claim' };
+  if (s.claim?.by === id && !s.claimed) return { type: 'claim' };
   const legal = playable(s, id);
   if (!legal.length) return null;
   if (level === 'expert' && !timeout) {
@@ -477,6 +507,7 @@ export function decide(s: State, id: string, level: BotLevel, timeout = false): 
 
 function armTimer(ctx: GameCtx, s: State) {
   s.seq += 1;
+  refreshClaim(s);
   s.deadline = s.settings.timer > 0 && turnOf(s).length ? ctx.now + s.settings.timer * 1000 : null;
 }
 
@@ -501,7 +532,7 @@ function step(ctx: GameCtx, s: State, by: string, a: GameAction): boolean {
     sing(ctx, s, by, a.suit);
     return true;
   }
-  if (a.type === 'claim' && s.phase === 'play' && !s.claim) {
+  if (a.type === 'claim' && s.phase === 'play' && !s.claimed) {
     claim(ctx, s, by);
     return true;
   }
@@ -524,7 +555,6 @@ function collectTrick(ctx: GameCtx, s: State) {
   s.trick = [];
   s.trickWinner = null;
   s.trickNo += 1;
-  if (!s.singQueue.length) checkClaim(s);
 }
 
 export const touti: GameModule<State, ToutiSettings> = {
@@ -562,8 +592,8 @@ export const touti: GameModule<State, ToutiSettings> = {
       singQueue: [],
       done: [],
       auction: [],
-      claimable: null,
       claim: null,
+      claimed: null,
       outlooks: {},
       result: null,
       nextAt: null,
@@ -586,11 +616,13 @@ export const touti: GameModule<State, ToutiSettings> = {
 
   tick(ctx, s) {
     if (s.phase === 'final') return false;
-    if (s.phase === 'play' && s.claim) {
-      if (ctx.now < s.claim.until) return false;
-      s.lastTrick = { cards: [], winner: s.claim.by };
+    if (s.phase === 'play' && s.claimed) {
+      if (ctx.now < s.claimed.until) return false;
+      // the claimed hand: every card is out, the last trick (and its 10) is the claimers'
+      s.lastTrick = { cards: [], winner: s.claimed.by };
       endHand(ctx, s);
-      s.claim = null;
+      if (s.result) s.result.claimed = s.claimed.side;
+      s.claimed = null;
       armTimer(ctx, s);
       return true;
     }
@@ -627,6 +659,11 @@ export const touti: GameModule<State, ToutiSettings> = {
   },
 
   botPlan(ctx, s) {
+    // «الباقي لنا»: a bot claims at once (after a short, human-like pause)
+    if (s.claim && !s.claimed && ctx.isBot(s.claim.by)) {
+      ctx.bot(s.claim.by, `claim${s.hand}:${s.seq}`, randDelay(900, 1600), { type: 'claim', seq: s.seq });
+      return;
+    }
     const id = turnOf(s)[0];
     if (!id || !ctx.isBot(id)) return;
     const move = decide(s, id, botLevel(ctx));
@@ -676,8 +713,8 @@ export const touti: GameModule<State, ToutiSettings> = {
       winner: s.winner,
       partnerFree: s.settings.partnerFree,
       singBy: s.settings.singBy,
-      canClaim: s.claimable === me && turnOf(s)[0] === me,
-      claim: s.claim ? { by: s.claim.by, side: s.claim.side, cards: s.claim.cards, gain: s.claim.gain } : null,
+      canClaim: !!s.claim && s.claim.by === me && !s.claimed,
+      claimed: s.claimed ? { by: s.claimed.by, side: s.claimed.side, reveal: s.claimed.reveal } : null,
     };
   },
 

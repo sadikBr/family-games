@@ -53,6 +53,8 @@ export interface ToutiHandResult {
   success: boolean;
   /** what each team adds to its score */
   points: Record<TSide, number>;
+  /** the hand was ended by «الباقي لنا» (by this team) */
+  claimed?: TSide;
 }
 
 export interface ToutiHistoryRow {
@@ -111,10 +113,10 @@ export interface ToutiView {
   winner: TSide | null;
   partnerFree: boolean;
   singBy: ToutiSingBy;
-  /** «الباقي لنا — أنهِ اليد»: my team takes every remaining trick for sure, and I lead */
+  /** «الباقي لنا — أنهِ اليد»: every remaining trick is certain for my team and my hand shows it */
   canClaim: boolean;
-  /** a claim being shown: the claiming team's remaining cards, face up for everyone */
-  claim: { by: string; side: TSide; cards: Record<string, Card[]>; gain: number } | null;
+  /** «الباقي لنا» was claimed: the claimer's hand (and the partner's if it was needed), shown to everyone */
+  claimed: { by: string; side: TSide; reveal: { by: string; cards: Card[] }[] } | null;
 }
 
 export const TOUTI_DEFAULTS: ToutiSettings = { target: 600, timer: 0, singBy: 'winner', partnerFree: false };

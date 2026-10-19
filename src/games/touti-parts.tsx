@@ -675,31 +675,3 @@ export function InfoRow({ v }: { v: ToutiView }) {
   );
 }
 
-/** «الباقي لنا»: the claiming team's remaining cards, face up for everyone, before the hand ends. */
-export function ClaimReveal({ v, h }: { v: ToutiView; h: Helpers }) {
-  const accent = useAccent();
-  const c = v.claim;
-  if (!c) return null;
-  const mine = v.sides.find((x) => x.members.includes(h.me))?.key === c.side;
-  const team = v.sides.find((x) => x.key === c.side)!.members;
-  return (
-    <Animated.View entering={FadeIn.duration(250)} style={{ backgroundColor: C.surface, borderRadius: 18, padding: 10, gap: 6, borderWidth: 1.5, borderColor: alpha(accent, 0.8) }}>
-      <Txt v="bold" center color={C.yellow}>
-        {mine ? 'الباقي لنا' : `الباقي لفريق ${team.map((m) => h.player(m).name).join(' و')}`} {num(`+${c.gain}`)}
-      </Txt>
-      <Txt v="tiny" center color={C.muted}>
-        كل الأكلات الباقية مضمونة: أوراق الفريق مكشوفة
-      </Txt>
-      {team.map((id) => (
-        <Row key={id} gap={6} style={{ alignItems: 'center' }}>
-          <Avatar player={h.player(id)} size={22} />
-          <Row gap={3} wrap style={{ direction: 'ltr', flex: 1 }}>
-            {(c.cards[id] ?? []).map((card) => (
-              <ToutiCard key={card.id} card={card} width={30} />
-            ))}
-          </Row>
-        </Row>
-      ))}
-    </Animated.View>
-  );
-}

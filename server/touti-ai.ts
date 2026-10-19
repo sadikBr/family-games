@@ -175,14 +175,18 @@ function exact(x: Sim, team: number, alpha: number, beta: number): number {
 /* «الباقي لنا»: does `team` take every remaining trick for sure?       */
 /* ------------------------------------------------------------------ */
 
-/** true: certain; false: not certain, or the tree was too big to be sure. `x.trick` should be empty. */
-export function takesAll(x: Sim, team: number, budget = 40_000): boolean {
+/**
+ * true: certain; false: not certain, or the tree was too big to be sure (capped in nodes, so the
+ * same on every machine). `chooser` = -1: both partners choose their cards; a seat: only that player
+ * does, the partner's cards could be any (the claim is certain from that one hand).
+ */
+export function takesAll(x: Sim, team: number, chooser = -1, budget = 3000): boolean {
   let nodes = 0;
   const go = (y: Sim): boolean => {
     if (++nodes > budget) throw new Error('budget');
     if (y.left === 0) return true;
     const seat = y.turn;
-    const ours = seat % 2 === team;
+    const ours = seat % 2 === team && (chooser < 0 || seat === chooser);
     for (const c of legalOf(y, seat)) {
       const z = cloneSim(y);
       const before = z.left;
@@ -200,6 +204,18 @@ export function takesAll(x: Sim, team: number, budget = 40_000): boolean {
   } catch {
     return false;
   }
+}
+
+/** Who may claim: the first player of the team (in play order) whose own hand makes it certain, else both hands shown. */
+export function findClaim(x: Sim): { seat: number; team: number; reveal: number[] } | null {
+  if (x.left < 2) return null;
+  for (const team of [0, 1]) {
+    if (!takesAll(x, team, -1, 3000)) continue;
+    const order = [0, 1, 2, 3].map((k) => (x.turn + k) % 4).filter((seat) => seat % 2 === team);
+    for (const seat of order) if (takesAll(x, team, seat, 2000)) return { seat, team, reveal: [seat] };
+    return { seat: order[0], team, reveal: order };
+  }
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
