@@ -59,11 +59,14 @@ Write-Host "Server: $env:EXPO_PUBLIC_SERVER_URL"
 # garbles when passing it on (the garbled text then splits into several arguments).
 if (-not $Message) {
   $commit = (& git rev-parse --short HEAD 2>$null | Out-String).Trim()
-  $Message = "Update $(Get-Date -Format 'yyyy-MM-dd HH:mm') $commit".Trim()
+  $Message = "update-$(Get-Date -Format 'yyyy-MM-dd-HHmm')-$commit".Trim('-')
 }
+# bunx on Windows splits a quoted argument at its spaces: keep the message to one plain word
+$Message = ($Message -replace '[^A-Za-z0-9._:-]+', '-').Trim('-')
+if (-not $Message) { $Message = "update-$(Get-Date -Format 'yyyy-MM-dd-HHmm')" }
 
 Step "Publishing the update ($Message)"
-& bunx eas-cli update --channel preview --platform android --message "$Message" --non-interactive
+& bunx eas-cli update --channel preview --platform android "--message=$Message" --non-interactive
 if ($LASTEXITCODE -ne 0) { Fail 'eas update failed (see the messages above).' }
 
 Write-Host ''
