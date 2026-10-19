@@ -5,14 +5,18 @@
  * A hand is worth 11 points (thirds are rounded down). First team to the target wins.
  */
 import { cardName, sortHand, type Card } from '../../src/shared/cards';
+import type { TrisClaimView } from '../../src/shared/games/tris-claim';
 import type { CardSide, TrisSettings, TrisView } from '../../src/shared/protocol';
+import { trisClaim, trisMindPlay, trisSimOf } from '../ai/tris-mind';
 import { freshDeck, makeSides, randDelay, removeCard, sideOf } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isStr } from '../util';
 
 const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
 /** a full trick stays on the table this long before it is collected (everyone sees who took it) */
 export const TRICK_PAUSE_MS = 2500;
+/** «الباقي لنا»: the claimer's cards stay face up this long before the end of the hand */
+export const CLAIM_REVEAL_MS = 3800;
 
 export const strength = (rank: number) => STRENGTH.length - STRENGTH.indexOf(rank);
 /** «⅓ نقطة» / «نقطة و⅔» */
@@ -25,7 +29,7 @@ function thirdsWord(t: number) {
 
 export const thirds = (c: Card) => (c.rank === 1 ? 3 : [2, 3, 10, 11, 12].includes(c.rank) ? 1 : 0);
 
-interface State {
+export interface State {
   settings: TrisSettings;
   seats: string[];
   sides: CardSide[];
@@ -44,6 +48,11 @@ interface State {
   handThirds: Record<string, number>;
   handSummary: TrisView['handSummary'];
   winner: string | null;
+  /** the tricks collected this hand, who played what (what every phone has seen: the bots' memory) */
+  log: { by: string; card: Card }[][];
+  /** «الباقي لنا»: a team certain to take every remaining trick, and who may claim it */
+  claim: { by: string; side: string; reveal: string[] } | null;
+  claimed: { by: string; side: string; reveal: { by: string; cards: Card[] }[] } | null;
 }
 
 function startHand(ctx: GameCtx, s: State) {
@@ -61,6 +70,9 @@ function startHand(ctx: GameCtx, s: State) {
   s.tricksWon = { A: 0, B: 0 };
   s.handThirds = { A: 0, B: 0 };
   s.handSummary = null;
+  s.log = [];
+  s.claim = null;
+  s.claimed = null;
   ctx.fx('card');
   ctx.say?.(`اليد ${s.hand} — البداية لـ${ctx.playerName(s.seats[s.turnIdx])}`);
 }
@@ -77,6 +89,78 @@ function trickWinnerOf(trick: { by: string; card: Card }[]): string {
   return trick
     .filter((t) => t.card.suit === lead)
     .reduce((best, t) => (strength(t.card.rank) > strength(best.card.rank) ? t : best)).by;
+}
+
+/** After every change: is some team certain to take every remaining trick? (exact: the server sees every hand) */
+function refreshClaim(s: State) {
+  s.claim = null;
+  if (s.claimed || (s.phase !== 'play' && s.phase !== 'trickEnd')) return;
+  if (s.phase === 'trickEnd') {
+    if (s.trickNo >= 10 || !s.trickWinner) return;
+    s.claim = trisClaim(trisSimOf(s.seats, s.hands, [], s.trickWinner), s.seats);
+  } else s.claim = trisClaim(trisSimOf(s.seats, s.hands, s.trick, s.seats[s.turnIdx]), s.seats);
+}
+
+/**
+ * «الباقي لنا»: the team takes every remaining trick (certain whatever anyone plays — checked again
+ * here); the hand ends as if played out: the cards left and the last trick's point go to that team.
+ */
+function claimHand(ctx: GameCtx, s: State, by: string) {
+  // s.claim is worked out again after every change, so it is the current position's
+  const claim = s.claim;
+  if (!claim || claim.by !== by) throw new GameError('لا يمكن إنهاء اليد الآن');
+  if (s.phase === 'trickEnd') {
+    // the complete trick goes to its taker first
+    s.log.push(s.trick);
+    s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
+    s.trick = [];
+    s.trickNo += 1;
+  }
+  const left = [...s.seats.flatMap((id) => s.hands[id]), ...s.trick.map((t) => t.card)];
+  s.handThirds[claim.side] += left.reduce((t, c) => t + thirds(c), 0) + 3;
+  s.tricksWon[claim.side] += left.length / 4;
+  s.claimed = { by, side: claim.side, reveal: claim.reveal.map((id) => ({ by: id, cards: sortHand(s.hands[id]) })) };
+  s.claim = null;
+  s.trickWinner = null;
+  s.phase = 'trickEnd';
+  s.pauseUntil = ctx.now + CLAIM_REVEAL_MS;
+  const team = s.sides.find((x) => x.key === claim.side)!.members.map((m) => ctx.playerName(m)).join(' و');
+  ctx.say?.(`الباقي لفريق ${team} — أُنهيت اليد`, by);
+  ctx.fx('reveal');
+}
+
+/** The old bot (kept as «سهل»): lead a 3 or low from the longest suit, win when it can, feed the partner when last. */
+function easyPlay(s: State, bot: string): Card {
+  const hand = s.hands[bot];
+  const options = trisPlayable(hand, s.trick);
+  const weakest = (cs: Card[]) => cs.slice().sort((x, y) => thirds(x) - thirds(y) || strength(x.rank) - strength(y.rank))[0];
+  if (!s.trick.length) {
+    const boss = hand.find((c) => c.rank === 3);
+    if (boss) return boss;
+    const bySuit = new Map<string, Card[]>();
+    for (const c of hand) bySuit.set(c.suit, [...(bySuit.get(c.suit) ?? []), c]);
+    const longest = [...bySuit.values()].sort((x, y) => y.length - x.length)[0];
+    return weakest(longest);
+  }
+  const lead = s.trick[0].card.suit;
+  const currentWinner = trickWinnerOf(s.trick);
+  const partnerWinning = sideOf(s.sides, currentWinner) === sideOf(s.sides, bot);
+  const last = s.trick.length === 3;
+  const following = options[0].suit === lead;
+  const top = Math.max(...s.trick.filter((t) => t.card.suit === lead).map((t) => strength(t.card.rank)));
+  if (partnerWinning && last) return options.slice().sort((x, y) => thirds(y) - thirds(x) || strength(x.rank) - strength(y.rank))[0];
+  if (following && !partnerWinning) {
+    const winners = options.filter((c) => strength(c.rank) > top).sort((x, y) => strength(x.rank) - strength(y.rank));
+    return winners[0] ?? weakest(options);
+  }
+  return weakest(options);
+}
+
+/** The bot's card at the room's strength: «سهل» the old bot, «ذكي» / «خبير» simulate (../ai/tris-mind.ts). */
+export function trisBotCard(s: State, bot: string, level: 'easy' | 'smart' | 'expert'): Card {
+  const legal = trisPlayable(s.hands[bot], s.trick);
+  if (level === 'easy' || legal.length === 1) return level === 'easy' ? easyPlay(s, bot) : legal[0];
+  return trisMindPlay({ seats: s.seats, hands: { [bot]: s.hands[bot], ...Object.fromEntries(s.seats.filter((id) => id !== bot).map((id) => [id, new Array(s.hands[id].length)])) }, log: s.log ?? [], trick: s.trick, turn: bot, thirds: s.handThirds, tricks: s.tricksWon }, bot, legal, level);
 }
 
 function endHand(ctx: GameCtx, s: State) {
@@ -96,6 +180,9 @@ function endHand(ctx: GameCtx, s: State) {
     ctx.fx('reveal');
   }
 }
+
+/** the card a bot planned for a moment of a game */
+const planned = new WeakMap<State, { key: string; card: Card }>();
 
 export const tris: GameModule<State, TrisSettings> = {
   turnOf: (s) => s.phase === 'play' ? [s.seats[s.turnIdx]] : [],
@@ -123,6 +210,9 @@ export const tris: GameModule<State, TrisSettings> = {
       handThirds: { A: 0, B: 0 },
       handSummary: null,
       winner: null,
+      log: [],
+      claim: null,
+      claimed: null,
     };
     startHand(ctx, s);
     return s;
@@ -131,6 +221,10 @@ export const tris: GameModule<State, TrisSettings> = {
   act(ctx, s, by, a) {
     if (a.type === 'next') {
       if (s.phase === 'handEnd') startHand(ctx, s);
+      return;
+    }
+    if (a.type === 'claim') {
+      if ((s.phase === 'play' || s.phase === 'trickEnd') && !s.claimed && s.seats.includes(by)) claimHand(ctx, s, by);
       return;
     }
     if (a.type !== 'play' || s.phase !== 'play') return;
@@ -147,6 +241,7 @@ export const tris: GameModule<State, TrisSettings> = {
     if (s.trick.length < 4) {
       ctx.say?.(`ورقة من ${ctx.playerName(by)}: ${cardName(card)}`, by);
       s.turnIdx = (s.turnIdx + 1) % 4;
+      refreshClaim(s);
       return;
     }
     const winner = trickWinnerOf(s.trick);
@@ -159,65 +254,57 @@ export const tris: GameModule<State, TrisSettings> = {
     s.phase = 'trickEnd';
     s.pauseUntil = ctx.now + TRICK_PAUSE_MS;
     ctx.fx('correct', winner);
+    refreshClaim(s);
   },
 
   tick(ctx, s) {
     if (s.phase !== 'trickEnd' || s.pauseUntil === null || ctx.now < s.pauseUntil) return false;
     s.pauseUntil = null;
+    if (s.claimed) {
+      // the claimed hand: every card is out
+      for (const id of s.seats) s.hands[id] = [];
+      s.trick = [];
+      endHand(ctx, s);
+      return true;
+    }
     if (s.trickNo >= 10) {
       endHand(ctx, s);
       return true;
     }
+    (s.log ??= []).push(s.trick);
     s.turnIdx = s.seats.indexOf(s.trickWinner!);
     s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
     s.trick = [];
     s.trickWinner = null;
     s.trickNo += 1;
     s.phase = 'play';
+    refreshClaim(s);
     return true;
   },
 
   botPlan(ctx, s) {
+    // «الباقي لنا»: a bot claims at once (after a short, human-like pause)
+    if (s.claim && !s.claimed && ctx.isBot(s.claim.by)) {
+      ctx.bot(s.claim.by, `claim:${s.hand}:${s.trickNo}:${s.trick.length}:${s.phase}`, randDelay(900, 1600), { type: 'claim' });
+      return;
+    }
     if (s.phase !== 'play') return;
     const bot = s.seats[s.turnIdx];
     if (!ctx.isBot(bot)) return;
-    const hand = s.hands[bot];
-    const options = trisPlayable(hand, s.trick);
-    if (!options.length) return;
-    const weakest = (cs: Card[]) =>
-      cs.slice().sort((x, y) => thirds(x) - thirds(y) || strength(x.rank) - strength(y.rank))[0];
+    if (!s.hands[bot].length) return;
+    const key = `play:${s.hand}:${s.trickNo}:${s.trick.length}`;
+    // botPlan runs after every change: think once per moment
+    const memo = planned.get(s);
     let choice: Card;
-    if (!s.trick.length) {
-      // lead a "boss" 3 if we have one, otherwise the weakest card of our longest suit
-      const boss = hand.find((c) => c.rank === 3);
-      if (boss) choice = boss;
-      else {
-        const bySuit = new Map<string, Card[]>();
-        for (const c of hand) bySuit.set(c.suit, [...(bySuit.get(c.suit) ?? []), c]);
-        const longest = [...bySuit.values()].sort((x, y) => y.length - x.length)[0];
-        choice = weakest(longest);
-      }
-    } else {
-      const lead = s.trick[0].card.suit;
-      const currentWinner = trickWinnerOf(s.trick);
-      const partnerWinning = sideOf(s.sides, currentWinner) === sideOf(s.sides, bot);
-      const last = s.trick.length === 3;
-      const following = options[0].suit === lead;
-      const top = Math.max(...s.trick.filter((t) => t.card.suit === lead).map((t) => strength(t.card.rank)));
-      if (partnerWinning && last) {
-        // safe: give the partner as many points as possible
-        choice = options.slice().sort((x, y) => thirds(y) - thirds(x) || strength(x.rank) - strength(y.rank))[0];
-      } else if (following && !partnerWinning) {
-        const winners = options.filter((c) => strength(c.rank) > top).sort((x, y) => strength(x.rank) - strength(y.rank));
-        choice = winners[0] ?? weakest(options);
-      } else {
-        choice = weakest(options);
-      }
+    if (memo?.key === key) choice = memo.card;
+    else {
+      choice = trisBotCard(s, bot, botLevel(ctx));
+      planned.set(s, { key, card: choice });
     }
-    ctx.bot(bot, `play:${s.hand}:${s.trickNo}:${s.trick.length}`, randDelay(900, 2000), { type: 'play', card: choice.id });
+    ctx.bot(bot, key, randDelay(900, 2000), { type: 'play', card: choice.id });
   },
 
-  view(ctx, s, me): TrisView {
+  view(ctx, s, me): TrisView & TrisClaimView {
     const myTurn = s.phase === 'play' && s.seats[s.turnIdx] === me;
     return {
       game: 'tris',
@@ -240,6 +327,8 @@ export const tris: GameModule<State, TrisSettings> = {
       target: s.settings.target,
       handSummary: s.handSummary,
       winner: s.winner,
+      canClaim: !!s.claim && s.claim.by === me && !s.claimed,
+      claimed: s.claimed,
     };
   },
 

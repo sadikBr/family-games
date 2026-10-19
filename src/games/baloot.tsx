@@ -1,7 +1,7 @@
 /** «البلوط» — the screen: table, bidding, doubling, my hand, the score sheet and the end of each hand. */
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
@@ -22,7 +22,8 @@ import { BalootCard, MoroccoDeck } from './baloot-card';
 import { MaBidPanel, MaContractBar, MaHandBreakdown } from './baloot-morocco';
 import { BidPanel, ContractBar, HandBreakdown, HandFan, InfoRow, ProjectLine, RaisePanel, ScoreSheet, Table } from './baloot-parts';
 import { useTapToPlay } from './cards/card-ui';
-import { CardStage, SoftNumber, useCardLook } from './cards/motion';
+import { ClaimButton, ClaimReveal } from './cards/claim';
+import { CardStage, EASE, MOTION, SoftNumber, useCardLook } from './cards/motion';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 
@@ -199,7 +200,20 @@ function TableScreen({
         <InfoRow v={v} mine={mySide} />
       </View>
 
-      <View style={{ gap: 4 }}>
+      {/* «الباقي لنا»: the option above my hand, then the claimer's cards face up */}
+      {v.canClaim && !v.claimed ? <ClaimButton onPress={() => h.act('claim')} /> : null}
+      {v.claimed ? (
+        <ClaimReveal
+          claimed={v.claimed}
+          mySide={mySide}
+          sideNames={(side) => teamNames(v, h, side as BSide)}
+          h={h}
+          renderCard={(c) => <BalootCard card={c} width={Math.max(28, Math.min(42, Math.floor((cw - 40) / 8)))} />}
+        />
+      ) : null}
+
+      {/* the hand glides down (instead of jumping) when the claim option comes */}
+      <Animated.View layout={LinearTransition.duration(MOTION.glide).easing(EASE)} style={{ gap: 4 }}>
         {v.phase === 'play' ? <KeptHint text={hint} show={playing} /> : null}
         <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? (c) => tap.tap(c.id) : undefined} />
         {/* the button keeps its place for the whole play: nothing jumps when a card is selected or played */}
@@ -208,7 +222,7 @@ function TableScreen({
             {selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={tap.play} /> : null}
           </View>
         ) : null}
-      </View>
+      </Animated.View>
 
       {/* the best team's projects (2nd trick) sit under my hand, so the hand itself never moves */}
       {v.shown ? (
@@ -249,7 +263,7 @@ function TableScreen({
   );
 }
 
-/** Lobby settings: the rules (Saudi / Moroccan), target, timer, doubling, bots. */
+/** Lobby settings: the rules (Saudi / Moroccan), target, timer, doubling (the bots' strength is the room's «مستوى البوتات»). */
 export function BalootSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.baloot;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'baloot', patch });
@@ -295,16 +309,6 @@ export function BalootSettings({ room, editable }: { room: RoomView; editable: b
         ]}
       />
       {ma ? null : <Toggle label="السماح بالدبل (ثري، فور، قهوة)" value={s.doubling} editable={editable} onChange={(x) => change({ doubling: x })} />}
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        editable={editable}
-        value={String(s.level) as '1' | '2'}
-        onChange={(x) => change({ level: Number(x) })}
-        options={[
-          { key: '1', label: 'مبتدئ' },
-          { key: '2', label: 'قوي' },
-        ]}
-      />
       <Txt v="tiny" color={C.muted}>
         4 لاعبين في فريقين متقابلين؛ أكملوا المقاعد بالبوتات. عندما ينتهي الوقت يمرّر الحاسوب الشراء أو يلعب ورقة بدلاً منك.
       </Txt>

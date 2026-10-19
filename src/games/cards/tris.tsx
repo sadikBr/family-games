@@ -1,9 +1,10 @@
 import { View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { SpanishCard } from '@/art/spanish-card';
 import type { Card } from '@/shared/cards';
+import type { TrisClaimView } from '@/shared/games/tris-claim';
 import type { RoomView, TrisView } from '@/shared/protocol';
 import { C, F } from '@/theme';
 import { Avatar } from '@/ui/bits';
@@ -16,7 +17,8 @@ import { li } from '@/shared/li';
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from '../common';
 import { helpers, type Helpers } from '../helpers';
 import { Felt, HandRows, PlayingCard, SidesResult, TableStrip, TurnLine, cardsWord, sideLabel, sideScore, stripOrder, useTapToPlay } from './card-ui';
-import { CardMotion, CardStage, SoftNumber, TurnHalo, WinGlow, useLeaving, type Side } from './motion';
+import { ClaimButton, ClaimNote, ClaimReveal } from './claim';
+import { CardMotion, CardStage, EASE, MOTION, SoftNumber, TurnHalo, WinGlow, useLeaving, type Side } from './motion';
 
 const STRENGTH = [3, 2, 1, 12, 11, 10, 7, 6, 5, 4];
 
@@ -48,7 +50,7 @@ export function TrisGame({ room, view }: { room: RoomView; view: TrisView }) {
   );
 }
 
-function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisView; tap: ReturnType<typeof useTapToPlay>; myTurn: boolean }) {
+function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisView & TrisClaimView; tap: ReturnType<typeof useTapToPlay>; myTurn: boolean }) {
   const h = helpers(room);
   const mySide = view.sides.find((x) => x.members.includes(h.me))!.key;
   const partner = view.sides.find((x) => x.key === mySide)!.members.find((m) => m !== h.me)!;
@@ -68,6 +70,7 @@ function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisVie
           <PhaseTitle art={<GameArt id="tris" size={60} />} title={`نهاية اليد ${num(view.hand)}`} />
         )}
         {final ? <SidesResult sides={view.sides} scores={view.scores} h={h} winner={view.winner} /> : null}
+        {view.claimed ? <ClaimNote mine={view.claimed.side === mySide} /> : null}
         {view.handSummary ? (
           <HandRows
             title={`اليد ${num(view.hand)}`}
@@ -115,12 +118,26 @@ function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisVie
           {trickOver ? `اللمّة لـ ${h.player(view.trickWinner!).name}` : `اللمّة ${num(view.trickNo)} من ${num(10)}`}
         </Txt>
       </Felt>
-      <TurnLine myTurn={myTurn} text={view.trick.length ? 'العب من النوع نفسه إن كان لديك' : 'ابدأ اللمّة بأي ورقة'} keep />
-      <HandFan cards={view.myHand} playable={view.playable} myTurn={myTurn} selected={selected} onPress={myTurn ? (c) => tap.tap(c.id) : undefined} />
-      {/* the button's place is always kept: nothing jumps when a card is selected or played */}
-      <View style={{ minHeight: 56, justifyContent: 'center' }}>
-        {myTurn && selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={tap.play} /> : null}
-      </View>
+      {/* «الباقي لنا»: the option above my hand, then the claimer's cards face up */}
+      {view.canClaim && !view.claimed ? <ClaimButton onPress={() => h.act('claim')} /> : null}
+      {view.claimed ? (
+        <ClaimReveal
+          claimed={view.claimed}
+          mySide={mySide}
+          sideNames={(side) => view.sides.find((x) => x.key === side)!.members.map((m) => h.player(m).name).join(' و')}
+          h={h}
+          renderCard={(c) => <PlayingCard card={c} size="xs" />}
+        />
+      ) : null}
+      {/* the hand glides down (instead of jumping) when the claim option comes */}
+      <Animated.View layout={LinearTransition.duration(MOTION.glide).easing(EASE)} style={{ gap: 14 }}>
+        <TurnLine myTurn={myTurn} text={view.trick.length ? 'العب من النوع نفسه إن كان لديك' : 'ابدأ اللمّة بأي ورقة'} keep />
+        <HandFan cards={view.myHand} playable={view.playable} myTurn={myTurn} selected={selected} onPress={myTurn ? (c) => tap.tap(c.id) : undefined} />
+        {/* the button's place is always kept: nothing jumps when a card is selected or played */}
+        <View style={{ minHeight: 56, justifyContent: 'center' }}>
+          {myTurn && selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={tap.play} /> : null}
+        </View>
+      </Animated.View>
     </>
   );
 }

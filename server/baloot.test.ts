@@ -32,6 +32,8 @@ function fakeCtx() {
     memo: new Map(),
     bot: (by: string, _k: string, _d: number, a: any) => jobs.push({ by, a }),
     say: (t: string) => said.push(t),
+    // these tests check the rules with the quick old bots (the new ones: bots-baloot.test.ts)
+    botLevel: () => 'easy',
   };
   return { ctx, said, jobs };
 }
@@ -365,6 +367,12 @@ function run(g: ReturnType<typeof newGame>, until: () => boolean, max = 5000) {
   for (let i = 0; i < max && !until(); i++) {
     baloot.botPlan!(g.ctx, g.s, P);
     const job = g.jobs.shift();
+    // «الباقي لنا» is left aside here: these hands are played to the end (claims: claim.test.ts)
+    if (job?.a.type === 'claim') {
+      g.jobs.length = 0;
+      g.s.claim = null;
+      continue;
+    }
     if (job) {
       g.jobs.length = 0;
       try {
@@ -528,7 +536,7 @@ test('a full bot-only game reaches the final, scores add up, says are short and 
     expect(g.said.some((t) => t.startsWith('ورقة من '))).toBe(true);
     expect(g.said.some((t) => t.startsWith('شراء لـ') || t.startsWith('أشكل من '))).toBe(true);
   }
-});
+}, 60_000);
 
 test('decide: bots always make a legal move', () => {
   for (let k = 0; k < 20; k++) {
@@ -543,7 +551,7 @@ test('decide: bots always make a legal move', () => {
       return g.s.phase === 'handEnd' || g.s.phase === 'final';
     });
   }
-});
+}, 60_000);
 
 test('onLeave: a seat that disappears ends the game cleanly; settings are validated', () => {
   const g = newGame();

@@ -15,6 +15,7 @@ import { Btn } from '@/ui/btn';
 import { Txt, num } from '@/ui/txt';
 
 import { SuitIcon } from './baloot-suit';
+import { ClaimNote } from './cards/claim';
 import type { Helpers } from './helpers';
 
 function Pill({ text, color = C.surfaceStrong }: { text: string; color?: string }) {
@@ -192,6 +193,7 @@ export function MaHandBreakdown({ v, h }: { v: BalootView; h: Helpers }) {
           {tag.text}
         </Txt>
       ) : null}
+      {r.claimed ? <ClaimNote mine={mine ? r.claimed === mine : null} /> : null}
       <Row gap={8}>
         <View style={{ flex: 1.3 }} />
         {cols.map((s) => (
