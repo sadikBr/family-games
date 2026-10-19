@@ -209,10 +209,13 @@ export function Table({ v, h, width }: { v: BalootView; h: Helpers; width: numbe
 
       {!compact && v.lastTrick && v.trick.length < 4 ? (
         // the trick that was just collected, small, in the bottom-right corner (its winning card ringed)
-        <Animated.View entering={FadeIn.duration(300).delay(380)} style={{ position: 'absolute', right: 6, bottom: 6, flexDirection: 'row', gap: 2, opacity: 0.9 }}>
-          {v.lastTrick.cards.map((x) => (
-            <BalootCard key={x.card.id} card={x.card} width={Math.min(26, (width / 2 - tw / 2 - 20) / 4)} ring={x.by === v.lastTrick!.winner ? C.yellow : undefined} />
-          ))}
+        <Animated.View entering={FadeIn.duration(300).delay(380)} style={{ position: 'absolute', right: 6, bottom: 6 }}>
+          {/* the 0.9 opacity on an inner view: the fade-in owns the outer view's opacity */}
+          <View style={{ flexDirection: 'row', gap: 2, opacity: 0.9 }}>
+            {v.lastTrick.cards.map((x) => (
+              <BalootCard key={x.card.id} card={x.card} width={Math.min(26, (width / 2 - tw / 2 - 20) / 4)} ring={x.by === v.lastTrick!.winner ? C.yellow : undefined} />
+            ))}
+          </View>
         </Animated.View>
       ) : null}
 
