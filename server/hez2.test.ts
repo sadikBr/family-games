@@ -3,7 +3,9 @@ import { expect, test } from 'bun:test';
 
 import type { Card, Suit } from '../src/shared/cards';
 import { HEZ2_DEFAULTS, hez2Points, hez2Variant, isSpecial, type Hez2Settings, type Hez2View } from '../src/shared/games/hez2';
-import { OVER_MS, ROUND_END_MS, botPick, botSuit, canPlay, hez2, playable, ranking, type State } from './games/hez2';
+import type { BotLevel } from '../src/shared/protocol';
+import { OVER_MS, ROUND_END_MS, canPlay, hez2, playable, ranking, type State } from './games/hez2';
+import { decide, longSuit } from './hez2-bot';
 
 const c = (rank: number, suit: Suit = 'coins'): Card => ({ id: `${suit}-${rank}`, suit, rank });
 
@@ -44,6 +46,17 @@ function setup(hands: Record<string, Card[]>, topCard: Card, settings: Partial<H
   s.turnIdx = 0;
   f.said.length = 0;
   return { ...f, s };
+}
+
+/** Seeded Math.random, so a series of games is the same every run. */
+function seeded(seed: number) {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 const act = (ctx: any, s: State, by: string, a: any) => hez2.act(ctx, s, by, a);
@@ -321,18 +334,99 @@ test('settings: the target snaps to 50–200 by 50; the last-2 rule is a switch;
 /* bots                                                                */
 /* ------------------------------------------------------------------ */
 
-test('bots: the 7 picks the suit held most; a 2 answers a 2; the joker is kept for later', () => {
-  expect(botSuit([c(3, 'cups'), c(4, 'cups'), c(5, 'clubs'), c(7, 'swords')])).toBe('cups');
-  const g = setup({ a: [c(2, 'cups'), c(4, 'clubs')], b: [c(3, 'clubs')] }, c(2, 'coins'));
-  g.s.pending = 2;
-  expect(botPick(g.s, 'a')!.id).toBe('cups-2');
+test('bots: the suit held most; a 2 answers a 2; smart keeps the joker; every level plays only legal moves', () => {
+  expect(longSuit([c(3, 'cups'), c(4, 'cups'), c(5, 'clubs'), c(7, 'swords')])).toBe('cups');
+  for (const level of ['easy', 'smart', 'expert'] as BotLevel[]) {
+    const g = setup({ a: [c(2, 'cups'), c(4, 'clubs')], b: [c(3, 'clubs')] }, c(2, 'coins'));
+    g.s.pending = 2;
+    expect(decide(g.s, 'a', level)).toEqual({ type: 'play', card: 'cups-2' });
+    const d = setup({ a: [c(3, 'clubs'), c(4, 'swords')], b: [c(3, 'cups')] }, c(5, 'coins'));
+    expect(decide(d.s, 'a', level)).toEqual({ type: 'draw' });
+    expect(decide(d.s, 'b', level)).toBeNull(); // not b's turn
+  }
   const h = setup({ a: [c(7, 'cups'), c(4, 'coins'), c(6, 'clubs')], b: [c(3, 'clubs'), c(5, 'cups'), c(1, 'cups')] }, c(5, 'coins'));
-  expect(botPick(h.s, 'a')!.id).toBe('coins-4');
+  expect(decide(h.s, 'a', 'smart')).toEqual({ type: 'play', card: 'coins-4' });
 });
 
+test('expert: plays its turn through: a 1 or a 10 first to go out, never stuck with a lone 10', () => {
+  const g = setup({ a: [c(4, 'coins'), c(1, 'coins')], b: [c(3, 'clubs'), c(5, 'cups'), c(6, 'swords')] }, c(5, 'coins'));
+  expect(decide(g.s, 'a', 'expert')).toEqual({ type: 'play', card: 'coins-1' });
+  const h = setup({ a: [c(4, 'coins'), c(10, 'coins')], b: [c(3, 'clubs'), c(5, 'cups'), c(6, 'swords')] }, c(5, 'coins'));
+  expect(decide(h.s, 'a', 'expert')).toEqual({ type: 'play', card: 'coins-10' });
+});
+
+test('expert: remembers who drew — the next player is void in a suit, so that suit is chosen with the 7', () => {
+  // b had to draw on cups (no cups, no 7): with the 7, the expert sends the game back to cups
+  const g = setup({ a: [c(3, 'cups'), c(4, 'swords'), c(6, 'coins')], b: [c(5, 'swords'), c(6, 'swords')] }, c(7, 'clubs'));
+  g.s.voids = { b: { suits: ['cups'], ranks: [5], no7: true } };
+  g.s.topBy = 'a';
+  g.s.choosing = 'a';
+  // the look-ahead samples possible hands: over a few seeded decisions, cups wins clearly
+  const orig = Math.random;
+  Math.random = seeded(7);
+  const picks: Record<string, number> = {};
+  try {
+    for (let k = 0; k < 15; k++) {
+      const a = decide(g.s, 'a', 'expert')!;
+      expect(a.type).toBe('suit');
+      picks[a.suit as string] = (picks[a.suit as string] ?? 0) + 1;
+    }
+  } finally {
+    Math.random = orig;
+  }
+  expect(picks.cups ?? 0).toBeGreaterThanOrEqual(8);
+});
+
+/** One game between bots of the given levels (seat i plays levels[i]); the winner's level and the expert's slowest decision (CPU ms). */
+function botMatch(levels: BotLevel[], seed: number) {
+  const orig = Math.random;
+  Math.random = seeded(seed);
+  try {
+    const { ctx } = fakeCtx(() => true);
+    ctx.say = undefined;
+    const seats = levels.map((_, i) => `p${i}`);
+    const s = hez2.start(ctx, seats, HEZ2_DEFAULTS);
+    let slowest = 0;
+    for (let steps = 0; s.phase !== 'final' && steps < 50000; steps++) {
+      if (s.phase !== 'play') {
+        ctx.now += ROUND_END_MS;
+        hez2.tick!(ctx, s);
+        continue;
+      }
+      const bot = s.choosing ?? s.seats[s.turnIdx];
+      const level = levels[seats.indexOf(bot)];
+      const cpu0 = process.cpuUsage();
+      const a = decide(s, bot, level)!;
+      const cpu = process.cpuUsage(cpu0);
+      if (level === 'expert') slowest = Math.max(slowest, (cpu.user + cpu.system) / 1000);
+      hez2.act(ctx, s, bot, a);
+    }
+    expect(s.phase).toBe('final');
+    return { level: levels[seats.indexOf(s.winner!)], slowest };
+  } finally {
+    Math.random = orig;
+  }
+}
+
+test('expert beats the easy policy clearly over seeded games, and thinks under ~60 ms a move', () => {
+  let wins = 0;
+  const times: number[] = [];
+  const N = 30;
+  for (let g = 0; g < N; g++) {
+    const r = botMatch(g % 2 ? ['easy', 'expert'] : ['expert', 'easy'], 1000 + g);
+    if (r.level === 'expert') wins++;
+    times.push(r.slowest);
+  }
+  expect(wins / N).toBeGreaterThanOrEqual(0.7);
+  // CPU time (the machine may be busy with other work): the slowest decision of most games stays under 60 ms
+  times.sort((x, y) => x - y);
+  expect(times[Math.floor(N * 0.9)]).toBeLessThan(60);
+}, 240_000);
+
 /** Bots play every seat until the game is over (fake clock); checks the cards stay whole. */
-function playOut(players: number, settings: Partial<Hez2Settings> = {}) {
+function playOut(players: number, settings: Partial<Hez2Settings> = {}, level: BotLevel = 'expert') {
   const f = fakeCtx(() => true);
+  f.ctx.botLevel = () => level;
   const seats = Array.from({ length: players }, (_, i) => `p${i}`);
   const s = hez2.start(f.ctx, seats, { ...HEZ2_DEFAULTS, ...settings });
   let steps = 0;
@@ -356,7 +450,7 @@ function playOut(players: number, settings: Partial<Hez2Settings> = {}) {
 test('bots play whole games to the end, 2 to 4 players, both last-2 rules', () => {
   for (const players of [2, 3, 4]) {
     for (const lastTwo of [true, false]) {
-      const { s, fx } = playOut(players, { lastTwo });
+      const { s, fx } = playOut(players, { lastTwo }, lastTwo ? 'expert' : players === 3 ? 'easy' : 'smart');
       expect(s.phase).toBe('final');
       expect(s.winner).toBe(ranking(s)[0]);
       expect(Math.max(...s.seats.map((id) => s.scores[id]))).toBeGreaterThanOrEqual(100);

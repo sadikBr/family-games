@@ -177,7 +177,7 @@ const HAND_W = 68;
 /** Just enough overlap for the whole hand to fit (every card keeps its corner index visible); a long hand scrolls. */
 function handOverlap(k: number, room: number): number {
   if (k < 2) return 0;
-  const step = Math.max(28, Math.min(HAND_W + 4, (room - HAND_W) / (k - 1)));
+  const step = Math.max(22, Math.min(HAND_W + 4, (room - HAND_W) / (k - 1)));
   return Math.round(HAND_W - step);
 }
 
@@ -297,7 +297,7 @@ function Table({ view, h, tap, myTurn }: { view: Hez2View; h: Helpers; tap: Retu
         </Row>
         {view.out ? (
           <Txt v="tiny" center color={C.yellow}>
-            آخر ورقة {li(h.player(view.out).name)} 2 — لا تنتهي الجولة حتى تُسحب عقوبتها
+            آخر ورقة من {view.out === h.me ? 'عندك' : h.player(view.out).name}: 2 — لا تنتهي الجولة حتى تُسحب عقوبتها
           </Txt>
         ) : null}
         <AnnounceBanner announce={banner} h={h} />

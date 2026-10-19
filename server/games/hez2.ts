@@ -26,7 +26,8 @@ import {
 } from '../../src/shared/games/hez2';
 import { li } from '../../src/shared/li';
 import { randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { decide, type Void } from '../hez2-bot';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
 
 export const OVER_MS = HEZ2_OVER_MS;
@@ -65,6 +66,8 @@ export interface State {
   overAt: number | null;
   nextAt: number | null;
   moves: number;
+  /** what each player is known to lack since their last draw (for the expert bots; public information) */
+  voids: Record<string, Void>;
 }
 
 const n = (s: State) => s.seats.length;
@@ -133,6 +136,7 @@ function advance(ctx: GameCtx, s: State, steps = 1) {
     ctx.say?.(`عادت العقوبة إلى ${name(ctx, id)}: ${cardsText(k)}`, id);
     ctx.fx('buzz', id);
     s.pending = 0;
+    delete s.voids[id];
     if (s.out === id) s.out = null;
     s.turnIdx = (s.turnIdx + 1) % n(s);
   }
@@ -165,6 +169,7 @@ function startRound(ctx: GameCtx, s: State) {
   s.roundSummary = null;
   s.overAt = null;
   s.nextAt = null;
+  s.voids = {};
   s.moves += 1;
   ctx.say?.(`الجولة ${s.round} — البداية ${li(name(ctx, cur(s)))}`);
   ctx.fx('card');
@@ -196,6 +201,7 @@ function endRound(ctx: GameCtx, s: State, winner: string | null, stuck = false) 
   s.drawn = null;
   s.again = null;
   s.pending = 0;
+  s.out = null;
   s.overAt = ctx.now + OVER_MS;
   s.moves += 1;
   const reached = s.seats.some((id) => (s.scores[id] ?? 0) >= s.settings.target);
@@ -270,38 +276,6 @@ function playCard(ctx: GameCtx, s: State, by: string, card: Card) {
   advance(ctx, s, 1);
 }
 
-/* —— bots ———————————————————————————————————————————————————————————————————————— */
-
-/** The suit a bot picks with its 7: the one it holds most of (ties: the heavier cards). */
-export function botSuit(hand: Card[]): Suit {
-  const score = (suit: Suit) => {
-    const cs = hand.filter((c) => c.suit === suit && c.rank !== 7);
-    return cs.length * 100 + handPoints(cs);
-  };
-  return [...SUITS].sort((a, b) => score(b) - score(a))[0];
-}
-
-/** The card a bot plays among its playable ones. */
-export function botPick(s: State, bot: string): Card | null {
-  const hand = s.hands[bot];
-  const opts = playable(s, bot).map((id) => hand.find((c) => c.id === id)!);
-  if (!opts.length) return null;
-  const nextCount = s.hands[at(s, 1)]?.length ?? 9;
-  const sameSuit = (suit: Suit, except: string) => hand.filter((c) => c.suit === suit && c.rank !== 7 && c.id !== except).length;
-  const score = (c: Card) => {
-    // shed the heavy cards first, and stay in a suit the hand holds more of
-    let v = hez2Points(c) + sameSuit(c.suit, c.id) * 1.5;
-    const rest = hand.filter((x) => x.id !== c.id);
-    const replay = c.rank === 1 || c.rank === 10 || (c.rank === 12 && n(s) === 2);
-    if (c.rank === 7) v = hand.length <= 2 ? 40 : -20; // keep the joker for later
-    else if (replay) v += rest.some((x) => x.rank === 7 || x.suit === c.suit || x.rank === c.rank) ? 12 : -4;
-    else if (c.rank === 2) v += nextCount <= 2 ? 30 : 4;
-    else if (c.rank === 12) v += nextCount <= 2 ? 25 : 3;
-    return v;
-  };
-  return opts.sort((a, b) => score(b) - score(a))[0];
-}
-
 /* —— the module —————————————————————————————————————————————————————————————————— */
 
 export const hez2: GameModule<State, Hez2Settings> = {
@@ -341,6 +315,7 @@ export const hez2: GameModule<State, Hez2Settings> = {
       overAt: null,
       nextAt: null,
       moves: 0,
+      voids: {},
     };
     startRound(ctx, s);
     return s;
@@ -377,6 +352,7 @@ export const hez2: GameModule<State, Hez2Settings> = {
       if (s.pending > 0) {
         const k = drawN(s, by, s.pending);
         s.pending = 0;
+        delete s.voids[by]; // new unknown cards
         ctx.say?.(`عقوبة على ${name(ctx, by)}: ${cardsText(k)}`, by);
         ctx.fx('buzz', by);
         if (s.out && s.hands[s.out]?.length === 0) {
@@ -387,6 +363,8 @@ export const hez2: GameModule<State, Hez2Settings> = {
         advance(ctx, s, 1);
         return;
       }
+      // nothing to play: everyone now knows this player lacks the suit, the number and any 7
+      s.voids[by] = { suits: [s.suit], ranks: [topCard(s)?.rank ?? 0], no7: true };
       const c = drawOne(s, by);
       if (!c) {
         s.stuckCount += 1;
@@ -409,6 +387,7 @@ export const hez2: GameModule<State, Hez2Settings> = {
 
     if (a.type === 'pass') {
       if (s.drawn?.by !== by) throw new GameError('اسحب ورقة أولاً');
+      delete s.voids[by]; // kept a card that fits: what they lack is unknown again
       s.moves += 1;
       ctx.say?.(`تمرير: ${name(ctx, by)}`, by);
       advance(ctx, s, 1);
@@ -451,16 +430,12 @@ export const hez2: GameModule<State, Hez2Settings> = {
   botPlan(ctx, s) {
     if (s.phase !== 'play') return;
     const key = `${s.round}:${s.moves}`;
-    if (s.choosing) {
-      if (ctx.isBot(s.choosing)) ctx.bot(s.choosing, `suit:${key}`, randDelay(700, 1300), { type: 'suit', suit: botSuit(s.hands[s.choosing]) });
-      return;
-    }
-    const bot = cur(s);
+    const bot = s.choosing ?? cur(s);
     if (!ctx.isBot(bot)) return;
-    const pick = botPick(s, bot);
-    if (pick) ctx.bot(bot, `play:${key}`, randDelay(1000, 1900), { type: 'play', card: pick.id });
-    else if (s.drawn?.by === bot) ctx.bot(bot, `pass:${key}`, randDelay(700, 1200), { type: 'pass' });
-    else ctx.bot(bot, `draw:${key}`, randDelay(900, 1600), { type: 'draw' });
+    const a = decide(s, bot, botLevel(ctx));
+    if (!a) return;
+    const delay = a.type === 'suit' ? randDelay(700, 1300) : a.type === 'play' ? randDelay(1000, 1900) : a.type === 'pass' ? randDelay(700, 1200) : randDelay(900, 1600);
+    ctx.bot(bot, `${a.type}:${key}`, delay, a);
   },
 
   view(_ctx, s, me): Hez2View {
