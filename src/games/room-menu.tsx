@@ -56,7 +56,7 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
             <SpeakToggle />
 
             <Txt v="bold" color={C.muted}>
-              سرعة البوتات{isHost ? '' : ' (يغيّرها المضيف)'}
+              سرعة اللعب{isHost ? '' : ' (يغيّرها المضيف)'}
             </Txt>
             <ChipPicker
               options={PACES.map((k) => ({ key: k, label: PACE_LABEL[k] }))}

@@ -195,10 +195,10 @@ export function Lobby({ room }: { room: RoomView }) {
             />
           ))}
         </Row>
-        {botCount > 0 && botsAllowed ? (
-          <Row gap={8} wrap style={{ justifyContent: 'center' }}>
+        {/* the pace is the whole game's (pauses to look, the bots' turns), so it shows with or without bots */}
+        <Row gap={8} wrap style={{ justifyContent: 'center' }}>
             <Txt v="small" color={C.muted}>
-              سرعة البوتات
+              سرعة اللعب
             </Txt>
             <ChipPicker
               options={PACES.map((k) => ({ key: k, label: PACE_LABEL[k] }))}
@@ -206,8 +206,7 @@ export function Lobby({ room }: { room: RoomView }) {
               editable={isHost}
               onChange={(pace) => client.roomAction({ type: 'pace', pace })}
             />
-          </Row>
-        ) : null}
+        </Row>
         {botCount > 0 && botsAllowed && room.botLevel ? (
           <Row gap={8} wrap style={{ justifyContent: 'center' }}>
             <Txt v="small" color={C.muted}>

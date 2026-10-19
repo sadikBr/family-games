@@ -178,10 +178,16 @@ const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
  * - again: the least time between two steps of the same bot's turn (roll → move, place → follower…).
  * Moves everyone makes at once (answers, votes) are not slowed down: they race a timer.
  */
-const PACE: Record<Pace, { think: number; after: number; again: number }> = {
-  slow: { think: 2, after: 2600, again: 1400 },
-  normal: { think: 1.4, after: 1700, again: 950 },
-  fast: { think: 1, after: 800, again: 400 },
+/**
+ * How fast games move. `think` scales a bot's own thinking time; `after` / `again` = the least time
+ * after someone else's / its own previous move before a bot plays, so every move can be seen;
+ * `show` scales the games' own pauses (a finished trick on the table, a reveal, the end of a round:
+ * see `paced` in types.ts). The family found games too quick: even «عادية» leaves time to look.
+ */
+const PACE: Record<Pace, { think: number; after: number; again: number; show: number }> = {
+  slow: { think: 2.4, after: 3600, again: 2000, show: 1.7 },
+  normal: { think: 1.8, after: 2600, again: 1500, show: 1.35 },
+  fast: { think: 1.1, after: 1300, again: 700, show: 1 },
 };
 
 const BOT_PERSONAS = [
@@ -301,6 +307,7 @@ export class Room {
         this.said = { id: ++this.saidCounter, text, by, ...(voice ? { voice } : {}) };
       },
       botLevel: () => this.botLevel,
+      pace: () => PACE[this.pace].show,
       isConnected: (id) => this.players.some((p) => p.id === id && p.connected),
       isBot: (id) => this.autopilot.has(id) || this.players.some((p) => p.id === id && p.bot),
       playerName: (id) => this.players.find((p) => p.id === id)?.name ?? '؟',

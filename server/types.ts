@@ -28,7 +28,18 @@ export interface GameCtx {
    * can skip it: read it through `botLevel(ctx)` below, which defaults to 'expert'.
    */
   botLevel?(): BotLevel;
+  /**
+   * How much longer than its base value a game's own pause should last (the room's «سرعة اللعب»:
+   * ~1.7 slow, ~1.35 normal, 1 fast). Read it through `paced(ctx, ms)` below (1 when absent, e.g. tests).
+   */
+  pace?(): number;
 }
+
+/**
+ * A game's pause (a finished trick shown, a reveal, the end of a round…) at the room's pace. Use it for
+ * every "let people look" timer; never for answer timers or the time a player has to decide.
+ */
+export const paced = (ctx: GameCtx, ms: number): number => Math.round(ms * (ctx.pace?.() ?? 1));
 
 /** The room's bot strength ('expert' when the context doesn't say). */
 export const botLevel = (ctx: GameCtx): BotLevel => ctx.botLevel?.() ?? 'expert';
