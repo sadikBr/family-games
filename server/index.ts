@@ -8,7 +8,7 @@
  */
 import { networkInterfaces } from 'node:os';
 
-import { DEFAULT_PORT, GAME_IDS, type ClientMsg, type GameId, type PlayerInfo } from '../src/shared/protocol';
+import { DEFAULT_PORT, resolveGame, type ClientMsg, type GameId, type PlayerInfo } from '../src/shared/protocol';
 import { Store } from './db';
 import { GroupHub } from './groups';
 import { Room, send, type Sock, type SockData } from './room';
@@ -72,9 +72,12 @@ function handle(ws: Sock, msg: ClientMsg) {
 
   switch (msg.t) {
     case 'create': {
-      if (!GAME_IDS.includes(msg.game)) return;
+      // an older app may still ask for a game that became part of another one (e.g. «كلمة قرآنية»)
+      const want = resolveGame(msg.game);
+      if (!want) return;
       if (room) room.leave(player.id);
-      const r = openRoom(player, msg.game);
+      const r = openRoom(player, want.game);
+      r.preset(want.game, want.settings);
       r.join(player, ws);
       console.log(`room ${r.code} created by ${player.name} (${msg.game})`);
       return;

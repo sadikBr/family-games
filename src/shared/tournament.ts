@@ -56,7 +56,7 @@ export const KNOCKOUT_GAMES: GameId[] = [
 /** Short games that suit an evening league («اختيار عشوائي» picks from these first). */
 export const QUICK_GAMES: GameId[] = [
   'quiz', 'trivia', 'surah', 'whois', 'huroof', 'xo', 'connect4', 'memory', 'dots', 'wordle', 'boggle',
-  'qquote', 'qword', 'tajweed', 'asma', 'mapquiz', 'steps', 'names', 'potato', 'imposter', 'spy', 'oneword',
+  'qquote', 'tajweed', 'asma', 'mapquiz', 'steps', 'names', 'potato', 'imposter', 'spy', 'oneword',
   'survey', 'ladders', 'codebreak', 'kdab', 'mancala', 'wave',
 ];
 

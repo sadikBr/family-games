@@ -4,9 +4,9 @@
  * who answered, my verdict, the round's results, the host's «next» button and the final screen.
  * Everything takes the game's own colour from `useAccent()`.
  */
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
@@ -16,17 +16,19 @@ import { C, F, alpha, shade } from '@/theme';
 import { useAccent } from '@/ui/accent';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { Confetti, Podium, Scoreboard } from '@/ui/fun';
+import { Confetti, CountUp, Podium, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { HostNote, PlayAgain, ResultBanner } from './common';
 import type { Helpers } from './helpers';
+import { SETTLE_MS, screenAge, useScreenClock } from './touch-motion';
 
 /**
  * When a round's answer is revealed, MY sound and vibration: «correct» if I got it right, «wrong» otherwise.
  * `key` identifies the reveal (null while asking); `correct` is my result (null if I'm not playing).
  */
 export function useMyResultFx(key: string | null, correct: boolean | null) {
+  useScreenClock(); // the round's results don't replay their entrance on a screen that just opened
   const last = useRef(key); // a screen opened during a reveal stays quiet
   useEffect(() => {
     if (key === null || correct === null || last.current === key) return;
@@ -139,42 +141,112 @@ export function OptionGrid({
         const isMine = !revealed && mine === i;
         const dim = revealed ? !isRight && !isWrong : locked && !isMine && !keepOthers && mine !== null;
         const tone = isRight ? C.green : isWrong ? C.red : isMine ? C.yellow : null;
-        const more = extra?.(i);
         return (
-          <Pressable
+          <OptionButton
             key={i}
-            disabled={locked}
-            onPress={() => {
-              haptic.medium();
-              onPick(i);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={o}
-            accessibilityState={{ selected: isMine, disabled: locked }}
-            style={({ pressed }) => [
-              styles.option,
-              two ? styles.half : styles.full,
-              tone ? { borderColor: tone, backgroundColor: alpha(tone, 0.2) } : null,
-              dim && { opacity: 0.42 },
-              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-            ]}>
-            <View style={[styles.letter, two && styles.letterSmall, { backgroundColor: tone ?? alpha(accent, 0.32) }]}>
-              {isRight || isWrong ? (
-                <Icon name={isRight ? 'check' : 'close'} size={two ? 14 : 16} color="#FFFFFF" />
-              ) : (
-                <Txt style={[styles.letterText, two && { fontSize: 12 }, { color: isMine ? C.ink : C.text }]}>{OPTION_LETTERS[i] ?? num(i + 1)}</Txt>
-              )}
-            </View>
-            <View style={styles.optBody}>
-              <Txt style={[styles.optText, two && { fontSize: 15, lineHeight: 22 }]}>{o}</Txt>
-              {more}
-            </View>
-            {/* balances the letter, so the answer sits in the middle of the button */}
-            {two ? null : <View style={{ width: 28 }} />}
-          </Pressable>
+            text={o}
+            index={i}
+            two={two}
+            tone={tone}
+            dim={dim}
+            revealed={revealed}
+            mark={isRight ? 'check' : isWrong ? 'close' : null}
+            mine={isMine}
+            locked={locked}
+            accent={accent}
+            more={extra?.(i)}
+            onPick={onPick}
+          />
         );
       })}
     </View>
+  );
+}
+
+/**
+ * One answer button. The reveal is calm: the right answer's green (and my wrong pick's red) fades
+ * in over ~0.4 s, then the other answers dim softly; picking an answer tints it at once (my tap).
+ */
+function OptionButton({
+  text,
+  index,
+  two,
+  tone,
+  dim,
+  revealed,
+  mark,
+  mine,
+  locked,
+  accent,
+  more,
+  onPick,
+}: {
+  text: string;
+  index: number;
+  two: boolean;
+  tone: string | null;
+  dim: boolean;
+  revealed: boolean;
+  mark: 'check' | 'close' | null;
+  mine: boolean;
+  locked: boolean;
+  accent: string;
+  more: ReactNode;
+  onPick: (i: number) => void;
+}) {
+  const reduced = useReducedMotion();
+  // the tint: its colour and how much of it shows (kept apart so a tint never fades through black)
+  const col = useSharedValue<string>(tone ?? C.yellow);
+  const on = useSharedValue(tone ? 1 : 0);
+  const op = useSharedValue(dim ? 0.42 : 1);
+  useEffect(() => {
+    const ms = reduced ? 0 : revealed ? 380 : 140;
+    const cfg = { duration: ms, easing: Easing.out(Easing.cubic) };
+    if (tone) col.set(on.get() > 0.01 && ms > 0 ? withTiming(tone, cfg) : tone);
+    on.set(ms ? withTiming(tone ? 1 : 0, cfg) : tone ? 1 : 0);
+  }, [tone, revealed, reduced, col, on]);
+  useEffect(() => {
+    const to = dim ? 0.42 : 1;
+    // at the reveal the other answers dim just after the right one lights up
+    op.set(reduced ? to : withDelay(revealed && dim ? 160 : 0, withTiming(to, { duration: revealed ? 360 : 200, easing: Easing.out(Easing.cubic) })));
+  }, [dim, revealed, reduced, op]);
+  const wrapAnim = useAnimatedStyle(() => ({ opacity: op.get() }));
+  const tintAnim = useAnimatedStyle(() => ({ opacity: on.get(), borderColor: col.get() }));
+  const fillAnim = useAnimatedStyle(() => ({ backgroundColor: col.get() }));
+  const dotAnim = useAnimatedStyle(() => ({ opacity: on.get(), backgroundColor: col.get() }));
+  return (
+    <Animated.View style={[two ? styles.half : styles.full, wrapAnim]}>
+      <Pressable
+        disabled={locked}
+        onPress={() => {
+          haptic.medium();
+          onPick(index);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={text}
+        accessibilityState={{ selected: mine, disabled: locked }}
+        style={({ pressed }) => [styles.option, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}>
+        <Animated.View pointerEvents="none" style={[styles.tint, tintAnim]}>
+          <Animated.View style={[styles.tintFill, fillAnim]} />
+        </Animated.View>
+        <View style={[styles.letter, two && styles.letterSmall, { backgroundColor: alpha(accent, 0.32) }]}>
+          <Animated.View pointerEvents="none" style={[styles.letterTint, dotAnim]} />
+          {mark ? (
+            <Animated.View key={mark} entering={reduced ? undefined : FadeIn.duration(240)}>
+              <Icon name={mark} size={two ? 14 : 16} color="#FFFFFF" />
+            </Animated.View>
+          ) : (
+            <Txt style={[styles.letterText, two && { fontSize: 12 }, { color: mine ? C.ink : C.text }]}>{OPTION_LETTERS[index] ?? num(index + 1)}</Txt>
+          )}
+        </View>
+        <View style={styles.optBody}>
+          <Txt style={[styles.optText, two && { fontSize: 15, lineHeight: 22 }]}>{text}</Txt>
+          {more}
+        </View>
+        {/* balances the letter, so the answer sits in the middle of the button */}
+        {two ? null : <View style={{ width: 28 }} />}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -257,6 +329,25 @@ export interface ResultLine {
   total?: number;
   /** a small mark next to the points (the fast-answer bolt…) */
   icon?: ReactNode;
+  /** the total before this round: the total counts up from it (default: total minus a «+N» gain) */
+  from?: number;
+}
+
+/** 800 for «+800» (digits may be wrapped by `num`), null for anything that isn't a gain. */
+function gainValue(gain: string): number | null {
+  const m = /^\+(\d+)$/.exec(gain.replace(/[\u2066-\u2069\s]/g, '').replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+  return m ? Number(m[1]) : null;
+}
+
+/** The round's points next to a player: they float up softly into place when the results appear. */
+function GainPill({ live, delay, children, style }: { live: boolean; delay: number; children: ReactNode; style: StyleProp<ViewStyle> }) {
+  const reduced = useReducedMotion();
+  const p = useSharedValue(live ? 0 : 1);
+  useEffect(() => {
+    if (live) p.set(withDelay(delay, withTiming(1, { duration: reduced ? 200 : 420, easing: Easing.out(Easing.cubic) })));
+  }, [live, delay, reduced, p]);
+  const anim = useAnimatedStyle(() => ({ opacity: p.get(), transform: [{ translateY: reduced ? 0 : 9 * (1 - p.get()) }] }));
+  return <Animated.View style={[style, anim]}>{children}</Animated.View>;
 }
 
 /** The round's results, one row per player (me in yellow), sorted by total — the standings after each question. */
@@ -277,6 +368,9 @@ export function ResultRows({
   ordered?: boolean;
 }) {
   const totals = lines.some((l) => l.total !== undefined);
+  // the results appear at the reveal: the points float in, then the totals count up — unless the
+  // screen has just opened (reconnect, joining during a reveal): then they simply show
+  const [live] = useState(() => screenAge() > SETTLE_MS);
   const sorted = ordered ? lines : [...lines].sort((a, b) => (totals ? (b.total ?? 0) - (a.total ?? 0) : Number(b.good) - Number(a.good)));
   return (
     <Animated.View entering={FadeIn.duration(220)} style={{ gap: 6 }}>
@@ -291,8 +385,12 @@ export function ResultRows({
           </Txt>
         ) : null}
       </Row>
-      {sorted.map((l) => {
+      {sorted.map((l, k) => {
         const me = l.id === h.me;
+        const total = l.total ?? 0;
+        const gain = gainValue(l.gain);
+        const from = l.from ?? (gain !== null && l.total !== undefined ? total - gain : undefined);
+        const delay = Math.min(k, 6) * 70;
         return (
           <Row key={l.id} gap={8} style={[styles.result, me && { borderColor: alpha(C.yellow, 0.55), backgroundColor: alpha(C.yellow, 0.08) }]}>
             <Avatar player={h.player(l.id)} size={30} />
@@ -308,10 +406,14 @@ export function ResultRows({
               ) : null}
             </View>
             {l.icon}
-            <View style={[styles.gainCol, styles.gain, l.good && { backgroundColor: alpha(gainColor, 0.16) }]}>
+            <GainPill live={live} delay={delay} style={[styles.gainCol, styles.gain, l.good && { backgroundColor: alpha(gainColor, 0.16) }]}>
               <Txt style={[styles.gainText, { color: l.good ? gainColor : C.dim }]}>{l.gain}</Txt>
-            </View>
-            {totals ? <Txt style={[styles.totalCol, styles.totalText]}>{num(l.total ?? 0)}</Txt> : null}
+            </GainPill>
+            {totals ? (
+              <Txt style={[styles.totalCol, styles.totalText]}>
+                <CountUp value={total} from={from} delay={delay + 280} enabled={live} />
+              </Txt>
+            ) : null}
           </Row>
         );
       })}
@@ -389,6 +491,7 @@ const styles = StyleSheet.create({
   half: { flexBasis: '40%', flexGrow: 1, minWidth: 0 },
   full: { width: '100%' },
   option: {
+    flexGrow: 1,
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
@@ -400,7 +503,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  letter: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  // the tint covers the button's own border (absolute children start inside it)
+  tint: { position: 'absolute', left: -2, top: -2, right: -2, bottom: -2, borderRadius: 16, borderWidth: 2, overflow: 'hidden' },
+  tintFill: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, opacity: 0.2 },
+  letter: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  letterTint: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 },
   letterSmall: { width: 22, height: 22, borderRadius: 11 },
   letterText: { fontFamily: F.black, fontSize: 14, lineHeight: 20 },
   optBody: { flex: 1, minWidth: 0, gap: 4, alignItems: 'center' },

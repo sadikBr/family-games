@@ -1,11 +1,19 @@
-/** «شبكة الكلمات» — the board and the tiles. Column 0 is drawn on the RIGHT (across words read right to left). */
+/**
+ * «شبكة الكلمات» — the board and the tiles. Column 0 is drawn on the RIGHT (across words read right to left).
+ * Motion (see scrabble-motion.tsx): a tile I put down glides from my rack (CardMotion with the rack tile's
+ * id), another player's word appears tile by tile (`arrive`), and its points count up above it (`badge`).
+ */
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ScrabbleCell } from '@/shared/games/scrabble';
-import { PREMIUM, SIZE, type Premium } from '@/shared/scrabble-rules';
+import { PREMIUM, SIZE, colOf, rowOf, type Premium } from '@/shared/scrabble-rules';
 import { C, F } from '@/theme';
 import { Row } from '@/ui/bits';
 import { Txt } from '@/ui/txt';
+
+import { CardMotion } from './cards/motion';
+import { ARRIVE, Arrive, ScoreBadge } from './scrabble-motion';
 
 /** Our board colours: deep teal squares, warm premium squares, cream tiles. */
 export const PREMIUM_STYLE: Record<Exclude<Premium, ''>, { bg: string; label: string; legend: string }> = {
@@ -73,9 +81,12 @@ export function Board({
   width,
   win,
   onCell,
+  arrive,
+  badge,
 }: {
   board: readonly (ScrabbleCell | null)[];
-  pending: ReadonlyMap<number, { l: string; v: number; blank: boolean }>;
+  /** my tiles not played yet; with `id` (the rack tile's) a tile glides from the rack when put down */
+  pending: ReadonlyMap<number, { l: string; v: number; blank: boolean; id?: number }>;
   /** tiles put down by the last move */
   last: ReadonlySet<number>;
   /** the other tiles of the words the last move made */
@@ -83,6 +94,10 @@ export function Board({
   width: number;
   win: BoardWindow;
   onCell?: (cell: number) => void;
+  /** a word that just came: its new tiles settle in one after another (cell → place in reading order) */
+  arrive?: { key: string; order: ReadonlyMap<number, number> } | null;
+  /** the points of the word that just came, counting up above `cell` after `delay` ms */
+  badge?: { key: string; cell: number; score: number; delay: number } | null;
 }) {
   const pad = 3;
   const cell = Math.floor(((width - pad * 2) / win.n) * 10) / 10;
@@ -99,11 +114,9 @@ export function Board({
             const t = board[i];
             const p = pending.get(i);
             const prem = PREMIUM[i];
-            const content = t ? (
-              <TileFace l={t.l} v={t.v} blank={t.v === 0} size={inner} last={last.has(i)} word={word?.has(i)} />
-            ) : p ? (
-              <TileFace l={p.l} v={p.v} blank={p.blank} size={inner} pending />
-            ) : (
+            const k = arrive?.order.get(i);
+            const placed = t ? <TileFace l={t.l} v={t.v} blank={t.v === 0} size={inner} last={last.has(i)} word={word?.has(i)} /> : null;
+            const square = (
               <View style={[styles.square, { width: inner, height: inner, borderRadius: Math.max(2, inner * 0.12), backgroundColor: prem ? PREMIUM_STYLE[prem].bg : SQUARE }]}>
                 {prem && (inner >= 24 || prem === 'star') ? (
                   <Txt style={{ fontFamily: F.black, fontSize: prem === 'star' ? inner * 0.6 : inner * 0.3, lineHeight: inner * 0.7, color: 'rgba(255,255,255,0.92)', textAlign: 'center' }} numberOfLines={1}>
@@ -111,6 +124,36 @@ export function Board({
                   </Txt>
                 ) : null}
               </View>
+            );
+            // a tile still on its way keeps the empty square under it (no dark hole meanwhile)
+            const over = (tile: ReactNode) => (
+              <View>
+                <View style={styles.over}>{square}</View>
+                {tile}
+              </View>
+            );
+            const content = placed ? (
+              k !== undefined ? (
+                over(
+                  <Arrive key={arrive!.key} delay={k * ARRIVE.stagger}>
+                    {placed}
+                  </Arrive>,
+                )
+              ) : (
+                placed
+              )
+            ) : p ? (
+              p.id !== undefined ? (
+                over(
+                  <CardMotion key={p.id} id={`t${p.id}`} enter="play">
+                    <TileFace l={p.l} v={p.v} blank={p.blank} size={inner} pending />
+                  </CardMotion>,
+                )
+              ) : (
+                <TileFace l={p.l} v={p.v} blank={p.blank} size={inner} pending />
+              )
+            ) : (
+              square
             );
             return onCell ? (
               <Pressable key={c} onPress={() => onCell(i)} style={[styles.cell, { width: cell, height: cell }]} accessibilityLabel={`مربع ${r + 1}، ${c + 1}`}>
@@ -124,9 +167,22 @@ export function Board({
           })}
         </View>
       ))}
+      {badge && inWindow(badge.cell, win) ? (
+        <ScoreBadge
+          key={badge.key}
+          score={badge.score}
+          delay={badge.delay}
+          width={cell * 4}
+          // centred on the cell (the box is wide, the chip small); above it (below it on the top row)
+          left={pad + cell * (win.n - 1 - (colOf(badge.cell) - win.c0)) - cell * 1.5}
+          top={pad + (rowOf(badge.cell) - win.r0) * cell + (rowOf(badge.cell) === win.r0 ? cell + 2 : -24)}
+        />
+      ) : null}
     </View>
   );
 }
+
+const inWindow = (cell: number, w: BoardWindow) => rowOf(cell) >= w.r0 && rowOf(cell) < w.r0 + w.n && colOf(cell) >= w.c0 && colOf(cell) < w.c0 + w.n;
 
 export function Legend() {
   return (
@@ -147,6 +203,7 @@ const styles = StyleSheet.create({
   board: { alignSelf: 'center', direction: 'ltr', backgroundColor: FRAME, borderRadius: 10 },
   row: { flexDirection: 'row-reverse' },
   cell: { alignItems: 'center', justifyContent: 'center' },
+  over: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 },
   square: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tile: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   points: { position: 'absolute', fontFamily: F.black, color: '#5A4520' },

@@ -17,7 +17,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الشطرنج** (Chess) | 2 | Full rules (castling, en passant, promotion, mate, stalemate, 50-move, repetition, insufficient material). Bot opponent. The rules engine is checked against standard perft counts. |
 | **الكذّاب** (Cheat / Liar) | 2–6 | Spanish deck: play 1–4 cards face down claiming a rank; anyone can shout «كذّاب!». First to empty their hand wins. |
 | **موجة** (Wavelength) | 2–12 | One player gives a clue for a secret point on a scale (بارد ↔ ساخن…); the others turn a dial. Closer = more points. |
-| **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard. Guesses must be real words (a list of ~105k words built from the Ayaspell Hunspell dictionary and OpenSubtitles word frequencies — see `tools/wordle-dict.mjs`). |
+| **كلمة السر** (Arabic Wordle) | 1–12 | Everyone races to find the same 5-letter word in 6 tries, with an Arabic on-screen keyboard; the letters turn over one by one to show their colours. Word set in the lobby: «كلمات عامة», «كلمات قرآنية» (prophets, surahs, places, names of Allah, well-known Quranic words; the kind of word as an optional hint and, after each round, a verse containing the word) or «مزيج». Race mode ends the round at the first find. Guesses must be real words (a list of ~105k words built from the Ayaspell Hunspell dictionary and OpenSubtitles word frequencies — see `tools/wordle-dict.mjs` — plus every 5-letter word of the Quran when Quran words are on). It replaced the former «كلمة قرآنية» game: older apps asking for `qword` get this game with the Quran words. |
 | **الخربقة** (Kharbga) | 2 | The traditional Moroccan game on a 7×7 board: place two pieces per turn, then move one square and capture by sandwiching an enemy piece; captures chain. Simplified: a blocked player passes, and 80 moves without a capture ends the game on piece count. |
 | **معركة السفن** (Battleship) | 2 | Each phone hides its own fleet (shuffle until you like it). Fire at the other sea; a hit lets you fire again. Bot hunts with parity and follows up hits. |
 | **إكس أو** (Tic-tac-toe) | 2 | Boards from 3×3 to 9×9 (4×4–5×5: four in a row; 6×6 and up: five). X and O swap every game; wins are counted across games. On 3×3 the strong bot never loses; on bigger boards it plays by threats. |
@@ -55,7 +55,6 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **حروف مبعثرة** (Boggle-style) | 1–12 | Everyone gets the same letter grid; swipe adjacent letters to make words (3+ letters, no «ال»), checked against the dictionary. Longer words score more; words found by two players cancel (can be switched off). |
 | **من القائل؟** | 1–12 | Words the Quran quotes from someone — a prophet, an angel, a righteous woman, even the ant or the hoopoe. Pick who said it; the surah and verse are shown after. |
 | **مسابقة التجويد** | 1–12 | A verse in Uthmani script with one word coloured: pick its tajweed rule (Hafs ʿan ʿAsim). Topics: nun sakinah and tanween, mim sakinah, madd, qalqalah, the lam of Allah, sun/moon letters, or all. |
-| **كلمة قرآنية** | 1–12 | Wordle with five-letter words from the Quran (prophets, surahs, places, names of Allah, well-known Quranic words). After each round, a verse containing the word. |
 | **أسماء الله الحسنى** | 1–6 | The 99 names (the well-known list narrated by at-Tirmidhi) with short meanings: match a name to its meaning, or play memory with name/meaning cards. |
 | **رتّب الخطوات** | 1–12 | Put steps in order: wudu, salah, umrah, the Hijri months, the battles of the Prophet ﷺ… Points for each step in the right place, plus speed for a perfect order. |
 | **أين المكان؟** | 1–12 | Place cities and sites of the Muslim world on a map; points by real distance. Whole map, or zoomed rounds on the Maghreb and al-Andalus or the Mashriq. |
@@ -243,7 +242,7 @@ bun run test:server
   [quran-json](https://github.com/risan/quran-json) 3.1.2 — Uthmani text from
   [quranenc.com](https://quranenc.com), licensed CC BY-SA 4.0. Very short verses and verses that appear
   word-for-word in more than one surah are left out, so every question has exactly one right answer.
-- «من القائل؟», «مسابقة التجويد» and «كلمة قرآنية» use the complete text in `server/data/quran-full.json`
+- «من القائل؟», «مسابقة التجويد» and the Quran words of «كلمة السر» use the complete text in `server/data/quran-full.json`
   (all 6236 verses, same source and licence, built by `tools/quran-full.mjs`). Every quote, tajweed example and
   story chapter of «قصص الأنبياء» cites its surah and verse, and tests check the citations against the Quran data.
 - Tajweed rules follow Hafs ʿan ʿAsim. The 99 names follow the list narrated by at-Tirmidhi, with short

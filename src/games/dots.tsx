@@ -1,7 +1,7 @@
 /** «المربعات» — touch between two dots to draw a line; close a box to take it and play again. */
-import { useState } from 'react';
-import { StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { useEffect, useState, type ReactNode } from 'react';
+import { StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
@@ -14,12 +14,12 @@ import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal } from '@/ui/controls';
 import { Confetti, Scoreboard } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
-import { MarkIn } from '@/ui/motion';
 import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
 import { helpers, type Helpers } from './helpers';
+import { EASE, useSettled } from './touch-motion';
 
 const INK = '#151726';
 const PAPER = '#FFF4DA';
@@ -87,6 +87,34 @@ function Players({ view, h }: { view: DotsView; h: Helpers }) {
   );
 }
 
+/** A drawn line. `fresh` (just drawn, board settled): it draws in along its length, from one dot to the other. */
+function Line({ g, color, horizontal, fresh }: { g: { left: number; top: number; width: number; height: number }; color: string; horizontal: boolean; fresh: boolean }) {
+  const reduced = useReducedMotion();
+  const grow = fresh && !reduced;
+  const p = useSharedValue(grow ? 0 : 1);
+  useEffect(() => {
+    p.set(withTiming(1, { duration: 300, easing: EASE }));
+  }, [p]);
+  const full = horizontal ? g.width : g.height;
+  const anim = useAnimatedStyle(() => (horizontal ? { width: Math.max(g.height, full * p.get()) } : { height: Math.max(g.width, full * p.get()) }));
+  return <Animated.View pointerEvents="none" style={[styles.line, g, { backgroundColor: color }, anim]} />;
+}
+
+/** A taken box. `fresh` (just closed, board settled): it fills gently with its owner's colour once the line is drawn. */
+function Box({ style, fresh, children }: { style: StyleProp<ViewStyle>; fresh: boolean; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const o = useSharedValue(fresh ? 0 : 1);
+  useEffect(() => {
+    o.set(withDelay(reduced ? 0 : 220, withTiming(1, { duration: reduced ? 160 : 420, easing: EASE })));
+  }, [o, reduced]);
+  const anim = useAnimatedStyle(() => ({ opacity: o.get() }));
+  return (
+    <Animated.View pointerEvents="none" style={[style, anim]}>
+      {children}
+    </Animated.View>
+  );
+}
+
 /** Which line a touch at (x, y) means: the nearest line midpoint (the box is split in four triangles). */
 function lineAt(n: number, s: number, pad: number, x: number, y: number) {
   const u = (x - pad) / s, v = (y - pad) / s;
@@ -110,6 +138,8 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
   const t = Math.max(5, Math.round(s * 0.13)); // line thickness
   const dot = Math.max(10, Math.round(s * 0.2));
   const [hover, setHover] = useState<number | null>(null);
+  // nothing animates in the first moments (reconnect, joining mid-game)
+  const settled = useSettled();
   const H = n * (n + 1);
   const free = (e: number | null) => e !== null && view.lines[e] < 0;
 
@@ -157,13 +187,12 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
         const r = Math.floor(b / n), c = b % n;
         const owner = view.seats[o];
         return (
-          <Animated.View
+          <Box
             key={`b${b}`}
-            pointerEvents="none"
-            entering={lastBoxes.has(b) ? MarkIn : undefined}
+            fresh={settled && lastBoxes.has(b)}
             style={[styles.box, { left: pad + c * s + t / 2, top: pad + r * s + t / 2, width: s - t, height: s - t, backgroundColor: alpha(DOTS_COLORS[o], 0.82) }, lastBoxes.has(b) && styles.boxNew]}>
             <Txt style={{ fontSize: s * 0.42, lineHeight: s * 0.6, color: '#FFFFFF' }}>{nameOf(h, view, owner).trim().charAt(0)}</Txt>
-          </Animated.View>
+          </Box>
         );
       })}
       {view.last !== null && view.lines[view.last] >= 0 ? (
@@ -173,12 +202,7 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
         o < 0 ? (
           <View key={`l${e}`} pointerEvents="none" style={[styles.ghost, geo(e, 2)]} />
         ) : (
-          <Animated.View
-            key={`l${e}`}
-            pointerEvents="none"
-            entering={view.last === e ? FadeIn.duration(180) : undefined}
-            style={[styles.line, geo(e, t), { backgroundColor: DOTS_COLORS[o] }]}
-          />
+          <Line key={`l${e}`} g={geo(e, t)} horizontal={e < H} color={DOTS_COLORS[o]} fresh={settled && view.last === e} />
         ),
       )}
       {hover !== null ? <View pointerEvents="none" style={[styles.line, geo(hover, t), { backgroundColor: alpha(mine, 0.55), borderColor: mine }]} /> : null}
