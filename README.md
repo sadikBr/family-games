@@ -10,6 +10,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **الكانزة** | 2–4 | Play a card and take 1–2 table cards so the three add up to exactly 15. Scoring: every card = 1, gold = its number, 1 of gold = 20. |
 | **التريس** | 4 | Two teams with partners sitting opposite, 10 cards each, follow suit, no trumps. 3 > 2 > 1 > 12 > 11 > 10 > 7…4. 1 = 1 pt, 3/2/figures = ⅓, last trick = 1. First to 31. |
 | **الكونكان** | 2–4 | Spanish-deck rummy: draw, lay down sets (3–4 same number) or runs (3+ same suit), add to melds, discard. First to empty their hand wins the hand. Others count their cards (figures = 10). 100 = out. |
+| **الرامي** (Moroccan rummy) | 2–6 | Two French decks + 4 jokers (108 cards). Sets (تيرسي) and runs (سويفي), one joker per meld, jokers can be swapped back. التلّاج: 14 cards, the first laydown needs 71 (or 51) in joker-free melds incl. a frank set and a frank run, later first laydowns must beat the highest (can be switched off); a card taken from the discard must go down that turn. سامبل: 13 cards, the whole hand goes down at once. Others pay 10 a card (joker 20), 100 if never down; «رامي سيك» doubles. First to 1000 (or 500) ends it, lowest total wins. Optional turn timer. Bots play. |
 | **البلوط** (Saudi Baloot) | 4 | Two partnerships of two, 32-card French deck. Bidding «صن» / «حكم» / «أشكل» / «بس» in two rounds around the face-up card, the Saudi follow / trump rules, projects (سرا، خمسين، مية، أربعمية) and «بلوت», doubling (دبل، ثري، فور، قهوة), خسرانة and كبوت, a «لنا / لهم» score sheet to 152 (or 100). Bots bid and play. |
 | **أونو فليب** (UNO FLIP) | 2–10 | Every card has a light side and a dark side. You see the active side of your own cards; everyone else sees the other side, so you know a bit about their hands. A Flip card turns the whole game over to the dark side (+5, Skip Everyone, Wild Draw Color). Say «أونو» with one card left or get caught for +2. Round winner scores the others' cards; first to 250 (adjustable) wins. |
 | **أربعة في صف** (Connect Four) | 2 | Drop discs; four in a row wins. Bot opponent (casual or strong), wins are counted across games. |
@@ -182,7 +183,7 @@ server/              Realtime game server (Bun WebSockets). Source of truth for 
   room.ts            Lobby, settings, sending each player only what they may see
   db.ts, groups.ts   Groups: SQLite storage (DATA_DIR / Railway volume), presence, «لنلعب», push notifications
   tournament.ts      Tournaments (league / knockout) and the groups' honour board
-  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
+  games/*.ts         Game logic: imposter, names, headsup, taboo, potato, werewolf, ronda, kanza, tris, konkan, rami, unoflip, ludo, dama, codenames, draw, estate, huroof, quiz, whois, surah, hajj, ladders, connect4, chess, kdab, wave, wordle, kharbga, battleship, xo, sudoku, trivia, memory
   cardkit.ts         Deck / seats / teams helpers for the card games
   content.ts         Arabic word decks, Taboo cards, Hot Potato topics ← add your own!
   content-extra.ts   Words for Codenames and Draw & Guess

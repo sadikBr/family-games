@@ -40,6 +40,7 @@ import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
+import { RamiGame } from './rami';
 import { SudokuGame } from './sudoku';
 import { XoGame } from './xo';
 import { HajjGame } from './hajj';
@@ -165,6 +166,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <ProphetsGame room={room} view={view} />;
     case 'mosque':
       return <MosqueGame room={room} view={view} />;
+    case 'rami':
+      return <RamiGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

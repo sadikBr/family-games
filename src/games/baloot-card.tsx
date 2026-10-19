@@ -23,7 +23,7 @@ export const CARD_H = 1.4;
 export const MoroccoDeck = createContext(false);
 const RED = '#C9283E';
 const BLACK = '#1E2238';
-const PAPER = '#FFFDF7';
+export const PAPER = '#FFFDF7';
 export const suitColor = (s: BSuit) => (s === 'H' || s === 'D' ? RED : BLACK);
 
 /** Suit shapes in a 100 × 100 box. */
@@ -58,7 +58,8 @@ const PIPS: Record<string, [number, number][]> = {
   '10': [[0, 0], [1, 0], [0.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [0.5, 5 / 6], [0, 1], [1, 1]],
 };
 
-function Court({ card }: { card: BCard }) {
+/** A simple court figure (K, Q, J) in the 100 × 140 card box (also used by «الرامي»'s French cards). */
+export function Court({ card }: { card: Pick<BCard, 'suit' | 'rank'> }) {
   const col = suitColor(card.suit);
   const robe = card.suit === 'H' || card.suit === 'D' ? '#B4233A' : '#2C3D73';
   const gold = '#E2A93B';
@@ -132,7 +133,8 @@ function Face({ card, width }: { card: BCard; width: number }) {
   );
 }
 
-function Back({ width }: { width: number }) {
+/** The card back (also used by «الرامي»). */
+export function Back({ width }: { width: number }) {
   const lines = [];
   for (let k = -140; k < 140; k += 14) {
     lines.push(<Line key={`a${k}`} x1={k} y1={0} x2={k + 140} y2={140} stroke="rgba(255,255,255,0.18)" strokeWidth={2} />);
