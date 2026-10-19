@@ -169,8 +169,15 @@ if (Test-Path $oldGradle) {
   Push-Location (Join-Path $root 'android')
   & .\gradlew.bat --stop | Out-Null
   Pop-Location
-  Start-Sleep -Seconds 2
 }
+# a half-deleted android folder has no gradlew any more: stop the Java processes of THIS JDK instead
+# (a Gradle daemon is one; other programs' Java is left alone)
+$ours = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($JavaHome, [StringComparison]::OrdinalIgnoreCase) }
+if ($ours) {
+  Write-Host "Stopping $(@($ours).Count) Java process(es) left by an earlier build"
+  $ours | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep -Seconds 2
 if ($useBun) { bunx expo prebuild --platform android --clean --no-install } else { npx expo prebuild --platform android --clean --no-install }
 if ($LASTEXITCODE -ne 0) { Fail 'expo prebuild failed.' }
 Set-Content -Path (Join-Path $root 'android\local.properties') -Value ('sdk.dir=' + ($AndroidHome -replace '\\', '\\')) -Encoding ASCII
