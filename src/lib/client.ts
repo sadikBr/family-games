@@ -59,6 +59,8 @@ class GameClient {
   private appStateSub: { remove(): void } | null = null;
   /** moving from one room to another: states of the old room still on their way are ignored */
   private switchTo: string | null = null;
+  /** a room was asked for since the app started (create / join / a group's «لنلعب») */
+  private askedRoom = false;
   private pushToken: string | null = null;
   private callId = 0;
   private replyId = 0;
@@ -309,13 +311,20 @@ class GameClient {
   }
 
   createRoom(game: GameId) {
+    this.askedRoom = true;
     this.code = null;
     this.switchTo = null;
     this.update({ room: null });
     this.send({ t: 'create', game });
   }
 
+  /** The room screen opened without any room asked for: the page was reloaded on the web. */
+  get coldRoomScreen() {
+    return !this.askedRoom;
+  }
+
   joinRoom(code: string) {
+    this.askedRoom = true;
     // from one room straight into another (an invitation accepted in a room): the old room stays
     // on screen until the new one arrives
     const switching = !!this.snap.room && this.snap.room.code !== code;
@@ -328,6 +337,7 @@ class GameClient {
 
   /** «لنلعب»: open the group's room (or join it if it is already playing). */
   groupPlay(id: string) {
+    this.askedRoom = true;
     this.code = null;
     this.switchTo = null;
     this.update({ room: null, call: this.snap.call?.group.id === id ? null : this.snap.call });

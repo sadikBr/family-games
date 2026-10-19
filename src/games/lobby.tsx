@@ -7,7 +7,7 @@ import { Icon } from '@/art/icons';
 import { GroupWaiting } from '@/groups/waiting-panel';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { BOT_GAMES, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
+import { BOT_GAMES, BOT_LEVELS, BOT_LEVEL_LABEL, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Card, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
@@ -205,6 +205,19 @@ export function Lobby({ room }: { room: RoomView }) {
               value={room.pace ?? 'normal'}
               editable={isHost}
               onChange={(pace) => client.roomAction({ type: 'pace', pace })}
+            />
+          </Row>
+        ) : null}
+        {botCount > 0 && botsAllowed && room.botLevel ? (
+          <Row gap={8} wrap style={{ justifyContent: 'center' }}>
+            <Txt v="small" color={C.muted}>
+              مستوى البوتات
+            </Txt>
+            <ChipPicker
+              options={BOT_LEVELS.map((k) => ({ key: k, label: BOT_LEVEL_LABEL[k] }))}
+              value={room.botLevel}
+              editable={isHost}
+              onChange={(level) => client.roomAction({ type: 'botLevel', level })}
             />
           </Row>
         ) : null}

@@ -23,7 +23,6 @@ import { ONEWORD_DEFAULTS, type OnewordSettings, type OnewordView } from './game
 import { BOGGLE_DEFAULTS, type BoggleSettings, type BoggleView } from './games/boggle';
 import { QQUOTE_DEFAULTS, type QquoteSettings, type QquoteView } from './games/qquote';
 import { TAJWEED_DEFAULTS, type TajweedSettings, type TajweedView } from './games/tajweed';
-import { QWORD_DEFAULTS, type QwordSettings, type QwordView } from './games/qword';
 import { ASMA_DEFAULTS, type AsmaSettings, type AsmaView } from './games/asma';
 import { STEPS_DEFAULTS, type StepsSettings, type StepsView } from './games/steps';
 import { MAPQUIZ_DEFAULTS, type MapquizSettings, type MapquizView } from './games/mapquiz';
@@ -48,7 +47,6 @@ export type { OnewordSettings, OnewordView } from './games/oneword';
 export type { BoggleSettings, BoggleView } from './games/boggle';
 export type { QquoteSettings, QquoteView } from './games/qquote';
 export type { TajweedSettings, TajweedView } from './games/tajweed';
-export type { QwordSettings, QwordView } from './games/qword';
 export type { AsmaSettings, AsmaView } from './games/asma';
 export type { StepsSettings, StepsView } from './games/steps';
 export type { MapquizSettings, MapquizView } from './games/mapquiz';
@@ -109,7 +107,6 @@ export type GameId =
   | 'boggle'
   | 'qquote'
   | 'tajweed'
-  | 'qword'
   | 'asma'
   | 'steps'
   | 'mapquiz'
@@ -168,7 +165,6 @@ export const GAME_IDS: GameId[] = [
   'boggle',
   'qquote',
   'tajweed',
-  'qword',
   'asma',
   'steps',
   'mapquiz',
@@ -177,7 +173,7 @@ export const GAME_IDS: GameId[] = [
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'qword', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'touti'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'touti'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -232,7 +228,6 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   boggle: 1,
   qquote: 1,
   tajweed: 1,
-  qword: 1,
   asma: 1,
   steps: 1,
   mapquiz: 1,
@@ -241,7 +236,24 @@ export const MIN_PLAYERS: Record<GameId, number> = {
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, qword: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, touti: 4 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, touti: 4 };
+
+/**
+ * Games that were merged into another one: older apps may still ask for them (room create, change of
+ * game, settings, tournaments). They get the game they became, with these settings applied.
+ */
+export const GAME_ALIASES: Record<string, { game: GameId; settings: Record<string, unknown> }> = {
+  // «كلمة قرآنية» is now «كلمة السر» with the Quran words
+  qword: { game: 'wordle', settings: { words: 'quran' } },
+};
+
+/** A game id sent by a phone: a current one, or an old one that became part of another game. */
+export function resolveGame(v: unknown): { game: GameId; settings: Record<string, unknown> | null } | null {
+  if (typeof v !== 'string') return null;
+  if ((GAME_IDS as string[]).includes(v)) return { game: v as GameId, settings: null };
+  const alias = Object.hasOwn(GAME_ALIASES, v) ? GAME_ALIASES[v] : undefined;
+  return alias ? { game: alias.game, settings: alias.settings } : null;
+}
 
 export const DEFAULT_PORT = 5757;
 
@@ -409,8 +421,16 @@ export interface KdabSettings {
 export interface WaveSettings {
   rounds: number; // times each player gives the clue
 }
+/** «كلمة السر»'s word set: everyday words, words of the Quran, or a mix of both. */
+export type WordleWords = 'general' | 'quran' | 'mix';
 export interface WordleSettings {
   rounds: number;
+  /** the word set (missing in rooms made before «كلمة قرآنية» joined this game: everyday words) */
+  words?: WordleWords;
+  /** race: the round ends as soon as someone finds the word (only they score) */
+  race?: boolean;
+  /** show the kind of a Quran word (prophet, surah, place…) during the round */
+  hint?: boolean;
 }
 export interface KharbgaSettings {
   level: 1 | 2;
@@ -491,7 +511,6 @@ export interface AllSettings {
   boggle: BoggleSettings;
   qquote: QquoteSettings;
   tajweed: TajweedSettings;
-  qword: QwordSettings;
   asma: AsmaSettings;
   steps: StepsSettings;
   mapquiz: MapquizSettings;
@@ -526,7 +545,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   chess: { level: 1 },
   kdab: { maxPlay: 4 },
   wave: { rounds: 1 },
-  wordle: { rounds: 3 },
+  wordle: { rounds: 3, words: 'general', race: false, hint: true },
   kharbga: { level: 1 },
   battleship: { level: 1 },
   xo: { level: 1, size: 3 },
@@ -551,7 +570,6 @@ export const DEFAULT_SETTINGS: AllSettings = {
   boggle: BOGGLE_DEFAULTS,
   qquote: QQUOTE_DEFAULTS,
   tajweed: TAJWEED_DEFAULTS,
-  qword: QWORD_DEFAULTS,
   asma: ASMA_DEFAULTS,
   steps: STEPS_DEFAULTS,
   mapquiz: MAPQUIZ_DEFAULTS,
@@ -1268,10 +1286,23 @@ export interface WordleView {
   rounds: number;
   length: number;
   maxTries: number;
+  /** the word set (the fields marked «newer» are missing from older servers) */
+  words?: WordleWords;
+  /** newer: race mode */
+  race?: boolean;
+  /** newer: the word comes from the Quran (null: not said — a mix without hints, during the round) */
+  quran?: boolean | null;
+  /** newer: the kind of a Quran word (null when hints are off, or for an everyday word) */
+  hint?: string | null;
   myRows: { guess: string; marks: WordleMark[] }[];
   others: { id: string; rows: WordleMark[][]; solved: boolean; done: boolean }[];
-  answer: string | null; // revealed
+  /** revealed (to me once I'm done, to everyone after the round): the word as it is written */
+  answer: string | null;
+  /** newer: after the round, a verse where a Quran word appears */
+  verse?: { text: string; ref: string } | null;
   endsAt: number | null;
+  /** newer: total of the current timer, for the timer bar */
+  timerTotal?: number;
   /** half of the players are done, so the round time was cut to a minute */
   hurried: boolean;
   results: { id: string; tries: number | null; points: number }[] | null;
@@ -1414,7 +1445,6 @@ export type GameView =
   | BoggleView
   | QquoteView
   | TajweedView
-  | QwordView
   | AsmaView
   | StepsView
   | MapquizView
@@ -1442,6 +1472,8 @@ export interface RoomView {
   turn: string[];
   /** how fast bots play, set by the host */
   pace: Pace;
+  /** how strong bots play, set by the host (optional: an older server doesn't send it) */
+  botLevel?: BotLevel;
   /** the last move announced by the game (see GameCtx.say), for the strip under the turn bar */
   said: Said | null;
   /** who is in the room's voice chat (connected players only) */
@@ -1550,6 +1582,7 @@ export type RoomAction =
   | { type: 'kick'; id: string }
   | { type: 'addBot' }
   | { type: 'pace'; pace: Pace }
+  | { type: 'botLevel'; level: BotLevel }
   /** a group room: stop waiting for the missing members (caller or host) */
   | { type: 'groupGo' }
   /** tournaments (host only): set up / change the tournament in the waiting room */
@@ -1583,6 +1616,14 @@ export interface Said {
 }
 export const PACES: Pace[] = ['slow', 'normal', 'fast'];
 export const PACE_LABEL: Record<Pace, string> = { slow: 'بطيئة', normal: 'عادية', fast: 'سريعة' };
+
+/**
+ * How strong the bots play, for every game (set by the host). 'easy' for children and beginners,
+ * 'smart' a solid club player, 'expert' the strongest the game's bot can play (the default).
+ */
+export type BotLevel = 'easy' | 'smart' | 'expert';
+export const BOT_LEVELS: BotLevel[] = ['easy', 'smart', 'expert'];
+export const BOT_LEVEL_LABEL: Record<BotLevel, string> = { easy: 'سهل', smart: 'ذكي', expert: 'خبير' };
 
 export type ServerMsg =
   | { t: 'welcome'; now: number }

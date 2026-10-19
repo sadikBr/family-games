@@ -9,7 +9,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { isMuted, onMuteChange, setMuted } from '@/lib/sfx';
-import { PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
+import { BOT_LEVELS, BOT_LEVEL_LABEL, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
@@ -62,6 +62,19 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
               editable={isHost}
               onChange={(pace) => client.roomAction({ type: 'pace', pace })}
             />
+            {room.botLevel && room.players.some((p) => p.bot) ? (
+              <>
+                <Txt v="bold" color={C.muted}>
+                  مستوى البوتات{isHost ? '' : ' (يغيّره المضيف)'}
+                </Txt>
+                <ChipPicker
+                  options={BOT_LEVELS.map((k) => ({ key: k, label: BOT_LEVEL_LABEL[k] }))}
+                  value={room.botLevel}
+                  editable={isHost}
+                  onChange={(level) => client.roomAction({ type: 'botLevel', level })}
+                />
+              </>
+            ) : null}
 
             <Txt v="bold" color={C.muted}>
               اللاعبون

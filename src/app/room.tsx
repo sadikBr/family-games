@@ -61,7 +61,7 @@ function Connecting() {
 export default function RoomScreen() {
   useKeepAwake();
   const { width } = useWindowDimensions();
-  const { room, error } = useClient();
+  const { room, error, lastCode } = useClient();
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmLobby, setConfirmLobby] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -99,6 +99,18 @@ export default function RoomScreen() {
   useEffect(() => {
     if (startedGame) notePlayed(startedGame);
   }, [startedGame]);
+
+  // the page was reloaded on the room screen (web): go back into the last room, or home if there is none
+  useEffect(() => {
+    if (room || !client.coldRoomScreen) return;
+    // give the saved room code a moment to load from storage
+    const t = setTimeout(() => {
+      if (!client.coldRoomScreen) return;
+      if (lastCode) client.joinRoom(lastCode);
+      else router.replace('/');
+    }, 600);
+    return () => clearTimeout(t);
+  }, [room, lastCode]);
 
   // room vanished (wrong code, kicked…) → back home
   useEffect(() => {
