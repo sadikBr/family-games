@@ -182,9 +182,21 @@ function exact(x: Sim, team: number, alpha: number, beta: number): number {
  */
 export function takesAll(x: Sim, team: number, chooser = -1, budget = 3000): boolean {
   let nodes = 0;
+  // the same cards left (in any order of discards) answer the same: few distinct positions in an ending
+  const memo = new Map<string, boolean>();
+  const keyOf = (y: Sim) =>
+    `${y.turn}|${y.trick.map((t) => t.card.id).join(',')}|${y.hands.map((h) => h.map((c) => c.id).sort().join(',')).join('/')}`;
   const go = (y: Sim): boolean => {
-    if (++nodes > budget) throw new Error('budget');
     if (y.left === 0) return true;
+    const key = keyOf(y);
+    const known = memo.get(key);
+    if (known !== undefined) return known;
+    if (++nodes > budget) throw new Error('budget');
+    const res = step(y);
+    memo.set(key, res);
+    return res;
+  };
+  const step = (y: Sim): boolean => {
     const seat = y.turn;
     const ours = seat % 2 === team && (chooser < 0 || seat === chooser);
     for (const c of legalOf(y, seat)) {
@@ -212,8 +224,8 @@ export function findClaim(x: Sim): { seat: number; team: number; reveal: number[
   for (const team of [0, 1]) {
     if (!takesAll(x, team, -1, 3000)) continue;
     const order = [0, 1, 2, 3].map((k) => (x.turn + k) % 4).filter((seat) => seat % 2 === team);
-    for (const seat of order) if (takesAll(x, team, seat, 2000)) return { seat, team, reveal: [seat] };
-    return { seat: order[0], team, reveal: order };
+    // only one player's own cards, whatever the partner plays: no offer that needs both partners
+    for (const seat of order) if (takesAll(x, team, seat, 30_000)) return { seat, team, reveal: [seat] };
   }
   return null;
 }

@@ -87,10 +87,11 @@ test('detection: an opponent who could ruff (or overtake) means no claim', () =>
   expect(balootClaim(position({ trump: null, hands: ['AS', '7D', '7S', '8S'], turn: 'p0' }).s)).toBeNull();
 });
 
-test('detection: when it needs both partners, it is offered to the one to play and both hands are shown', () => {
-  // صن, سارة leads: A♠ first (ماما throws 8♥), then 7♥ to ماما's A♥ — neither hand is enough alone
+test('detection: when it needs both partners to play well, nothing is offered (the hand is played out)', () => {
+  // صن, سارة leads: A♠ first (ماما throws 8♥), then 7♥ to ماما's A♥ — neither hand is enough alone, and
+  // nobody can count on the partner playing the right card
   const g = position({ trump: null, hands: ['AS 7H', 'QH 10H', 'AH 8H', 'QS 9H'], turn: 'p0' });
-  expect(balootClaim(g.s)).toEqual({ by: 'p0', side: 'A', reveal: ['p0', 'p2'] });
+  expect(balootClaim(g.s)).toBeNull();
 });
 
 test('detection: a trick on the table counts (a void partner, the opponents still to play)', () => {
@@ -179,7 +180,8 @@ test('scoring after a claim equals playing the hand out (both rules, many hands)
 }, 60_000);
 
 test('the claim itself: hands shown to everyone, the hand ends, the announcement is noun-first', () => {
-  const g = position({ trump: null, hands: ['AS 7H', 'QH 10H', 'AH 8H', 'QS 9H'], turn: 'p0' });
+  // صن: سارة's A♠ and A♥ take both tricks whatever the three others play
+  const g = position({ trump: null, hands: ['AS AH', 'QH 10H', '7H 8H', 'QS 9H'], turn: 'p0' });
   g.s.claim = balootClaim(g.s);
   expect((baloot.view(g.ctx, g.s, 'p0') as BalootView).canClaim).toBe(true);
   for (const id of ['p1', 'p2', 'p3']) expect((baloot.view(g.ctx, g.s, id) as BalootView).canClaim).toBe(false);
@@ -188,8 +190,8 @@ test('the claim itself: hands shown to everyone, the hand ends, the announcement
   expect(g.s.claimed).toBeNull();
   baloot.act(g.ctx, g.s, 'p0', { type: 'claim' });
   const v = baloot.view(g.ctx, g.s, 'p3') as BalootView;
-  expect(v.claimed?.reveal.map((r) => r.by)).toEqual(['p0', 'p2']);
-  expect(v.claimed?.reveal[0].cards.map((x) => x.id).sort()).toEqual(['7H', 'AS']);
+  expect(v.claimed?.reveal.map((r) => r.by)).toEqual(['p0']);
+  expect(v.claimed?.reveal[0].cards.map((x) => x.id).sort()).toEqual(['AH', 'AS']);
   expect(v.myHand.map((x) => x.id).sort()).toEqual(['9H', 'QS']);
   expect(turnOf(g.s)).toEqual([]);
   expect(g.said.at(-1)).toBe('الباقي لفريق سارة وماما — أُنهيت اليد');

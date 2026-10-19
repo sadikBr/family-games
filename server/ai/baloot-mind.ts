@@ -752,7 +752,12 @@ export function balootClaim(s: State): ClaimInfo | null {
 
 const claimMemo = new WeakMap<State, { key: string; claim: ClaimInfo | null }>();
 
-/** The searches are capped (a few ms): a position too big for them is simply asked again after the next card. */
+/**
+ * «الباقي لنا» is offered only when ONE player's own cards take every remaining trick whatever the
+ * three others play — the partner included (nobody can count on a partner playing the right card).
+ * A team that needs both partners to play well gets no offer: the hand is played out.
+ * The searches are capped (a few ms): a position too big for them is simply asked again after the next card.
+ */
 function findClaim(s: State, x: Sim): ClaimInfo | null {
   // capped in nodes (a few ms of work, the same on every machine)
   for (const team of [0, 1]) {
@@ -760,9 +765,8 @@ function findClaim(s: State, x: Sim): ClaimInfo | null {
     const order = [0, 1, 2, 3].map((k) => (x.turn + k) & 3).filter((seat) => (seat & 1) === team);
     const side = sideKey(team);
     for (const seat of order) {
-      if (claimCertain(x, team, seat, 2000) === true) return { by: s.seats[seat], side, reveal: [s.seats[seat]] };
+      if (claimCertain(x, team, seat, 20_000) === true) return { by: s.seats[seat], side, reveal: [s.seats[seat]] };
     }
-    return { by: s.seats[order[0]], side, reveal: order.map((seat) => s.seats[seat]) };
   }
   return null;
 }

@@ -452,8 +452,8 @@ export function trisClaim(x: TSim, seats: string[]): { by: string; side: 'A' | '
     if (trisCertain(x, team, -1, 3000) !== true) continue;
     const order = [0, 1, 2, 3].map((k) => (x.turn + k) & 3).filter((p) => (p & 1) === team);
     const side = team === 0 ? 'A' : 'B';
-    for (const p of order) if (trisCertain(x, team, p, 2000) === true) return { by: seats[p], side, reveal: [seats[p]] };
-    return { by: seats[order[0]], side, reveal: order.map((p) => seats[p]) };
+    // only one player's own cards, whatever the partner plays (see balootClaim): no offer that needs both partners
+    for (const p of order) if (trisCertain(x, team, p, 20_000) === true) return { by: seats[p], side, reveal: [seats[p]] };
   }
   return null;
 }

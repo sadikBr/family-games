@@ -113,7 +113,7 @@ export default function ProfileScreen() {
 
       {!isFirst ? (
         <Card>
-          <SpeakToggle />
+          <SpeakToggle voices />
         </Card>
       ) : null}
 

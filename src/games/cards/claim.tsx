@@ -20,7 +20,7 @@ export function ClaimButton({ onPress }: { onPress: () => void }) {
     <Animated.View entering={FadeIn.duration(MOTION.enter).easing(EASE)} exiting={FadeOut.duration(200)} style={{ gap: 2, alignItems: 'center' }}>
       <Btn size="md" icon="check" color={C.green} label="الباقي لنا — أنهِ اليد" onPress={onPress} />
       <Txt v="tiny" color={C.muted} center numberOfLines={1}>
-        كل الأكلات الباقية مضمونة لفريقكم
+        أوراقك وحدها تأخذ كل الأكلات الباقية
       </Txt>
     </Animated.View>
   );
