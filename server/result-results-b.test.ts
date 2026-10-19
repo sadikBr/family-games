@@ -13,7 +13,6 @@ import { phase10 } from './games/phase10';
 import { potato } from './games/potato';
 import { prophets } from './games/prophets';
 import { qquote } from './games/qquote';
-import { qword } from './games/qword';
 import { ronda } from './games/ronda';
 import { scrabble } from './games/scrabble';
 import { spy } from './games/spy';
@@ -230,7 +229,8 @@ test('scrabble: ranked by final score', () => {
 const scoreGames: [string, any, any, string[], SimOpts?][] = [
   ['mapquiz', mapquiz, { ...DEFAULT_SETTINGS.mapquiz, rounds: 3 }, P3],
   ['qquote', qquote, { ...DEFAULT_SETTINGS.qquote, rounds: 4 }, P3],
-  ['qword', qword, { ...DEFAULT_SETTINGS.qword, rounds: 2 }, P3],
+  ['wordle (Quran words)', wordle, { ...DEFAULT_SETTINGS.wordle, words: 'quran', rounds: 2 }, P3],
+  ['wordle (mix)', wordle, { ...DEFAULT_SETTINGS.wordle, words: 'mix', race: true, rounds: 3 }, P3],
   ['steps', steps, { ...DEFAULT_SETTINGS.steps, rounds: 3 }, P3],
   ['tajweed', tajweed, { ...DEFAULT_SETTINGS.tajweed, rounds: 5 }, P3],
   ['whois', whois, { rounds: 3, typed: false }, P3],

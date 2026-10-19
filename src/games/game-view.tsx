@@ -34,7 +34,6 @@ import { OnewordGame } from './oneword';
 import { BoggleGame } from './boggle';
 import { QquoteGame } from './qquote';
 import { TajweedGame } from './tajweed';
-import { QwordGame } from './qword';
 import { AsmaGame } from './asma';
 import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
@@ -153,8 +152,6 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <QquoteGame room={room} view={view} />;
     case 'tajweed':
       return <TajweedGame room={room} view={view} />;
-    case 'qword':
-      return <QwordGame room={room} view={view} />;
     case 'asma':
       return <AsmaGame room={room} view={view} />;
     case 'steps':
