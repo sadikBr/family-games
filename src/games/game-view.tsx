@@ -29,6 +29,7 @@ import { CodebreakGame } from './codebreak';
 import { CatanGame } from './catan';
 import { CarcaGame } from './carca';
 import { BalootGame } from './baloot';
+import { ToutiGame } from './touti';
 import { TeledrawGame } from './teledraw';
 import { OnewordGame } from './oneword';
 import { BoggleGame } from './boggle';
@@ -143,6 +144,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <CarcaGame room={room} view={view} />;
     case 'baloot':
       return <BalootGame room={room} view={view} />;
+    case 'touti':
+      return <ToutiGame room={room} view={view} />;
     case 'teledraw':
       return <TeledrawGame room={room} view={view} />;
     case 'oneword':
