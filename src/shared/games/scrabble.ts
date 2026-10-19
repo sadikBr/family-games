@@ -7,7 +7,7 @@
 export interface ScrabbleSettings {
   /** seconds per turn (0 = no limit); when the time runs out the turn passes */
   seconds: 0 | 60 | 90 | 120;
-  /** bots: 1 = easy (a random decent word), 2 = strong (the best scoring word) */
+  /** the bots' old level (old apps still send it; the bots now follow the room's bot level) */
   level: 1 | 2;
 }
 

@@ -4,8 +4,8 @@
  * A word is a path of touching cells (8 directions), each cell once, 3+ letters, found in the Arabic
  * list (see server/boggle-grid.ts: exact lookup, no «ال» + word). Points by length (boggleWordPoints);
  * with the «unique» rule, a word found by two players or more scores nothing. Rounds end on the timer,
- * or as soon as every person still playing has pressed «انتهيت». Bots pick a few everyday words hidden
- * in the grid (more for a stronger level) and send them one by one over the round.
+ * or as soon as every person still playing has pressed «انتهيت». Bots pick everyday words hidden in the
+ * grid (more, and longer, for a stronger room bot level) and send them one by one over the round.
  */
 import {
   BOGGLE_SECONDS,
@@ -19,7 +19,8 @@ import {
 } from '../../src/shared/games/boggle';
 import { boggleWord, generateGrid, wordOf } from '../boggle-grid';
 import { randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import type { BotLevel } from '../../src/shared/protocol';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 /** pause on a round's words before the next round (the host may skip it) */
@@ -52,8 +53,11 @@ interface State {
 
 const LEVELS: BoggleLevel[] = ['easy', 'medium', 'hard'];
 
-/** How many words a bot finds in a 3-minute 4×4 round: [min, max]. */
-const BOT_WORDS: Record<BoggleLevel, [number, number]> = { easy: [3, 6], medium: [7, 12], hard: [13, 20] };
+/**
+ * How many words a bot finds in a 3-minute 4×4 round: [min, max], by the room's bot level
+ * (easy = the game's old default «متوسط», smart = the old «صعب»).
+ */
+const BOT_WORDS: Record<BotLevel, [number, number]> = { easy: [7, 12], smart: [13, 20], expert: [22, 32] };
 
 function clean(settings: BoggleSettings): BoggleSettings {
   return {
@@ -138,14 +142,24 @@ function peopleDone(ctx: GameCtx, s: State): boolean {
   return people.length > 0 && people.every((id) => s.done[id]);
 }
 
-/** A bot's words for this round: a sample of the everyday words in the grid, by level. */
-export function botWords(s: Pick<State, 'settings' | 'solution'>, level: BoggleLevel): PlannedWord[] {
+/**
+ * A bot's words for this round: a sample of the everyday words in the grid, by the room's bot level.
+ * The easy bot mostly sees short words; stronger bots see longer ones too. The expert goes for the
+ * points: long words first (worth up to 11), and, when words found by two players score nothing,
+ * it leans even harder on long words, which the others are less likely to find too.
+ */
+export function botWords(s: Pick<State, 'settings' | 'solution'>, level: BotLevel): PlannedWord[] {
   const all = Object.keys(s.solution);
   const [lo, hi] = BOT_WORDS[level];
   const scale = (s.settings.seconds / 180) * (s.settings.size === 5 ? 1.3 : 1);
   const n = Math.min(all.length, Math.round((lo + Math.random() * (hi - lo)) * scale));
-  // easy bots mostly see short words, strong ones long words too
-  const weight = (w: string) => (level === 'easy' ? (w.length <= 4 ? 4 : 1) : level === 'medium' ? (w.length <= 5 ? 2 : 1) : 1 + (w.length - 3) * 0.6);
+  const len = (w: string) => [...w].length;
+  const weight = (w: string) =>
+    level === 'easy'
+      ? len(w) <= 5 ? 2 : 1
+      : level === 'smart'
+        ? 1 + (len(w) - 3) * 0.6
+        : Math.pow(boggleWordPoints(len(w)), s.settings.unique ? 1.6 : 1.2) + (len(w) - 3) * 0.5;
   const pool = all.map((w) => ({ w, k: Math.pow(Math.random(), 1 / weight(w)) }));
   pool.sort((a, b) => b.k - a.k);
   return pool.slice(0, n).map(({ w }) => ({ word: w, path: s.solution[w] }));
@@ -222,7 +236,8 @@ export const boggle: GameModule<State, BoggleSettings> = {
     const left = s.endsAt - ctx.now;
     for (const b of bots) {
       if (!s.players.includes(b) || s.plans[b]) continue;
-      const plan = botWords(s, s.settings.level).filter((w) => !s.found[b]?.some((f) => f.word === w.word));
+      // the room's bot level (the game's own old «level» setting is ignored)
+      const plan = botWords(s, botLevel(ctx)).filter((w) => !s.found[b]?.some((f) => f.word === w.word));
       // a bot that takes over late finds fewer words
       s.plans[b] = plan.slice(0, Math.ceil((plan.length * left) / s.timerTotal));
       for (const w of s.plans[b]) {

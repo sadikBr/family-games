@@ -16,7 +16,7 @@ export interface BoggleSettings {
   seconds: number;
   /** words found by two players or more score nothing (off: every word counts — for kids) */
   unique: boolean;
-  /** how many words the bots find */
+  /** how many words the bots found (old apps still send it; the bots now follow the room's bot level) */
   level: BoggleLevel;
 }
 

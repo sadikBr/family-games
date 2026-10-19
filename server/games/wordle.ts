@@ -20,7 +20,8 @@ import { qdeck } from '../qdeck';
 import { verseRef, verseText } from '../qquote-quran';
 import { QWORD_ANSWERS, QWORD_CAT_LABEL, type QwordEntry } from '../qword-content';
 import { quranJoinedIndex, quranWordIndex, verseFor } from '../qword-words';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { wordleEasyGuess, wordleExpertGuess, wordleSmartGuess } from '../ai/misc-wordle';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isStr, randInt, shuffle } from '../util';
 import { forFont } from './tajweed';
 
@@ -162,6 +163,27 @@ function endIfAllDone(ctx: GameCtx, s: State): boolean {
   return false;
 }
 
+const uniq = (a: string[]) => [...new Set(a)];
+const GENERAL_SET = uniq(ANSWERS);
+const QURAN_SET = uniq(QWORD_KEYS);
+const MIX_SET = uniq([...ANSWERS, ...QWORD_KEYS]);
+
+/**
+ * The words the hidden one may be, as a player sees it: the chosen list; in a mix, the list it comes
+ * from only when the phones show it (the hint); with the hint, only Quran words of that kind.
+ * `key` names the list (the expert bot remembers its opening guess per list).
+ */
+export function botKnowledge(s: Pick<State, 'settings' | 'words' | 'round'>): { answers: string[]; key: string } {
+  const set = full(s.settings);
+  const e = entry(s as State);
+  const known = set.hint || set.words !== 'mix';
+  if (!known) return { answers: MIX_SET, key: 'mix' };
+  if (!e.quran) return { answers: GENERAL_SET, key: 'general' };
+  if (!set.hint) return { answers: QURAN_SET, key: 'quran' };
+  const cat = e.quran.cat;
+  return { answers: uniq(QWORD_ANSWERS.filter((q) => q.cat === cat).map((q) => normWord(q.word))), key: `quran:${cat}` };
+}
+
 /** For result(): the highest `score` first; equal scores share a place. */
 function placesByScore(ids: string[], score: (id: string) => number): string[][] {
   const out: string[][] = [];
@@ -247,19 +269,24 @@ export const wordle: GameModule<State, WordleSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
-    // a bot guesses answers of the word's set that fit what it has learned so far, at a human-ish pace
-    const answers = entry(s).quran ? QWORD_KEYS : ANSWERS;
+    // a bot knows what a player's phone shows: the list the word comes from, the hint, its own rows
+    const { answers, key } = botKnowledge(s);
+    const valid = withQuran(s) ? qwordValid() : VALID_GUESSES;
+    const level = botLevel(ctx);
     for (const b of bots) {
       if (!s.players.includes(b) || done(s, b)) continue;
       const n = s.rows[b].length;
       if (s.botNext[b] === n) continue;
       s.botNext[b] = n;
-      const tried = new Set(s.rows[b].map((r) => r.guess));
-      // never a word it already tried (the server would refuse it)
-      const fresh = answers.filter((w) => !tried.has(w));
-      const fits = fresh.filter((w) => s.rows[b].every((r) => markGuess(r.guess, w).join() === r.marks.join()));
-      const pool = fits.length && Math.random() < 0.75 ? fits : fresh;
-      ctx.bot(b, `w:${s.round}:${n}`, randInt(9000, 16000), { type: 'guess', word: pool[randInt(0, pool.length - 1)] });
+      const rows = s.rows[b];
+      const word =
+        level === 'expert'
+          ? wordleExpertGuess(answers, valid, rows, key)
+          : level === 'smart'
+            ? wordleSmartGuess(answers, rows)
+            : wordleEasyGuess(answers, rows);
+      if (!word) continue;
+      ctx.bot(b, `w:${s.round}:${n}`, randInt(9000, 16000), { type: 'guess', word });
     }
   },
 
