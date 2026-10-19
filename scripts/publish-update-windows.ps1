@@ -13,7 +13,7 @@
   The server changes still go to Railway: bunx @railway/cli up --service family-games
 
   Run from the project folder:
-    scripts\publish-update-windows.cmd                      (message: the last commit's title)
+    scripts\publish-update-windows.cmd                      (message: the date and the commit id)
     scripts\publish-update-windows.cmd -Message "Ronda fix"
 #>
 param(
@@ -55,9 +55,11 @@ if (-not $env:EXPO_PUBLIC_SERVER_URL) {
 $env:NODE_ENV = 'production'
 Write-Host "Server: $env:EXPO_PUBLIC_SERVER_URL"
 
+# The default message stays plain ASCII: commit titles are often Arabic, which Windows PowerShell 5.1
+# garbles when passing it on (the garbled text then splits into several arguments).
 if (-not $Message) {
-  $Message = (& git log -1 --pretty=%s 2>$null | Out-String).Trim()
-  if (-not $Message) { $Message = "Update $(Get-Date -Format 'yyyy-MM-dd HH:mm')" }
+  $commit = (& git rev-parse --short HEAD 2>$null | Out-String).Trim()
+  $Message = "Update $(Get-Date -Format 'yyyy-MM-dd HH:mm') $commit".Trim()
 }
 
 Step "Publishing the update ($Message)"
