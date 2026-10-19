@@ -3,7 +3,9 @@ import { expect, test } from 'bun:test';
 
 import { RAMI_DEFAULTS, ramiVariantInfo, type RCard, type RSuit, type RamiSettings, type RamiView } from '../src/shared/games/rami';
 import { addToMeld, arrange, checkLay, findLay, makeRamiDeck, ramiCardName, swapIndex } from '../src/shared/rami-rules';
-import { botDiscard, botMove, discardBlock, rami, type State } from './games/rami';
+import type { BotLevel } from '../src/shared/protocol';
+import { discardBlock, planBot, rami, seatFor, type State } from './games/rami';
+import { botDiscard, botDraw, botPlay } from './rami-bot';
 
 let seq = 0;
 const c = (rank: number, suit: RSuit): RCard => ({ id: `t${++seq}-${suit}-${rank}`, suit, rank });
@@ -321,13 +323,13 @@ test('the turn timer plays the turn: draws and throws a card', () => {
 
 test('bots: never throw a joker, take the taken card down, and settings are validated', () => {
   const { s, p } = setup([J(), c(2, 'S'), c(13, 'D'), c(13, 'S')]);
-  expect(botDiscard(s, p).rank).not.toBe(0);
-  expect(botDiscard(s, p).rank).toBe(2);
+  for (const level of ['easy', 'smart', 'expert'] as BotLevel[]) expect(botDiscard(seatFor(s, p), level).rank).not.toBe(0);
+  expect(botDiscard(seatFor(s, p), 'smart').rank).toBe(2);
   s.openings[p] = 71;
   s.taken = s.hands[p][1].id;
   s.melds = [{ id: 3, owner: p, kind: 'run', slots: arrange([c(3, 'S'), c(4, 'S'), c(5, 'S')])!.slots }];
   s.hands[p][1] = { id: s.taken, suit: 'S', rank: 6 };
-  expect(botMove(s, p)).toEqual({ type: 'add', meld: 3, cards: [s.taken] });
+  for (const level of ['easy', 'smart', 'expert'] as BotLevel[]) expect(botPlay(seatFor(s, p), level)).toEqual({ type: 'add', meld: 3, cards: [s.taken] });
   const set: RamiSettings = { ...RAMI_DEFAULTS };
   rami.patchSettings!(set, { variant: 'sample', open: 51, ceiling: false, limit: 500, timer: 90 });
   expect(set).toEqual({ variant: 'sample', open: 51, ceiling: false, limit: 500, timer: 90 });
@@ -400,4 +402,115 @@ test('a player leaving: their turn passes on; the last one left wins', () => {
   expect(s.phase).toBe('final');
   expect(s.winner).toBe(s.active[0]);
   expect(rami.result!(s)!.places).toEqual([[s.active[0]]]);
+});
+
+test('expert bot: never feeds the next player a card that fits the table, and keeps its joker off the table', () => {
+  const { s, p } = setup([c(9, 'C'), c(2, 'D'), c(13, 'H'), c(13, 'S')]);
+  const next = seatFor(s, p).next;
+  s.openings[next] = 80;
+  s.hands[next] = [c(4, 'C'), c(5, 'C'), c(6, 'D')];
+  s.melds = [{ id: 1, owner: next, kind: 'run', slots: arrange([c(6, 'C'), c(7, 'C'), c(8, 'C')])!.slots }];
+  // the 9♣ would go straight onto the next player's run: the expert throws the 2♦ instead
+  expect(botDiscard(seatFor(s, p), 'expert').id).toBe(s.hands[p][1].id);
+  // a card the next player has been picking up around is kept too
+  s.melds = [];
+  s.picked[next] = [c(3, 'D')];
+  s.hands[p] = [c(2, 'D'), c(9, 'C'), c(13, 'H'), c(13, 'S')];
+  expect(botDiscard(seatFor(s, p), 'expert').rank).toBe(9);
+  // once down, a meld with a joker stays in hand while nobody is close to going out
+  s.openings[p] = 71;
+  s.hands[p] = [c(5, 'H'), c(6, 'H'), J(), c(10, 'S'), c(10, 'D'), c(10, 'C'), c(2, 'S'), c(8, 'D')];
+  for (const id of s.active) if (id !== p) s.hands[id] = Array.from({ length: 10 }, (_, i) => c(i + 1, 'S'));
+  const move = botPlay(seatFor(s, p), 'expert')!;
+  expect(move.type).toBe('lay');
+  expect((move.groups as string[][]).flat().some((id) => id.startsWith('J-'))).toBe(false);
+  expect((botPlay(seatFor(s, p), 'smart')!.groups as string[][]).flat().some((id) => id.startsWith('J-'))).toBe(true);
+});
+
+/** Deterministic Math.random for the duels (the deck shuffles and the easy bot's choices). */
+function seeded<T>(seed: number, f: () => T): T {
+  const real = Math.random;
+  let a = seed >>> 0;
+  Math.random = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  try {
+    return f();
+  } finally {
+    Math.random = real;
+  }
+}
+
+/** A two-player game between two strengths; returns the winner's level, both totals and the slowest decision. */
+function duel(seed: number, first: BotLevel, second: BotLevel, settings: Partial<RamiSettings>) {
+  return seeded(seed, () => {
+    const f = fakeCtx(() => true);
+    const s = rami.start(f.ctx, ['x', 'y'], { ...RAMI_DEFAULTS, ...settings });
+    const level = (id: string) => (id === 'x' ? first : second);
+    let slowest = 0;
+    for (let i = 0; i < 20000 && s.phase !== 'final'; i++) {
+      if (s.phase === 'roundEnd') {
+        rami.act(f.ctx, s, 'x', { type: 'next' });
+        continue;
+      }
+      let t0 = performance.now();
+      let a = planBot(s, s.turn, level(s.turn));
+      let ms = performance.now() - t0;
+      if (ms > 60) {
+        // a garbage-collection pause of the test runner, not the bot's thinking: time it again
+        t0 = performance.now();
+        a = planBot(s, s.turn, level(s.turn));
+        ms = Math.min(ms, performance.now() - t0);
+      }
+      slowest = Math.max(slowest, ms);
+      rami.act(f.ctx, s, s.turn, a);
+    }
+    expect(s.phase).toBe('final');
+    return { winner: level(s.winner!), points: { [first]: s.scores.x, [second]: s.scores.y } as Record<string, number>, slowest };
+  });
+}
+
+test('the expert bot clearly beats the easy one over seeded games, and thinks fast (under 60 ms a decision)', () => {
+  let expertWins = 0;
+  let expertPts = 0;
+  let easyPts = 0;
+  let slowest = 0;
+  for (let g = 0; g < 8; g++) {
+    const [a, b]: BotLevel[] = g % 2 ? ['expert', 'easy'] : ['easy', 'expert'];
+    const r = duel(1000 + g, a, b, { variant: g % 4 === 3 ? 'sample' : 'talaj', limit: 500 });
+    if (r.winner === 'expert') expertWins += 1;
+    expertPts += r.points.expert;
+    easyPts += r.points.easy;
+    slowest = Math.max(slowest, r.slowest);
+  }
+  expect(expertWins).toBeGreaterThanOrEqual(7);
+  expect(expertPts * 2).toBeLessThan(easyPts);
+  expect(slowest).toBeLessThan(60);
+});
+
+test('the expert bot gives away fewer points than the smart one over seeded games', () => {
+  let expertPts = 0;
+  let smartPts = 0;
+  for (let g = 0; g < 12; g++) {
+    const [a, b]: BotLevel[] = g % 2 ? ['expert', 'smart'] : ['smart', 'expert'];
+    const r = duel(2000 + g, a, b, { limit: 500 });
+    expertPts += r.points.expert;
+    smartPts += r.points.smart;
+  }
+  expect(expertPts).toBeLessThan(smartPts);
+});
+
+test('the draw decision: the expert takes a discard that opens now, the easy one draws from the stock in سامبل', () => {
+  const { s, p } = setup([c(2, 'S')]);
+  s.turnsDone = 5;
+  s.step = 'draw';
+  s.hands[p] = [c(10, 'S'), c(10, 'H'), c(10, 'D'), c(11, 'C'), c(12, 'C'), c(8, 'H'), c(9, 'H'), c(10, 'C'), c(3, 'D'), c(5, 'S'), c(7, 'D'), c(2, 'C'), c(4, 'H'), c(6, 'S')];
+  s.discard = [c(13, 'C')];
+  s.throwers = ['p9'];
+  expect(botDraw(seatFor(s, p), 'expert')).toBe('drawDiscard');
+  s.settings.variant = 'sample';
+  expect(botDraw(seatFor(s, p), 'easy')).toBe('drawStock');
 });

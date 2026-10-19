@@ -27,16 +27,16 @@ import {
   checkLay,
   findLay,
   handPoints,
-  isJoker,
   makeRamiDeck,
   ramiCardName,
-  slotValue,
   sortRami,
   swapIndex,
   swapped,
 } from '../../src/shared/rami-rules';
 import { Feed, randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botDiscard, botDraw, botPlay, type BotAction, type Seat } from '../rami-bot';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
+import type { BotLevel } from '../../src/shared/protocol';
 import { isNum, isStr, shuffle } from '../util';
 
 export const ROUND_END_MS = RAMI_ROUND_END_MS;
@@ -72,6 +72,9 @@ export interface State {
   openedTurn: Record<string, number>;
   /** the card taken from the discard pile this turn */
   taken: string | null;
+  /** cards each player took from / threw on the discard pile this round (public: the bots remember them) */
+  picked: Record<string, RCard[]>;
+  thrown: Record<string, RCard[]>;
   feed: Feed;
   roundWinner: string | null;
   sec: boolean;
@@ -132,6 +135,8 @@ function startRound(ctx: GameCtx, s: State) {
   s.turnsDone = 0;
   s.turnNo = 1;
   s.taken = null;
+  s.picked = {};
+  s.thrown = {};
   s.roundWinner = null;
   s.sec = false;
   s.forfeit = null;
@@ -271,6 +276,7 @@ function drawDiscard(ctx: GameCtx, s: State, by: string) {
   const card = s.discard.pop()!;
   s.throwers.pop();
   s.hands[by].push(card);
+  s.picked[by] = [...(s.picked[by] ?? []), card];
   s.taken = card.id;
   s.step = 'play';
   s.actions += 1;
@@ -362,6 +368,7 @@ function discardCard(ctx: GameCtx, s: State, by: string, cardId: unknown) {
   const [card] = hand.splice(idx, 1);
   s.discard.push(card);
   s.throwers.push(by);
+  s.thrown[by] = [...(s.thrown[by] ?? []), card].slice(-12);
   if (s.lastMelds && s.lastMelds.by !== by) s.lastMelds = null;
   s.actions += 1;
   const name = ctx.playerName(by);
@@ -379,88 +386,36 @@ function discardCard(ctx: GameCtx, s: State, by: string, cardId: unknown) {
 /* Bots (and the turn timer)                                           */
 /* ------------------------------------------------------------------ */
 
-/** How well a card sits with the rest of the hand (higher = keep). */
-export function keepScore(card: RCard, hand: RCard[]): number {
-  if (isJoker(card)) return 100;
-  let k = 0;
-  for (const c of hand) {
-    if (c.id === card.id || isJoker(c)) continue;
-    if (c.rank === card.rank && c.suit !== card.suit) k += 3;
-    if (c.suit === card.suit) {
-      const d = Math.min(Math.abs(c.rank - card.rank), card.rank === 1 ? Math.abs(c.rank - 14) : 99, c.rank === 1 ? Math.abs(14 - card.rank) : 99);
-      if (d === 1) k += 3;
-      else if (d === 2) k += 1;
-    }
-  }
-  return k;
+/** What `id` may know at their turn, for the bots. */
+export function seatFor(s: State, id: string): Seat {
+  const top = s.discard[s.discard.length - 1] ?? null;
+  return {
+    me: id,
+    hand: s.hands[id],
+    melds: s.melds,
+    openings: s.openings,
+    counts: Object.fromEntries(s.active.map((p) => [p, s.hands[p]?.length ?? 0])),
+    talaj: talaj(s),
+    need: needNow(s),
+    taken: s.turn === id ? s.taken : null,
+    mustUse: mustUse(s, id),
+    top,
+    // (only worth working out when drawing)
+    canTake: s.turn === id && s.step === 'draw' && !discardBlock(s, id),
+    next: nextActive(s, id),
+    others: s.active.filter((p) => p !== id),
+    picked: s.picked,
+    thrown: s.thrown,
+    pile: s.discard,
+    stockLeft: s.stock.length,
+  };
 }
 
-/** The card a bot (or the timer) throws away. */
-export function botDiscard(s: State, id: string): RCard {
-  const hand = s.hands[id];
-  const pool = hand.filter((c) => c.id !== s.taken || hand.length === 1);
-  const throwable = pool.some((c) => !isJoker(c)) ? pool.filter((c) => !isJoker(c)) : pool;
-  // before the first laydown in التلّاج, low cards go first (high ones help reach 71)
-  const early = talaj(s) && !opened(s, id);
-  // don't hand the next player a card that fits a meld on the table
-  const fits = (c: RCard) => s.melds.some((m) => addToMeld(m, [c]) !== null || swapIndex(m, c) >= 0);
-  return throwable
-    .slice()
-    .sort(
-      (a, b) =>
-        Number(fits(a)) - Number(fits(b)) ||
-        keepScore(a, hand) - keepScore(b, hand) ||
-        (early ? slotValue('set', a.rank) - slotValue('set', b.rank) : 0) ||
-        a.id.localeCompare(b.id),
-    )[0];
-}
-
-/** Does the bot want the discard? */
-export function botWantsTop(s: State, id: string): boolean {
-  if (discardBlock(s, id)) return false;
-  const top = s.discard[s.discard.length - 1];
-  if (talaj(s)) return true; // it can go down this turn (discardBlock checked it)
-  // سامبل: take it if it goes out now, or sits well with the hand
-  if (findLay([...s.hands[id], top], { opened: false, need: Infinity, mustInclude: top.id })) return true;
-  return isJoker(top) || keepScore(top, s.hands[id]) >= 6;
-}
-
-/** The bot's next move in its play step (null: discard). */
-export function botMove(s: State, id: string): { type: string; [k: string]: unknown } | null {
-  const hand = s.hands[id];
-  const must = mustUse(s, id) ? s.taken : null;
-  if (opened(s, id)) {
-    // the taken card first: onto the table, in place of a joker, or in a new meld
-    if (must) {
-      const card = hand.find((c) => c.id === must)!;
-      const sw = s.melds.find((m) => swapIndex(m, card) >= 0);
-      if (sw) return { type: 'swap', meld: sw.id, card: card.id };
-      const add = s.melds.find((m) => addToMeld(m, [card]) !== null);
-      if (add) return { type: 'add', meld: add.id, cards: [card.id] };
-      const lay = findLay(hand, { opened: true, need: 0, mustInclude: must });
-      if (lay) return { type: 'lay', groups: lay.map((g) => g.map((c) => c.id)) };
-      return { type: 'forfeit' };
-    }
-    // swap a joker back when a natural card allows it
-    for (const c of hand) {
-      const m = s.melds.find((x) => swapIndex(x, c) >= 0);
-      if (m) return { type: 'swap', meld: m.id, card: c.id };
-    }
-    const lay = findLay(hand, { opened: true, need: 0 });
-    if (lay) return { type: 'lay', groups: lay.map((g) => g.map((c) => c.id)) };
-    // add cards to the table (jokers last, and only to go out or when more than 2 cards remain)
-    const order = hand.slice().sort((a, b) => Number(isJoker(a)) - Number(isJoker(b)));
-    for (const c of order) {
-      if (isJoker(c) && hand.length > 2) continue;
-      const m = s.melds.find((x) => addToMeld(x, [c]) !== null);
-      if (m && (hand.length > 1 || c.id !== s.taken)) return { type: 'add', meld: m.id, cards: [c.id] };
-    }
-    return null;
-  }
-  const lay = findLay(hand, { opened: false, need: needNow(s), mustInclude: must });
-  if (lay) return { type: 'lay', groups: lay.map((g) => g.map((c) => c.id)) };
-  if (must) return { type: 'forfeit' };
-  return null;
+/** The next move of a bot playing `id` at this strength. */
+export function planBot(s: State, id: string, level: BotLevel): BotAction {
+  const seat = seatFor(s, id);
+  if (s.step === 'draw') return { type: botDraw(seat, level) };
+  return botPlay(seat, level) ?? { type: 'discard', card: botDiscard(seat, level).id };
 }
 
 /** The whole rest of a turn for a player who ran out of time: draw, the taken card, discard. */
@@ -468,7 +423,7 @@ function autoTurn(ctx: GameCtx, s: State, id: string) {
   if (s.step === 'draw') drawStock(ctx, s, id);
   if (s.phase !== 'play' || s.turn !== id) return;
   if (mustUse(s, id)) {
-    const move = botMove(s, id);
+    const move = botPlay(seatFor(s, id), 'smart');
     if (!move || move.type === 'forfeit') {
       endRound(ctx, s, null, id);
       return;
@@ -480,7 +435,7 @@ function autoTurn(ctx: GameCtx, s: State, id: string) {
       return;
     }
   }
-  discardCard(ctx, s, id, botDiscard(s, id).id);
+  discardCard(ctx, s, id, botDiscard(seatFor(s, id), 'smart').id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -548,6 +503,8 @@ export const rami: GameModule<State, RamiSettings> = {
       openings: {},
       openedTurn: {},
       taken: null,
+      picked: {},
+      thrown: {},
       feed: new Feed(),
       roundWinner: null,
       sec: false,
@@ -591,17 +548,9 @@ export const rami: GameModule<State, RamiSettings> = {
   botPlan(ctx, s) {
     if (s.phase !== 'play' || !s.active.includes(s.turn) || !ctx.isBot(s.turn)) return;
     const bot = s.turn;
-    const key = `r:${s.round}:${s.actions}`;
-    if (s.step === 'draw') {
-      ctx.bot(bot, key, randDelay(900, 1700), { type: botWantsTop(s, bot) ? 'drawDiscard' : 'drawStock' });
-      return;
-    }
-    const move = botMove(s, bot);
-    if (move) {
-      ctx.bot(bot, key, randDelay(1100, 2000), move);
-      return;
-    }
-    ctx.bot(bot, key, randDelay(900, 1600), { type: 'discard', card: botDiscard(s, bot).id });
+    const move = planBot(s, bot, botLevel(ctx));
+    const delay = s.step === 'draw' || move.type === 'discard' ? randDelay(900, 1700) : randDelay(1100, 2000);
+    ctx.bot(bot, `r:${s.round}:${s.actions}`, delay, move);
   },
 
   view(_ctx, s, me): RamiView {

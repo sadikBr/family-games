@@ -256,15 +256,21 @@ function candidates(count: Map<string, number>): Cand[] {
         const pos = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
         if (!missing.length) {
           out.push({ keys: pos.map(key), joker: false, kind: 'run', value: pos.reduce((t, p) => t + slotValue('run', p), 0) });
-          // a joker may also stand in for a card that is in the hand (the card is then free for a set)
-          if (jokers) for (const p of pos) if (pos.length - 1 >= 2) out.push({ keys: pos.filter((x) => x !== p).map(key), joker: true, kind: 'run', value: 0 });
+          // a joker may also stand in for a card that is in the hand, when that card could make a frank set
+          if (jokers && pos.length >= 3) {
+            for (const p of pos) {
+              const r = p === 14 ? 1 : p;
+              if (R_SUITS.filter((x) => x !== s && has(`${x}${r}`)).length >= 2) out.push({ keys: pos.filter((x) => x !== p).map(key), joker: true, kind: 'run', value: 0 });
+            }
+          }
         } else if (jokers && pos.length - 1 >= 2) {
           out.push({ keys: pos.filter((p) => p !== missing[0]).map(key), joker: true, kind: 'run', value: 0 });
         }
       }
     }
   }
-  return out;
+  // long melds first: good laydowns are found early, before the search budget runs out
+  return out.sort((a, b) => b.keys.length - a.keys.length);
 }
 
 /**
