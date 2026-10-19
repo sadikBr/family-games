@@ -5,6 +5,7 @@
  * - under it, the last move the game announced («روبو لعب ٧ أوروص وأخذ ورقتين», see GameCtx.say), so a
  *   quick move by someone else is never missed.
  */
+import { useState } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
@@ -24,15 +25,20 @@ function turnText(room: RoomView, players: PlayerPublic[]) {
 }
 
 export function TurnBar({ room }: { room: RoomView }) {
-  if (room.status !== 'playing') return null;
+  // a game that points at players keeps the pill's room during a short pause with nobody to point at
+  // (a finished trick on show, a hand being counted), so the header doesn't shrink and grow
+  const [pointed, setPointed] = useState(false);
   const turn = room.turn ?? [];
   const players = turn.map((id) => room.players.find((p) => p.id === id)).filter((p) => !!p);
   // everyone plays at the same moment (answers, votes): nobody to point at
   const everyone = turn.length > 1 && turn.length >= room.players.filter((p) => p.connected || p.bot).length;
-  const showTurn = players.length > 0 && !everyone;
+  const showTurn = room.status === 'playing' && players.length > 0 && !everyone;
+  if (showTurn !== pointed && (showTurn || everyone || room.status !== 'playing')) setPointed(showTurn);
+  if (room.status !== 'playing') return null;
   const said = room.said;
   const by = said?.by ? room.players.find((p) => p.id === said.by) : undefined;
-  if (!showTurn && !said) return null;
+  const holdSpace = !showTurn && pointed;
+  if (!showTurn && !said && !holdSpace) return null;
 
   const mine = turn.includes(room.me);
   const one = players.length === 1 ? players[0] : null;
@@ -63,6 +69,8 @@ export function TurnBar({ room }: { room: RoomView }) {
             </Txt>
           </Row>
         </Animated.View>
+      ) : holdSpace ? (
+        <View style={{ height: 24 + 10 + 3 }} />
       ) : null}
       {said ? (
         <Animated.View key={said.id} entering={FadeIn.duration(220)} accessibilityLiveRegion="polite">
