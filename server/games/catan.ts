@@ -34,7 +34,7 @@ import {
   type State,
 } from '../catan-rules';
 import { randDelay } from '../cardkit';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr } from '../util';
 
 const isRes = (v: unknown): v is CatanRes => isStr(v) && (RES as string[]).includes(v);
@@ -695,9 +695,10 @@ export const catan: GameModule<State, CatanSettings> = {
   botPlan(ctx, s) {
     if (s.phase === 'final') return;
     const actors = new Set(catan.turnOf!(s));
+    const level = botLevel(ctx);
     for (const id of actors) {
       if (!ctx.isBot(id) || !isActive(s, id)) continue;
-      const plan = botAction(s, id);
+      const plan = botAction(s, id, level);
       if (!plan) continue;
       ctx.bot(id, `${s.seq}:${plan.key}`, plan.delay, { ...plan.action, seq: s.seq });
     }
@@ -847,7 +848,7 @@ function handle(ctx: GameCtx, s: State, by: string, a: Record<string, unknown> &
     // (a bot) closes its own offer: trade with the best player who accepted, or withdraw it
     const t = s.trade;
     if (!t || t.id !== a.id || t.from !== by) return;
-    const who = pickAccepter(s, t);
+    const who = pickAccepter(s, t, botLevel(ctx));
     if (who) accept(ctx, s, by, t.id, who);
     else s.trade = null;
     return;
