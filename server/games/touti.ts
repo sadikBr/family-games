@@ -428,7 +428,7 @@ function claim(ctx: GameCtx, s: State, by: string) {
   s.turn = null;
   s.trickWinner = by;
   s.trickNo = TRICKS;
-  ctx.say?.(`الباقي لـ${teamName(ctx, s, side)} — أُنهيت اليد (+${gain} مع الدير)`, by);
+  ctx.say?.(`الباقي ل${teamName(ctx, s, side)} — أُنهيت اليد`, by);
   ctx.fx('reveal');
 }
 

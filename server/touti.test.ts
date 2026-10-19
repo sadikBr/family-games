@@ -549,7 +549,7 @@ test('claim: the team takes every remaining card and الدير, the cards are s
   expect(ids(v.claimed!.reveal[0].cards)).toEqual(ids(cs('1c 3c 12c')));
   expect(v.myHand).toEqual([]);
   expect(turnOf(g.s)).toEqual([]);
-  expect(g.said.at(-1)).toBe('الباقي لـفريق سارة وماما — أُنهيت اليد (+110 مع الدير)');
+  expect(g.said.at(-1)).toBe('الباقي لفريق سارة وماما — أُنهيت اليد');
   g.ctx.now += CLAIM_REVEAL_MS - 1;
   touti.tick!(g.ctx, g.s);
   expect(g.s.phase).toBe('play');
