@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { GroupCallSheet, PushPrompt } from '@/groups/call-sheet';
 import { client } from '@/lib/client';
@@ -68,7 +69,8 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={theme}>
-      <View style={styles.root}>
+      {/* gesture handlers (the drawing boards) take a drag before the page's scroll can */}
+      <GestureHandlerRootView style={styles.root}>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -81,7 +83,7 @@ export default function RootLayout() {
         <Toast />
         <GroupCallSheet />
         <PushPrompt />
-      </View>
+      </GestureHandlerRootView>
     </ThemeProvider>
   );
 }

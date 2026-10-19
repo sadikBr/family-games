@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
@@ -67,15 +68,12 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
     hold(false);
   };
   // leaving the board (end of the turn) with a finger still down: give the page its scroll back
-  // and while the board is on screen at all: a stroke that starts with a quick swipe would otherwise be
-  // taken by the page before the lock above arrives (the board is sized to fit, nothing to scroll to)
-  useEffect(() => {
-    hold(true);
-    return () => {
-      hold(false);
+  useEffect(
+    () => () => {
       if (holding.current) hold(false);
-    };
-  }, [hold]);
+    },
+    [hold],
+  );
   const pickColor = (c: string) => {
     tool.current.color = c;
     setColor(c);
@@ -94,25 +92,26 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
   };
 
   const k = 1000 / size;
-  const point = (e: GestureResponderEvent) =>
-    [Math.max(0, Math.min(1000, Math.round(e.nativeEvent.locationX * k))), Math.max(0, Math.min(1000, Math.round(e.nativeEvent.locationY * k)))] as const;
-  const start = (e: GestureResponderEvent) => {
-    const [x, y] = point(e);
+  const point = (px: number, py: number) => [Math.max(0, Math.min(1000, Math.round(px * k))), Math.max(0, Math.min(1000, Math.round(py * k)))] as const;
+  const start = (px: number, py: number) => {
+    grab();
+    const [x, y] = point(px, py);
     seq.current += 1;
     cur.current = { id: `s${seq.current}`, c: tool.current.color, w: tool.current.width, pts: [x, y], sent: 0 };
     setLocal({ ...cur.current, pts: [x, y] });
     timer.current = setInterval(flush, 160);
   };
-  const move = (e: GestureResponderEvent) => {
+  const move = (px: number, py: number) => {
     const s = cur.current;
     if (!s) return;
-    const [x, y] = point(e);
+    const [x, y] = point(px, py);
     const lx = s.pts[s.pts.length - 2], ly = s.pts[s.pts.length - 1];
     if (Math.hypot(x - lx, y - ly) < 6) return;
     s.pts.push(x, y);
     setLocal({ ...s, pts: s.pts.slice() });
   };
   const end = () => {
+    if (!cur.current) return letGo();
     flush();
     if (timer.current) clearInterval(timer.current);
     cur.current = null;
@@ -120,26 +119,32 @@ function Canvas({ view, size }: { view: DrawView; size: number }) {
     letGo();
   };
 
+  // the handlers only run on touch events (never during render); the lint can't see that through the
+  // gesture builder
+  /* eslint-disable react-hooks/refs */
+  const pan = Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(0)
+    .maxPointers(1)
+    .shouldCancelWhenOutside(false)
+    .onBegin((e) => start(e.x, e.y))
+    .onUpdate((e) => move(e.x, e.y))
+    .onFinalize(() => end());
+  /* eslint-enable react-hooks/refs */
+
   const shown = local && !view.strokes.some((s) => s.id === local.id && s.pts.length >= local.pts.length) ? [...view.strokes.filter((s) => s.id !== local.id), local] : view.strokes;
 
   return (
     <View style={{ gap: 8 }}>
       <View style={[styles.canvas, { width: size, height: size }]}>
         <Strokes strokes={shown} size={size} />
-        {/* a child-less layer on top, so touch coordinates are always relative to the canvas */}
-        <View
-          style={StyleSheet.absoluteFill}
-          onTouchStart={grab}
-          onTouchEnd={letGo}
-          onTouchCancel={letGo}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderTerminationRequest={() => false}
-          onResponderGrant={start}
-          onResponderMove={move}
-          onResponderRelease={end}
-          onResponderTerminate={end}
-        />
+        {/* a native pan gesture: it owns the finger from the first pixel, so the page's scroll can't
+            take a vertical stroke (Android); a child-less layer, so coordinates are the board's */}
+        <GestureDetector gesture={pan}>
+          <View style={StyleSheet.absoluteFill} />
+        </GestureDetector>
+        {/* the frame on top: it doesn't shrink the drawing area (coordinates match the strokes) */}
+        <View style={styles.frame} pointerEvents="none" />
       </View>
       <Row gap={6} center wrap>
         {COLORS.map((c) => (
@@ -304,6 +309,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
       ) : (
         <View style={[styles.canvas, { width: size, height: size }]}>
           <Strokes strokes={view.strokes} size={size} />
+          <View style={styles.frame} pointerEvents="none" />
         </View>
       )}
 
@@ -350,7 +356,8 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
 }
 
 const styles = StyleSheet.create({
-  canvas: { alignSelf: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 3, borderColor: '#151726', overflow: 'hidden' },
+  canvas: { alignSelf: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, overflow: 'hidden' },
+  frame: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 3, borderColor: '#151726' },
   swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#151726' },
   swatchOn: { borderColor: C.yellow, borderWidth: 3, transform: [{ scale: 1.06 }] },
   eraser: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },

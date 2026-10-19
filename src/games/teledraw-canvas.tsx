@@ -4,7 +4,8 @@
  * lifts (the server keeps a draft so nothing is lost if time runs out or the phone reconnects).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Svg, { Path } from 'react-native-svg';
 
 import { client } from '@/lib/client';
@@ -77,15 +78,13 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
     holding.current = false;
     hold(false);
   };
-  // and while the board is on screen at all: a stroke that starts with a quick swipe would otherwise be
-  // taken by the page before the lock above arrives (the board is sized to fit, nothing to scroll to)
-  useEffect(() => {
-    hold(true);
-    return () => {
-      hold(false);
+  // leaving the pad (the step ends) with a finger still down: give the page its scroll back
+  useEffect(
+    () => () => {
       if (holding.current) hold(false);
-    };
-  }, [hold]);
+    },
+    [hold],
+  );
   const pickColor = (c: string) => {
     tool.current.color = c;
     setColor(c);
@@ -96,17 +95,17 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
   };
 
   const k = 1000 / size;
-  const point = (e: GestureResponderEvent) =>
-    [Math.max(0, Math.min(1000, Math.round(e.nativeEvent.locationX * k))), Math.max(0, Math.min(1000, Math.round(e.nativeEvent.locationY * k)))] as const;
-  const start = (e: GestureResponderEvent) => {
-    const [x, y] = point(e);
+  const point = (px: number, py: number) => [Math.max(0, Math.min(1000, Math.round(px * k))), Math.max(0, Math.min(1000, Math.round(py * k)))] as const;
+  const start = (px: number, py: number) => {
+    grab();
+    const [x, y] = point(px, py);
     cur.current = { c: tool.current.color, w: tool.current.width, p: [x, y] };
     setLive({ ...cur.current, p: [x, y] });
   };
-  const move = (e: GestureResponderEvent) => {
+  const move = (px: number, py: number) => {
     const s = cur.current;
     if (!s) return;
-    const [x, y] = point(e);
+    const [x, y] = point(px, py);
     const lx = s.p[s.p.length - 2];
     const ly = s.p[s.p.length - 1];
     if (Math.hypot(x - lx, y - ly) < 5) return;
@@ -132,29 +131,34 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
     client.act({ type: 'clear' });
   };
 
+  // the handlers only run on touch events (never during render); the lint can't see that through the
+  // gesture builder
+  /* eslint-disable react-hooks/refs */
+  const pan = Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(0)
+    .maxPointers(1)
+    .shouldCancelWhenOutside(false)
+    .onBegin((e) => start(e.x, e.y))
+    .onUpdate((e) => move(e.x, e.y))
+    .onFinalize(() => end());
+  /* eslint-enable react-hooks/refs */
+
   const shown = live ? [...strokes, live] : strokes;
   const sw = Math.min(40, Math.floor((size - 7 * 5) / 8));
   const eraser = color === ERASER;
 
   return (
     <View style={{ gap: 10, alignItems: 'center' }}>
-      <View style={[styles.paper, { width: size, height: size, borderColor: frame }]}>
+      <View style={[styles.pad, { width: size, height: size }]}>
         <Strokes strokes={shown} size={size} />
         {/* a child-less layer on top, so touch coordinates are always relative to the canvas */}
-        <View
-          style={StyleSheet.absoluteFill}
-          accessibilityLabel="لوحة الرسم"
-          onTouchStart={grab}
-          onTouchEnd={letGo}
-          onTouchCancel={letGo}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderTerminationRequest={() => false}
-          onResponderGrant={start}
-          onResponderMove={move}
-          onResponderRelease={end}
-          onResponderTerminate={end}
-        />
+        {/* a native pan gesture: it owns the finger from the first pixel, so the page's scroll can't take
+            a vertical stroke (Android) */}
+        <GestureDetector gesture={pan}>
+          <View style={StyleSheet.absoluteFill} accessibilityLabel="لوحة الرسم" />
+        </GestureDetector>
+        <View style={[styles.frame, { borderColor: frame }]} pointerEvents="none" />
       </View>
       <Row gap={5} center style={{ direction: 'ltr' }}>
         {PEN_COLORS.map((c) => (
@@ -185,6 +189,9 @@ export function DrawPad({ size, initial, frame }: { size: number; initial: Teled
 
 const styles = StyleSheet.create({
   paper: { alignSelf: 'center', backgroundColor: PAPER, borderRadius: 18, borderWidth: 3, overflow: 'hidden' },
+  // the drawing pad: the frame is drawn on top, so the drawing area is the whole square (coordinates match)
+  pad: { alignSelf: 'center', backgroundColor: PAPER, borderRadius: 18, overflow: 'hidden' },
+  frame: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 3 },
   note: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   swatch: { borderWidth: 2, borderColor: '#151726' },
   swatchOn: { borderColor: C.yellow, borderWidth: 3, transform: [{ scale: 1.06 }] },
