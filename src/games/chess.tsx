@@ -17,7 +17,8 @@ import { Confetti } from '@/ui/fun';
 import { Txt } from '@/ui/txt';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
-import { DuelBar, SlideIn, winLine } from './duel';
+import { FadeAside, Glide, Hint, SoftMark, glideMs, nudge, useBoardChange } from './board-motion';
+import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
 
 const LIGHT = '#F3E6C8';
@@ -32,6 +33,29 @@ const REASON: Record<string, string> = {
   left: 'مغادرة اللاعب',
 };
 const img = (pc: string) => BOARD_IMG[`chess-${pc === pc.toUpperCase() ? 'w' : 'b'}${pc.toLowerCase()}`];
+const white = (pc: string) => pc === pc.toUpperCase();
+
+/**
+ * What moved between two boards, when `prev → board` is exactly the last move: the pieces that glide
+ * (to → from; the rook too when castling) and the pieces taken (the square they were on). Null when the
+ * boards don't fit the move (two moves arrived together, a reconnect): then nothing animates.
+ */
+function chessMotion(prev: string[] | null, board: string[], lm: { from: number; to: number } | null) {
+  if (!prev || !lm || prev.length !== board.length) return null;
+  const mover = prev[lm.from];
+  const landed = board[lm.to];
+  if (!mover || !landed || board[lm.from] || white(mover) !== white(landed)) return null;
+  const glides = new Map<number, number>([[lm.to, lm.from]]);
+  const taken: { at: number; pc: string }[] = prev[lm.to] ? [{ at: lm.to, pc: prev[lm.to] }] : [];
+  const rest = board.map((_, i) => i).filter((i) => i !== lm.from && i !== lm.to && prev[i] !== board[i]);
+  const vacated = rest.filter((i) => prev[i] && !board[i]);
+  const filled = rest.filter((i) => !prev[i] && board[i]);
+  if (vacated.length + filled.length !== rest.length) return null;
+  if (vacated.length === 1 && filled.length === 1 && prev[vacated[0]] === board[filled[0]]) glides.set(filled[0], vacated[0]); // castling
+  else if (vacated.length === 1 && !filled.length && !taken.length) taken.push({ at: vacated[0], pc: prev[vacated[0]] }); // en passant
+  else if (rest.length) return null;
+  return { glides, taken };
+}
 
 /** The pieces one side has taken, shown next to the board on that player's side. */
 function Taken({ pieces }: { pieces: string[] }) {
@@ -54,6 +78,9 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   const [sel, setSel] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: number; to: number } | null>(null);
   const [resign, setResign] = useState(false);
+  const lm = view.lastMove;
+  const moveKey = `${view.board.join(',')}|${lm ? `${lm.from}-${lm.to}` : ''}`;
+  const mv = useBoardChange(moveKey, view.board);
   if (!view.myColor && view.phase === 'play') return <Spectator room={room} />;
 
   const flip = view.myColor === 'b';
@@ -63,13 +90,16 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   const kingSq = view.check ? view.board.indexOf(view.turn === 'w' ? 'K' : 'k') : -1;
   const me = view.myColor ?? 'w';
   const them = me === 'w' ? 'b' : 'w';
-  const lm = view.lastMove;
   // the last move took a piece (the server writes «(أكل)» in its log line)
   const tookLast = !!lm && !!view.feed[view.feed.length - 1]?.text.includes('(أكل)');
   const at = (i: number) => {
     const k = flip ? 63 - i : i;
     return { x: (k % 8) * sq, y: Math.floor(k / 8) * sq };
   };
+  // the last move, played while the board was on screen: the piece glides, a taken piece fades aside
+  const motion = mv.live ? chessMotion(mv.prev, view.board, lm) : null;
+  const travel = (from: number, to: number) => Math.hypot(at(from).x - at(to).x, at(from).y - at(to).y) / sq;
+  const mainMs = lm ? glideMs(travel(lm.from, lm.to)) : 0;
 
   const tap = (i: number) => {
     if (!myTurn) return;
@@ -122,24 +152,38 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
           const isLast = lm && (lm.from === i || lm.to === i);
           const landed = !!lm && lm.to === i && !!pc;
           const pieceImg = pc ? <Image source={img(pc)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" transition={0} /> : null;
+          const glideFrom = mv.fresh ? motion?.glides.get(i) : undefined;
+          const taken = motion?.taken.find((t) => t.at === i);
           return (
             <Pressable
               key={i}
               onPress={() => tap(i)}
               accessibilityLabel={`${sqName(i)}${pc ? ' — قطعة' : ''}`}
-              style={[styles.sq, { left: c * sq, top: r * sq, width: sq, height: sq, backgroundColor: dark ? DARK : LIGHT }, landed && { zIndex: 2 }]}>
-              {isLast ? <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.38) }]} /> : null}
-              {landed && tookLast ? <View style={[StyleSheet.absoluteFill, styles.took]} /> : null}
-              {sel === i ? <View style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.65) }]} /> : null}
-              {kingSq === i ? <View style={[StyleSheet.absoluteFill, styles.check]} /> : null}
-              {landed && lm ? (
-                <SlideIn key={`${lm.from}-${lm.to}:${pc}`} steps={[{ x: at(lm.from).x - at(i).x, y: at(lm.from).y - at(i).y }]} ms={260}>
+              style={[styles.sq, { left: c * sq, top: r * sq, width: sq, height: sq, backgroundColor: dark ? DARK : LIGHT }, (landed || glideFrom !== undefined) && { zIndex: 2 }]}>
+              {isLast ? <SoftMark key={`last${moveKey}`} animate={mv.fresh} style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.36) }]} /> : null}
+              {landed && tookLast ? <SoftMark key={`took${moveKey}`} animate={mv.fresh} delay={mainMs * 0.6} style={[StyleSheet.absoluteFill, styles.took]} /> : null}
+              {sel === i ? <Hint style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#F2C23D', 0.65) }]} /> : null}
+              {kingSq === i ? <SoftMark key={`check${moveKey}`} animate={mv.fresh} delay={mainMs * 0.6} style={[StyleSheet.absoluteFill, styles.check]} /> : null}
+              {taken && lm ? (
+                <FadeAside
+                  key={`gone${moveKey}`}
+                  reduced={!mv.fresh}
+                  delay={mainMs * 0.55}
+                  drift={nudge(at(lm.from), at(lm.to), sq * 0.2)}
+                  style={{ position: 'absolute', left: sq * 0.04, top: sq * 0.04 }}>
+                  <Image source={img(taken.pc)} style={{ width: sq * 0.92, height: sq * 0.92 }} contentFit="contain" transition={0} />
+                </FadeAside>
+              ) : null}
+              {glideFrom !== undefined ? (
+                <Glide key={`glide${moveKey}`} steps={[{ x: at(glideFrom).x - at(i).x, y: at(glideFrom).y - at(i).y }]} ms={glideMs(travel(glideFrom, i))}>
                   {pieceImg}
-                </SlideIn>
+                </Glide>
               ) : (
                 pieceImg
               )}
-              {targets.has(i) ? <View style={[pc ? styles.ring : styles.dot, pc ? { width: sq * 0.9, height: sq * 0.9, borderRadius: sq } : { width: sq * 0.28, height: sq * 0.28, borderRadius: sq }]} /> : null}
+              {targets.has(i) ? (
+                <Hint style={[pc ? styles.ring : styles.dot, pc ? { width: sq * 0.9, height: sq * 0.9, borderRadius: sq } : { width: sq * 0.28, height: sq * 0.28, borderRadius: sq }]} />
+              ) : null}
               {c === 0 ? <Txt style={[styles.coord, { top: 1, left: 3, color: dark ? LIGHT : DARK }]}>{String(8 - Math.floor(i / 8))}</Txt> : null}
               {r === 7 ? <Txt style={[styles.coord, { bottom: 0, right: 3, color: dark ? LIGHT : DARK }]}>{'abcdefgh'[i % 8]}</Txt> : null}
             </Pressable>
