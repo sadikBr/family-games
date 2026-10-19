@@ -8,11 +8,13 @@
  * which is too much for one phone screen); three or four play on 20×20 from the corners.
  */
 import { PIECE_COUNT, PIECE_SIZES, PLACE_ERRORS, boardSize, checkPlacement, hasMove, placementCells, scoreOf, startCells, type SeatCtx } from '../../src/shared/blocks-rules';
-import type { BlocksLevel, BlocksSettings, BlocksView } from '../../src/shared/games/blocks';
+import type { BlocksSettings, BlocksView } from '../../src/shared/games/blocks';
 import { blocksBotMove } from '../blocks-bot';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { blocksExpert } from '../ai/boards-blocks';
+import { BUDGET } from '../ai/boards-search';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isNum, shuffle } from '../util';
 
 interface State {
@@ -203,8 +205,10 @@ export const blocks: GameModule<State, BlocksSettings> = {
     const seat = s.turn;
     if (s.botCache?.moveNo !== s.moveNo || s.botCache.seat !== seat) {
       const live = s.seats.map((_, i) => i).filter((i) => !s.done[i] && !s.gone[i]);
-      const level: BlocksLevel = s.settings.level === 'hard' ? 'hard' : 'easy';
-      const m = blocksBotMove({ board: s.board, n: s.n, seat, starts: s.starts, left: s.left, live, level });
+      // the room's «مستوى البوتات» (the old per-game level is ignored): smart = the old strong bot
+      const level = botLevel(ctx);
+      const input = { board: s.board, n: s.n, seat, starts: s.starts, left: s.left, live };
+      const m = level === 'expert' ? blocksExpert({ ...input, level: 'hard' }) : blocksBotMove({ ...input, level: level === 'smart' ? 'hard' : 'easy', budget: BUDGET.smart });
       if (!m) return; // can't happen: advance() only hands the turn to a colour that can move
       s.botCache = { moveNo: s.moveNo, seat, move: { piece: m.piece, t: m.t, r: m.r, c: m.c } };
     }

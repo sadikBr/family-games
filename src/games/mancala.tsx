@@ -5,7 +5,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSeque
 
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { MANCALA_SEEDS, MANCALA_SOW, mancalaStore, type MancalaLevel, type MancalaMove, type MancalaView } from '@/shared/games/mancala';
+import { MANCALA_SEEDS, MANCALA_SOW, mancalaStore, type MancalaMove, type MancalaView } from '@/shared/games/mancala';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha, hashRand } from '@/theme';
 import { Btn } from '@/ui/btn';
@@ -396,7 +396,7 @@ export function MancalaGame({ room, view }: { room: RoomView; view: MancalaView 
   );
 }
 
-/** Lobby settings: seeds per pit and bot strength. */
+/** Lobby settings: seeds per pit (the bots' strength is the room's «مستوى البوتات»). */
 export function MancalaSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const settings = room.settings.mancala;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'mancala', patch });
@@ -408,17 +408,6 @@ export function MancalaSettings({ room, editable }: { room: RoomView; editable: 
         value={String(settings.seeds)}
         editable={editable}
         onChange={(v) => change({ seeds: Number(v) })}
-      />
-      <Txt v="bold">قوة البوت</Txt>
-      <ChipPicker
-        options={[
-          { key: 'easy', label: 'سهل' },
-          { key: 'medium', label: 'متوسط' },
-          { key: 'hard', label: 'صعب' },
-        ]}
-        value={settings.level}
-        editable={editable}
-        onChange={(level: MancalaLevel) => change({ level })}
       />
     </View>
   );

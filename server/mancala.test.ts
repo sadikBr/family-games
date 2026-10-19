@@ -126,16 +126,20 @@ test('mancala bots: take a capture or an extra turn when it is clearly best', ()
   expect(searchPit(c, 0, 8, 200)).toBe(0);
 });
 
+/** The room-wide bot level that plays like each of the old per-game levels. */
+const ROOM_LEVEL = { easy: 'easy', medium: 'smart', hard: 'expert' } as const;
+
 /** A whole game with bots only; every move must be legal. */
 function botGame(levels: Record<string, MancalaLevel>, seeds = 4) {
   const q: { by: string; a: { type: string; pit: number } }[] = [];
   const ctx = fakeCtx((by, a) => q.push({ by, a }));
   const ids = Object.keys(levels);
+  let who = '';
+  ctx.botLevel = () => ROOM_LEVEL[levels[who]];
   const s = mancala.start(ctx, ids, { seeds, level: 'easy' });
   for (let k = 0; k < 400 && s.phase === 'play'; k++) {
     q.length = 0;
-    const who = s.seats[s.turn];
-    s.settings.level = levels[who];
+    who = s.seats[s.turn];
     mancala.botPlan!(ctx, s, ids);
     expect(q.length).toBe(1);
     expect(q[0].by).toBe(who);
@@ -159,7 +163,7 @@ test('mancala: bot-only games finish (every level, every seed count)', () => {
   expect(h.phase).toBe('final');
 }, 60000);
 
-test('mancala: hard beats easy', () => {
+test('mancala: the expert bot beats the easy one', () => {
   let wins = 0;
   for (let g = 0; g < 6; g++) {
     const s = botGame({ h: 'hard', e: 'easy' }, 4);

@@ -759,9 +759,10 @@ import { xo } from './games/xo';
 import { forFont } from './games/tajweed';
 
 /** Run a module with bots only until it ends (bots act instantly; ticks advance the clock). */
-function botRun(mod: any, players: string[], settings: any, steps = 5000) {
+function botRun(mod: any, players: string[], settings: any, steps = 5000, level?: 'easy' | 'smart' | 'expert') {
   const q: any[] = [];
   const ctx = fakeCtx((by, a) => q.push({ by, a }));
+  if (level) ctx.botLevel = () => level;
   ctx.memo = new Map();
   const s: any = mod.start(ctx, players, settings);
   for (let k = 0; k < steps && s.phase !== 'final'; k++) {
@@ -807,7 +808,7 @@ test('kharbga: sandwich captures, safe between two, chains, bots finish', () => 
   expect(chain.every((m) => m.from === 24)).toBe(true);
   expect(chain.map((m) => m.to)).toEqual([25]);
   for (let g = 0; g < 6; g++) {
-    const { s } = botRun(kharbga, ['a', 'b'], { level: (1 + (g % 2)) as 1 | 2 }, 4000);
+    const { s } = botRun(kharbga, ['a', 'b'], { level: 1 }, 4000, g % 2 ? 'smart' : 'easy');
     expect(s.phase).toBe('final');
     expect(s.winner).not.toBeNull();
   }

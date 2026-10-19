@@ -6,7 +6,8 @@ import type { XoSettings, XoView } from '../../src/shared/protocol';
 import { XO_SIZES, inRow, xoBest, xoWinner, type Mark, type XoSize } from '../../src/shared/xo';
 import { randDelay } from '../cardkit';
 import { duelWin, startDuel } from '../duel';
-import { GameError, type GameModule } from '../types';
+import { xoBot } from '../ai/boards-xo';
+import { GameError, botLevel, type GameModule } from '../types';
 import { isNum } from '../util';
 
 interface State {
@@ -61,7 +62,9 @@ export const xo: GameModule<State, XoSettings> = {
     const id = s.turn === 'x' ? s.x : s.o;
     if (!bots.includes(id) || s.botMove === s.moves) return;
     s.botMove = s.moves;
-    ctx.bot(id, `xo:${s.moves}`, randDelay(600, 1100), { type: 'mark', cell: xoBest(s.board, s.turn, s.settings.level) });
+    const level = botLevel(ctx); // the room's «مستوى البوتات» (the old per-game level is ignored)
+    const cell = level === 'easy' ? xoBest(s.board, s.turn, 1) : xoBot(s.board, s.turn, level);
+    ctx.bot(id, `xo:${s.moves}`, randDelay(600, 1100), { type: 'mark', cell });
   },
   view(ctx, s, me): XoView {
     return { game: 'xo', phase: s.phase, x: s.x, o: s.o, board: s.board, size: s.size, inRow: inRow(s.size), last: s.last, turn: s.turn, mine: me === s.x ? 'x' : me === s.o ? 'o' : null, line: s.line, winner: s.winner, score: s.score };
