@@ -64,6 +64,7 @@ import { tajweed } from './games/tajweed';
 import { asma } from './games/asma';
 import { steps } from './games/steps';
 import { mapquiz } from './games/mapquiz';
+import { fast } from './games/fast';
 import { prophets } from './games/prophets';
 import { mosque } from './games/mosque';
 import { rami } from './games/rami';
@@ -160,6 +161,7 @@ const MODULES: Record<GameId, AnyModule> = {
   prophets,
   mosque,
   rami,
+  fast,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
