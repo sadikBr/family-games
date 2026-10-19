@@ -30,6 +30,7 @@ import { PROPHETS_DEFAULTS, type ProphetsSettings, type ProphetsView } from './g
 import { MOSQUE_DEFAULTS, type MosqueSettings, type MosqueView } from './games/mosque';
 import { HEZ2_DEFAULTS, type Hez2Settings, type Hez2View } from './games/hez2';
 import { RAMI_DEFAULTS, type RamiSettings, type RamiView } from './games/rami';
+import { FAST_DEFAULTS, type FastSettings, type FastView } from './games/fast';
 import type { TournamentConfig, TournamentFormat, TournamentView } from './tournament';
 export type { Phase10Settings, Phase10View } from './games/phase10';
 export type { ScrabbleSettings, ScrabbleView } from './games/scrabble';
@@ -56,6 +57,7 @@ export type { ProphetsSettings, ProphetsView } from './games/prophets';
 export type { MosqueSettings, MosqueView } from './games/mosque';
 export type { Hez2Settings, Hez2View } from './games/hez2';
 export type { RamiSettings, RamiView } from './games/rami';
+export type { FastSettings, FastView } from './games/fast';
 
 export type { Card } from './cards';
 
@@ -117,7 +119,8 @@ export type GameId =
   | 'mapquiz'
   | 'prophets'
   | 'mosque'
-  | 'rami';
+  | 'rami'
+  | 'fast';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -178,10 +181,11 @@ export const GAME_IDS: GameId[] = [
   'prophets',
   'mosque',
   'rami',
+  'fast',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast'];
 export const MAX_BOTS = 8;
 
 export const MIN_PLAYERS: Record<GameId, number> = {
@@ -243,10 +247,11 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   prophets: 1,
   mosque: 1,
   rami: 2,
+  fast: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, rami: 6, touti: 4 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, rami: 6, touti: 4, fast: 12 };
 
 /**
  * Games that were merged into another one: older apps may still ask for them (room create, change of
@@ -528,6 +533,7 @@ export interface AllSettings {
   prophets: ProphetsSettings;
   mosque: MosqueSettings;
   rami: RamiSettings;
+  fast: FastSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -589,6 +595,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   prophets: PROPHETS_DEFAULTS,
   mosque: MOSQUE_DEFAULTS,
   rami: RAMI_DEFAULTS,
+  fast: FAST_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1465,7 +1472,8 @@ export type GameView =
   | MapquizView
   | ProphetsView
   | MosqueView
-  | RamiView;
+  | RamiView
+  | FastView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

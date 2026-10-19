@@ -39,6 +39,7 @@ import { TajweedGame } from './tajweed';
 import { AsmaGame } from './asma';
 import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
+import { FastGame } from './fast';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -171,6 +172,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <MosqueGame room={room} view={view} />;
     case 'rami':
       return <RamiGame room={room} view={view} />;
+    case 'fast':
+      return <FastGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

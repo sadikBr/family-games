@@ -37,6 +37,7 @@ export const GAME_IMG: Record<string, number> = {
   'dots': require('../../assets/art/games/dots.webp'),
   'draw': require('../../assets/art/games/draw.webp'),
   'estate': require('../../assets/art/games/estate.webp'),
+  'fast': require('../../assets/art/games/fast.webp'),
   'hajj': require('../../assets/art/games/hajj.webp'),
   'headsup': require('../../assets/art/games/headsup.webp'),
   'hez2': require('../../assets/art/games/hez2.webp'),
