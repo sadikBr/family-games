@@ -6,6 +6,7 @@
  */
 import { createContext, memo, use } from 'react';
 import { Pressable, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { CARD_RATIO, SpanishCard } from '@/art/spanish-card';
@@ -14,6 +15,8 @@ import { maCardLabel, toSpanish } from '@/shared/baloot-morocco';
 import { SUIT_NAME } from '@/shared/baloot-rules';
 import type { BCard, BSuit } from '@/shared/games/baloot';
 import { C, alpha } from '@/theme';
+
+import { useCardLook } from './cards/motion';
 
 export const CARD_H = 1.4;
 /** true inside a Moroccan game: every card is drawn from the Moroccan deck */
@@ -165,14 +168,15 @@ export const BalootCard = memo(function BalootCard({
   // a Moroccan card is a little taller (1.5): it keeps the same height, so the layout doesn't move
   const w = ma ? Math.round((width * CARD_H) / CARD_RATIO) : width;
   const r = w * 0.09 + 2;
+  // the selection lift and the dimming glide; the Pressable is inside the lifted view, so the hit
+  // area follows the card (a second tap on the raised card always lands on it)
+  const look = useCardLook({ lift: selected ? 12 : 0, dim, dimTo: 0.42 });
   const face = (
     <View
       style={{
         borderRadius: r,
         borderWidth: 2,
         borderColor: selected ? C.yellow : (ring ?? 'transparent'),
-        opacity: dim ? 0.42 : 1,
-        transform: [{ translateY: selected ? -12 : 0 }],
         shadowColor: '#000',
         shadowOpacity: 0.28,
         shadowRadius: 3,
@@ -183,16 +187,21 @@ export const BalootCard = memo(function BalootCard({
     </View>
   );
   const box = ma ? <View style={{ width, alignItems: 'center' }}>{face}</View> : face;
-  if (!onPress) return box;
   return (
-    <Pressable
-      onPress={() => {
-        haptic.tap();
-        onPress();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={card ? (ma ? maCardLabel(card) : `${card.rank} ${SUIT_NAME[card.suit]}`) : 'ورقة'}>
-      {box}
-    </Pressable>
+    <Animated.View style={look}>
+      {onPress ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            onPress();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={card ? (ma ? maCardLabel(card) : `${card.rank} ${SUIT_NAME[card.suit]}`) : 'ورقة'}>
+          {box}
+        </Pressable>
+      ) : (
+        box
+      )}
+    </Animated.View>
   );
 });

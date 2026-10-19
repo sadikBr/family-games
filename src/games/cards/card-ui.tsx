@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 
@@ -16,6 +16,7 @@ import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from '../helpers';
 import { PlayerStrip, type StripEntry } from '../player-strip';
+import { CardMotion, useCardLook, type Side } from './motion';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 const WIDTH: Record<Size, number> = { xs: 30, sm: 46, md: 58, lg: 68 };
@@ -48,33 +49,47 @@ export function PlayingCard({
   onPress?: () => void;
 }) {
   const w = WIDTH[size];
+  // the lift and the dimming glide; the Pressable sits inside the lifted view so the raised card
+  // is exactly where a second tap lands
+  const look = useCardLook({ lift: selected ? 10 : 0, dim, dimTo: 0.38 });
   const face = (
     <View
       style={[
         styles.cardWrap,
-        { borderRadius: w * 0.09 + 3, transform: [{ translateY: selected ? -10 : 0 }] },
+        { borderRadius: w * 0.09 + 3 },
         selected && { borderColor: C.yellow },
         glow && !selected && { borderColor: alpha(C.yellow, 0.6) },
         ring && !selected && { borderColor: ring, borderWidth: 3 },
-        dim && { opacity: 0.38 },
       ]}>
       <SpanishCard card={card} width={w} />
     </View>
   );
-  if (!onPress) return face;
   return (
-    <Pressable
-      onPress={() => {
-        haptic.tap();
-        onPress();
-      }}
-      hitSlop={3}
-      accessibilityRole="button"
-      accessibilityLabel={card ? `ورقة ${cardName(card)}` : 'الكومة'}>
-      {face}
-    </Pressable>
+    <Animated.View style={look}>
+      {onPress ? (
+        <Pressable
+          onPress={() => {
+            haptic.tap();
+            onPress();
+          }}
+          hitSlop={3}
+          accessibilityRole="button"
+          accessibilityLabel={card ? `ورقة ${cardName(card)}` : 'الكومة'}>
+          {face}
+        </Pressable>
+      ) : (
+        face
+      )}
+    </Animated.View>
   );
 }
+
+/**
+ * How the cards of a CardRow move (needs a CardStage around the game): `enter` = how a new card
+ * arrives ('deal' into my hand, 'play' onto the table), `from` = the side it comes from when it
+ * does not fly from another spot. Cards always glide when the row closes a gap.
+ */
+export type RowMotion = { enter?: 'deal' | 'play'; from?: Side; source?: boolean };
 
 export function CardRow({
   cards,
@@ -86,6 +101,7 @@ export function CardRow({
   onPress,
   empty,
   gap = 6,
+  motion,
 }: {
   cards: Card[];
   size?: Size;
@@ -97,6 +113,8 @@ export function CardRow({
   onPress?: (c: Card) => void;
   empty?: string;
   gap?: number;
+  /** animate the cards (inside a CardStage) */
+  motion?: RowMotion;
 }) {
   const room = useContentWidth() - 16;
   const fitted = fitSize(size, cards.length, gap, room);
@@ -109,18 +127,25 @@ export function CardRow({
   }
   return (
     <Row wrap gap={gap} center>
-      {cards.map((c) => (
-        <PlayingCard
-          key={c.id}
-          card={c}
-          size={fitted}
-          selected={selected.includes(c.id)}
-          glow={glow.includes(c.id)}
-          dim={dim.includes(c.id)}
-          ring={rings?.[c.id]}
-          onPress={onPress ? () => onPress(c) : undefined}
-        />
-      ))}
+      {cards.map((c) => {
+        const face = (
+          <PlayingCard
+            card={c}
+            size={fitted}
+            selected={selected.includes(c.id)}
+            glow={glow.includes(c.id)}
+            dim={dim.includes(c.id)}
+            ring={rings?.[c.id]}
+            onPress={onPress ? () => onPress(c) : undefined}
+          />
+        );
+        if (!motion) return <View key={c.id}>{face}</View>;
+        return (
+          <CardMotion key={c.id} id={c.id} enter={motion.enter} from={motion.from} source={motion.source} flow>
+            {face}
+          </CardMotion>
+        );
+      })}
     </Row>
   );
 }
@@ -265,12 +290,25 @@ export function sideLabel(side: CardSide, h: Helpers): string {
  * What to do now, shown only on my turn: whose turn it is is already in the room's turn bar, so
  * nothing is shown while another player plays.
  */
-export function TurnLine({ myTurn, text }: { myTurn: boolean; name?: string; text?: string }) {
+export function TurnLine({ myTurn, text, keep }: { myTurn: boolean; name?: string; text?: string; keep?: boolean }) {
+  if (keep) return <KeptLine show={myTurn} text={text ?? 'دورك'} />;
   if (!myTurn) return null;
   return (
     <Animated.View entering={FadeIn.duration(180)}>
       <Txt v="bold" center color={C.yellow}>
         {text ?? 'دورك'}
+      </Txt>
+    </Animated.View>
+  );
+}
+
+/** `keep`: the line keeps its place and only fades, so the hand under it never jumps when the turn changes. */
+function KeptLine({ show, text }: { show: boolean; text: string }) {
+  const look = useCardLook({ dim: !show, dimTo: 0 });
+  return (
+    <Animated.View style={look} accessibilityElementsHidden={!show} importantForAccessibility={show ? 'auto' : 'no-hide-descendants'}>
+      <Txt v="bold" center color={C.yellow} numberOfLines={1}>
+        {text}
       </Txt>
     </Animated.View>
   );
@@ -300,7 +338,18 @@ export function LastEvent({ feed, h }: { feed: FeedItem[]; h: Helpers }) {
  * their colour, the card they played, and the cards it took (or «رمى ورقة»). It stays until the
  * next play. `title` replaces the verb line (e.g. «آخر لعبة» on the end-of-hand screen).
  */
-export function LastPlay({ play, h, title }: { play: { by: string; card: Card; took: Card[] } | null; h: Helpers; title?: string }) {
+export function LastPlay({
+  play,
+  h,
+  title,
+  motion,
+}: {
+  play: { by: string; card: Card; took: Card[] } | null;
+  h: Helpers;
+  title?: string;
+  /** inside a CardStage: the played card glides in (from my hand, or from `from`, the player's side) and the taken cards fly from the table */
+  motion?: { from: Side };
+}) {
   if (!play) return null;
   const p = h.player(play.by);
   const n = play.took.length;
@@ -322,12 +371,17 @@ export function LastPlay({ play, h, title }: { play: { by: string; card: Card; t
         </Txt>
       </Row>
       <Row gap={4} center wrap>
-        <PlayingCard card={play.card} size="sm" ring={p.color} />
+        {/* a card that stayed on the table is shown there too: only a capture flies in here */}
+        <CardMotion id={play.card.id} enter={motion && n ? 'play' : 'none'} from={motion?.from} source={false}>
+          <PlayingCard card={play.card} size="sm" ring={p.color} />
+        </CardMotion>
         {n ? (
           <>
             <Icon name="plus" size={14} color="rgba(255,255,255,0.8)" />
             {play.took.map((c) => (
-              <PlayingCard key={c.id} card={c} size={n > 3 ? 'xs' : 'sm'} />
+              <CardMotion key={c.id} id={c.id} enter={motion ? 'play' : 'none'} from={motion?.from} source={false}>
+                <PlayingCard card={c} size={n > 3 ? 'xs' : 'sm'} />
+              </CardMotion>
             ))}
           </>
         ) : null}
@@ -337,12 +391,50 @@ export function LastPlay({ play, h, title }: { play: { by: string; card: Card; t
 }
 
 /**
- * Tap again on the selected card to play it — but a second tap this soon after selecting
- * is an accidental double tap and is ignored.
+ * Tap again on the selected card to play it. A second tap sooner than this after selecting is
+ * the same touch reported twice and is dropped; a natural quick double tap (150–350 ms) plays.
+ * (It used to be 400 ms, which swallowed real double taps: people felt forced to use the button.)
  */
-export const DOUBLE_TAP_MS = 400;
+export const DOUBLE_TAP_MS = 100;
 /** Clock for tap handlers only (never call it during render). */
 export const tapClock = () => Date.now();
+
+/**
+ * «Tap a card to select it, tap it again to play it» — one hook for every card game.
+ * `canPlay(id)` says whether that card may be played now (my turn, legal card); `onPlay(id)` sends
+ * the move. A quick double tap and a slow second tap both play; tapping another card moves the
+ * selection. `selected` is null whenever the selected card is no longer playable (the turn moved
+ * on, the hand changed), so a stale selection never lingers. Keep a «play» button for those who
+ * prefer it: `selected` tells when to show it, `play()` sends the selected card.
+ */
+export function useTapToPlay({ canPlay, onPlay }: { canPlay: (id: string) => boolean; onPlay: (id: string) => void }) {
+  const [sel, setSel] = useState<string | null>(null);
+  // the latest selection and when it was made, for the tap handler only (taps can come faster than renders)
+  const last = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+  const selected = sel && canPlay(sel) ? sel : null;
+  const play = (id: string) => {
+    last.current = { id: null, at: 0 };
+    setSel(null);
+    onPlay(id);
+  };
+  const tap = (id: string) => {
+    if (!canPlay(id)) return;
+    const now = tapClock();
+    const prev = last.current;
+    if (prev.id === id && selected === id) {
+      if (now - prev.at < DOUBLE_TAP_MS) return; // the same touch twice
+      play(id);
+      return;
+    }
+    last.current = { id, at: now };
+    setSel(id);
+  };
+  const clear = () => {
+    last.current = { id: null, at: 0 };
+    setSel(null);
+  };
+  return { selected, tap, clear, play: () => (selected ? play(selected) : undefined) };
+}
 
 const ANNOUNCE_MS = 2500;
 

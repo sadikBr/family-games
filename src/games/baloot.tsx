@@ -8,7 +8,7 @@ import { client } from '@/lib/client';
 import { useCountdown } from '@/lib/time';
 import { maSuitName } from '@/shared/baloot-morocco';
 import { SUIT_SYM } from '@/shared/baloot-rules';
-import { BALOOT_TARGETS, type BalootView, type BCard, type BSide } from '@/shared/games/baloot';
+import { BALOOT_TARGETS, type BalootView, type BSide } from '@/shared/games/baloot';
 import type { RoomView } from '@/shared/protocol';
 import { C, F } from '@/theme';
 import { Row } from '@/ui/bits';
@@ -21,7 +21,8 @@ import { Txt, num } from '@/ui/txt';
 import { BalootCard, MoroccoDeck } from './baloot-card';
 import { MaBidPanel, MaContractBar, MaHandBreakdown } from './baloot-morocco';
 import { BidPanel, ContractBar, HandBreakdown, HandFan, InfoRow, ProjectLine, RaisePanel, ScoreSheet, Table } from './baloot-parts';
-import { DOUBLE_TAP_MS, tapClock } from './cards/card-ui';
+import { useTapToPlay } from './cards/card-ui';
+import { CardStage, SoftNumber, useCardLook } from './cards/motion';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 
@@ -65,72 +66,107 @@ function maPlayHint(v: BalootView): string {
 
 export function BalootGame({ room, view }: { room: RoomView; view: BalootView }) {
   const h = helpers(room);
-  const cw = useContentWidth();
-  const [sel, setSel] = useState<string | null>(null);
-  const [selAt, setSelAt] = useState(0);
   const [off, setOff] = useState<{ hand: number; keys: string[] }>({ hand: 0, keys: [] });
-  const [sheet, setSheet] = useState(false);
+  const playing = view.phase === 'play' && view.turn === h.me;
+  const offKeys = off.hand === view.hand ? off.keys : [];
+  const tap = useTapToPlay({
+    canPlay: (id) => playing && view.playable.includes(id),
+    onPlay: (id) => h.act('play', { card: id, declare: view.myProjects.filter((p) => !offKeys.includes(p.key)).map((p) => p.key) }),
+  });
   if (!view.seats.includes(h.me)) return <Spectator room={room} />;
+  // one stage for every phase (it stays mounted from hand to hand, so the next deal glides in)
+  return (
+    <MoroccoDeck value={view.rules === 'morocco'}>
+      <CardStage>
+        {view.phase === 'handEnd' || view.phase === 'final' ? (
+          <HandEnd room={room} v={view} h={h} />
+        ) : (
+          <TableScreen v={view} h={h} tap={tap} offKeys={offKeys} setOff={setOff} />
+        )}
+      </CardStage>
+    </MoroccoDeck>
+  );
+}
 
-  const v = view;
+function HandEnd({ room, v, h }: { room: RoomView; v: BalootView; h: Helpers }) {
   const ma = v.rules === 'morocco';
   const mySide = v.sides.find((x) => x.members.includes(h.me))!.key as BSide;
   const theirSide: BSide = mySide === 'A' ? 'B' : 'A';
+  const final = v.phase === 'final';
+  const won = final && v.winner === mySide;
+  return (
+    <>
+      {won ? <Confetti /> : null}
+      {final ? (
+        <ResultBanner
+          tone={won ? 'good' : 'neutral'}
+          art={
+            <Row gap={6} style={{ direction: 'ltr' }}>
+              <BalootCard card={{ id: 'JS', suit: 'S', rank: 'J' }} width={44} />
+              <BalootCard card={{ id: 'AH', suit: 'H', rank: 'A' }} width={44} />
+            </Row>
+          }
+          title={won ? 'فاز فريقكم!' : v.winner ? `الفوز لفريق ${teamNames(v, h, v.winner)}` : 'انتهت اللعبة'}
+          sub={`لنا ${num(v.scores[mySide])} — لهم ${num(v.scores[theirSide])}`}
+        />
+      ) : (
+        <Txt v="display" center>
+          نهاية اليد {num(v.hand)}
+        </Txt>
+      )}
+      {!final && v.bel ? (
+        <Txt v="bold" center color={C.orange}>
+          تعادل فوق الهدف — «البيل»: يد فاصلة
+        </Txt>
+      ) : null}
+      {ma ? <MaHandBreakdown v={v} h={h} /> : <HandBreakdown v={v} h={h} />}
+      <ScoreSheet v={v} h={h} />
+      {final ? <PlayAgain room={room} /> : <NextHand v={v} h={h} />}
+    </>
+  );
+}
 
-  if (v.phase === 'handEnd' || v.phase === 'final') {
-    const final = v.phase === 'final';
-    const won = final && v.winner === mySide;
-    return (
-      <MoroccoDeck value={ma}>
-        {won ? <Confetti /> : null}
-        {final ? (
-          <ResultBanner
-            tone={won ? 'good' : 'neutral'}
-            art={
-              <Row gap={6} style={{ direction: 'ltr' }}>
-                <BalootCard card={{ id: 'JS', suit: 'S', rank: 'J' }} width={44} />
-                <BalootCard card={{ id: 'AH', suit: 'H', rank: 'A' }} width={44} />
-              </Row>
-            }
-            title={won ? 'فاز فريقكم!' : v.winner ? `الفوز لفريق ${teamNames(v, h, v.winner)}` : 'انتهت اللعبة'}
-            sub={`لنا ${num(v.scores[mySide])} — لهم ${num(v.scores[theirSide])}`}
-          />
-        ) : (
-          <Txt v="display" center>
-            نهاية اليد {num(v.hand)}
-          </Txt>
-        )}
-        {!final && v.bel ? (
-          <Txt v="bold" center color={C.orange}>
-            تعادل فوق الهدف — «البيل»: يد فاصلة
-          </Txt>
-        ) : null}
-        {ma ? <MaHandBreakdown v={v} h={h} /> : <HandBreakdown v={v} h={h} />}
-        <ScoreSheet v={v} h={h} />
-        {final ? <PlayAgain room={room} /> : <NextHand v={v} h={h} />}
-      </MoroccoDeck>
-    );
-  }
+/** A line that keeps its place and only fades: the hand under it never jumps when the turn changes. */
+function KeptHint({ text, show }: { text: string; show: boolean }) {
+  const look = useCardLook({ dim: !show, dimTo: 0 });
+  // the last hint stays (faded) while others play
+  const [kept, setKept] = useState(text);
+  if (text && text !== kept) setKept(text);
+  return (
+    <Animated.View style={[{ minHeight: 25 }, look]}>
+      <Txt v="bold" center color={C.yellow} numberOfLines={1}>
+        {text || kept}
+      </Txt>
+    </Animated.View>
+  );
+}
 
+function TableScreen({
+  v,
+  h,
+  tap,
+  offKeys,
+  setOff,
+}: {
+  v: BalootView;
+  h: Helpers;
+  tap: ReturnType<typeof useTapToPlay>;
+  offKeys: string[];
+  setOff: (x: { hand: number; keys: string[] }) => void;
+}) {
+  const cw = useContentWidth();
+  const [sheet, setSheet] = useState(false);
+  const ma = v.rules === 'morocco';
+  const mySide = v.sides.find((x) => x.members.includes(h.me))!.key as BSide;
+  const theirSide: BSide = mySide === 'A' ? 'B' : 'A';
   const myTurn = v.turn === h.me;
   const playing = v.phase === 'play' && myTurn;
-  const selected = playing && sel && v.playable.includes(sel) ? sel : null;
-  const offKeys = off.hand === v.hand ? off.keys : [];
-  const play = (id: string) => {
-    h.act('play', { card: id, declare: v.myProjects.filter((p) => !offKeys.includes(p.key)).map((p) => p.key) });
-    setSel(null);
-  };
-  const tap = (c: BCard) => {
-    if (!v.playable.includes(c.id)) return;
-    const now = tapClock();
-    if (sel !== c.id) {
-      setSel(c.id);
-      setSelAt(now);
-    } else if (now - selAt >= DOUBLE_TAP_MS) play(c.id);
-  };
+  const selected = tap.selected;
+  const score = (n: number) => <Txt style={{ fontFamily: F.black, fontSize: 16, lineHeight: 26 }}>{num(n)}</Txt>;
+  const hint = playing ? (ma ? maPlayHint(v) : playHint(v, h.me)) : '';
 
   return (
-    <MoroccoDeck value={ma}>
+    <>
       <View style={{ gap: 6 }}>
         {ma ? <MaContractBar v={v} h={h} /> : <ContractBar v={v} h={h} />}
         <Pressable
@@ -141,14 +177,14 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
           <Txt v="tiny" color={C.muted}>
             لنا
           </Txt>
-          <Txt style={{ fontFamily: F.black, fontSize: 16, lineHeight: 26 }}>{num(v.scores[mySide])}</Txt>
+          <SoftNumber value={v.scores[mySide]} render={score} />
           <Txt v="tiny" color={C.dim}>
             ·
           </Txt>
           <Txt v="tiny" color={C.muted}>
             لهم
           </Txt>
-          <Txt style={{ fontFamily: F.black, fontSize: 16, lineHeight: 26 }}>{num(v.scores[theirSide])}</Txt>
+          <SoftNumber value={v.scores[theirSide]} render={score} />
           <Txt v="tiny" color={C.dim}>
             / {num(v.target)}
           </Txt>
@@ -161,27 +197,30 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
         <Table v={v} h={h} width={cw} />
         {v.deadline ? <TimerBar endsAt={v.deadline} total={v.timer * 1000} onTick={myTurn} /> : null}
         <InfoRow v={v} mine={mySide} />
-        {v.shown ? (
-          <Animated.View entering={FadeIn.duration(200)} style={{ gap: 4, alignItems: 'center' }}>
-            <Txt v="tiny" color={C.yellow}>
-              {ma ? 'الإعلانات' : 'المشاريع'} {v.shown.side === mySide ? 'لنا' : 'لهم'}:
-            </Txt>
-            {v.shown.items.map((p, k) => (
-              <ProjectLine key={k} p={p} h={h} />
-            ))}
-          </Animated.View>
-        ) : null}
       </View>
 
       <View style={{ gap: 4 }}>
-        {playing ? (
-          <Txt v="bold" center color={C.yellow}>
-            {ma ? maPlayHint(v) : playHint(v, h.me)}
-          </Txt>
+        {v.phase === 'play' ? <KeptHint text={hint} show={playing} /> : null}
+        <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? (c) => tap.tap(c.id) : undefined} />
+        {/* the button keeps its place for the whole play: nothing jumps when a card is selected or played */}
+        {v.phase === 'play' ? (
+          <View style={{ minHeight: 56, justifyContent: 'center' }}>
+            {selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={tap.play} /> : null}
+          </View>
         ) : null}
-        <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? tap : undefined} />
-        {selected ? <Btn size="lg" icon="down" label="العب هذه الورقة" onPress={() => play(selected)} /> : null}
       </View>
+
+      {/* the best team's projects (2nd trick) sit under my hand, so the hand itself never moves */}
+      {v.shown ? (
+        <Animated.View entering={FadeIn.duration(200)} style={{ gap: 4, alignItems: 'center' }}>
+          <Txt v="tiny" color={C.yellow}>
+            {ma ? 'الإعلانات' : 'المشاريع'} {v.shown.side === mySide ? 'لنا' : 'لهم'}:
+          </Txt>
+          {v.shown.items.map((p, k) => (
+            <ProjectLine key={k} p={p} h={h} />
+          ))}
+        </Animated.View>
+      ) : null}
 
       {playing && v.myProjects.length ? (
         <Animated.View entering={FadeIn.duration(200)} style={{ gap: 4, alignItems: 'center' }}>
@@ -206,7 +245,7 @@ export function BalootGame({ room, view }: { room: RoomView; view: BalootView })
       {v.phase === 'bid' && myTurn && ma ? <MaBidPanel v={v} width={cw} onCall={(call, suit) => h.act('bid', { call, suit })} /> : null}
       {v.phase === 'bid' && myTurn && !ma ? <BidPanel v={v} width={cw} onCall={(call, suit) => h.act('bid', { call, suit })} /> : null}
       {v.phase === 'double' && myTurn ? <RaisePanel v={v} width={cw} onRaise={(raise) => h.act('raise', { raise })} /> : null}
-    </MoroccoDeck>
+    </>
   );
 }
 

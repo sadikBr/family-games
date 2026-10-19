@@ -18,6 +18,7 @@ import { Txt, num } from '@/ui/txt';
 import type { Helpers } from './helpers';
 import { BalootCard, CARD_H, suitColor } from './baloot-card';
 import { SuitIcon } from './baloot-suit';
+import { CardMotion, TurnHalo, WinGlow, useLeaving, type Side } from './cards/motion';
 
 export const RAISE_LABEL: Record<BalootRaise, string> = { double: 'دبل', triple: 'ثري', four: 'فور', gahwa: 'قهوة' };
 const MULT_LABEL: Record<number, string> = { 2: 'دبل ×2', 3: 'ثري ×3', 4: 'فور ×4' };
@@ -70,7 +71,10 @@ function SeatTag({ v, id, h, width, me, row }: { v: BalootView; id: string; h: H
   return (
     <View style={{ width, alignItems: 'center', gap: 1 }}>
       <Row gap={4} center>
-        <Avatar player={p} size={me ? 26 : 32} ring={active ? C.yellow : undefined} />
+        <View>
+          <TurnHalo active={active} size={me ? 26 : 32} />
+          <Avatar player={p} size={me ? 26 : 32} ring={active ? C.yellow : undefined} />
+        </View>
         {me ? (
           <Txt v="tiny" color="#FFFFFF">
             أنت
@@ -121,6 +125,18 @@ export function Table({ v, h, width }: { v: BalootView; h: Helpers; width: numbe
   };
   const sideW = Math.max(62, Math.min(84, (width - tw * 3.1) / 2 - 4));
   const holder = v.trickWinner;
+  const sideOf: Record<string, Side> = { [me]: 'bottom', [top]: 'top', [left]: 'left', [right]: 'right' };
+  // where cards go when they leave towards a player: the edge of the table on that player's side
+  const seatPoint = (id: string) =>
+    id === me ? { x: cx, y: height - 4 } : id === top ? { x: cx, y: 6 } : id === left ? { x: 6, y: cy } : { x: width - 6, y: cy };
+  // the completed trick stays (server pause), then gathers in the middle and slides to its taker
+  const taker = v.lastTrick?.winner ?? null;
+  const trick = useLeaving(v.trick, (t) => t.card.id);
+  // the face-up card: same place in both layouts (bidding / doubling), so a copy that leaves starts where it was
+  const fw = tw * 1.1;
+  const faceAt = { x: cx - fw / 2, y: TOP + 2 + 18 };
+  const buyer = v.contract?.buyer ?? null;
+  const faceUps = useLeaving(v.faceUp ? [v.faceUp] : [], (c) => c.id);
   return (
     <View
       style={{
@@ -154,17 +170,12 @@ export function Table({ v, h, width }: { v: BalootView; h: Helpers; width: numbe
         </View>
       )}
 
-      {v.phase === 'bid' || v.phase === 'double' ? (
+      {compact ? (
         <View style={{ position: 'absolute', left: 0, right: 0, top: cy - block / 2, alignItems: 'center', gap: 0 }}>
           {v.faceUp ? (
-            <>
-              <Txt v="tiny" color="rgba(255,255,255,0.8)">
-                {v.redeal ? 'لا شراء — توزيع جديد' : v.bidRound === 2 ? 'الجولة الثانية' : 'الورقة المكشوفة'}
-              </Txt>
-              <Animated.View key={v.faceUp.id} entering={FadeIn.duration(200)}>
-                <BalootCard card={v.faceUp} width={tw * 1.1} dim={v.redeal} />
-              </Animated.View>
-            </>
+            <Txt v="tiny" color="rgba(255,255,255,0.8)">
+              {v.redeal ? 'لا شراء — توزيع جديد' : v.bidRound === 2 ? 'الجولة الثانية' : 'الورقة المكشوفة'}
+            </Txt>
           ) : v.contract ? (
             <Animated.View entering={FadeIn.duration(200)} style={{ alignItems: 'center', gap: 4, paddingTop: th * 0.3 }}>
               <Txt v="h2" color="#FFFFFF">
@@ -177,28 +188,57 @@ export function Table({ v, h, width }: { v: BalootView; h: Helpers; width: numbe
           ) : null}
         </View>
       ) : null}
+      {faceUps.map(({ item: c, leaving }) => {
+        // bought by me: it flies into my hand (the hand's copy does it), so this one just goes
+        if (leaving && buyer === h.me) return null;
+        const to = leaving && buyer ? seatPoint(buyer) : { x: cx, y: faceAt.y - 30 + (fw * CARD_H) / 2 };
+        return (
+          <CardMotion
+            key={c.id}
+            id={c.id}
+            enter="deal"
+            from="top"
+            place={faceAt}
+            leaving={leaving}
+            leave={{ to: { x: to.x - cx, y: to.y - (faceAt.y + (fw * CARD_H) / 2) }, scale: 0.7 }}
+            source={!leaving}>
+            <BalootCard card={c} width={fw} dim={v.redeal} />
+          </CardMotion>
+        );
+      })}
 
       {!compact && v.lastTrick && v.trick.length < 4 ? (
         // the trick that was just collected, small, in the bottom-right corner (its winning card ringed)
-        <Animated.View entering={FadeIn.duration(300)} style={{ position: 'absolute', right: 6, bottom: 6, flexDirection: 'row', gap: 2, opacity: 0.9 }}>
+        <Animated.View entering={FadeIn.duration(300).delay(380)} style={{ position: 'absolute', right: 6, bottom: 6, flexDirection: 'row', gap: 2, opacity: 0.9 }}>
           {v.lastTrick.cards.map((x) => (
             <BalootCard key={x.card.id} card={x.card} width={Math.min(26, (width / 2 - tw / 2 - 20) / 4)} ring={x.by === v.lastTrick!.winner ? C.yellow : undefined} />
           ))}
         </Animated.View>
       ) : null}
 
-      {v.trick.map((t) => {
-        const p = pos[t.by];
-        if (!p) return null;
-        return (
-          <Animated.View
-            key={t.card.id}
-            entering={FadeIn.duration(220)}
-            style={{ position: 'absolute', left: p.x - tw / 2, top: p.y - th / 2, zIndex: t.by === holder ? 5 : 1 }}>
-            <BalootCard card={t.card} width={tw} ring={holder === t.by ? C.yellow : undefined} />
-          </Animated.View>
-        );
-      })}
+      {compact
+        ? null
+        : trick.map(({ item: t, leaving }) => {
+            const p = pos[t.by];
+            if (!p) return null;
+            const won = leaving ? taker === t.by : holder === t.by;
+            const dest = leaving && taker ? seatPoint(taker) : p;
+            return (
+              <CardMotion
+                key={t.card.id}
+                id={t.card.id}
+                enter="play"
+                from={sideOf[t.by]}
+                source={false}
+                place={{ x: p.x - tw / 2, y: p.y - th / 2 }}
+                leaving={leaving}
+                leave={{ via: { x: cx - p.x, y: cy - p.y }, to: { x: dest.x - p.x, y: dest.y - p.y }, scale: 0.72 }}
+                style={{ zIndex: leaving ? (won ? 2 : 1) : won ? 7 : 6 }}>
+                <WinGlow active={!leaving && won} width={tw} height={th} />
+                <BalootCard card={t.card} width={tw} ring={won ? C.yellow : undefined} />
+              </CardMotion>
+            );
+          })}
     </View>
   );
 }
@@ -230,24 +270,18 @@ export function HandFan({
     <View style={{ width, height: w * CARD_H + 20, direction: 'ltr', alignSelf: 'center' }}>
       {cards.map((c, k) => {
         const off = k - mid;
+        const sel = selected === c.id;
         return (
-          <Animated.View
+          <CardMotion
             key={c.id}
-            entering={FadeIn.duration(260)}
-            style={{
-              position: 'absolute',
-              left: start + k * step,
-              top: 12 + Math.abs(off) * Math.abs(off) * 0.7,
-              transform: [{ rotate: `${off * 2.2}deg` }],
-            }}>
-            <BalootCard
-              card={c}
-              width={w}
-              selected={selected === c.id}
-              dim={myTurn && !playable.includes(c.id)}
-              onPress={onPress ? () => onPress(c) : undefined}
-            />
-          </Animated.View>
+            id={c.id}
+            enter="deal"
+            from="top"
+            place={{ x: start + k * step, y: 12 + Math.abs(off) * Math.abs(off) * 0.7, rot: off * 2.2 }}
+            // the selected card comes to the front: the whole raised card answers the second tap
+            style={{ zIndex: sel ? 50 : k + 1 }}>
+            <BalootCard card={c} width={w} selected={sel} dim={myTurn && !playable.includes(c.id)} onPress={onPress ? () => onPress(c) : undefined} />
+          </CardMotion>
         );
       })}
     </View>

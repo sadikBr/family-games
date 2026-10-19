@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { View } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
@@ -15,7 +14,6 @@ import { helpers } from '../helpers';
 import {
   AnnounceBanner,
   CardRow,
-  DOUBLE_TAP_MS,
   FeedList,
   Felt,
   HandRows,
@@ -27,8 +25,9 @@ import {
   sideLabel,
   sideScore,
   stripOrder,
-  tapClock,
+  useTapToPlay,
 } from './card-ui';
+import { CardStage } from './motion';
 
 /** Cards a play would take: the match + the following sequence. */
 function preview(table: Card[], card: Card): string[] {
@@ -45,25 +44,25 @@ function preview(table: Card[], card: Card): string[] {
 
 export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   const h = helpers(room);
-  const [sel, setSel] = useState<string | null>(null);
-  const [selAt, setSelAt] = useState(0);
-  if (!view.participants.includes(h.me)) return <Spectator room={room} />;
-
-  const mySide = view.sides.find((x) => x.members.includes(h.me))?.key;
   const myTurn = view.phase === 'play' && view.turn === h.me;
-  const selected = view.myHand.find((c) => c.id === sel) ?? null;
+  const tap = useTapToPlay({
+    canPlay: (id) => myTurn && view.myHand.some((c) => c.id === id),
+    onPlay: (id) => h.act('play', { card: id }),
+  });
+  if (!view.participants.includes(h.me)) return <Spectator room={room} />;
+  // one stage for every phase, so it stays mounted from hand to hand (cards then deal in smoothly)
+  return (
+    <CardStage>
+      <RondaScreen room={room} view={view} tap={tap} myTurn={myTurn} />
+    </CardStage>
+  );
+}
+
+function RondaScreen({ room, view, tap, myTurn }: { room: RoomView; view: RondaView; tap: ReturnType<typeof useTapToPlay>; myTurn: boolean }) {
+  const h = helpers(room);
+  const mySide = view.sides.find((x) => x.members.includes(h.me))?.key;
+  const selected = view.myHand.find((c) => c.id === tap.selected) ?? null;
   const glow = selected ? preview(view.table, selected) : [];
-  const play = (id: string) => {
-    h.act('play', { card: id });
-    setSel(null);
-  };
-  const tap = (id: string) => {
-    const now = tapClock();
-    if (sel !== id) {
-      setSel(id);
-      setSelAt(now);
-    } else if (now - selAt >= DOUBLE_TAP_MS) play(id);
-  };
   const order = stripOrder(view.sides, view.participants, h.me);
   const score = (id: string) => sideScore(view.sides, view.scores, id);
   const summary = view.handSummary ? (
@@ -109,6 +108,8 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
   // the card the last player dropped stays ringed in their colour until the next play
   const lp = view.lastPlay;
   const rings = lp && !lp.took.length && view.table.some((c) => c.id === lp.card.id) ? { [lp.card.id]: h.player(lp.by).color } : undefined;
+  // my cards come from the bottom (my hand), everyone else's from the top (the strip)
+  const fromSide = lp && lp.by === h.me ? 'bottom' : 'top';
   return (
     <>
       <TableStrip
@@ -120,27 +121,25 @@ export function RondaGame({ room, view }: { room: RoomView; view: RondaView }) {
         note={`الهدف ${num(view.target)} · اليد ${num(view.hand)} · في الكومة ${num(view.deckLeft)}`}
       />
       <Felt active={myTurn}>
-        <CardRow cards={view.table} size="sm" glow={glow} rings={rings} empty="الطاولة فارغة" />
-        <LastPlay play={view.lastPlay} h={h} />
+        <CardRow cards={view.table} size="sm" glow={glow} rings={rings} empty="الطاولة فارغة" motion={{ enter: 'play', from: fromSide }} />
+        <LastPlay play={view.lastPlay} h={h} motion={{ from: fromSide }} />
         <AnnounceBanner announce={view.announce} h={h} />
       </Felt>
-      <TurnLine myTurn={myTurn} text="اختر ورقة من يدك" />
+      <TurnLine myTurn={myTurn} text="اختر ورقة، واضغطها مرة ثانية للعب" keep />
       <View style={{ gap: 10, paddingTop: 6 }}>
-        <CardRow
-          cards={view.myHand}
-          size="lg"
-          selected={sel ? [sel] : []}
-          onPress={myTurn ? (c) => tap(c.id) : undefined}
-        />
-        {myTurn && selected ? (
-          <Btn
-            size="lg"
-            icon={glow.length ? 'grab' : 'down'}
-            label={glow.length ? `العب وخذ ${glow.length + 1} أوراق` : 'العب هذه الورقة'}
-            color={glow.length ? C.green : C.yellow}
-            onPress={() => play(selected.id)}
-          />
-        ) : null}
+        <CardRow cards={view.myHand} size="lg" selected={tap.selected ? [tap.selected] : []} onPress={myTurn ? (c) => tap.tap(c.id) : undefined} motion={{ enter: 'deal', from: 'top' }} />
+        {/* the button's place is always kept: nothing jumps when a card is selected or played */}
+        <View style={{ minHeight: 56, justifyContent: 'center' }}>
+          {myTurn && selected ? (
+            <Btn
+              size="lg"
+              icon={glow.length ? 'grab' : 'down'}
+              label={glow.length ? `العب وخذ ${glow.length + 1} أوراق` : 'العب هذه الورقة'}
+              color={glow.length ? C.green : C.yellow}
+              onPress={tap.play}
+            />
+          ) : null}
+        </View>
       </View>
     </>
   );
