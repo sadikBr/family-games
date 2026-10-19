@@ -28,9 +28,11 @@ import {
   suitName,
   trickLeader,
 } from '../../src/shared/touti-rules';
+import type { BotLevel } from '../../src/shared/protocol';
 import { makeSides, randDelay } from '../cardkit';
-import { bestTrump, botBid, botPlay } from '../touti-bot';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { expertBid, expertCard, expertTrump, outlook, takesAll, type BidOutlook, type Knowledge, type Sim } from '../touti-ai';
+import { bestTrump, botBid, botPlay, reachChance } from '../touti-bot';
+import { GameError, botLevel, type GameCtx, type GameModule } from '../types';
 import { isStr, shuffle } from '../util';
 
 /** a full trick stays on the table this long (everyone sees who took it) */
@@ -39,6 +41,8 @@ export const TRICK_PAUSE_MS = 2400;
 export const REDEAL_MS = 2600;
 /** the end-of-hand sheet stays this long (the host can deal sooner) */
 export const HAND_END_MS = 15_000;
+/** «الباقي لنا»: the claiming team's cards stay face up this long before the hand ends */
+export const CLAIM_MS = 3500;
 
 interface BidState {
   /** dealer's right first, dealer last */
@@ -78,6 +82,15 @@ export interface State {
   sung: ToutiSung[];
   /** «الغناء» window after a trick won by the bidding team: who may still sing, in order */
   singQueue: string[];
+  /** finished tricks this hand (what the bots remember) and every call of the auction */
+  done: { by: string; card: Card }[][];
+  auction: { by: string; call: ToutiCall }[];
+  /** «الباقي لنا»: the leader whose team takes every remaining trick for sure (checked at each trick's start) */
+  claimable: string | null;
+  /** a claim being shown: the claiming team's cards face up until `until`, then the hand ends */
+  claim: { by: string; side: TSide; cards: Record<string, Card[]>; gain: number; until: number } | null;
+  /** the expert bots' auction outlook, per player, for this hand */
+  outlooks: Record<string, BidOutlook>;
   result: ToutiHandResult | null;
   nextAt: number | null;
   winner: TSide | null;
@@ -123,6 +136,11 @@ function startHand(ctx: GameCtx, s: State) {
   s.tricks = { A: 0, B: 0 };
   s.sung = [];
   s.singQueue = [];
+  s.done = [];
+  s.auction = [];
+  s.claimable = null;
+  s.claim = null;
+  s.outlooks = {};
   s.result = null;
   s.nextAt = null;
   ctx.fx('card');
@@ -143,11 +161,13 @@ function bidCall(ctx: GameCtx, s: State, by: string, call: unknown) {
   if (b.turn !== by) throw new GameError('ليس دورك');
   const name = ctx.playerName(by);
   if (call === 'pass') {
+    s.auction.push({ by, call: 'pass' });
     b.calls[by] = 'pass';
     b.active = b.active.filter((p) => p !== by);
     ctx.say?.(`باص: ${name}`, by);
   } else {
     if (typeof call !== 'number' || !bidOptions(s, by).includes(call)) throw new GameError('مزايدة غير صالحة');
+    s.auction.push({ by, call });
     b.calls[by] = call;
     b.high = call;
     b.highBy = by;
@@ -183,6 +203,7 @@ function chooseTrump(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.turn = s.seats[(s.dealer + 1) % 4];
   ctx.say?.(`الطرونفو: ${suitName(s.trump)} — الشاري: ${ctx.playerName(by)} (${s.contract})`, by);
   ctx.fx('reveal');
+  checkClaim(s);
 }
 
 /* ------------------------------------------------------------------ */
@@ -192,7 +213,7 @@ function chooseTrump(ctx: GameCtx, s: State, by: string, suit: unknown) {
 const rules = (s: State) => ({ partnerFree: s.settings.partnerFree });
 
 export function playable(s: State, id: string): Card[] {
-  if (s.phase !== 'play' || s.pauseUntil !== null || s.singQueue.length || s.turn !== id) return [];
+  if (s.phase !== 'play' || s.pauseUntil !== null || s.claim || s.singQueue.length || s.turn !== id) return [];
   return legalCards(s.hands[id], s.trick, s.trump!, rules(s));
 }
 
@@ -205,6 +226,7 @@ function playCard(ctx: GameCtx, s: State, by: string, cardId: unknown): boolean 
   if (!playable(s, by).some((x) => x.id === cardId)) throw new GameError(illegalReason(hand, s.trick, s.trump!));
   const card = hand.splice(hand.findIndex((x) => x.id === cardId), 1)[0];
   s.trick.push({ by, card });
+  s.claimable = null;
   ctx.fx('card');
   const head = `ورقة من ${ctx.playerName(by)}: ${cardLabel(card)}`;
   if (s.trick.length < 4) {
@@ -242,6 +264,7 @@ function sing(ctx: GameCtx, s: State, by: string, suit: unknown) {
   if (s.singQueue[0] !== by) throw new GameError('ليس دورك');
   if (suit === null || suit === 'skip') {
     s.singQueue.shift();
+    if (!s.singQueue.length) checkClaim(s);
     return;
   }
   const pair = singOptions(s, by).find((p) => p.suit === suit);
@@ -249,6 +272,7 @@ function sing(ctx: GameCtx, s: State, by: string, suit: unknown) {
   s.sung.push({ by, suit: pair.suit, points: pair.points, trick: s.trickNo - 1 });
   // one pair after each trick taken
   s.singQueue = [];
+  checkClaim(s);
   ctx.say?.(`غناء من ${ctx.playerName(by)}: 12 و11 ${suitName(pair.suit)}${pair.suit === s.trump ? ' (الطرونفو)' : ''} +${pair.points}`, by);
   ctx.fx('reveal');
 }
@@ -307,28 +331,135 @@ export function turnOf(s: State): string[] {
   if (s.phase === 'bid') return s.bid && s.redealAt === null ? [s.bid.turn] : [];
   if (s.phase === 'trump') return s.bidder ? [s.bidder] : [];
   if (s.phase === 'play') {
-    if (s.pauseUntil !== null) return [];
+    if (s.pauseUntil !== null || s.claim) return [];
     if (s.singQueue.length) return [s.singQueue[0]];
     return s.turn ? [s.turn] : [];
   }
   return [];
 }
 
+/* ------------------------------------------------------------------ */
+/* «الباقي لنا»                                                        */
+/* ------------------------------------------------------------------ */
+
+/** The real table, every hand known (for the claim check). */
+function simOf(s: State): Sim {
+  return {
+    hands: s.seats.map((id) => s.hands[id].slice()),
+    trick: s.trick.map((t) => ({ s: s.seats.indexOf(t.by), card: t.card })),
+    turn: s.seats.indexOf(s.turn ?? s.seats[0]),
+    trump: s.trump!,
+    partnerFree: s.settings.partnerFree,
+    left: TRICKS - s.trickNo + 1,
+    pts: [s.cards.A, s.cards.B],
+    bidTeam: s.seats.indexOf(s.bidder!) % 2,
+    bid: s.contract!,
+    sung: sungSuits(s),
+    sungPts: s.sung.reduce((t, x) => t + x.points, 0),
+    singBy: s.settings.singBy,
+  };
+}
+
+/** At the start of a trick (2 or more left): does the leader's team take every remaining trick whatever happens? */
+export function checkClaim(s: State) {
+  s.claimable = null;
+  if (s.phase !== 'play' || s.trick.length || s.singQueue.length || !s.turn || TRICKS - s.trickNo + 1 < 2) return;
+  if (takesAll(simOf(s), s.seats.indexOf(s.turn) % 2)) s.claimable = s.turn;
+}
+
+/**
+ * «الباقي لنا — أنهِ اليد»: the claiming team's cards are shown to everyone, it takes every remaining
+ * card and الدير (and, if it bought, the pairs it can still sing, one per trick left before the last).
+ */
+function claim(ctx: GameCtx, s: State, by: string) {
+  if (s.claimable !== by || s.turn !== by) throw new GameError('لا يمكن إنهاء اليد الآن');
+  const side = sideOf(s, by);
+  const left = TRICKS - s.trickNo + 1;
+  const team = s.sides.find((x) => x.key === side)!.members;
+  const gain = s.seats.reduce((t, id) => t + s.hands[id].reduce((u, c) => u + cardPoints(c), 0), 0) + T_LAST;
+  if (side === sideOf(s, s.bidder!)) {
+    let windows = left - 1;
+    for (const id of [by, ...team.filter((m) => m !== by)]) {
+      for (const pair of singable(s.hands[id], s.trump!, s.contract!, sungSuits(s))) {
+        if (windows <= 0) break;
+        s.sung.push({ by: id, suit: pair.suit, points: pair.points, trick: s.trickNo - 1 });
+        windows -= 1;
+      }
+    }
+  }
+  s.cards[side] += gain;
+  s.tricks[side] += left;
+  s.claim = { by, side, cards: Object.fromEntries(team.map((id) => [id, sortTouti(s.hands[id], s.trump)])), gain, until: ctx.now + CLAIM_MS };
+  for (const id of s.seats) {
+    s.played.push(...s.hands[id]);
+    s.hands[id] = [];
+  }
+  s.claimable = null;
+  s.turn = null;
+  s.trickWinner = by;
+  s.trickNo = TRICKS;
+  ctx.say?.(`الباقي لـ${teamName(ctx, s, side)}: +${gain} مع الدير`, by);
+  ctx.fx('reveal');
+}
+
+/* ------------------------------------------------------------------ */
+/* Bots                                                                */
+/* ------------------------------------------------------------------ */
+
+/** What the bot in seat `id` knows (no peeking at the others' cards). */
+export function knowledge(s: State, id: string): Knowledge {
+  const seat = (p: string) => s.seats.indexOf(p);
+  return {
+    me: seat(id),
+    hand: s.hands[id].slice(),
+    trump: s.trump!,
+    partnerFree: s.settings.partnerFree,
+    done: s.done.map((t) => t.map((p) => ({ s: seat(p.by), card: p.card }))),
+    trick: s.trick.map((p) => ({ s: seat(p.by), card: p.card })),
+    counts: s.seats.map((p) => s.hands[p].length),
+    sung: s.sung.map((x) => ({ s: seat(x.by), suit: x.suit })),
+    bidTeam: seat(s.bidder!) % 2,
+    bid: s.contract!,
+    singBy: s.settings.singBy,
+  };
+}
+
+/** The expert's play-outs of its hand for the auction (once per hand). */
+function outlookOf(s: State, id: string): BidOutlook {
+  s.outlooks[id] ??= outlook(s.hands[id], s.seats.indexOf(id), (s.dealer + 1) % 4, s.settings.singBy, s.settings.partnerFree);
+  return s.outlooks[id];
+}
+
 /** The move a bot makes (also the move made for a player whose time ran out, with `timeout`). */
-export function decide(s: State, id: string, level: number, timeout = false): GameAction | null {
+export function decide(s: State, id: string, level: BotLevel, timeout = false): GameAction | null {
   if (turnOf(s)[0] !== id) return null;
   if (s.phase === 'bid') {
     if (timeout) return { type: 'bid', bid: 'pass' };
-    return { type: 'bid', bid: botBid(s.hands[id], bidOptions(s, id), level, Math.random() * 2 - 1, s.bid!.highBy === partnerOf(s, id)) };
+    const bids = bidOptions(s, id);
+    const partner = partnerOf(s, id);
+    const partnerHigh = s.bid!.highBy === partner;
+    if (level === 'expert') {
+      const calls = s.auction.filter((x) => x.by === partner);
+      const said = calls.some((x) => x.call !== 'pass') ? 'bid' : calls.length ? 'pass' : 'none';
+      const high = s.bid!.highBy ? { by: partnerHigh ? ('partner' as const) : ('them' as const), bid: s.bid!.high! } : null;
+      return { type: 'bid', bid: expertBid(outlookOf(s, id), bids, said, high, (b) => reachChance(s.hands[id], b)) };
+    }
+    return { type: 'bid', bid: botBid(s.hands[id], bids, level === 'easy' ? 1 : 2, Math.random() * 2 - 1, partnerHigh) };
   }
-  if (s.phase === 'trump') return { type: 'trump', suit: bestTrump(s.hands[id]).suit };
+  if (s.phase === 'trump') return { type: 'trump', suit: level === 'expert' && !timeout ? expertTrump(outlookOf(s, id), s.contract!) : bestTrump(s.hands[id]).suit };
   if (s.singQueue.length) {
     // singing never hurts: the best pair (the trump one first)
     const best = singOptions(s, id)[0];
     return { type: 'sing', suit: best ? best.suit : null };
   }
+  // bots always claim the rest when it is certain
+  if (s.claimable === id) return { type: 'claim' };
   const legal = playable(s, id);
   if (!legal.length) return null;
+  if (level === 'expert' && !timeout) {
+    const card = expertCard(knowledge(s, id), legal, [s.cards.A, s.cards.B], s.sung.reduce((t, x) => t + x.points, 0));
+    return { type: 'play', card: card.id };
+  }
   const card = botPlay({
     hand: s.hands[id],
     legal,
@@ -338,7 +469,7 @@ export function decide(s: State, id: string, level: number, timeout = false): Ga
     bidders: sideOf(s, id) === sideOf(s, s.bidder!),
     bid: s.contract!,
     sung: sungSuits(s),
-    level: timeout ? 2 : level,
+    level: timeout || level !== 'easy' ? 2 : 1,
     roll: Math.random(),
   });
   return { type: 'play', card: card.id };
@@ -370,6 +501,10 @@ function step(ctx: GameCtx, s: State, by: string, a: GameAction): boolean {
     sing(ctx, s, by, a.suit);
     return true;
   }
+  if (a.type === 'claim' && s.phase === 'play' && !s.claim) {
+    claim(ctx, s, by);
+    return true;
+  }
   if (a.type === 'play') return playCard(ctx, s, by, a.card);
   return false;
 }
@@ -379,6 +514,7 @@ function collectTrick(ctx: GameCtx, s: State) {
   s.pauseUntil = null;
   s.lastTrick = { cards: s.trick, winner: s.trickWinner! };
   s.played.push(...s.trick.map((t) => t.card));
+  s.done.push(s.trick);
   if (s.trickNo >= TRICKS) {
     endHand(ctx, s);
     return;
@@ -388,6 +524,7 @@ function collectTrick(ctx: GameCtx, s: State) {
   s.trick = [];
   s.trickWinner = null;
   s.trickNo += 1;
+  if (!s.singQueue.length) checkClaim(s);
 }
 
 export const touti: GameModule<State, ToutiSettings> = {
@@ -423,6 +560,11 @@ export const touti: GameModule<State, ToutiSettings> = {
       tricks: { A: 0, B: 0 },
       sung: [],
       singQueue: [],
+      done: [],
+      auction: [],
+      claimable: null,
+      claim: null,
+      outlooks: {},
       result: null,
       nextAt: null,
       winner: null,
@@ -444,6 +586,14 @@ export const touti: GameModule<State, ToutiSettings> = {
 
   tick(ctx, s) {
     if (s.phase === 'final') return false;
+    if (s.phase === 'play' && s.claim) {
+      if (ctx.now < s.claim.until) return false;
+      s.lastTrick = { cards: [], winner: s.claim.by };
+      endHand(ctx, s);
+      s.claim = null;
+      armTimer(ctx, s);
+      return true;
+    }
     if (s.phase === 'play' && s.pauseUntil !== null) {
       if (ctx.now < s.pauseUntil) return false;
       collectTrick(ctx, s);
@@ -464,7 +614,7 @@ export const touti: GameModule<State, ToutiSettings> = {
     }
     if (s.deadline !== null && ctx.now >= s.deadline) {
       const id = turnOf(s)[0];
-      const move = id ? decide(s, id, 2, true) : null;
+      const move = id ? decide(s, id, 'smart', true) : null;
       if (!move) {
         s.deadline = null;
         return false;
@@ -479,7 +629,7 @@ export const touti: GameModule<State, ToutiSettings> = {
   botPlan(ctx, s) {
     const id = turnOf(s)[0];
     if (!id || !ctx.isBot(id)) return;
-    const move = decide(s, id, s.settings.level);
+    const move = decide(s, id, botLevel(ctx));
     if (!move) return;
     move.seq = s.seq;
     const delay = s.phase === 'play' ? randDelay(700, 1500) : randDelay(900, 1700);
@@ -526,6 +676,8 @@ export const touti: GameModule<State, ToutiSettings> = {
       winner: s.winner,
       partnerFree: s.settings.partnerFree,
       singBy: s.settings.singBy,
+      canClaim: s.claimable === me && turnOf(s)[0] === me,
+      claim: s.claim ? { by: s.claim.by, side: s.claim.side, cards: s.claim.cards, gain: s.claim.gain } : null,
     };
   },
 
@@ -548,6 +700,5 @@ export const touti: GameModule<State, ToutiSettings> = {
     if (patch.timer === 0 || patch.timer === 20 || patch.timer === 30 || patch.timer === 45) settings.timer = patch.timer;
     if (patch.singBy === 'winner' || patch.singBy === 'team') settings.singBy = patch.singBy;
     if (typeof patch.partnerFree === 'boolean') settings.partnerFree = patch.partnerFree;
-    if (patch.level === 1 || patch.level === 2) settings.level = patch.level;
   },
 };

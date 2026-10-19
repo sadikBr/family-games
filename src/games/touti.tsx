@@ -21,7 +21,7 @@ import { useTapToPlay } from './cards/card-ui';
 import { CardStage, SoftNumber, useCardLook } from './cards/motion';
 import { HostNote, PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
-import { BidPanel, ContractBar, HandBreakdown, HandFan, InfoRow, ScoreSheet, SingPanel, SungLine, Table, ToutiCard, TrumpPanel } from './touti-parts';
+import { BidPanel, ClaimReveal, ContractBar, HandBreakdown, HandFan, InfoRow, ScoreSheet, SingPanel, SungLine, Table, ToutiCard, TrumpPanel } from './touti-parts';
 
 const teamNames = (v: ToutiView, h: Helpers, side: TSide) =>
   v.sides.find((x) => x.key === side)!.members.map((m) => h.player(m).name).join(' و');
@@ -159,9 +159,13 @@ function TableScreen({ v, h, tap, playing }: { v: ToutiView; h: Helpers; tap: Re
         <SungLine sung={v.sung} h={h} trump={v.trump} />
       </View>
 
+      <ClaimReveal v={v} h={h} />
+
       {singing ? <SingPanel v={v} width={Math.min(cw, 360)} onSing={(suit) => h.act('sing', { suit })} /> : null}
 
       <View style={{ gap: 4 }}>
+        {/* every remaining trick is certain: end the hand at once (calm, above the hand) */}
+        {playing && v.canClaim ? <Btn size="md" icon="check" label="الباقي لنا — أنهِ اليد" ghost onPress={() => h.act('claim')} /> : null}
         {v.phase === 'play' && !singing ? <KeptHint text={hint} show={playing} /> : null}
         <HandFan cards={v.myHand} width={cw} playable={v.playable} myTurn={playing} selected={selected} onPress={playing ? (c) => tap.tap(c.id) : undefined} />
         {/* the button keeps its place for the whole play: nothing jumps when a card is selected or played */}
@@ -176,7 +180,7 @@ function TableScreen({ v, h, tap, playing }: { v: ToutiView; h: Helpers; tap: Re
   );
 }
 
-/** Lobby settings: target, timer, who sings, the partner rule, bots. */
+/** Lobby settings: target, timer, who sings, the partner rule (the bots' strength is the room's). */
 export function ToutiSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.touti;
   const change = (patch: Record<string, unknown>) => client.roomAction({ type: 'settings', game: 'touti', patch });
@@ -219,16 +223,6 @@ export function ToutiSettings({ room, editable }: { room: RoomView; editable: bo
           { key: '20', label: '20 ث' },
           { key: '30', label: '30 ث' },
           { key: '45', label: '45 ث' },
-        ]}
-      />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker
-        editable={editable}
-        value={String(s.level) as '1' | '2'}
-        onChange={(x) => change({ level: Number(x) })}
-        options={[
-          { key: '1', label: 'مبتدئ' },
-          { key: '2', label: 'قوي' },
         ]}
       />
       <Txt v="tiny" color={C.muted}>

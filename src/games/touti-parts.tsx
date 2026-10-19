@@ -174,11 +174,11 @@ export function Table({ v, h, width }: { v: ToutiView; h: Helpers; width: number
   const TOP = 68;
   const compact = v.phase === 'bid' || v.phase === 'trump';
   // while bidding the middle shows the highest bid; my tag sits right under it (a shorter table)
-  const block = 74;
-  const height = compact ? TOP + 2 + block + 52 : TOP + th * 2.2 + 30;
+  const block = 84;
+  const height = compact ? TOP + 2 + block + 52 : TOP + th * 2.3 + 30;
   const cx = width / 2;
-  const cy = compact ? TOP + 2 + block / 2 : TOP + th * 1.1;
-  const dy = th * 0.58;
+  const cy = compact ? TOP + 2 + block / 2 : TOP + th * 1.15;
+  const dy = th * 0.64;
   const dx = tw * 1.05;
   const pos: Record<string, { x: number; y: number }> = {
     [me]: { x: cx, y: cy + dy },
@@ -299,11 +299,11 @@ function AuctionCentre({ v, h }: { v: ToutiView; h: Helpers }) {
   return (
     <Animated.View key={`${v.high}-${v.phase}`} entering={FadeIn.duration(220)} style={{ alignItems: 'center' }}>
       <Txt v="tiny" color={soft} numberOfLines={1}>
-        {v.phase === 'trump' ? 'الشاري — اختيار الطرونفو' : 'أعلى مزايدة'}
+        {v.phase === 'trump' ? 'اختيار الطرونفو' : 'أعلى مزايدة'}
       </Txt>
       <Txt style={{ fontFamily: F.display, fontSize: 34, lineHeight: 44, color: C.yellow }}>{num(v.high)}</Txt>
-      <Txt v="tiny" color="#FFFFFF" numberOfLines={1}>
-        {v.highBy ? h.player(v.highBy).name : ''}
+      <Txt v="tiny" color="#FFFFFF" numberOfLines={1} style={{ marginTop: -4, marginBottom: 8 }}>
+        {v.highBy ? `${v.phase === 'trump' ? 'الشاري' : 'من'}: ${h.player(v.highBy).name}` : ''}
       </Txt>
     </Animated.View>
   );
@@ -672,5 +672,34 @@ export function InfoRow({ v }: { v: ToutiView }) {
     <Txt v="tiny" center color={C.dim} numberOfLines={1}>
       الأكلة {num(Math.min(v.trickNo, 10))} من {num(10)} · الشاري {num(made)} من {num(v.bid ?? 0)} · الخصمان {num(v.cards[def])}
     </Txt>
+  );
+}
+
+/** «الباقي لنا»: the claiming team's remaining cards, face up for everyone, before the hand ends. */
+export function ClaimReveal({ v, h }: { v: ToutiView; h: Helpers }) {
+  const accent = useAccent();
+  const c = v.claim;
+  if (!c) return null;
+  const mine = v.sides.find((x) => x.members.includes(h.me))?.key === c.side;
+  const team = v.sides.find((x) => x.key === c.side)!.members;
+  return (
+    <Animated.View entering={FadeIn.duration(250)} style={{ backgroundColor: C.surface, borderRadius: 18, padding: 10, gap: 6, borderWidth: 1.5, borderColor: alpha(accent, 0.8) }}>
+      <Txt v="bold" center color={C.yellow}>
+        {mine ? 'الباقي لنا' : `الباقي لفريق ${team.map((m) => h.player(m).name).join(' و')}`} {num(`+${c.gain}`)}
+      </Txt>
+      <Txt v="tiny" center color={C.muted}>
+        كل الأكلات الباقية مضمونة: أوراق الفريق مكشوفة
+      </Txt>
+      {team.map((id) => (
+        <Row key={id} gap={6} style={{ alignItems: 'center' }}>
+          <Avatar player={h.player(id)} size={22} />
+          <Row gap={3} wrap style={{ direction: 'ltr', flex: 1 }}>
+            {(c.cards[id] ?? []).map((card) => (
+              <ToutiCard key={card.id} card={card} width={30} />
+            ))}
+          </Row>
+        </Row>
+      ))}
+    </Animated.View>
   );
 }

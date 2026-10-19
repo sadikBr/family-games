@@ -37,6 +37,32 @@ export function handValue(hand: Card[], trump: Suit): number {
   return v;
 }
 
+/** Normal distribution function (for the chance of reaching a bid). */
+function phi(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+
+/**
+ * The chance of reaching `bid` with the hand's best trump: what the bidding team makes is about
+ * 0.91 × handValue + 9.5, give or take 23 (fitted on bot-only deals); pairs count only when the bid lets them be sung.
+ */
+export function reachChance(hand: Card[], bid: number): number {
+  let best = 0;
+  for (const suit of SUITS) {
+    let v = handValue(hand, suit);
+    for (const s of SUITS) {
+      if (!(hand.some((c) => c.suit === s && c.rank === 12) && hand.some((c) => c.suit === s && c.rank === 11))) continue;
+      if (s === suit && bid < SING_TRUMP_BID) v -= TRUMP_PAIR * 0.8;
+      if (s !== suit && bid < SING_PLAIN_BID) v -= PAIR * 0.7;
+    }
+    best = Math.max(best, phi((0.91 * v + 9.5 - bid) / 23));
+  }
+  return best;
+}
+
 /** The best trump suit for a hand and what it is worth. */
 export function bestTrump(hand: Card[]): { suit: Suit; value: number } {
   return SUITS.map((suit) => ({ suit, value: handValue(hand, suit) })).sort((a, b) => b.value - a.value)[0];
@@ -89,7 +115,7 @@ function wins(trick: { card: Card }[], card: Card, trump: Suit) {
 export function botPlay(x: PlayInfo): Card {
   const { hand, legal, trick, trump } = x;
   if (legal.length === 1) return legal[0];
-  if (x.level < 2 && x.roll < 0.25) return legal[Math.floor(x.roll * 1000) % legal.length];
+  if (x.level < 2 && x.roll < 0.4) return legal[Math.floor(x.roll * 1000) % legal.length];
   const seen = new Set([...x.played, ...trick.map((t) => t.card), ...hand].map((c) => c.id));
   const unknown = DECK.filter((c) => !seen.has(c.id));
   // the highest card still out in its suit (mine included)

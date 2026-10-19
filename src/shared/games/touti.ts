@@ -20,8 +20,6 @@ export interface ToutiSettings {
   singBy: ToutiSingBy;
   /** a player without the suit led need not trump while their partner holds the trick */
   partnerFree: boolean;
-  /** 1 = beginner bots, 2 = strong bots */
-  level: number;
 }
 
 export const TOUTI_TARGETS = [600, 300, 1000];
@@ -113,9 +111,13 @@ export interface ToutiView {
   winner: TSide | null;
   partnerFree: boolean;
   singBy: ToutiSingBy;
+  /** «الباقي لنا — أنهِ اليد»: my team takes every remaining trick for sure, and I lead */
+  canClaim: boolean;
+  /** a claim being shown: the claiming team's remaining cards, face up for everyone */
+  claim: { by: string; side: TSide; cards: Record<string, Card[]>; gain: number } | null;
 }
 
-export const TOUTI_DEFAULTS: ToutiSettings = { target: 600, timer: 0, singBy: 'winner', partnerFree: false, level: 2 };
+export const TOUTI_DEFAULTS: ToutiSettings = { target: 600, timer: 0, singBy: 'winner', partnerFree: false };
 
 export const TOUTI_INFO = {
   title: 'التوتي',

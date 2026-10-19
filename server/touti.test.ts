@@ -4,7 +4,8 @@ import { expect, test } from 'bun:test';
 import { makeDeck, type Card, type Suit } from '../src/shared/cards';
 import { TOUTI_DEFAULTS, type ToutiView } from '../src/shared/games/touti';
 import { T_TABLE, cardPoints, legalCards, scoreHand, singable, trickLeader } from '../src/shared/touti-rules';
-import { HAND_END_MS, REDEAL_MS, TRICK_PAUSE_MS, bidOptions, decide, touti, turnOf, type State } from './games/touti';
+import { CLAIM_MS, HAND_END_MS, REDEAL_MS, TRICK_PAUSE_MS, bidOptions, checkClaim, decide, knowledge, touti, turnOf, type State } from './games/touti';
+import { sampleDeal, setExpertBudget, takesAll, type Sim } from './touti-ai';
 import { botBid, handValue } from './touti-bot';
 
 const P = ['p0', 'p1', 'p2', 'p3'];
@@ -24,6 +25,8 @@ function fakeCtx() {
     memo: new Map(),
     bot: (by: string, _k: string, _d: number, a: any) => jobs.push({ by, a }),
     say: (t: string) => said.push(t),
+    // the quick bots by default (the expert has its own tests below)
+    botLevel: () => 'smart',
   };
   return { ctx, said, jobs, fx };
 }
@@ -387,14 +390,22 @@ test('the first team to the target wins; result() ranks the winning pair first',
 });
 
 test('a full bot-only game reaches the end (each setting combination)', () => {
-  for (const settings of [{}, { singBy: 'team' as const, partnerFree: true, level: 1 }, { target: 300, timer: 20 }]) {
+  for (const [settings, level] of [
+    [{}, 'smart'],
+    [{ singBy: 'team' as const, partnerFree: true }, 'easy'],
+    [{ target: 300, timer: 20 }, 'expert'],
+  ] as const) {
     const g = newGame(settings);
+    g.ctx.botLevel = () => level;
+    // a fixed number of deals per card: the same work on a slow or busy machine
+    setExpertBudget(Infinity, 3, 3);
     run(g, () => g.s.phase === 'final', 200000);
     expect(g.s.phase).toBe('final');
     expect(Math.max(g.s.scores.A, g.s.scores.B)).toBeGreaterThanOrEqual(g.s.settings.target);
     expect(touti.result!(g.s)!.places.flat().sort()).toEqual(P.slice().sort());
   }
-});
+  setExpertBudget(25, 4, 32);
+}, 120_000);
 
 test('bots bid sensibly: weak hands pass, strong hands bid, the pair is protected by the bid', () => {
   const weak = cs('2c 4c 5o 6o 2s 4s 5s 2b 4b 6b');
@@ -445,10 +456,10 @@ test('start needs exactly 4 players; settings are validated', () => {
   const f = fakeCtx();
   expect(() => touti.start(f.ctx, P.slice(0, 3), TOUTI_DEFAULTS)).toThrow();
   const s = { ...TOUTI_DEFAULTS };
-  touti.patchSettings!(s, { target: 1000, timer: 30, singBy: 'team', partnerFree: true, level: 1 });
-  expect(s).toEqual({ target: 1000, timer: 30, singBy: 'team', partnerFree: true, level: 1 });
+  touti.patchSettings!(s, { target: 1000, timer: 30, singBy: 'team', partnerFree: true });
+  expect(s).toEqual({ target: 1000, timer: 30, singBy: 'team', partnerFree: true });
   touti.patchSettings!(s, { target: 999, timer: 7, singBy: 'all', partnerFree: 'yes', level: 9 });
-  expect(s).toEqual({ target: 1000, timer: 30, singBy: 'team', partnerFree: true, level: 1 });
+  expect(s).toEqual({ target: 1000, timer: 30, singBy: 'team', partnerFree: true });
 });
 
 test('view: my hand only, the others as counts; the decision is mine only on my turn', () => {
@@ -480,6 +491,181 @@ test('decide: only for the player whose turn it is', () => {
   const g = newGame();
   const id = turnOf(g.s)[0];
   const other = P.find((p) => p !== id)!;
-  expect(decide(g.s, other, 2)).toBeNull();
-  expect(decide(g.s, id, 2)?.type).toBe('bid');
+  expect(decide(g.s, other, 'smart')).toBeNull();
+  expect(decide(g.s, id, 'smart')?.type).toBe('bid');
 });
+
+/* ------------------------------------------------------------------ */
+/* «الباقي لنا — أنهِ اليد»                                            */
+/* ------------------------------------------------------------------ */
+
+/** p0 bought at 90 in cups; three tricks left, p0 to lead with the three top trumps. */
+function endgame(hands: string[]) {
+  const g = bought(90);
+  g.s.hands = Object.fromEntries(P.map((id, i) => [id, cs(hands[i])]));
+  g.s.trickNo = 8;
+  g.s.turn = 'p0';
+  g.s.cards = { A: 60, B: 30 };
+  g.s.tricks = { A: 4, B: 3 };
+  checkClaim(g.s);
+  return g;
+}
+
+test('claim: offered to the leader whose team takes every remaining trick for sure, and only then', () => {
+  // p0: 1 3 12 of cups (trumps); nobody else has a trump
+  const g = endgame(['1c 3c 12c', '1o 3o 12o', '1s 3s 12s', '1b 3b 12b']);
+  expect(g.s.claimable).toBe('p0');
+  expect(vw(g.ctx, g.s, 'p0').canClaim).toBe(true);
+  expect(vw(g.ctx, g.s, 'p1').canClaim).toBe(false);
+  expect(() => touti.act(g.ctx, g.s, 'p1', { type: 'claim' })).toThrow();
+  // p1 holds a trump that can win a trick: no claim
+  const h = endgame(['3c 2c 1o', '1c 4o 5o', '1s 3s 12s', '1b 3b 12b']);
+  expect(h.s.claimable).toBeNull();
+  // a bot claims
+  expect(decide(g.s, 'p0', 'expert')).toEqual({ type: 'claim' });
+});
+
+test('claim: the team takes every remaining card and الدير, the cards are shown, then the hand ends', () => {
+  const g = endgame(['1c 3c 12c', '1o 3o 12o', '1s 3s 12s', '1b 3b 12b']);
+  touti.act(g.ctx, g.s, 'p0', { type: 'claim' });
+  // every card left: 4 × (11 + 10 + 4) = 100, and 10 for the last trick
+  expect(g.s.cards.A).toBe(60 + 110);
+  expect(g.s.tricks.A).toBe(7);
+  const v = vw(g.ctx, g.s, 'p3');
+  expect(v.claim).toMatchObject({ by: 'p0', side: 'A', gain: 110 });
+  expect(ids(v.claim!.cards.p0)).toEqual(ids(cs('1c 3c 12c')));
+  expect(ids(v.claim!.cards.p2)).toEqual(ids(cs('1s 3s 12s')));
+  expect(turnOf(g.s)).toEqual([]);
+  expect(g.said.at(-1)).toBe('الباقي لـفريق سارة وماما: +110 مع الدير');
+  g.ctx.now += CLAIM_MS - 1;
+  touti.tick!(g.ctx, g.s);
+  expect(g.s.phase).toBe('play');
+  g.ctx.now += 2;
+  touti.tick!(g.ctx, g.s);
+  expect(g.s.phase).toBe('handEnd');
+  expect(g.s.result).toMatchObject({ success: true, last: 'A', made: 170 });
+  expect(g.s.result!.cards.A + g.s.result!.cards.B).toBe(200);
+});
+
+test('claim: the bidding team also gets the pairs it could still sing (one per trick before the last)', () => {
+  // p0 holds 12 + 11 of clubs and the top trumps
+  const g = endgame(['1c 3c 12b 11b', '1o 3o 12o 2o', '1s 3s 12s 2s', '1b 3b 10b 2b']);
+  g.s.trickNo = 7;
+  checkClaim(g.s);
+  expect(g.s.claimable).toBeNull();
+  // with p0 holding every trump left and the clubs covered by them, still not sure: p3's 1 of clubs can win
+  const h = endgame(['1c 3c 12c 11c', '1o 3o 12o 2o', '1s 3s 7s 2s', '6b 5b 4b 2b']);
+  h.s.trickNo = 7;
+  checkClaim(h.s);
+  expect(h.s.claimable).toBe('p0');
+  touti.act(h.ctx, h.s, 'p0', { type: 'claim' });
+  // the trump pair (40, bid 90) after one of the 3 tricks before the last
+  expect(h.s.sung).toEqual([{ by: 'p0', suit: 'cups', points: 40, trick: 6 }]);
+});
+
+test('takesAll: exact on small endings, false when the tree is too big', () => {
+  const sim = (hands: string[]): Sim => ({
+    hands: hands.map(cs),
+    trick: [],
+    turn: 0,
+    trump: 'cups',
+    partnerFree: false,
+    left: hands[0].split(' ').length,
+    pts: [0, 0],
+    bidTeam: 0,
+    bid: 90,
+    sung: [],
+    sungPts: 0,
+    singBy: 'winner',
+  });
+  expect(takesAll(sim(['1c 1o', '2o 2s', '3o 3s', '4o 4s']), 0)).toBe(true);
+  // p0's 4 of coins loses to p1's 3 if p2 can't cover it… p2's 3 takes it: still all
+  expect(takesAll(sim(['1c 4o', '2o 2s', '3o 3s', '5o 4s']), 0)).toBe(true);
+  // p1's 3 of coins takes the second trick
+  expect(takesAll(sim(['1c 4o', '3o 2s', '2o 3s', '5o 4s']), 0)).toBe(false);
+  const full = makeDeck();
+  expect(takesAll(sim([0, 1, 2, 3].map((k) => full.slice(k * 10, k * 10 + 10).map((c) => `${c.rank}${Object.keys(SU).find((x) => SU[x] === c.suit)}`).join(' '))), 0, 50)).toBe(false);
+});
+
+/* ------------------------------------------------------------------ */
+/* The expert                                                          */
+/* ------------------------------------------------------------------ */
+
+test('expert: the deals it imagines fit what the play revealed (voids, no trump, the sung pair)', () => {
+  const g = bought(90, {}, ['1c 3c 12c 11c 7c 1o 3o 12b 11b 2s', '10c 6c 5c 4c 2c 12o 11o 10o 7o 6o', '1s 3s 12s 11s 10s 7s 6s 5s 4s 5b', '1b 3b 10b 7b 6b 4b 2b 5o 4o 2o']);
+  // trick 1: p0 leads coins, p1 follows, p2 has no coins and no trump → plays a sword, p3 follows
+  for (const [id, card] of [['p0', 'coins-1'], ['p1', 'coins-6'], ['p2', 'swords-1'], ['p3', 'coins-2']]) touti.act(g.ctx, g.s, id, { type: 'play', card });
+  g.ctx.now += TRICK_PAUSE_MS;
+  touti.tick!(g.ctx, g.s);
+  touti.act(g.ctx, g.s, 'p0', { type: 'sing', suit: null });
+  g.s.sung = [{ by: 'p1', suit: 'coins', points: 20, trick: 1 }];
+  const k = knowledge(g.s, 'p3');
+  for (let i = 0; i < 30; i++) {
+    const deal = sampleDeal(k)!;
+    expect(deal[3].map((x) => x.id).sort()).toEqual(ids(g.s.hands.p3));
+    // p2 showed no coins and no trump
+    expect(deal[2].some((x) => x.suit === 'coins' || x.suit === 'cups')).toBe(false);
+    // p1 sang 12 + 11 of coins
+    expect(deal[1].some((x) => x.id === 'coins-12') && deal[1].some((x) => x.id === 'coins-11')).toBe(true);
+    expect(deal.map((h) => h.length)).toEqual(P.map((id) => g.s.hands[id].length));
+  }
+});
+
+test('expert: decisions stay quick (a 25 ms budget per card)', () => {
+  const g = newGame();
+  g.ctx.botLevel = () => 'expert';
+  const times: number[] = [];
+  for (let i = 0; i < 4000 && g.s.hand < 4 && g.s.phase !== 'final'; i++) {
+    const id = turnOf(g.s)[0];
+    if (!id) {
+      g.ctx.now += 20_000;
+      touti.tick!(g.ctx, g.s);
+      continue;
+    }
+    const t0 = performance.now();
+    const m = decide(g.s, id, 'expert')!;
+    times.push(performance.now() - t0);
+    touti.act(g.ctx, g.s, id, m);
+  }
+  times.sort((a, b) => a - b);
+  expect(times.length).toBeGreaterThan(60);
+  // the budget is 25 ms per card; generous margins for a busy machine
+  expect(times[Math.floor(times.length / 2)]).toBeLessThan(60);
+  expect(times[Math.floor(times.length * 0.95)]).toBeLessThan(150);
+}, 60_000);
+
+test('expert: an expert pair clearly beats an easy pair over seeded games', () => {
+  // repeatable: a seeded random and a fixed number of deals per card
+  const real = Math.random;
+  let seed = 2026;
+  Math.random = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  setExpertBudget(Infinity, 6, 6);
+  const level = (id: string) => (id === 'p0' || id === 'p2' ? 'expert' : 'easy');
+  let wins = 0;
+  let diff = 0;
+  const GAMES = 8;
+  try {
+    for (let n = 0; n < GAMES; n++) {
+      const g = newGame({ target: 300 });
+      for (let i = 0; i < 100000 && g.s.phase !== 'final'; i++) {
+        const id = turnOf(g.s)[0];
+        if (!id) {
+          if (g.s.phase === 'handEnd' && g.s.result) diff += g.s.result.points.A - g.s.result.points.B;
+          g.ctx.now += 20_000;
+          touti.tick!(g.ctx, g.s);
+          continue;
+        }
+        touti.act(g.ctx, g.s, id, decide(g.s, id, level(id))!);
+      }
+      if (g.s.winner === 'A') wins++;
+    }
+  } finally {
+    Math.random = real;
+    setExpertBudget(25, 4, 32);
+  }
+  expect(wins).toBeGreaterThanOrEqual(6);
+  expect(diff).toBeGreaterThan(0);
+}, 120_000);
