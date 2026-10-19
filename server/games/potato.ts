@@ -1,7 +1,7 @@
 import type { PotatoSettings, PotatoView } from '../../src/shared/protocol';
 import { potatoAnswerPool } from '../bot-content';
 import { POTATO_PROMPTS } from '../content';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { Deck, isStr, pick, randInt } from '../util';
 
 const MIN_HOLD_MS = 700; // you must at least *say* a word before throwing
@@ -21,6 +21,8 @@ interface State {
   burns: Record<string, number>;
   loserId: string | null;
   lastWord: { by: string; word: string } | null;
+  /** how long each player held the potato before throwing it (public: everyone sees it fly), for the bots */
+  holds?: Record<string, { ms: number; n: number }>;
 }
 
 function prompts(ctx: GameCtx): Deck<string> {
@@ -50,6 +52,37 @@ function newRound(ctx: GameCtx, s: State, starter: string) {
   s.passes = 0;
   s.loserId = null;
   s.lastWord = null;
+}
+
+/**
+ * How long a bot holds the potato: it has to say a word first (the game refuses a throw before
+ * MIN_HOLD_MS). Easy: 1.3–3.2 s like the old bots. Smart / expert: says a short word and throws at once,
+ * quicker still once the fuse has burned past its shortest length (it could go off any moment). The fuse
+ * itself is secret: only the time since the start, which everyone sees, is used.
+ */
+export function potatoDelay(s: Pick<State, 'settings' | 'startedAt'>, level: 'easy' | 'smart' | 'expert', now: number): number {
+  if (level === 'easy') return randInt(1300, 3200);
+  const elapsed = s.startedAt === null ? 0 : now - s.startedAt;
+  const min = Math.max(5, Math.min(s.settings.minFuse, s.settings.maxFuse)) * 1000;
+  const danger = elapsed >= min * 0.8;
+  if (level === 'smart') return danger ? randInt(1000, 1700) : randInt(1100, 2300);
+  return danger ? randInt(850, 1200) : randInt(950, 1500);
+}
+
+/**
+ * Who a bot throws to. Easy: anyone allowed. Smart / expert: the player who keeps the potato longest (what
+ * everyone has seen this game) — the fuse burns while they hold it, not us — and, between equals, the one
+ * with the fewest burns (the leader); never the one who'd throw it straight back if there's a choice.
+ */
+export function potatoTarget(s: Pick<State, 'holds' | 'burns'>, targets: string[], level: 'easy' | 'smart' | 'expert'): string {
+  if (level === 'easy' || targets.length === 1) return pick(targets);
+  const avg = (id: string) => {
+    const h = s.holds?.[id];
+    // nobody seen yet: assume an ordinary 2 s
+    return h && h.n ? (h.ms + 2000) / (h.n + 1) : 2000;
+  };
+  const score = (id: string) => avg(id) - 150 * (s.burns[id] ?? 0) + Math.random() * (level === 'expert' ? 50 : 900);
+  return [...targets].sort((a, b) => score(b) - score(a))[0];
 }
 
 /** For result(): the highest `score` first; equal scores share a place. */
@@ -115,6 +148,9 @@ export const potato: GameModule<State, PotatoSettings> = {
         if (!eligible.includes(to)) {
           throw new GameError('لا يجوز أن تعيدها إلى من رماها إليك!');
         }
+        const held = ((s.holds ??= {})[by] ??= { ms: 0, n: 0 });
+        held.ms += ctx.now - s.receivedAt;
+        held.n += 1;
         s.fromId = by;
         s.holderId = to;
         s.receivedAt = ctx.now;
@@ -194,11 +230,9 @@ export const potato: GameModule<State, PotatoSettings> = {
     } else if (s.phase === 'play') {
       const targets = eligibleTargets(ctx, s);
       if (!targets.length) return;
-      ctx.bot(bot, `throw:${s.round}:${s.passes}`, randInt(1300, 3200), {
-        type: 'throw',
-        to: pick(targets),
-        word: pick(potatoAnswerPool(s.category)),
-      });
+      const level = botLevel(ctx);
+      const word = pick(potatoAnswerPool(s.category));
+      ctx.bot(bot, `throw:${s.round}:${s.passes}`, potatoDelay(s, level, ctx.now), { type: 'throw', to: potatoTarget(s, targets, level), word });
     }
   },
 

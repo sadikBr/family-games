@@ -19,14 +19,15 @@ import {
 import { QUESTIONS, Q_CATS } from '../content-islamic';
 import { MOSQUE_FACTS, fromBank, type MosqueQuestion } from '../mosque-facts';
 import { qdeck } from '../qdeck';
-import { type GameCtx, type GameModule } from '../types';
+import { quizChoice, quizDelay, quizSkill, readChars, readMs } from '../ai/social-quiz';
+import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, randInt } from '../util';
 import { botAnswerDelay, mcqOptions } from './mcq';
 
 export const MOSQUE_REVEAL_MS = 5500;
 /** A finished piece gets a little longer on screen to enjoy it. */
 export const MOSQUE_BUILT_MS = 8000;
-/** How often a bot team-mate answers right. */
+/** How often an easy bot team-mate answers right (smart / expert: see ai/social-quiz). */
 export const MOSQUE_BOT_SKILL = 0.7;
 
 const LEVELS: MosqueLevel[] = ['easy', 'normal', 'hard'];
@@ -188,14 +189,16 @@ export const mosque: GameModule<MosqueState, MosqueSettings> = {
     if (s.phase !== 'ask') return;
     const item = s.items[s.round - 1];
     const peopleWaiting = s.participants.some((p) => !bots.includes(p) && !s.answers[p] && ctx.isConnected(p));
+    const level = botLevel(ctx);
     for (const b of bots) {
       if (!s.participants.includes(b) || s.answers[b]) continue;
-      const right = Math.random() < MOSQUE_BOT_SKILL;
-      const wrong = item.options.map((_, i) => i).filter((i) => i !== item.correct);
-      const choice = right ? item.correct : wrong[randInt(0, wrong.length - 1)];
-      // team-mates: they let the people answer first, then don't keep anyone waiting
-      if (peopleWaiting) ctx.bot(b, `ans:${s.round}`, botAnswerDelay(s.seconds), { type: 'answer', choice });
-      else ctx.bot(b, `ans-now:${s.round}`, randInt(600, 1600), { type: 'answer', choice });
+      const { choice, sure } = quizChoice(item.correct, item.options.length, quizSkill(level, MOSQUE_BOT_SKILL));
+      // team-mates: an easy bot lets the people answer first; smarter ones answer within the first half of
+      // the timer (the fast bricks) — answers stay hidden until the reveal, so nobody is rushed or copied
+      const delay = level === 'easy' ? botAnswerDelay(s.seconds) : Math.min(s.seconds * 470, quizDelay(level, s.seconds, readChars(item.text, item.options), sure));
+      if (peopleWaiting) ctx.bot(b, `ans:${s.round}`, delay, { type: 'answer', choice });
+      // nobody else to wait for: answer soon, but not before a person could have read the question
+      else ctx.bot(b, `ans-now:${s.round}`, Math.max(randInt(600, 1600), Math.min(delay, readMs(readChars(item.text, item.options))) - (ctx.now - s.startedAt)), { type: 'answer', choice });
     }
   },
 

@@ -7,6 +7,7 @@
  * (each step is green or red) and rewards knowing part of a sequence; keeping the speed bonus for a
  * perfect order means guessing fast never pays. The round ends when everyone has sent or time is up.
  */
+import type { BotLevel } from '../../src/shared/protocol';
 import {
   STEPS_CATEGORIES,
   stepsPoints,
@@ -21,7 +22,7 @@ import { randDelay } from '../cardkit';
 import { soleWinner } from './mcq';
 import { qdeck } from '../qdeck';
 import { STEP_SEQS, type StepSeq } from '../steps-content';
-import { type GameCtx, type GameModule } from '../types';
+import { botLevel, type GameCtx, type GameModule } from '../types';
 import { clamp, isNum, isStr, shuffle } from '../util';
 
 /** how long the answer stays on screen before the next round (the host may go on sooner) */
@@ -125,16 +126,24 @@ function maybeReveal(ctx: GameCtx, s: State) {
 /* Bots                                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The room's bot strength as the old per-game level (that lobby setting is gone; old apps may still send
+ * it, it is kept but ignored): easy = the old default «متوسط», smart = «صعب», expert = better still.
+ */
+type BotSkill = StepsLevel | 'expert';
+const SKILL: Record<BotLevel, BotSkill> = { easy: 'medium', smart: 'hard', expert: 'expert' };
+
 /** How many neighbouring steps a bot swaps by mistake. */
-function botSlips(level: StepsLevel, rnd: () => number): number {
+function botSlips(level: BotSkill, rnd: () => number): number {
   const r = rnd();
   if (level === 'easy') return r < 0.25 ? 0 : r < 0.75 ? 1 : 2;
   if (level === 'medium') return r < 0.65 ? 0 : 1;
-  return r < 0.9 ? 0 : 1;
+  if (level === 'hard') return r < 0.9 ? 0 : 1;
+  return r < 0.97 ? 0 : 1;
 }
 
 /** A bot's order: the right one, with a few neighbouring steps swapped depending on its level. */
-export function botOrder(correct: readonly number[], level: StepsLevel, rnd: () => number = Math.random): number[] {
+export function botOrder(correct: readonly number[], level: BotSkill, rnd: () => number = Math.random): number[] {
   const order = correct.slice();
   const slips = botSlips(level, rnd);
   for (let k = 0; k < slips; k++) {
@@ -144,11 +153,20 @@ export function botOrder(correct: readonly number[], level: StepsLevel, rnd: () 
   return order;
 }
 
-/** When a bot sends: a few seconds per step, never too late (people get the speed points first). */
-function botDelay(s: State): number {
+/**
+ * When a bot sends. Easy / smart: a share of the timer (people get the speed points first). Expert: like a
+ * person who knows the sequence: reads every step and drags it into place (~1.6 s a step, more for long
+ * steps), never more than half the timer.
+ */
+function botDelay(s: State, level: BotSkill): number {
   const total = s.timerTotal;
   const n = s.correct.length;
-  const [lo, hi] = s.settings.level === 'easy' ? [0.45, 0.85] : s.settings.level === 'medium' ? [0.35, 0.75] : [0.25, 0.6];
+  if (level === 'expert') {
+    const chars = s.items.reduce((t, x) => t + x.length, 0);
+    const ms = 1500 + n * 1300 + chars * 25 + randDelay(0, 2000);
+    return Math.round(Math.min(ms, total * 0.5));
+  }
+  const [lo, hi] = level === 'easy' ? [0.45, 0.85] : level === 'medium' ? [0.35, 0.75] : [0.25, 0.6];
   return Math.max(n * 1500, randDelay(total * lo, total * hi));
 }
 
@@ -225,9 +243,10 @@ export const steps: GameModule<State, StepsSettings> = {
 
   botPlan(ctx, s, bots) {
     if (s.phase !== 'play') return;
+    const level = SKILL[botLevel(ctx)];
     for (const b of s.participants) {
       if (s.subs[b] || !(bots.includes(b) || ctx.isBot(b))) continue;
-      ctx.bot(b, `sub:${s.round}`, botDelay(s), { type: 'submit', round: s.round + 1, order: botOrder(s.correct, s.settings.level) });
+      ctx.bot(b, `sub:${s.round}`, botDelay(s, level), { type: 'submit', round: s.round + 1, order: botOrder(s.correct, level) });
     }
   },
 

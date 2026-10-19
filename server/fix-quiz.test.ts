@@ -125,13 +125,13 @@ test('huroof: the next game in the room starts with questions not asked last gam
   expect(second.question.text).not.toBe(q1);
 });
 
-test('surah bots are weaker on harder levels, and mcq bots mostly answer in the second half', () => {
+test('easy surah bots are weaker on harder levels, and easy mcq bots mostly answer in the second half', () => {
   const rate: Record<string, number> = {};
   let late = 0, all = 0;
   for (const level of ['easy', 'medium', 'hard'] as const) {
     let right = 0, total = 0;
     const picks: { by: string; a: any; d: number }[] = [];
-    const ctx = fakeCtx((by, a, d) => picks.push({ by, a, d }));
+    const ctx = { ...fakeCtx((by, a, d) => picks.push({ by, a, d })), botLevel: () => 'easy' };
     const bots = Array.from({ length: 10 }, (_, i) => `b${i}`);
     for (let g = 0; g < 8; g++) {
       const s: any = surah.start(ctx, bots, { rounds: 30, seconds: 20, level });
@@ -156,12 +156,12 @@ test('surah bots are weaker on harder levels, and mcq bots mostly answer in the 
   expect(late / all).toBeGreaterThan(0.6);
 });
 
-test('whois bots rarely guess at the first clue', () => {
+test('easy whois bots rarely guess at the first clue', () => {
   let guessed = 0;
   const n = 4000;
   for (let i = 0; i < n; i++) {
     let got = false;
-    const ctx = fakeCtx(() => (got = true));
+    const ctx = { ...fakeCtx(() => (got = true)), botLevel: () => 'easy' };
     const s: any = whois.start(ctx, ['b'], { rounds: 4 });
     whois.botPlan!(ctx, s, ['b']);
     whois.botPlan!(ctx, s, ['b']); // a second call in the same clue doesn't roll again

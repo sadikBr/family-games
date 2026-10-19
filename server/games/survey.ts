@@ -9,6 +9,7 @@
  * points. The last two rounds count ×2 and ×3. The answers are the game's own estimates of what people
  * usually say (see survey-content.ts) — never presented as a real poll.
  */
+import type { BotLevel } from '../../src/shared/protocol';
 import {
   SURVEY_ROUND_CHOICES,
   surveyMultiplier,
@@ -19,9 +20,10 @@ import {
 } from '../../src/shared/games/survey';
 import { randDelay } from '../cardkit';
 import { qdeck } from '../qdeck';
-import { SURVEY_QUESTIONS, type SurveyQuestion } from '../survey-content';
+import { SURVEY_QUESTIONS, type SurveyAnswer, type SurveyQuestion } from '../survey-content';
 import { matchAnswer, namesOf } from '../survey-match';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { readMs } from '../ai/social-quiz';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
 /** pause on the round summary before the next round starts by itself */
@@ -330,27 +332,48 @@ function checkAnswer(ctx: GameCtx, s: State, by: string, text: string | null) {
 /* Bots                                                                */
 /* ------------------------------------------------------------------ */
 
-/** How likely a bot finds an answer that is on the board. */
-export function botSkill(s: State): number {
+/**
+ * How likely a bot finds an answer that is on the board, by the room's bot strength. The answers left get
+ * harder as the board fills up.
+ */
+export function botSkill(s: State, level: BotLevel = 'easy'): number {
+  const found = s.revealed.filter(Boolean).length;
+  if (level === 'expert') {
+    if (s.phase === 'faceoff') return 0.93;
+    if (s.phase === 'steal') return 0.8;
+    return Math.max(0.6, 0.95 - 0.05 * found);
+  }
+  if (level === 'smart') {
+    if (s.phase === 'faceoff') return 0.85;
+    if (s.phase === 'steal') return 0.65;
+    return Math.max(0.5, 0.88 - 0.06 * found);
+  }
   if (s.phase === 'faceoff') return 0.75;
   if (s.phase === 'steal') return 0.5;
-  const found = s.revealed.filter(Boolean).length;
   return Math.max(0.35, 0.8 - 0.08 * found);
 }
 
-/** A bot's answer: a hidden answer, weighted by its points (common ones come first), or a plausible miss. */
-export function botGuess(s: State, rnd: () => number = Math.random): string {
+/**
+ * A bot's answer: a hidden answer or a plausible miss. Easy bots pick among the hidden answers weighted by
+ * their points (common ones come first); smart ones lean harder on the common answers; an expert names the
+ * most common answer left most of the time — in the face-off that takes the board at once, and in a steal
+ * it is the best bet.
+ */
+export function botGuess(s: State, rnd: () => number = Math.random, level: BotLevel = 'easy'): string {
   const q = question(s);
   const open = q.answers.map((a, i) => ({ a, i })).filter(({ i }) => !s.revealed[i]);
-  if (open.length && rnd() < botSkill(s)) {
-    const total = open.reduce((n, o) => n + o.a.points * o.a.points, 0);
+  if (open.length && rnd() < botSkill(s, level)) {
+    const say = (a: SurveyAnswer) => {
+      const names = namesOf(a);
+      return rnd() < 0.7 ? a.text : names[Math.floor(rnd() * names.length)];
+    };
+    if (level === 'expert' && rnd() < 0.8) return say(open[0].a);
+    const power = level === 'easy' ? 2 : 3;
+    const total = open.reduce((n, o) => n + o.a.points ** power, 0);
     let x = rnd() * total;
     for (const o of open) {
-      x -= o.a.points * o.a.points;
-      if (x <= 0) {
-        const names = namesOf(o.a);
-        return rnd() < 0.7 ? o.a.text : names[Math.floor(rnd() * names.length)];
-      }
+      x -= o.a.points ** power;
+      if (x <= 0) return say(o.a);
     }
     return open[0].a.text;
   }
@@ -364,11 +387,21 @@ export function botGuess(s: State, rnd: () => number = Math.random): string {
   return 'لا أعرف';
 }
 
-/** Typing takes a moment, but always well inside the timer. */
-const typingDelay = (s: State, extra = 0) => {
+/**
+ * Typing takes a moment, but always well inside the timer. Smart / expert bots: think, then type the
+ * answer a few letters a second.
+ */
+const typingDelay = (s: State, extra = 0, level: BotLevel = 'easy', text = '') => {
   const ms = answerMs(s);
-  return randDelay(Math.min(2500, ms * 0.25), Math.min(6500 + extra, ms * 0.6 + extra));
+  if (level === 'easy') return randDelay(Math.min(2500, ms * 0.25), Math.min(6500 + extra, ms * 0.6 + extra));
+  const think = level === 'expert' ? randDelay(700, 1800) : randDelay(1500, 3500);
+  return Math.round(Math.min(ms * 0.7 + extra, Math.max(2000, think + 900 + text.length * 200 + extra * 0.3)));
 };
+
+/** What a bot answers (the room keeps only the first plan for each step). */
+function botSays(s: State, level: BotLevel): string {
+  return botGuess(s, Math.random, level);
+}
 
 /* ------------------------------------------------------------------ */
 /* Module                                                              */
@@ -495,6 +528,7 @@ export const survey: GameModule<State, SurveySettings> = {
 
   botPlan(ctx, s, bots) {
     const isBot = (id: string) => bots.includes(id) || ctx.isBot(id);
+    const level = botLevel(ctx);
     switch (s.phase) {
       case 'teams':
         // only a room full of bots (everyone offline) starts by itself; people press «هيا نبدأ»
@@ -505,19 +539,30 @@ export const survey: GameModule<State, SurveySettings> = {
         if (!face) return;
         if (!s.answerer) {
           const humanThere = face.players.some((p) => !isBot(p) && ctx.isConnected(p));
+          const read = readMs(question(s).q.length);
           for (const p of face.players) {
             if (!isBot(p)) continue;
-            // against a person the bot is a little slower, so people get a fair chance
-            const delay = humanThere ? randDelay(2500, Math.min(7000, answerMs(s) * 0.7)) : randDelay(1200, 4000);
+            // against a person an easy bot is a little slower, so people get a fair chance; smarter bots
+            // press once they have read the question, like a quick person
+            const delay =
+              level === 'easy'
+                ? humanThere
+                  ? randDelay(2500, Math.min(7000, answerMs(s) * 0.7))
+                  : randDelay(1200, 4000)
+                : Math.round(Math.min(answerMs(s) * 0.6, level === 'expert' ? read + randDelay(0, 600) : read * 1.4 + randDelay(500, 2000)));
             ctx.bot(p, `buzz:${s.step}`, delay, { type: 'buzz', step: s.step });
           }
         } else if (isBot(s.answerer)) {
-          ctx.bot(s.answerer, `ans:${s.step}`, typingDelay(s), { type: 'answer', step: s.step, text: botGuess(s) });
+          const text = botSays(s, level);
+          ctx.bot(s.answerer, `ans:${s.step}`, typingDelay(s, 0, level, text), { type: 'answer', step: s.step, text });
         }
         return;
       }
       case 'play':
-        if (s.answerer && isBot(s.answerer)) ctx.bot(s.answerer, `ans:${s.step}`, typingDelay(s), { type: 'answer', step: s.step, text: botGuess(s) });
+        if (s.answerer && isBot(s.answerer)) {
+          const text = botSays(s, level);
+          ctx.bot(s.answerer, `ans:${s.step}`, typingDelay(s, 0, level, text), { type: 'answer', step: s.step, text });
+        }
         return;
       case 'steal': {
         if (s.control === null) return;
@@ -525,7 +570,9 @@ export const survey: GameModule<State, SurveySettings> = {
         // people on the stealing team decide together; a team of bots sends its captain
         if (team.some((p) => !isBot(p) && ctx.isConnected(p))) return;
         const who = s.answerer && team.includes(s.answerer) ? s.answerer : team[0];
-        if (who) ctx.bot(who, `steal:${s.step}`, typingDelay(s, 3000), { type: 'answer', step: s.step, text: botGuess(s) });
+        if (!who) return;
+        const text = botSays(s, level);
+        ctx.bot(who, `steal:${s.step}`, typingDelay(s, 3000, level, text), { type: 'answer', step: s.step, text });
         return;
       }
     }

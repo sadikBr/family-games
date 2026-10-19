@@ -3,8 +3,9 @@
  * Everyone answers on their own phone; a correct answer scores 500 + up to 500 for speed.
  */
 import type { GameId, McqResult, McqView } from '../../src/shared/protocol';
-import { type GameCtx, type GameModule } from '../types';
-import { isNum, randInt } from '../util';
+import { easyDelay, quizAnswer } from '../ai/social-quiz';
+import { botLevel, type GameCtx, type GameModule } from '../types';
+import { isNum } from '../util';
 
 export interface McqItem {
   text: string;
@@ -16,8 +17,6 @@ export interface McqItem {
 
 const REVEAL_MS = 7000;
 const BOT_SKILL = 0.7;
-/** Share of bot answers that come in the second half of the timer, so people get the speed points. */
-const BOT_LATE = 0.7;
 
 export interface McqState<S> {
   settings: S;
@@ -67,11 +66,8 @@ export function placesByScore(ids: string[], scores: Record<string, number>): st
   return places;
 }
 
-/** When a bot answers: mostly in the second half of the timer, sometimes earlier. */
-export function botAnswerDelay(seconds: number): number {
-  const total = seconds * 1000;
-  return Math.random() < BOT_LATE ? randInt(total * 0.5, total * 0.92) : randInt(Math.min(2500, total * 0.25), total * 0.5);
-}
+/** When an easy bot answers: mostly in the second half of the timer, sometimes earlier. */
+export const botAnswerDelay = easyDelay;
 
 function ask(ctx: GameCtx, s: McqState<unknown>) {
   s.round += 1;
@@ -87,7 +83,7 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
   id: Extract<GameId, 'quiz' | 'surah' | 'trivia'>,
   /** At most `rounds` items, drawn from the room's deck (see qdeck) so questions don't repeat between games. */
   build: (ctx: GameCtx, settings: S, rounds: number) => McqItem[],
-  /** How often bots pick the right answer (default 70%). */
+  /** How often easy bots pick the right answer (default 70%); smart and expert bots know more (see ai/social-quiz). */
   botSkill: (settings: S) => number = () => BOT_SKILL,
 ): GameModule<McqState<S>, S> {
   return {
@@ -138,12 +134,11 @@ export function makeMcq<S extends { rounds: number; seconds: number }>(
     botPlan(ctx, s, bots) {
       if (s.phase !== 'ask') return;
       const item = s.items[s.round - 1];
+      const level = botLevel(ctx);
       for (const b of bots) {
         if (!s.participants.includes(b) || s.answers[b]) continue;
-        const right = Math.random() < botSkill(s.settings);
-        const wrong = [...item.options.keys()].filter((k) => k !== item.correct);
-        const choice = right ? item.correct : wrong[randInt(0, wrong.length - 1)];
-        ctx.bot(b, `ans:${s.round}`, botAnswerDelay(s.seconds), { type: 'answer', choice });
+        const { choice, delay } = quizAnswer(level, botSkill(s.settings), item, s.seconds);
+        ctx.bot(b, `ans:${s.round}`, delay, { type: 'answer', choice });
       }
     },
 

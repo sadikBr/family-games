@@ -6,7 +6,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
 import { haptic, play } from '@/lib/sfx';
-import { STEPS_CATEGORIES, type StepsLevel, type StepsSettings as Settings, type StepsView } from '@/shared/games/steps';
+import { STEPS_CATEGORIES, type StepsSettings as Settings, type StepsView } from '@/shared/games/steps';
 import type { RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
@@ -282,12 +282,6 @@ export function StepsGame({ room, view }: { room: RoomView; view: StepsView }) {
 /* Lobby settings                                                      */
 /* ------------------------------------------------------------------ */
 
-const LEVELS: { key: StepsLevel; label: string }[] = [
-  { key: 'easy', label: 'سهل' },
-  { key: 'medium', label: 'متوسط' },
-  { key: 'hard', label: 'صعب' },
-];
-
 export function StepsSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.steps;
   const change = (patch: Partial<Settings>) => client.roomAction({ type: 'settings', game: 'steps', patch });
@@ -297,8 +291,6 @@ export function StepsSettings({ room, editable }: { room: RoomView; editable: bo
       <Stepper label="وقت الجولة" value={s.seconds} min={30} max={120} step={10} editable={editable} onChange={(seconds) => change({ seconds })} format={(v) => `${num(v)} ث`} />
       <Txt v="bold">المجال</Txt>
       <ChipPicker<Settings['category']> editable={editable} value={s.category} onChange={(category) => change({ category })} options={STEPS_CATEGORIES} />
-      <Txt v="bold">مستوى البوتات</Txt>
-      <ChipPicker<StepsLevel> editable={editable} value={s.level} onChange={(level) => change({ level })} options={LEVELS} />
     </View>
   );
 }

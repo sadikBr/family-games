@@ -46,7 +46,8 @@ test('werewolf: the narrator leaving ends the game with every role shown', () =>
 });
 
 test('werewolf: bot accusations appear one by one', () => {
-  const ctx = fakeCtx({ bots: ['a', 'b', 'c', 'd'] });
+  // easy bots always speak (smarter villagers keep quiet until they have a reason)
+  const ctx = { ...fakeCtx({ bots: ['a', 'b', 'c', 'd'] }), botLevel: () => 'easy' };
   const s: any = werewolf.start(ctx, ['n', 'a', 'b', 'c', 'd'], { ...DEFAULT_SETTINGS.werewolf, narratorId: 'n' });
   s.phase = 'day';
   s.day = 1;

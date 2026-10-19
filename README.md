@@ -45,7 +45,7 @@ A party-games app for family night. **Every player uses their own phone.** One p
 | **تمثيل صامت** (Charades) | 4–12 | Two teams. The actor's phone shows a word or phrase (323, by category and difficulty) to act out silently; the other team sees it too, to keep it fair. «صح» / «تخطَّ», turn timer, limited free skips. |
 | **الجاسوس** (The spy) | 3–10 | Everyone but the spy (1–2) sees the same place and a role there (50 places). Ask each other questions in a suggested order; accuse someone (majority vote), or the spy reveals and guesses the place. Rounds with points and a podium. |
 | **الرسم المتسلسل** (Telestrations) | 3–12 | Everyone picks (or writes) a phrase; the books then go round: draw the previous phrase, guess the previous drawing, draw that guess… Each phone only sees the page before its own. Then every book is revealed page by page to everyone, and the family votes for «أفضل رسمة» and «أطرف تخمين». |
-| **كلمة واحدة** (Just One) | 3–10 | Co-op: one guesser, everyone else writes a one-word clue for the secret word. Identical or near-identical clues cancel each other before the guesser sees them. 13 cards (or 7), a rating at the end. 545 everyday words with associations, so bots can give clues and guess. |
+| **كلمة واحدة** (Just One) | 3–10 | Co-op: one guesser, everyone else writes a one-word clue for the secret word. Identical or near-identical clues cancel each other before the guesser sees them. 13 cards (or 7), a rating at the end. 545 everyday words with associations, so bots can give clues and guess (expert bots: discriminating clues that never cancel each other, and a guess only when it's more likely right than wrong). |
 | **ماذا قال الناس؟** (Family survey) | 2–12 | Two teams. Guess the most common answers to questions for Moroccan families (216 questions; the answers are the game's own estimates, not a poll). Buzzer face-off, the team in control answers in turn, 3 ✗ and the other team can steal. The last rounds count ×2 and ×3. Bots play. |
 | **المربعات** (Dots and boxes) | 2–4 | Grids from 3×3 to 6×6; touch between two dots to draw a line, and closing a box scores it and gives another turn. Bots play the chain endgame (solved exactly on «خبير»). |
 | **المنقلة** (Mancala, Kalah rules) | 2 | 6 pits and a store each, 3–6 seeds per pit. A last seed in your store means play again; a last seed in an empty pit on your side captures the opposite pit. Bots search ahead (deepest on «خبير»). |
@@ -141,18 +141,18 @@ Not enough people? In the lobby, the host taps **«أضف بوت»** (up to 8). 
 
 | Game | What bots do |
 |---|---|
-| الدخيل | Get ready, show a clue on screen, vote, and guess the word if caught. Clues are traits shared by several words of the category (`server/imposter-traits.ts`), so they never give the word away; imposter bots bluff with a common trait |
-| اسم ولد اسم بنت | Fill their boxes one by one from a built-in dictionary (`server/bot-content.ts`). They don't always find an answer |
-| البطاطا الحارة | Shout a word from the topic and throw the potato |
+| الدخيل | Get ready, show a clue on screen, vote, and guess the word if caught. Clues are traits shared by several words of the category (`server/imposter-traits.ts`), so they never give the word away; imposter bots bluff with the trait a civilian would most likely say after the clues already shown. Smart / expert bots vote by how well each bot clue fits the word (people's spoken clues can't be weighed) and a caught imposter guesses the word the civilians' clues point to (`server/ai/social-imposter.ts`) |
+| اسم ولد اسم بنت | Fill their boxes one by one from a built-in dictionary (`server/bot-content.ts`). Easy bots don't always find an answer; expert bots nearly always do, prefer the less common words (a shared answer scores half) and call «ستوب» once done (never in the first half of the time) |
+| البطاطا الحارة | Shout a word from the topic and throw the potato; smart / expert bots throw quickly (quicker once the fuse could go off) and at the players who keep it longest |
 | لودو | Bots roll, capture when they can and keep their pieces safe |
-| حروف، مسابقة، من هو؟، من أي سورة؟، معلومات عامة | Bots answer after a while and are right about 65–70% of the time (on a team with people, they wait so people answer first) |
+| حروف، مسابقة، من هو؟، من أي سورة؟، معلومات عامة، من القائل؟، التجويد، الأسماء الحسنى، رتّب الخطوات، أين المكان؟، قصص الأنبياء، ابنِ المسجد، ماذا قال الناس؟ | By «مستوى البوتات»: easy bots answer late and are right about 65–70% of the time; smart bots are mostly right; expert bots are almost always right and answer as fast as a person can read the question and the options (`server/ai/social-quiz.ts`). On a team with people they still leave people time. In حروف, smart / expert bots buzz only when they know the answer and plan their chain across the board (`server/ai/social-huroof.ts`) |
 | رحلة الحج، سلّم الحسنات | Bots roll and answer question squares |
 | الخربقة، معركة السفن، إكس أو، أربعة في صف، الشطرنج، الضامة، المنقلة، المربعات، القطع الملونة | Play at the room's «مستوى البوتات»: «سهل» is the old casual bot, «خبير» searches ahead (`server/ai/boards-*.ts`) |
 | سودوكو | Bots fill one correct cell every few seconds, at a human pace |
 | الذاكرة | Bots remember most of the cards they have seen |
 | ملك العقار | Bots buy while keeping a cash reserve, build on full sets, offer trades that finish a colour set and judge offers by value |
 | Card games | Bots play their own cards (they capture, follow suit, meld and discard). Use them to fill the 4 seats of التريس |
-| الذئب | Night picks for bot wolves / big bad wolf / white wolf / guard / doctor / seer / witch / hunter are made automatically on the narrator's screen, and a dying bot mayor names a successor. In the day, bots accuse someone (a bot seer goes after the wolf it found) |
+| الذئب | Night picks for bot wolves / big bad wolf / white wolf / guard / doctor / seer / witch / hunter are made automatically on the narrator's screen, and a dying bot mayor names a successor. In the day, bots accuse someone (a bot seer goes after the wolf it found). Smart / expert bots reason only from what was seen and said — night deaths, who accused whom — never from hidden roles: wolves silence their accusers and pile onto the village's favourite innocent, villagers keep quiet until they have a reason (`server/ai/social-werewolf.ts`) |
 
 Bots sit out **على راسك**، **ممنوع تقول**، **الكلمات السرية** and **ارسم وخمّن**, since those games need real people. The narrator is never a bot.
 

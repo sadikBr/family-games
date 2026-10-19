@@ -8,13 +8,18 @@
 import { answerMatches, displayLetter, firstLetter } from '../../src/shared/arabic';
 import { HEX_N, hexWinPath } from '../../src/shared/islamic';
 import type { HuroofSettings, HuroofTeam, HuroofView } from '../../src/shared/protocol';
+import { huroofPick } from '../ai/social-huroof';
+import { quizSkill, readMs } from '../ai/social-quiz';
 import { Feed, randDelay } from '../cardkit';
 import { QUESTIONS, type Question } from '../content-islamic';
 import { qdeck } from '../qdeck';
-import { GameError, type GameCtx, type GameModule } from '../types';
+import { botLevel, GameError, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 
+/** how often an easy bot's answer is right (smart / expert bots know more: see ai/social-quiz) */
 const SKILL = 0.65;
+/** a bot that doesn't know the answer and tries anyway (nothing to lose) is right this often */
+const LUCKY = 0.2;
 const ANSWER_MS = 20_000;
 const other = (t: HuroofTeam): HuroofTeam => (t === 'red' ? 'green' : 'red');
 
@@ -50,6 +55,8 @@ interface State {
   winner: HuroofTeam | null;
   winPath: number[] | null;
   feed: Feed;
+  /** smart / expert bots: whether each bot knows the current question's answer (`${attempt}|${bot}`) */
+  botKnows?: Record<string, boolean>;
 }
 
 const teamOf = (s: State, id: string): HuroofTeam | null => (s.teams.red.includes(id) ? 'red' : s.teams.green.includes(id) ? 'green' : null);
@@ -233,31 +240,68 @@ export const huroof: GameModule<State, HuroofSettings> = {
   },
 
   botPlan(ctx, s, bots) {
+    const level = botLevel(ctx);
     if (s.phase === 'pick') {
       // a team of bots only picks for itself
       const members = s.teams[s.turn];
       if (!members.length || !members.every((m) => ctx.isBot(m))) return;
-      const free = s.cells.map((c, i) => (c.owner ? -1 : i)).filter((i) => i >= 0);
-      ctx.bot(members[0], `pick:${s.attempt}`, randDelay(1500, 2500), { type: 'pick', cell: free[Math.floor(Math.random() * free.length)] });
+      const cell = huroofPick(
+        s.cells.map((c) => c.owner),
+        s.turn,
+        level,
+      );
+      ctx.bot(members[0], `pick:${s.attempt}`, randDelay(1500, 2500), { type: 'pick', cell });
       return;
     }
     if (!s.question) return;
     const q = s.question;
+    const total = s.settings.seconds * 1000;
+    if (level === 'easy') {
+      // the old bots: always buzz, right about two times in three
+      if (s.phase === 'question') {
+        for (const t of s.canAnswer) {
+          const bot = s.teams[t].find((m) => bots.includes(m));
+          if (!bot) continue;
+          const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
+          // with humans on the team, the bot waits longer so people get to buzz first
+          const delay = humans ? randDelay(total * 0.55, total * 0.9) : randDelay(2500, total * 0.7);
+          ctx.bot(bot, `buzz:${s.attempt}:${t}`, delay, { type: 'buzz' });
+        }
+      }
+      if (s.phase === 'answer' && s.buzzer && bots.includes(s.buzzer)) {
+        const right = Math.random() < SKILL;
+        const text = right ? q.answer : q.wrong[Math.floor(Math.random() * q.wrong.length)];
+        ctx.bot(s.buzzer, `ans:${s.attempt}`, randDelay(2500, 5000), { type: 'answer', text });
+      }
+      return;
+    }
+    // smart / expert: a bot knows the answer or not, and only buzzes when it does — a wrong answer hands
+    // the other team a free try — unless the other team is already out (nothing to lose by trying)
+    const knows = (b: string) => ((s.botKnows ??= {})[`${s.attempt}|${b}`] ??= Math.random() < quizSkill(level, SKILL));
     if (s.phase === 'question') {
+      const read = readMs(q.text.length);
       for (const t of s.canAnswer) {
-        const bot = s.teams[t].find((m) => bots.includes(m));
-        if (!bot) continue;
+        const team = s.teams[t].filter((m) => bots.includes(m));
+        if (!team.length) continue;
+        const sure = team.find(knows);
+        const otherIn = s.canAnswer.some((x) => x !== t);
         const humans = s.teams[t].some((m) => !ctx.isBot(m) && ctx.isConnected(m));
-        const total = s.settings.seconds * 1000;
-        // with humans on the team, the bot waits longer so people get to buzz first
-        const delay = humans ? randDelay(total * 0.55, total * 0.9) : randDelay(2500, total * 0.7);
-        ctx.bot(bot, `buzz:${s.attempt}:${t}`, delay, { type: 'buzz' });
+        if (sure) {
+          // read the question, then press; with people on the team, leave them a fair moment first
+          const ms = (level === 'expert' ? read : read * 1.4 + randDelay(500, 2000)) + randDelay(0, 700);
+          const delay = Math.min(total * 0.8, humans ? Math.max(ms, total * (level === 'expert' ? 0.35 : 0.5)) : ms);
+          ctx.bot(sure, `buzz:${s.attempt}:${t}`, Math.round(delay), { type: 'buzz' });
+        } else if (!otherIn) {
+          ctx.bot(team[0], `buzz:${s.attempt}:${t}`, randDelay(total * 0.6, total * 0.85), { type: 'buzz' });
+        }
       }
     }
     if (s.phase === 'answer' && s.buzzer && bots.includes(s.buzzer)) {
-      const right = Math.random() < SKILL;
+      const right = knows(s.buzzer) || Math.random() < LUCKY;
       const text = right ? q.answer : q.wrong[Math.floor(Math.random() * q.wrong.length)];
-      ctx.bot(s.buzzer, `ans:${s.attempt}`, randDelay(2500, 5000), { type: 'answer', text });
+      // typing the answer: a moment to start, then a few letters a second
+      const typing = Math.min(ANSWER_MS * 0.6, 1200 + text.length * 220 + randDelay(0, 1000));
+      ctx.bot(s.buzzer, `ans:${s.attempt}`, Math.round(typing), { type: 'answer', text });
     }
   },
 
