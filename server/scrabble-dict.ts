@@ -6,11 +6,17 @@
  * The list has no article: «الباب» is stored as «باب» (words of 4+ letters starting with «ال» had it
  * removed), so a word placed with «ال» counts when the rest is a word — the same rule the list was
  * built with. It also left out grammar words («من», «في», «على», «كان»…): EXTRA puts the common ones back.
+ *
+ * The list holds the Hunspell stems only: a player's word it does not have is then checked with the
+ * Arabic Hunspell dictionary and its affix rules (server/hunspell.ts: plurals, feminine, dual, attached
+ * pronouns, verb forms, «ال» — but no و/ف/ب/ك/ل/س in front, «وكتاب» is not a Scrabble word).
+ * The bots never use that check: they play everyday words only (botWord).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { norm } from '../src/shared/arabic';
+import { spellArabic } from './hunspell';
 
 let text = '';
 let starts: Int32Array | null = null;
@@ -98,7 +104,8 @@ export function isWord(word: string): boolean {
   const w = norm(word);
   if ([...w].length < 2 || /[^ء-ي]/.test(w)) return false;
   if (baseWord(w)) return true;
-  return w.startsWith('ال') && w.length > 3 && baseWord(w.slice(2));
+  if (w.startsWith('ال') && w.length > 3 && baseWord(w.slice(2))) return true;
+  return spellArabic(w, { prefixes: 'article', noGrammar: true });
 }
 
 /** Everyday words (server/data/common-words.txt, see tools/common-words.mjs): the only ones bots play. */

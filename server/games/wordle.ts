@@ -9,7 +9,9 @@
  * soon as someone finds the word. This game absorbed the former «كلمة قرآنية» (id `qword`): the room
  * maps that id here with the Quran set (see GAME_ALIASES in shared/protocol).
  * Guesses must be real words: server/data/wordle-valid.txt (built by tools/wordle-dict.mjs), plus, when
- * Quran words can come up, any 5-letter word of the Quran (qword-words.ts).
+ * Quran words can come up, any 5-letter word of the Quran (qword-words.ts); a guess on neither list is
+ * then checked with the Arabic Hunspell dictionary and its affix rules (server/hunspell.ts: any prefix
+ * and ending, «فبيتك», «كقلمي»…; dialect forms refused). The bots guess from the answers only.
  */
 import { readFileSync } from 'node:fs';
 
@@ -21,6 +23,7 @@ import { verseRef, verseText } from '../qquote-quran';
 import { QWORD_ANSWERS, QWORD_CAT_LABEL, type QwordEntry } from '../qword-content';
 import { quranJoinedIndex, quranWordIndex, verseFor } from '../qword-words';
 import { wordleEasyGuess, wordleExpertGuess, wordleSmartGuess } from '../ai/misc-wordle';
+import { spellArabic } from '../hunspell';
 import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isStr, randInt, shuffle } from '../util';
 import { voiceLastTry, voiceResult, voiceSolved } from '../voice-calls-boards';
@@ -50,6 +53,27 @@ let quranValid: Set<string> | null = null;
 export function qwordValid(): Set<string> {
   quranValid ??= new Set([...quranWordIndex().keys(), ...quranJoinedIndex().keys(), ...VALID_GUESSES, ...QWORD_KEYS]);
   return quranValid;
+}
+
+let dialect: Set<string> | null = null;
+/** Dialect forms (server/data/dialect-words.txt, shared with tools/wordle-dict.mjs), normalised. */
+function dialectWord(g: string): boolean {
+  if (!dialect) {
+    try {
+      dialect = new Set(readFileSync(new URL('../data/dialect-words.txt', import.meta.url), 'utf8').split(/\s+/).filter(Boolean).map(normWord));
+    } catch {
+      dialect = new Set();
+    }
+  }
+  return dialect.has(g);
+}
+
+/**
+ * Is a (normalised) guess accepted: on the list, or a word the Hunspell dictionary knows — but not a
+ * dialect form it happens to read as a rare فصحى one («عايز», «بتقول», «كده»).
+ */
+export function validGuess(g: string, quran: boolean): boolean {
+  return (quran ? qwordValid() : VALID_GUESSES).has(g) || (!dialectWord(g) && spellArabic(g));
 }
 
 const WORD_SETS: WordleWords[] = ['general', 'quran', 'mix'];
@@ -226,7 +250,7 @@ export const wordle: GameModule<State, WordleSettings> = {
     if (a.type !== 'guess' || s.phase !== 'play' || !s.players.includes(by) || done(s, by)) return;
     const g = isStr(a.word) ? normWord(a.word) : '';
     if ([...g].length !== WORD_LEN || !/^[ء-ي]+$/.test(g)) throw new GameError('اكتب كلمة من 5 حروف');
-    if (withQuran(s) ? !qwordValid().has(g) : !VALID_GUESSES.has(g)) {
+    if (!validGuess(g, withQuran(s))) {
       throw new GameError(withQuran(s) ? 'هذه الكلمة ليست في القرآن ولا في القاموس — جرّب كلمة أخرى' : 'هذه الكلمة ليست في القاموس — جرّب كلمة أخرى');
     }
     if (s.rows[by].some((r) => r.guess === g)) throw new GameError('جرّبت هذه الكلمة من قبل');

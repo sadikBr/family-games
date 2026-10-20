@@ -2,7 +2,10 @@
  * «حروف مبعثرة»: letter grids, the word check and a solver.
  *
  * - A player's word counts when it is in the big Arabic list (server/scrabble-dict.ts, exact lookup:
- *   «ال» + a word is NOT a second word) — normalised like the dictionary (أ إ آ → ا, ة → ه, ى → ي…).
+ *   «ال» + a word is NOT a second word) — normalised like the dictionary (أ إ آ → ا, ة → ه, ى → ي…) —
+ *   or, failing that, when the Arabic Hunspell dictionary knows it as a stem with endings (plurals,
+ *   feminine, pronouns, verb forms: server/hunspell.ts) and no prefix at all (no «ال», و, ب…).
+ *   The bots and «the word you missed» stay on the everyday words (listed words only).
  * - The dice: letters drawn by how often they appear in everyday words (server/data/common-words.txt).
  * - Every grid is solved against the everyday words (a small prefix set, built once) and re-rolled
  *   until it hides enough of them; the same solve feeds the bots and «the best word you missed».
@@ -12,6 +15,7 @@ import path from 'node:path';
 
 import { norm } from '../src/shared/arabic';
 import { BOGGLE_MIN_LEN, boggleValidPath } from '../src/shared/games/boggle';
+import { spellArabic } from './hunspell';
 import { listWord } from './scrabble-dict';
 
 /** Letters on the dice (normalised spelling; no «ء»: words with it are rare and awkward on a die). */
@@ -32,11 +36,16 @@ const DIALECT = new Set(
 /** Words the list misses that a family will surely find. */
 const EXTRA_WORDS = new Set(['الله']);
 
-/** Does a word count? Raw Arabic is normalised; at least 3 letters; no «ال» + word. */
+/** The list check alone (normalised word): what the everyday words are filtered with. */
+function listedWord(w: string): boolean {
+  return [...w].length >= BOGGLE_MIN_LEN && !/[^ء-ي]/.test(w) && (listWord(w) || EXTRA_WORDS.has(w));
+}
+
+/** Does a word count? Raw Arabic is normalised; at least 3 letters; no «ال» + word, no prefix. */
 export function boggleWord(word: string): boolean {
   const w = norm(word);
   if ([...w].length < BOGGLE_MIN_LEN || /[^ء-ي]/.test(w)) return false;
-  return listWord(w) || EXTRA_WORDS.has(w);
+  return listedWord(w) || spellArabic(w, { prefixes: 'none', noGrammar: true });
 }
 
 interface Common {
@@ -62,7 +71,7 @@ export function commonWords(): Common {
   const prefixes = new Set<string>();
   const count = new Map<string, number>();
   for (const w of raw) {
-    if (w.length < BOGGLE_MIN_LEN || DIALECT.has(w) || ![...w].every((c) => LETTER_SET.has(c)) || !boggleWord(w)) continue;
+    if (w.length < BOGGLE_MIN_LEN || DIALECT.has(w) || ![...w].every((c) => LETTER_SET.has(c)) || !listedWord(w)) continue;
     words.add(w);
     for (let i = 1; i <= w.length; i++) prefixes.add(w.slice(0, i));
     for (const c of w) count.set(c, (count.get(c) ?? 0) + 1);
