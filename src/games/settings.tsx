@@ -23,6 +23,7 @@ import { CarcaSettings } from './carca';
 import { BalootSettings } from './baloot';
 import { ToutiSettings } from './touti';
 import { TeledrawSettings } from './teledraw';
+import { StorySettings } from './story';
 import { OnewordSettings } from './oneword';
 import { BoggleSettings } from './boggle';
 import { QquoteSettings } from './qquote';
@@ -79,6 +80,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <ToutiSettings room={room} editable={editable} />;
     case 'teledraw':
       return <TeledrawSettings room={room} editable={editable} />;
+    case 'story':
+      return <StorySettings room={room} editable={editable} />;
     case 'oneword':
       return <OnewordSettings room={room} editable={editable} />;
     case 'boggle':

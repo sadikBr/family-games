@@ -67,6 +67,7 @@ export const GAME_IMG: Record<string, number> = {
   'scrabble': require('../../assets/art/games/scrabble.webp'),
   'spy': require('../../assets/art/games/spy.webp'),
   'steps': require('../../assets/art/games/steps.webp'),
+  'story': require('../../assets/art/games/story.webp'),
   'sudoku': require('../../assets/art/games/sudoku.webp'),
   'surah': require('../../assets/art/games/surah.webp'),
   'survey': require('../../assets/art/games/survey.webp'),

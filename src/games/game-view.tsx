@@ -32,6 +32,7 @@ import { CarcaGame } from './carca';
 import { BalootGame } from './baloot';
 import { ToutiGame } from './touti';
 import { TeledrawGame } from './teledraw';
+import { StoryGame } from './story';
 import { OnewordGame } from './oneword';
 import { BoggleGame } from './boggle';
 import { QquoteGame } from './qquote';
@@ -153,6 +154,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <ToutiGame room={room} view={view} />;
     case 'teledraw':
       return <TeledrawGame room={room} view={view} />;
+    case 'story':
+      return <StoryGame room={room} view={view} />;
     case 'oneword':
       return <OnewordGame room={room} view={view} />;
     case 'boggle':

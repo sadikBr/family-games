@@ -128,6 +128,13 @@ export async function hasArabicVoice(): Promise<boolean> {
   return (await pickVoice()) !== null;
 }
 
+/** Stop reading now (a screen that reads aloud is closed, or its own reading switch is turned off). */
+export function stopSpeaking() {
+  try {
+    speechModule()?.stop();
+  } catch {}
+}
+
 /** Read a call aloud now (cuts a previous call short: the newest event matters most). */
 export function speak(text: string, evenIfOff = false) {
   if ((!enabled && !evenIfOff) || isMuted() || !text) return;

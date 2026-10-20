@@ -59,6 +59,7 @@ import { carca } from './games/carca';
 import { baloot } from './games/baloot';
 import { touti } from './games/touti';
 import { teledraw } from './games/teledraw';
+import { story } from './games/story';
 import { oneword } from './games/oneword';
 import { boggle } from './games/boggle';
 import { qquote } from './games/qquote';
@@ -154,6 +155,7 @@ const MODULES: Record<GameId, AnyModule> = {
   baloot,
   touti,
   teledraw,
+  story,
   oneword,
   boggle,
   qquote,
