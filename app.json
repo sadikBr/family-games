@@ -108,9 +108,7 @@
         "projectId": "42f3b39c-8d3f-4a34-94d8-bba5e3d817ad"
       }
     },
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "580acb58cb4a70d01cbef7aca0e95b4c5d244eab",
     "updates": {
       "url": "https://u.expo.dev/42f3b39c-8d3f-4a34-94d8-bba5e3d817ad",
       "checkAutomatically": "ON_LOAD",

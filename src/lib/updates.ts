@@ -5,7 +5,8 @@
  * «أعد التشغيل» on the home screen banner (never in the middle of a game).
  *
  * New native features (a new phone permission or native package) still need a new APK: an update is
- * only offered to APKs with the same «runtime version» (a fingerprint of the native side).
+ * only offered to APKs with the same «runtime version» (the fixed `runtimeVersion` of app.json, changed by
+ * hand together with any native change).
  *
  * expo-updates is a native module: loaded lazily, so Expo Go, the web build and older APKs ignore it.
  */
