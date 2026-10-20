@@ -68,6 +68,7 @@
         "test:server": "BOT_SPEED=0.05 bun test server",
         "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json",
         "update": "eas update --channel preview --platform android",
+        "publish:update": "bash scripts/publish-update.sh",
         "update:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-update-windows.ps1"
     },
     "private": true

@@ -1,3 +1,7 @@
+# Every text file has Unix line endings on every computer: the files that make up the app's runtime
+# version (eas.json, google-services.json, plugins…) must be byte-identical on Linux and Windows, or
+# an update published from one computer won't reach an APK built on the other.
+* text=auto eol=lf
 # Windows scripts keep Windows line endings
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
