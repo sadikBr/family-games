@@ -166,7 +166,7 @@ function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number |
   const n = view.note;
   if (view.phase === 'aim' && mine) {
     const call = view.needCall && pocket === null;
-    let text = 'اسحب على الطاولة للتصويب، ثم اسحب شريط القوة واتركه';
+    let text = 'اسحب على الطاولة لتدوير العصا، أو المس كرة للتصويب نحوها، ثم اسحب شريط القوة واتركه';
     let sub: string | undefined;
     if (call) text = 'اختر جيب الكرة 8: اضغط على الجيب';
     else if (view.inHand === 'kitchen') text = 'الكسر: اسحب الكرة البيضاء خلف الخط، ثم صوّب';

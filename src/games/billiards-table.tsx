@@ -192,6 +192,9 @@ const AimGuide = memo(function AimGuide({ objects, cx, cy, angle, k, width, mode
   );
 });
 
+/** wall-clock ms, for telling a tap from a drag in the touch handlers */
+const wallMs = () => Date.now();
+
 export interface Aiming {
   angle: number;
   setAngle: (a: number) => void;
@@ -263,7 +266,10 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
   const hold = useScrollLock();
   const holding = useRef(false);
   const mode = useRef<'aim' | 'place' | 'pocket'>('aim');
-  const start = useRef({ x: 0, y: 0, pocket: -1 });
+  const start = useRef({ x: 0, y: 0, pocket: -1, at: 0, moved: 0 });
+  /** relative aiming: the last finger point (mm) and the angle being built during this drag */
+  const lastTouch = useRef<{ x: number; y: number } | null>(null);
+  const dragAngle = useRef(0);
   useEffect(
     () => () => {
       if (holding.current) hold(false);
@@ -279,7 +285,7 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
       hold(true);
     }
     const p = toMm(px, py);
-    start.current = { x: px, y: py, pocket: -1 };
+    start.current = { x: px, y: py, pocket: -1, at: wallMs(), moved: 0 };
     const cue = view.inHand ? aiming.cue : onTable;
     if (view.inHand && cue && Math.hypot(p.x - cue.x, p.y - cue.y) * k < Math.max(24, size * 1.3)) {
       mode.current = 'place';
@@ -293,19 +299,51 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
         return;
       }
     }
+    // a touch never moves the aim by itself: only the finger's movement turns it (see turnAim)
     mode.current = 'aim';
-    if (cue) aiming.setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+    lastTouch.current = p;
+    dragAngle.current = aiming.angle;
+  };
+  /**
+   * Turn the aim by the finger's movement around the cue ball, damped: a slow drag turns it finely,
+   * a quick swipe turns it further, and a drag close to the cue ball is no jumpier than a far one.
+   */
+  const turnAim = (cue: { x: number; y: number }, p: { x: number; y: number }) => {
+    const prev = lastTouch.current;
+    lastTouch.current = p;
+    if (!prev || !aiming) return;
+    const rx = prev.x - cue.x;
+    const ry = prev.y - cue.y;
+    const dx = p.x - prev.x;
+    const dy = p.y - prev.y;
+    const r = Math.hypot(rx, ry);
+    if (r * k < 4) return;
+    const movedPx = Math.hypot(dx, dy) * k;
+    // the angle swept around the cue ball, as if the finger were at least ~200 px away
+    const swept = (rx * dy - ry * dx) / (r * Math.max(r, 200 / k));
+    // slow movement (≈1–2 px a frame) → about a quarter of it, for fine aiming; a quick swipe
+    // (≈25 px a frame) → all of it, so big turns stay quick
+    const gain = 0.22 + Math.min(0.78, movedPx / 32);
+    dragAngle.current += swept * gain;
+    aiming.setAngle(dragAngle.current);
   };
   const move = (px: number, py: number) => {
     if (!aiming || !mine) return;
     const p = toMm(px, py);
-    if (mode.current === 'pocket' && Math.hypot(px - start.current.x, py - start.current.y) > 10) mode.current = 'aim';
+    start.current.moved = Math.max(start.current.moved, Math.hypot(px - start.current.x, py - start.current.y));
+    if (mode.current === 'pocket' && Math.hypot(px - start.current.x, py - start.current.y) > 10) {
+      // not a tap on a pocket after all: aim from here
+      mode.current = 'aim';
+      lastTouch.current = p;
+      dragAngle.current = aiming.angle;
+      return;
+    }
     if (mode.current === 'place') {
       aiming.setCue({ x: Math.max(R, Math.min(W - R, p.x)), y: Math.max(R, Math.min(L - R, p.y)) });
       return;
     }
     const cue = view.inHand ? aiming.cue : onTable;
-    if (mode.current === 'aim' && cue && Math.hypot(p.x - cue.x, p.y - cue.y) > R * 0.6) aiming.setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+    if (mode.current === 'aim' && cue) turnAim(cue, p);
   };
   const end = () => {
     if (holding.current) {
@@ -320,8 +358,18 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
     } else if (mode.current === 'pocket' && start.current.pocket >= 0) {
       aiming.setPocket(start.current.pocket);
       haptic.tap();
+    } else if (mode.current === 'aim' && start.current.moved < 8 && wallMs() - start.current.at < 350) {
+      // a quick tap right on a ball aims straight at it (a tap anywhere else changes nothing)
+      const cue = view.inHand ? aiming.cue : onTable;
+      const t = toMm(start.current.x, start.current.y);
+      const hit = cue ? objects.find((b) => Math.hypot(b.x - t.x, b.y - t.y) * k < Math.max(16, size * 0.9)) : undefined;
+      if (cue && hit) {
+        aiming.setAngle(Math.atan2(hit.y - cue.y, hit.x - cue.x));
+        haptic.tap();
+      }
     }
     mode.current = 'aim';
+    lastTouch.current = null;
   };
   /* eslint-disable react-hooks/refs */
   const pan = Gesture.Pan()
