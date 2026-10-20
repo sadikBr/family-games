@@ -23,6 +23,7 @@ import { Card, IconBubble, Pill, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { ConfirmModal, ConnectionBanner, Header } from '@/ui/controls';
 import { AccentContext } from '@/ui/accent';
+import { ImmersiveContext } from '@/ui/immersive';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
@@ -70,6 +71,8 @@ export default function RoomScreen() {
   // games' final screens register their tournament actions; without any, the room shows a plain bar
   const [slots, setSlots] = useState(0);
   const registerSlot = useCallback((d: number) => setSlots((n) => n + d), []);
+  // a game in full screen (e.g. the pool table): no header around it
+  const [immersive, setImmersive] = useState(false);
   const lastFx = useRef<number | null>(null);
   const fx = room?.fx;
   const me = room?.me;
@@ -154,15 +157,21 @@ export default function RoomScreen() {
   const tourHeader = !playing && !!t;
   const inTournament = !!t && t.stage !== 'setup';
   const glow = night ? undefined : between && t?.stage === 'final' ? C.yellow : meta.color;
+  const bare = immersive && playing;
 
   return (
     <AccentContext.Provider value={between && t?.stage === 'final' ? C.yellow : meta.color}>
+    <ImmersiveContext.Provider value={setImmersive}>
     <Screen
       bg={night ? C.night : C.bg}
       glow={glow}
+      bare={bare}
       scrollKey={`${room.status}|${room.game}|${t?.stage ?? ''}`}
       footer={playing ? undefined : between ? <TournamentFooter room={room} /> : <LobbyFooter room={room} />}
       header={
+        bare ? (
+          <ConnectionBanner />
+        ) : (
         <>
           <Header
             onBack={() => setConfirmLeave(true)}
@@ -202,6 +211,7 @@ export default function RoomScreen() {
           <TurnBar room={room} />
           <TournamentChip room={room} />
         </>
+        )
       }>
       {playing && room.view ? (
         <TournamentSlotProvider value={registerSlot}>
@@ -247,6 +257,7 @@ export default function RoomScreen() {
         }}
       />
     </Screen>
+    </ImmersiveContext.Provider>
     </AccentContext.Provider>
   );
 }

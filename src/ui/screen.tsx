@@ -21,6 +21,8 @@ export interface ScreenProps {
   scrollKey?: string;
   /** a soft light at the top of the screen in this colour (the game's colour in a room) */
   glow?: string;
+  /** full screen for a game: no footer, gutters, background art or scrolling (pass a slim header, if any) */
+  bare?: boolean;
 }
 
 /** The game's light: a wide, soft radial glow from the top edge, fading into the night. */
@@ -56,19 +58,22 @@ export function useContentWidth() {
   return Math.min(width - 32, 560);
 }
 
-export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true, scrollKey, glow }: ScreenProps) {
+export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true, scrollKey, glow, bare = false }: ScreenProps) {
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     if (scrollKey !== undefined) scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [scrollKey]);
+  useEffect(() => {
+    if (bare) scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [bare]);
   const contentRef = useRef<View>(null);
   const [locks, setLocks] = useState(0);
   const hold = useCallback((on: boolean) => setLocks((n) => Math.max(0, n + (on ? 1 : -1))), []);
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
-      {glow ? <Glow color={glow} width={width} height={height} /> : null}
-      {pattern ? <Zellige width={width} height={height} color={glow ?? '#FFFFFF'} opacity={glow ? 0.07 : 0.05} /> : null}
+      {glow && !bare ? <Glow color={glow} width={width} height={height} /> : null}
+      {pattern && !bare ? <Zellige width={width} height={height} color={glow ?? '#FFFFFF'} opacity={glow ? 0.07 : 0.05} /> : null}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {/* The app is drawn edge-to-edge, so Android does not shrink it for the keyboard: do it here. */}
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
@@ -78,9 +83,9 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
               <ScrollLockContext.Provider value={hold}>
               <ScrollView
                 ref={scrollRef}
-                scrollEnabled={locks === 0}
+                scrollEnabled={locks === 0 && !bare}
                 style={styles.flex}
-                contentContainerStyle={[styles.content, contentStyle]}
+                contentContainerStyle={[styles.content, contentStyle, bare && styles.bare]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 showsVerticalScrollIndicator={false}>
@@ -95,7 +100,7 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
               <View style={[styles.inner, styles.flex]}>{children}</View>
             </View>
           )}
-          {footer ? (
+          {footer && !bare ? (
             <View style={styles.footer}>
               <View style={styles.inner}>{footer}</View>
             </View>
@@ -112,5 +117,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, flexGrow: 1 },
   inner: { width: '100%', maxWidth: 560, alignSelf: 'center', gap: 14 },
+  bare: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
   footer: { paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8 },
 });

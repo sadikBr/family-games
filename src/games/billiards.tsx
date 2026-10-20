@@ -5,11 +5,18 @@
  * for everyone else, the balls pocketed this rack), and the end of a rack / the match.
  *
  * The shooter's aim is sent a few times a second so the others see the cue turn.
+ *
+ * Full screen (the button beside the table): the room's header, the strips and the banner go away and
+ * the table takes the whole screen (portrait, within the safe areas, the status bar hidden), with a slim
+ * bar under it (power, spin, fine aim, the way out), a pill for whose turn it is, and a short toast for
+ * what just happened. The choice is kept for the session; the back button leaves full screen.
  */
+import { setStatusBarHidden } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { FadeIn, useSharedValue } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
@@ -32,19 +39,26 @@ import { li } from '@/shared/li';
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { Btn } from '@/ui/btn';
+import { Btn, IconBtn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal, Toggle } from '@/ui/controls';
+import { useImmersive } from '@/ui/immersive';
 import { useContentWidth, useScrollLock } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-import { BallSvg, TABLE_H, TABLE_W } from './billiards-art';
-import { BilliardsTable, type Aiming } from './billiards-table';
+import { RAIL, TABLE_H, TABLE_W } from './billiards-art';
+import { StaticBall } from './billiards-ball';
+import { BilliardsTable, strike, type Aiming } from './billiards-table';
 import { PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
 import { useSettled } from './touch-motion';
 
 const COL = 46;
 const GAP = 6;
+/** full screen: the bar under the table */
+const BAR = 54;
+
+/** full screen, as chosen on this phone for the session */
+let fullChoice = false;
 /** fine aim: one tap (rad) */
 const FINE = 0.1 * (Math.PI / 180);
 
@@ -57,7 +71,7 @@ const sideName = (h: Helpers, ids: string[]) => ids.map((id) => h.player(id).nam
 function MiniBall({ id, size = 15, dim = false }: { id: number; size?: number; dim?: boolean }) {
   return (
     <View style={{ opacity: dim ? 0.22 : 1 }}>
-      <BallSvg id={id} size={size} numbers={size >= 15} />
+      <StaticBall id={id} size={size} shadow={false} />
     </View>
   );
 }
@@ -138,50 +152,114 @@ function Sides({ view, h }: { view: BilliardsView; h: Helpers }) {
 /* What happened / what to do                                           */
 /* ------------------------------------------------------------------ */
 
-function Banner({ view, h, mine, pocket }: { view: BilliardsView; h: Helpers; mine: boolean; pocket: number | null }) {
-  const settled = useSettled();
+interface Info {
+  tone: 'foul' | 'good' | 'info' | 'mine';
+  text: string;
+  sub?: string;
+  key: string;
+  /** stays while it is true (a prompt for the shooter that must not be missed) */
+  keep?: boolean;
+}
+
+/** What the banner (or, in full screen, the toast) says: what just happened, or what to do now. */
+function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number | null): Info | null {
   const n = view.note;
-  let tone: 'foul' | 'good' | 'info' | 'mine' = 'info';
-  let text = '';
-  let sub: string | undefined;
-  let key = '';
   if (view.phase === 'aim' && mine) {
-    tone = 'mine';
-    key = `mine-${view.shotId}-${view.inHand}-${view.needCall && pocket === null}`;
-    if (view.needCall && pocket === null) text = 'اختر جيب الكرة 8: اضغط على الجيب';
+    const call = view.needCall && pocket === null;
+    let text = 'اسحب على الطاولة للتصويب، ثم اسحب شريط القوة واتركه';
+    let sub: string | undefined;
+    if (call) text = 'اختر جيب الكرة 8: اضغط على الجيب';
     else if (view.inHand === 'kitchen') text = 'الكسر: اسحب الكرة البيضاء خلف الخط، ثم صوّب';
     else if (view.inHand) text = 'الكرة في اليد: اسحب الكرة البيضاء إلى أي مكان';
-    else text = 'اسحب على الطاولة للتصويب، ثم اسحب شريط القوة واتركه';
     if (n && n.kind === 'foul') sub = `${n.text} — ${n.sub ?? ''}`;
     else if (n && n.kind !== 'rack') sub = n.text;
     else if (view.mode === 'nine' && view.targets.length) sub = `الكرة المطلوبة: ${view.targets[0]}`;
-  } else if (n && view.phase !== 'rack' && view.phase !== 'final') {
-    tone = n.kind === 'foul' ? 'foul' : n.kind === 'group' ? 'good' : 'info';
-    text = n.text;
-    sub = n.sub;
-    key = `n${n.id}`;
-  } else if (view.phase === 'aim' && view.shooter) {
-    text = view.breakShot ? `الكسر ${li(h.player(view.shooter).name)}` : `الدور ${li(h.player(view.shooter).name)}`;
-    sub = view.mode === 'nine' && view.targets.length ? `الكرة المطلوبة: ${view.targets[0]}` : undefined;
-    key = `t-${view.shooter}-${view.shotId}`;
-  } else if (view.phase === 'rolling') {
-    text = 'الكرات تتحرك…';
-    key = `r${view.shotId}`;
+    return { tone: 'mine', text, sub, key: `mine-${view.shotId}-${view.inHand}-${call}`, keep: call || !!view.inHand };
   }
-  if (!text) return <View style={{ minHeight: 44 }} />;
-  const bg = tone === 'foul' ? alpha(C.red, 0.22) : tone === 'good' ? alpha(C.green, 0.2) : tone === 'mine' ? alpha(C.yellow, 0.16) : C.surface;
-  const border = tone === 'foul' ? alpha(C.red, 0.7) : tone === 'good' ? alpha(C.green, 0.6) : tone === 'mine' ? alpha(C.yellow, 0.6) : C.border;
+  if (n && view.phase !== 'rack' && view.phase !== 'final') {
+    return { tone: n.kind === 'foul' ? 'foul' : n.kind === 'group' ? 'good' : 'info', text: n.text, sub: n.sub, key: `n${n.id}` };
+  }
+  if (view.phase === 'aim' && view.shooter) {
+    return {
+      tone: 'info',
+      text: view.breakShot ? `الكسر ${li(h.player(view.shooter).name)}` : `الدور ${li(h.player(view.shooter).name)}`,
+      sub: view.mode === 'nine' && view.targets.length ? `الكرة المطلوبة: ${view.targets[0]}` : undefined,
+      key: `t-${view.shooter}-${view.shotId}`,
+    };
+  }
+  if (view.phase === 'rolling') return { tone: 'info', text: 'الكرات تتحرك…', key: `r${view.shotId}` };
+  return null;
+}
+
+const TONE_BG = { foul: alpha(C.red, 0.22), good: alpha(C.green, 0.2), mine: alpha(C.yellow, 0.16), info: C.surface };
+const TONE_BORDER = { foul: alpha(C.red, 0.7), good: alpha(C.green, 0.6), mine: alpha(C.yellow, 0.6), info: C.border };
+
+function Banner({ info }: { info: Info | null }) {
+  const settled = useSettled();
+  if (!info) return <View style={{ minHeight: 44 }} />;
   return (
-    <Animated.View key={key} entering={settled ? FadeIn.duration(260) : undefined} style={[styles.banner, { backgroundColor: bg, borderColor: border }]} accessibilityLiveRegion="polite">
-      <Txt v="bold" center numberOfLines={2} style={{ fontSize: 14, lineHeight: 21 }} color={tone === 'foul' ? '#FFD9DE' : C.text}>
-        {text}
+    <Animated.View key={info.key} entering={settled ? FadeIn.duration(260) : undefined} style={[styles.banner, { backgroundColor: TONE_BG[info.tone], borderColor: TONE_BORDER[info.tone] }]} accessibilityLiveRegion="polite">
+      <Txt v="bold" center numberOfLines={2} style={{ fontSize: 14, lineHeight: 21 }} color={info.tone === 'foul' ? '#FFD9DE' : C.text}>
+        {info.text}
       </Txt>
-      {sub ? (
+      {info.sub ? (
         <Txt v="tiny" center color={C.muted} numberOfLines={2}>
-          {sub}
+          {info.sub}
         </Txt>
       ) : null}
     </Animated.View>
+  );
+}
+
+// on the web an exiting view is replaced by a clone pinned where it was
+const TOAST_OUT = Platform.OS === 'web' ? undefined : FadeOut.duration(220);
+
+/** Full screen: the same words as a short toast over the top of the table (touches go through it). */
+function Toast({ info, top, width }: { info: Info | null; top: number; width: number }) {
+  const settled = useSettled();
+  const [gone, setGone] = useState<string | null>(null);
+  const key = info?.key ?? null;
+  const keep = !!info?.keep;
+  const long = info?.tone === 'foul' || info?.tone === 'good';
+  useEffect(() => {
+    if (!key || keep) return;
+    const t = setTimeout(() => setGone(key), long ? 4200 : 3000);
+    return () => clearTimeout(t);
+  }, [key, keep, long]);
+  // the plain "balls are rolling" line is not worth a toast
+  if (!info || gone === info.key || info.key.startsWith('r')) return null;
+  return (
+    <Animated.View
+      key={info.key}
+      pointerEvents="none"
+      entering={settled ? FadeIn.duration(220) : undefined}
+      exiting={TOAST_OUT}
+      accessibilityLiveRegion="polite"
+      style={[styles.toast, { top, maxWidth: width - 24, borderColor: TONE_BORDER[info.tone] }]}>
+      <Txt v="bold" center numberOfLines={2} style={{ fontSize: 13, lineHeight: 19 }} color={info.tone === 'foul' ? '#FFD9DE' : C.text}>
+        {info.text}
+      </Txt>
+      {info.sub ? (
+        <Txt v="tiny" center color={C.muted} numberOfLines={1} style={{ fontSize: 11, lineHeight: 15 }}>
+          {info.sub}
+        </Txt>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/** Full screen: whose turn it is, a small pill on the top rail. */
+function TurnPill({ view, h }: { view: BilliardsView; h: Helpers }) {
+  if (!view.shooter || (view.phase !== 'aim' && view.phase !== 'rolling')) return null;
+  const p = h.player(view.shooter);
+  const me = view.shooter === h.me;
+  return (
+    <View pointerEvents="none" style={[styles.pill, { borderColor: alpha(p.color, 0.9) }]} accessibilityLabel={me ? 'الدور لك' : `الدور ${li(p.name)}`}>
+      <Avatar player={p} size={18} />
+      <Txt v="tiny" numberOfLines={1} style={{ fontSize: 11, lineHeight: 15, maxWidth: 120 }}>
+        {me ? 'دورك' : p.name}
+      </Txt>
+    </View>
   );
 }
 
@@ -239,8 +317,7 @@ function FineBtn({ dir, onStep }: { dir: 1 | -1; onStep: (d: number) => void }) 
 
 const SPIN_LABEL: Record<string, string> = { '-1': 'سحب قوي', '-0.5': 'سحب', '0': 'عادية', '0.5': 'تتبع', '1': 'تتبع قوي' };
 
-function SpinPicker({ spin, setSpin }: { spin: number; setSpin: (s: number) => void }) {
-  const d = 34;
+function SpinPicker({ spin, setSpin, d = 34 }: { spin: number; setSpin: (s: number) => void; d?: number }) {
   return (
     <Pressable
       accessibilityRole="adjustable"
@@ -263,13 +340,16 @@ function SpinPicker({ spin, setSpin }: { spin: number; setSpin: (s: number) => v
   );
 }
 
-/** Pull down and let go: the stroke. A pull of almost nothing cancels. */
-function PowerBar({ height, onPull, onShoot, disabled }: { height: number; onPull: (p: number) => void; onShoot: (p: number) => void; disabled: boolean }) {
+/**
+ * Pull and let go: the stroke (down the vertical bar beside the table; to the left along the full-screen
+ * bar). A pull of almost nothing cancels.
+ */
+function PowerBar({ length, horizontal = false, onPull, onShoot, disabled }: { length: number; horizontal?: boolean; onPull: (p: number) => void; onShoot: (p: number) => void; disabled: boolean }) {
   const [p, setP] = useState(0);
-  const y0 = useRef(0);
+  const at0 = useRef(0);
   const cur = useRef(0);
   const hold = useScrollLock();
-  const track = height - 26;
+  const track = horizontal ? length : length - 26;
   const set = (v: number) => {
     cur.current = v;
     setP(v);
@@ -284,26 +364,48 @@ function PowerBar({ height, onPull, onShoot, disabled }: { height: number; onPul
     .shouldCancelWhenOutside(false)
     .onBegin((e) => {
       hold(true);
-      y0.current = e.y;
+      at0.current = horizontal ? e.x : e.y;
       set(0);
     })
-    .onUpdate((e) => set(Math.max(0, Math.min(1, (e.y - y0.current) / (track * 0.92)))))
+    .onUpdate((e) => set(Math.max(0, Math.min(1, (horizontal ? at0.current - e.x : e.y - at0.current) / (track * 0.92)))))
     .onFinalize(() => {
       hold(false);
       const v = cur.current;
-      set(0);
+      cur.current = 0;
+      setP(0);
+      // the stick strokes from where it was pulled to (the shot), or goes back to rest (cancelled)
       if (v > 0.03) onShoot(v);
+      else onPull(0);
     });
   /* eslint-enable react-hooks/refs */
   const fill = p * track;
+  const color = p > 0.75 ? C.red : p > 0.4 ? C.orange : C.yellow;
+  const label = `القوة ${Math.round(p * 100)}٪ — ${horizontal ? 'اسحب إلى اليسار' : 'اسحب للأسفل'} واترك للضرب`;
+  if (horizontal) {
+    return (
+      <GestureDetector gesture={pan}>
+        <View accessibilityLabel={label} style={{ width: length, height: 44, justifyContent: 'center', opacity: disabled ? 0.45 : 1 }}>
+          <View style={[styles.powerTrack, { width: length, height: 28 }]}>
+            <View style={[styles.powerFillH, { width: fill, backgroundColor: color }]} />
+            <View style={[styles.powerGripH, { right: Math.max(0, fill - 6) }]} />
+            <View style={styles.powerTextH} pointerEvents="none">
+              <Txt v="tiny" color={p > 0 ? C.yellow : C.muted} style={{ fontSize: 11, lineHeight: 16 }}>
+                {p > 0 ? `${num(Math.round(p * 100))}٪` : 'القوة ←'}
+              </Txt>
+            </View>
+          </View>
+        </View>
+      </GestureDetector>
+    );
+  }
   return (
     <GestureDetector gesture={pan}>
-      <View accessibilityLabel={`القوة ${Math.round(p * 100)}٪ — اسحب للأسفل واترك للضرب`} style={[styles.power, { height, opacity: disabled ? 0.45 : 1 }]}>
+      <View accessibilityLabel={label} style={[styles.power, { height: length, opacity: disabled ? 0.45 : 1 }]}>
         <Txt v="tiny" center color={p > 0 ? C.yellow : C.muted} style={{ fontSize: 11, lineHeight: 16 }}>
           {p > 0 ? `${num(Math.round(p * 100))}٪` : 'القوة'}
         </Txt>
         <View style={[styles.powerTrack, { height: track }]}>
-          <View style={[styles.powerFill, { height: fill, backgroundColor: p > 0.75 ? C.red : p > 0.4 ? C.orange : C.yellow }]} />
+          <View style={[styles.powerFill, { height: fill, backgroundColor: color }]} />
           <View style={[styles.powerGrip, { top: Math.max(0, fill - 6) }]} />
         </View>
       </View>
@@ -312,12 +414,12 @@ function PowerBar({ height, onPull, onShoot, disabled }: { height: number; onPul
 }
 
 /** For everyone but the shooter: the balls pocketed this rack, in order (a ball return). */
-function Tray({ view, height }: { view: BilliardsView; height: number }) {
+function Tray({ view, height, width }: { view: BilliardsView; height: number; width?: number }) {
   const all = view.sides.flatMap((s) => s.pocketed);
   const size = 22;
-  const fit = Math.max(1, Math.floor((height - 8) / (size + 3)));
+  const fit = Math.max(1, Math.floor(((width ?? height) - 8) / (size + 3)));
   return (
-    <View style={[styles.tray, { height }]} accessibilityLabel={`الكرات في الجيوب: ${all.length}`}>
+    <View style={[styles.tray, width ? { width, height, flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 0 } : { height }]} accessibilityLabel={`الكرات في الجيوب: ${all.length}`}>
       {all.slice(-fit).map((b) => (
         <MiniBall key={b} id={b} size={size} />
       ))}
@@ -332,11 +434,51 @@ function Tray({ view, height }: { view: BilliardsView; height: number }) {
 export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsView }) {
   const h = helpers(room);
   const cw = useContentWidth();
-  const { height: winH } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const ratio = TABLE_H / TABLE_W;
-  const byW = Math.min(cw - COL - GAP, 470);
-  const th = Math.min(byW * ratio, Math.max(winH - 252, byW * ratio * 0.8));
-  const tw = Math.floor(th / ratio);
+
+  // —— full screen (kept for the session; not over the end of the match) ——
+  const [fullOn, setFullOn] = useState(fullChoice);
+  const full = fullOn && view.phase !== 'final';
+  const setFull = (on: boolean) => {
+    fullChoice = on;
+    setFullOn(on);
+  };
+  const immersive = useImmersive();
+  useEffect(() => {
+    immersive(full);
+  }, [full, immersive]);
+  useEffect(() => () => immersive(false), [immersive]);
+  useEffect(() => {
+    if (!full) return;
+    try {
+      setStatusBarHidden(true, 'fade');
+    } catch {}
+    // the back button leaves full screen first
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      fullChoice = false;
+      setFullOn(false);
+      return true;
+    });
+    return () => {
+      sub.remove();
+      try {
+        setStatusBarHidden(false, 'fade');
+      } catch {}
+    };
+  }, [full]);
+
+  let tw: number;
+  if (full) {
+    const availW = winW - insets.left - insets.right - 8;
+    const availH = winH - insets.top - insets.bottom - BAR - 10;
+    tw = Math.floor(Math.min(availW, availH / ratio));
+  } else {
+    const byW = Math.min(cw - COL - GAP, 470);
+    const th = Math.min(byW * ratio, Math.max(winH - 252, byW * ratio * 0.8));
+    tw = Math.floor(th / ratio);
+  }
   const tableH = tw * ratio;
 
   const seated = view.players.includes(h.me);
@@ -394,6 +536,7 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
     const x = latest.current;
     if (view.needCall && x.pocket === null) {
       haptic.error();
+      pull.set(withTiming(0, { duration: 200, easing: Easing.out(Easing.quad) }));
       return;
     }
     let cue = x.cue;
@@ -408,17 +551,31 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
       trailing.current = null;
     }
     haptic.medium();
+    strike(pull, power);
     h.act('shot', { a: x.angle, power, spin: x.spin, cue: cue ? [cue.x, cue.y] : undefined, pocket: x.pocket ?? undefined });
   };
 
   const winnerSide = view.winner !== null ? view.sides[view.winner] : null;
   const iWon = !!winnerSide && winnerSide.ids.includes(h.me);
   const winName = winnerSide ? sideName(h, winnerSide.ids) : '';
+  let info = infoOf(view, h, mine, a.pocket);
+  // full screen: the shooter's usual "how to aim" line is not repeated over the table; a foul or a
+  // group before my turn still shows
+  if (full && info?.tone === 'mine' && !info.keep) info = info.sub ? { tone: view.note?.kind === 'foul' ? 'foul' : 'info', text: info.sub, key: `${info.key}-s` } : null;
+  if (full && view.phase === 'rack' && winnerSide) {
+    info = { tone: 'good', text: `الشوط ${li(winName)}`, sub: view.sides.map((s) => `${sideName(h, s.ids)}: ${s.wins}`).join(' — '), key: `rack${view.rack}`, keep: true };
+  }
+
+  const stepAngle = (d: number) => update({ angle: latest.current.angle + d * FINE });
+  const callBlocked = view.needCall && a.pocket === null;
+  const fullBtn = (
+    <IconBtn icon={full ? 'compress' : 'expand'} size={40} label={full ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'} onPress={() => setFull(!full)} />
+  );
 
   return (
     <>
-      <Sides view={view} h={h} />
-      {view.phase === 'final' && winnerSide ? (
+      {full ? null : <Sides view={view} h={h} />}
+      {full ? null : view.phase === 'final' && winnerSide ? (
         <ResultBanner
           tone={iWon ? 'good' : seated ? 'bad' : 'neutral'}
           art={<GameArt id="billiards" size={64} />}
@@ -428,29 +585,60 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
       ) : view.phase === 'rack' && winnerSide ? (
         <RackPause view={view} h={h} winName={winName} />
       ) : (
-        <Banner view={view} h={h} mine={mine} pocket={a.pocket} />
+        <Banner info={info} />
       )}
 
-      <View style={{ flexDirection: 'row', direction: 'ltr', alignSelf: 'center', gap: GAP }}>
-        <BilliardsTable view={view} width={tw} aiming={aiming} />
-        {mine ? (
-          <View style={{ width: COL, height: tableH, alignItems: 'center', gap: 8 }}>
-            <SpinPicker spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
-            <FineBtn dir={-1} onStep={(d) => update({ angle: latest.current.angle + d * FINE })} />
-            <FineBtn dir={1} onStep={(d) => update({ angle: latest.current.angle + d * FINE })} />
-            <PowerBar height={Math.max(120, tableH - 34 - 16 - 2 * 40 - 3 * 8)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={view.needCall && a.pocket === null} />
-          </View>
-        ) : (
-          <Tray view={view} height={tableH} />
-        )}
+      <View style={full ? { height: winH - insets.top - insets.bottom, alignItems: 'center', justifyContent: 'center', gap: 6 } : null}>
+        <View style={{ flexDirection: 'row', direction: 'ltr', alignSelf: 'center', gap: GAP }}>
+          <BilliardsTable view={view} width={tw} aiming={aiming} />
+          {full ? null : mine ? (
+            <View style={{ width: COL, height: tableH, alignItems: 'center', gap: 8 }}>
+              <SpinPicker spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
+              <FineBtn dir={-1} onStep={stepAngle} />
+              <FineBtn dir={1} onStep={stepAngle} />
+              <PowerBar length={Math.max(110, tableH - 34 - 16 - 3 * 40 - 4 * 8)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={callBlocked} />
+              {fullBtn}
+            </View>
+          ) : (
+            <View style={{ width: COL, height: tableH, alignItems: 'center', gap: 8 }}>
+              <Tray view={view} height={view.phase === 'final' ? tableH : tableH - 48} />
+              {view.phase === 'final' ? null : fullBtn}
+            </View>
+          )}
+        </View>
+        {full ? (
+          <>
+            <View style={{ position: 'absolute', top: (winH - insets.top - insets.bottom - tableH - BAR - 6) / 2, alignSelf: 'center', width: tw, alignItems: 'center' }} pointerEvents="box-none">
+              <View style={{ marginTop: Math.max(1, (RAIL * (tw / TABLE_W) - 21) / 2) }} pointerEvents="none">
+                <TurnPill view={view} h={h} />
+              </View>
+              <Toast info={info} top={RAIL * (tw / TABLE_W) + 30} width={tw} />
+            </View>
+            <View style={[styles.bar, { width: tw }]}>
+              {fullBtn}
+              {mine ? (
+                <>
+                  <SpinPicker d={28} spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
+                  <FineBtn dir={-1} onStep={stepAngle} />
+                  <FineBtn dir={1} onStep={stepAngle} />
+                  <PowerBar horizontal length={Math.max(90, tw - 40 - 40 - 2 * 40 - 4 * 6)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={callBlocked} />
+                </>
+              ) : (
+                <Tray view={view} height={40} width={tw - 46} />
+              )}
+            </View>
+          </>
+        ) : null}
       </View>
 
-      <Row center gap={10} style={{ flexWrap: 'wrap' }}>
-        <Txt v="tiny" color={C.dim}>
-          {`${MODE_NAME[view.mode]} — ${view.race > 1 ? `الشوط ${view.rack} — الفوز بـ${view.race} أشواط` : 'شوط واحد'}`}
-        </Txt>
-        {seated && view.phase !== 'final' ? <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} /> : null}
-      </Row>
+      {full ? null : (
+        <Row center gap={10} style={{ flexWrap: 'wrap' }}>
+          <Txt v="tiny" color={C.dim}>
+            {`${MODE_NAME[view.mode]} — ${view.race > 1 ? `الشوط ${view.rack} — الفوز بـ${view.race} أشواط` : 'شوط واحد'}`}
+          </Txt>
+          {seated && view.phase !== 'final' ? <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} /> : null}
+        </Row>
+      )}
       {view.phase === 'final' ? <PlayAgain room={room} /> : null}
       <ConfirmModal
         visible={resign}
@@ -530,6 +718,12 @@ const styles = StyleSheet.create({
   powerTrack: { width: 30, borderRadius: 10, backgroundColor: C.bg3, borderWidth: 1.5, borderColor: C.borderStrong, overflow: 'hidden' },
   powerFill: { position: 'absolute', left: 0, right: 0, top: 0 },
   powerGrip: { position: 'absolute', left: 2, right: 2, height: 12, borderRadius: 4, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)' },
+  powerFillH: { position: 'absolute', top: 0, bottom: 0, right: 0 },
+  powerGripH: { position: 'absolute', top: 2, bottom: 2, width: 12, borderRadius: 4, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)' },
+  powerTextH: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 10 },
+  bar: { height: BAR, flexDirection: 'row', direction: 'ltr', alignItems: 'center', gap: 6 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingStart: 2, paddingEnd: 8, height: 22, borderRadius: 11, backgroundColor: 'rgba(16,18,41,0.82)', borderWidth: 1 },
+  toast: { position: 'absolute', alignSelf: 'center', borderRadius: 12, borderWidth: 1, backgroundColor: 'rgba(16,18,41,0.86)', paddingVertical: 4, paddingHorizontal: 12 },
   tray: { width: COL, borderRadius: 14, backgroundColor: alpha('#000000', 0.18), borderWidth: 1, borderColor: C.border, alignItems: 'center', paddingVertical: 4, gap: 3 },
 });
 

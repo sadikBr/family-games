@@ -76,7 +76,9 @@ export type IconName =
   | 'house'
   | 'swap'
   | 'bank'
-  | 'go';
+  | 'go'
+  | 'expand'
+  | 'compress';
 
 const P = {
   fill: 'none',
@@ -421,6 +423,10 @@ function shapes(name: IconName, c: string) {
       return <Path d="M3.5 9L12 4l8.5 5zM5.5 9v8M9.8 9v8M14.2 9v8M18.5 9v8M3.5 19.5h17" {...s} />;
     case 'go':
       return <Path d="M20 12H5M10.5 6L4.5 12l6 6" {...s} />;
+    case 'expand':
+      return <Path d="M4.5 9.5v-5h5M14.5 4.5h5v5M19.5 14.5v5h-5M9.5 19.5h-5v-5" {...s} />;
+    case 'compress':
+      return <Path d="M9.5 4.5v5h-5M19.5 9.5h-5v-5M14.5 19.5v-5h5M4.5 14.5h5v5" {...s} />;
   }
 }
 
