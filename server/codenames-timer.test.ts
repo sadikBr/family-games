@@ -1,6 +1,7 @@
 /** «الكلمات السرية»: the optional time limits for the spymaster's clue and the team's guessing. */
 import { expect, test } from 'bun:test';
 
+import type { CodenamesView } from '../src/shared/protocol';
 import { codenames } from './games/codenames';
 
 const fakeCtx = () => {
@@ -30,7 +31,7 @@ const clueWord = (s: any) => ['بحر', 'جبل', 'شمس', 'قمر', 'نهر'].
 test('no limits by default: nothing runs out', () => {
   const { ctx, s } = begin({});
   expect(s.endsAt).toBeNull();
-  expect(codenames.view(ctx, s, 'a').endsAt).toBeNull();
+  expect((codenames.view(ctx, s, 'a') as CodenamesView).endsAt).toBeNull();
   ctx.now += 3_600_000;
   codenames.tick!(ctx, s);
   expect(s.phase).toBe('clue');
@@ -40,7 +41,7 @@ test('the clue time runs out: the other team plays', () => {
   const { ctx, s } = begin({ clueSeconds: 60, guessSeconds: 120 });
   const team = s.turn;
   expect(s.endsAt).toBe(ctx.now + 60_000);
-  expect(codenames.view(ctx, s, 'a').seconds).toBe(60);
+  expect((codenames.view(ctx, s, 'a') as CodenamesView).seconds).toBe(60);
   ctx.now += 59_000;
   expect(codenames.tick!(ctx, s)).toBe(false);
   ctx.now += 1_000;
