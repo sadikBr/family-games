@@ -570,7 +570,8 @@ for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.definePropert
 
 /** Grouping for the home screen (`short`: the filter chip). A game may sit in two groups («كلمة السر»: words and, for its Quran words, Islamic). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'names', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'wave', 'wordle', 'charades', 'spy', 'survey', 'scrabble', 'boggle'] },
+  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'wave', 'charades', 'spy', 'survey'] },
+  { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle'] },
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'billiards', 'connect4', 'battleship'] },
   { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['fast', 'trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
