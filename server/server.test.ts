@@ -1110,8 +1110,9 @@ test('wordle with a bot, and wave between two people', async () => {
   host.act({ type: 'guess', word: 'ابجد' }); // too short → refused
   await settle();
   expect(host.errors.length).toBeGreaterThan(0);
-  host.act({ type: 'guess', word: 'سجتحخ' }); // gibberish → refused
-  await settle();
+  const before = host.errors.length;
+  host.act({ type: 'guess', word: 'سجتحخ' }); // gibberish → refused (the first unknown word loads the Hunspell dictionary)
+  await until(() => host.errors.length > before);
   expect(host.errors.at(-1)).toContain('القاموس');
   expect(host.view<WordleView>().myRows.length).toBe(0);
   const tries = ['سيارة', 'مدرسة', 'طاولة', 'حديقة', 'مكتبة', 'نافذة'];
