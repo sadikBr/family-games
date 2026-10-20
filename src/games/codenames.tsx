@@ -148,22 +148,30 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
             </Txt>
           </Card>
         ) : null}
-        {(['red', 'blue'] as const).map((t) => (
-          <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
-            {view.teams[t].map((id) => (
-              <View key={id} style={{ alignItems: 'center' }}>
-                <PlayerTag
-                  player={h.player(id)}
-                  size={50}
-                  crown={view.spymasters[t] === id}
-                  sub={view.spymasters[t] === id ? (id === h.me ? 'القائد (أنت)' : 'القائد') : id === h.me ? '(أنت)' : undefined}
-                  onPress={h.isHost ? () => h.act('swap', { id }) : undefined}
-                />
-                {h.isHost && view.spymasters[t] !== id ? <IconBtn icon="crown" size={28} label="اجعله قائداً" onPress={() => h.act('spymaster', { id })} /> : null}
-              </View>
-            ))}
-          </TeamCard>
-        ))}
+        {(['red', 'blue'] as const).map((t) => {
+          // a bot is always its team's spymaster: nobody else can lead that team
+          const botTeam = view.teams[t].some((id) => h.player(id).bot);
+          return (
+            <TeamCard key={t} name={TEAM[t].name} color={TEAM[t].color} count={view.teams[t].length}>
+              {view.teams[t].map((id) => {
+                const lead = view.spymasters[t] === id;
+                const bot = !!h.player(id).bot;
+                return (
+                  <View key={id} style={{ alignItems: 'center' }}>
+                    <PlayerTag
+                      player={h.player(id)}
+                      size={50}
+                      crown={lead}
+                      sub={lead ? (bot ? 'القائد (بوت)' : id === h.me ? 'القائد (أنت)' : 'القائد') : id === h.me ? '(أنت)' : undefined}
+                      onPress={h.isHost ? () => h.act('swap', { id }) : undefined}
+                    />
+                    {h.isHost && !lead && !bot && !botTeam ? <IconBtn icon="crown" size={28} label="اجعله قائداً" onPress={() => h.act('spymaster', { id })} /> : null}
+                  </View>
+                );
+              })}
+            </TeamCard>
+          );
+        })}
         {h.isHost ? (
           <>
             <Btn size="md" ghost icon="shuffle" label="خلط الفرق" onPress={() => h.act('shuffle')} />
@@ -230,7 +238,9 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           </>
         ) : (
           <Txt v="bold">
-            {iGiveClue ? 'أنت القائد: أعط تلميحاً لفريقك' : `في انتظار تلميح ${h.player(view.spymasters[view.turn]).name} ل${TEAM[view.turn].name.slice(1)}`}
+            {iGiveClue
+              ? 'أنت القائد: أعط تلميحاً لفريقك'
+              : `في انتظار تلميح ${h.player(view.spymasters[view.turn]).name}${h.player(view.spymasters[view.turn]).bot ? ' (بوت)' : ''} ل${TEAM[view.turn].name.slice(1)}`}
           </Txt>
         )}
       </View>

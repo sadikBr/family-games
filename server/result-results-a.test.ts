@@ -271,7 +271,8 @@ test('charades: the team with more points first, a tie shares first place, an ea
 });
 
 test('codenames: the winning team first (also when the other team hits the assassin)', () => {
-  const { ctx } = fakeCtx();
+  // people only: a bot can only be a spymaster (at most one per team)
+  const ctx = { ...fakeCtx().ctx, isBot: () => false };
   const s: any = codenames.start(ctx, P4, DEFAULT_SETTINGS.codenames);
   codenames.act(ctx, s, 'a', { type: 'begin' });
   expect(codenames.result!(s)).toBeNull();

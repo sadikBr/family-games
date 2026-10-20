@@ -2,10 +2,15 @@
  * الكلمات السرية — two teams, 25 words. Each team's spymaster sees which words are theirs
  * and gives a one-word clue + a number. Team-mates point at words and reveal them.
  * Find all your words first. Revealing the assassin loses immediately.
+ *
+ * Bots can only be spymasters (at most one per team): a bot gives clues (codenames-bot.ts) and never guesses, so a
+ * team led by a bot still needs at least one person guessing.
  */
 import type { CodeColor, CodenamesSettings, CodenamesView } from '../../src/shared/protocol';
+import { randDelay } from '../cardkit';
+import { chooseClue } from '../codenames-bot';
 import { CODENAMES_WORDS } from '../content-extra';
-import { GameError, paced, type GameCtx, type GameModule } from '../types';
+import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
 import { isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceCodeClue, voiceTeamWin } from '../voice-calls-party';
 
@@ -34,6 +39,12 @@ interface State {
   notice: string | null;
   /** when the clue / guessing time runs out (null = no limit set) */
   endsAt: number | null;
+  /** the bots of this game: only ever spymasters */
+  bots: string[];
+  /** counts the turns of the whole game (also across «جولة جديدة»), so a bot's clue is scheduled once per turn */
+  turnNo: number;
+  /** the clue a bot spymaster prepared for turn `turn` */
+  botClue: { turn: number; word: string; n: number } | null;
 }
 
 /** why the last turn ended stays up this long */
@@ -51,6 +62,38 @@ function startClock(ctx: GameCtx, s: State) {
 }
 const teamOf = (s: State, id: string): Team | null => (s.teams.red.includes(id) ? 'red' : s.teams.blue.includes(id) ? 'blue' : null);
 const left = (s: State, t: Team) => s.key.filter((k, i) => k === t && !s.revealed[i]).length;
+const isBotSeat = (s: State, id: string) => (s.bots ?? []).includes(id);
+/** the team's bot (always its spymaster), if it has one */
+const botOf = (s: State, t: Team) => s.teams[t].find((id) => isBotSeat(s, id)) ?? null;
+/** the people of a team who guess (not the spymaster, never a bot) */
+const guessers = (s: State, t: Team) => s.teams[t].filter((id) => id !== s.spymasters[t] && !isBotSeat(s, id));
+const TOO_MANY_BOTS = 'في «الكلمات السرية» بوتان على الأكثر، قائد لكل فريق — أخرجوا البوتات الزائدة';
+
+/**
+ * Split players into the two teams. Without bots: every other player, the first of each team its spymaster.
+ * With bots: each bot leads a team (one per team) and the people join the smaller team (on a tie, the one without
+ * a bot, which needs a spymaster and a guesser).
+ */
+function arrange(s: State, order: string[]) {
+  const bots = order.filter((id) => isBotSeat(s, id));
+  const people = order.filter((id) => !isBotSeat(s, id));
+  if (!bots.length) {
+    s.teams = { red: people.filter((_, i) => i % 2 === 0), blue: people.filter((_, i) => i % 2 === 1) };
+    s.spymasters = { red: s.teams.red[0] ?? null, blue: s.teams.blue[0] ?? null };
+    return;
+  }
+  const first: Team = Math.random() < 0.5 ? 'red' : 'blue';
+  const teams: Record<Team, string[]> = { red: [], blue: [] };
+  bots.slice(0, 2).forEach((b, i) => teams[i === 0 ? first : other(first)].push(b));
+  for (const id of people) {
+    const r = teams.red.length;
+    const b = teams.blue.length;
+    const t: Team = r !== b ? (r < b ? 'red' : 'blue') : teams.red.some((x) => isBotSeat(s, x)) ? 'blue' : 'red';
+    teams[t].push(id);
+  }
+  s.teams = teams;
+  s.spymasters = { red: botOf(s, 'red') ?? teams.red[0] ?? null, blue: botOf(s, 'blue') ?? teams.blue[0] ?? null };
+}
 
 function deal(s: State) {
   s.words = shuffle([...new Set(CODENAMES_WORDS)]).slice(0, 25);
@@ -71,9 +114,11 @@ function deal(s: State) {
   s.reason = null;
   s.log = [];
   s.turnNote = null;
+  s.turnNo = (s.turnNo ?? 0) + 1;
 }
 
 function endTurn(ctx: GameCtx, s: State, why: string) {
+  s.turnNo = (s.turnNo ?? 0) + 1;
   s.turnNote = { team: s.turn, text: why, until: ctx.now + paced(ctx, NOTE_MS) };
   s.turn = other(s.turn);
   s.clue = null;
@@ -125,14 +170,13 @@ export const codenames: GameModule<State, CodenamesSettings> = {
   hostOnly: ['shuffle', 'swap', 'spymaster', 'begin'],
 
   start(ctx, participants, settings) {
-    const order = shuffle(participants);
-    const red = order.filter((_, i) => i % 2 === 0);
-    const blue = order.filter((_, i) => i % 2 === 1);
+    const bots = participants.filter((id) => ctx.isBot(id));
+    if (bots.length > 2) throw new GameError(TOO_MANY_BOTS);
     const s: State = {
       settings,
       participants,
-      teams: { red, blue },
-      spymasters: { red: red[0] ?? null, blue: blue[0] ?? null },
+      teams: { red: [], blue: [] },
+      spymasters: { red: null, blue: null },
       phase: 'teams',
       words: [],
       key: [],
@@ -148,7 +192,11 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       turnNote: null,
       notice: null,
       endsAt: null,
+      bots,
+      turnNo: 0,
+      botClue: null,
     };
+    arrange(s, shuffle(participants));
     ctx.fx('start');
     return s;
   },
@@ -157,21 +205,34 @@ export const codenames: GameModule<State, CodenamesSettings> = {
     const myTeam = teamOf(s, by);
     if (s.phase === 'teams') {
       if (a.type === 'shuffle') {
-        const order = shuffle(s.participants);
-        s.teams = { red: order.filter((_, i) => i % 2 === 0), blue: order.filter((_, i) => i % 2 === 1) };
-        s.spymasters = { red: s.teams.red[0] ?? null, blue: s.teams.blue[0] ?? null };
+        arrange(s, shuffle(s.participants));
       } else if (a.type === 'swap' && isStr(a.id)) {
         const t = teamOf(s, a.id);
         if (!t) return;
+        const o = other(t);
+        if (isBotSeat(s, a.id)) {
+          // a bot moves only to a team without a bot, and leads it
+          if (botOf(s, o)) throw new GameError('لكل فريق بوت واحد على الأكثر، وهو قائده');
+          s.teams[t] = s.teams[t].filter((x) => x !== a.id);
+          s.teams[o].push(a.id);
+          s.spymasters[o] = a.id;
+          s.spymasters[t] = s.teams[t][0] ?? null;
+          return;
+        }
         s.teams[t] = s.teams[t].filter((x) => x !== a.id);
-        s.teams[other(t)].push(a.id);
-        if (s.spymasters[t] === a.id) s.spymasters[t] = s.teams[t][0] ?? null;
-        if (!s.spymasters[other(t)]) s.spymasters[other(t)] = a.id;
+        s.teams[o].push(a.id);
+        if (s.spymasters[t] === a.id) s.spymasters[t] = botOf(s, t) ?? s.teams[t][0] ?? null;
+        if (!s.spymasters[o]) s.spymasters[o] = a.id;
       } else if (a.type === 'spymaster' && isStr(a.id)) {
         const t = teamOf(s, a.id);
-        if (t) s.spymasters[t] = a.id;
+        if (!t || isBotSeat(s, a.id)) return;
+        if (botOf(s, t)) throw new GameError('قائد هذا الفريق بوت، والبوت لا يخمّن — انقلوا البوت إلى الفريق الآخر أولاً');
+        s.spymasters[t] = a.id;
       } else if (a.type === 'begin') {
-        if (s.teams.red.length < 2 || s.teams.blue.length < 2) throw new GameError('كل فريق يحتاج لاعبين على الأقل');
+        for (const t of ['red', 'blue'] as Team[]) {
+          if (s.spymasters[t] && guessers(s, t).length) continue;
+          throw new GameError(botOf(s, t) ? `${TEAM_NAME[t]} قائده بوت، ويحتاج لاعباً واحداً على الأقل للتخمين` : 'كل فريق يحتاج لاعبين على الأقل');
+        }
         s.notice = null;
         deal(s);
         s.phase = 'clue';
@@ -184,8 +245,13 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       if (a.type === 'again') {
         s.phase = 'teams';
         s.endsAt = null;
-        // the spymaster role moves to the next player of each team
+        // the spymaster role moves to the next player of each team (a bot stays its team's spymaster)
         for (const t of ['red', 'blue'] as Team[]) {
+          const bot = botOf(s, t);
+          if (bot) {
+            s.spymasters[t] = bot;
+            continue;
+          }
           const list = s.teams[t];
           const i = list.indexOf(s.spymasters[t] ?? '');
           s.spymasters[t] = list[(i + 1) % list.length] ?? null;
@@ -285,13 +351,14 @@ export const codenames: GameModule<State, CodenamesSettings> = {
   onLeave(ctx, s, id) {
     for (const t of ['red', 'blue'] as Team[]) {
       s.teams[t] = s.teams[t].filter((x) => x !== id);
-      if (s.spymasters[t] === id) s.spymasters[t] = s.teams[t][0] ?? null;
+      if (s.spymasters[t] === id) s.spymasters[t] = botOf(s, t) ?? s.teams[t][0] ?? null;
     }
     s.participants = s.participants.filter((x) => x !== id);
+    s.bots = (s.bots ?? []).filter((x) => x !== id);
     delete s.proposals[id];
     if (s.phase !== 'clue' && s.phase !== 'guess') return;
-    // a team without a spymaster and at least one guesser can't play on
-    const broken = (['red', 'blue'] as Team[]).find((t) => s.teams[t].length < 2 || !s.spymasters[t]);
+    // a team without a spymaster and at least one person guessing can't play on
+    const broken = (['red', 'blue'] as Team[]).find((t) => !s.spymasters[t] || !guessers(s, t).length);
     if (broken) {
       s.phase = 'teams';
       s.endsAt = null;
@@ -302,6 +369,24 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       s.notice = `${broken === 'red' ? 'الفريق الأحمر' : 'الفريق الأزرق'} لم يعد فيه قائد ولاعب يخمّن — رتّبوا الفرق من جديد`;
       ctx.fx('reveal');
     }
+  },
+
+  botPlan(ctx, s, bots) {
+    // a bot is only ever a spymaster: it gives its team's clue, after thinking a few seconds like a person
+    if (s.phase !== 'clue') return;
+    const id = s.spymasters[s.turn];
+    if (!id || !bots.includes(id)) return;
+    const turn = s.turnNo ?? 0;
+    if (s.botClue?.turn !== turn) {
+      const clue = chooseClue({ words: s.words, key: s.key, revealed: s.revealed }, s.turn, botLevel(ctx), s.log.map((l) => l.clue));
+      s.botClue = { turn, word: clue.word, n: clue.n };
+    }
+    const level = botLevel(ctx);
+    let delay = level === 'easy' ? randDelay(3000, 6000) : level === 'smart' ? randDelay(4000, 7500) : randDelay(4500, 8500);
+    // well within the clue time (the room's pace still stretches it)
+    const limit = s.settings.clueSeconds ?? 0;
+    if (limit) delay = Math.min(delay, limit * 1000 * 0.2);
+    ctx.bot(id, `clue:${turn}`, delay, { type: 'clue', word: s.botClue.word, n: s.botClue.n });
   },
 
   result(s) {

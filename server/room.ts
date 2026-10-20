@@ -9,6 +9,7 @@ import {
   DEFAULT_SETTINGS,
   GAME_IDS,
   MAX_BOTS,
+  GAME_MAX_BOTS,
   MAX_PLAYERS as GAME_MAX_PLAYERS,
   MIN_PLAYERS,
   type AllSettings,
@@ -536,6 +537,10 @@ export class Room {
   private addBot() {
     const bots = this.players.filter((p) => p.bot);
     if (bots.length >= MAX_BOTS) throw new GameError('وصلتم للحد الأقصى من البوتات');
+    const gameMax = GAME_MAX_BOTS[this.game];
+    if (gameMax !== undefined && bots.length >= gameMax) {
+      throw new GameError(this.game === 'codenames' ? 'في «الكلمات السرية» بوتان على الأكثر: البوت قائد لفريق فقط' : 'وصلتم للحد الأقصى من البوتات لهذه اللعبة');
+    }
     if (this.players.length >= MAX_PLAYERS) throw new GameError('الغرفة ممتلئة');
     const used = new Set(bots.map((b) => b.name));
     const persona = BOT_PERSONAS.find((p) => !used.has(p.name)) ?? BOT_PERSONAS[0];

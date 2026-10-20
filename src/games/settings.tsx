@@ -252,6 +252,9 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
           <Txt v="tiny" color={C.muted}>
             إذا انتهى وقت التلميح ينتقل الدور إلى الفريق الآخر، وإذا انتهى وقت التخمين ينتهي دور الفريق.
           </Txt>
+          <Txt v="tiny" color={C.muted}>
+            البوت قائد فقط: بوت واحد على الأكثر لكل فريق، يعطي التلميحات ولا يخمّن أبداً. مع بوتين، كل من في الغرفة يخمّن.
+          </Txt>
         </View>
       );
     }

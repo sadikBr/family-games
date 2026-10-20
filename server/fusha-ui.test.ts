@@ -19,7 +19,7 @@ const DIALECT: Record<string, string> = {
 const PHRASES = ['تعال نلعب', 'بدون ما', 'الطريق السيار', 'إذا عندك', 'كل واحد يلعب'];
 
 /** Word lists and other content (checked by their own tests). */
-const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|scrabble-dict|dictionary|boggle-grid)\.ts$|^server\/data\//; // boggle-grid holds the dialect blocklist itself
+const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|codenames-links|scrabble-dict|dictionary|boggle-grid)\.ts$|^server\/data\//; // boggle-grid holds the dialect blocklist itself
 const IN_PROGRESS = /^$/; // every game is checked now
 
 function walk(dir: string, out: string[] = []): string[] {
