@@ -442,11 +442,12 @@ test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', a
   const { phones, host } = await makeRoom(3, 'names');
   // placeholder answers like «كboyA»: the dictionary check would flag them all
   host.send({ t: 'room', action: { type: 'settings', game: 'names', patch: { seconds: 60, rounds: 2, dict: 'off' } } });
+  host.send({ t: 'room', action: { type: 'pace', pace: 'fast' } }); // the spin's pause follows «سرعة اللعب»
   host.send({ t: 'room', action: { type: 'start' } });
   await settle();
   let v = host.view<NamesView>();
   expect(v.phase).toBe('spin');
-  await Bun.sleep(3500);
+  await Bun.sleep(4200); // the 3.2 s spin, ended by the next tick
   v = host.view<NamesView>();
   expect(v.phase).toBe('write');
   expect(v.board).toBeNull();
@@ -503,8 +504,9 @@ test('اسم ولد اسم بنت with «ستوب» off: finishing early waits f
   host.send({ t: 'room', action: { type: 'settings', game: 'names', patch: { seconds: 60, stop: false } } });
   await settle();
   expect(host.room!.settings.names.stop).toBe(false);
+  host.send({ t: 'room', action: { type: 'pace', pace: 'fast' } }); // the spin's pause follows «سرعة اللعب»
   host.send({ t: 'room', action: { type: 'start' } });
-  await Bun.sleep(3500);
+  await Bun.sleep(4200); // the 3.2 s spin, ended by the next tick
   const L = host.view<NamesView>().letter;
   const cats = ['boy', 'girl', 'animal', 'plant', 'thing', 'country', 'job'];
   const [A, B] = phones;
@@ -924,6 +926,7 @@ test('islamic quiz and surah with bots: answers, reveal, final scores', async ()
   for (const game of ['quiz', 'surah'] as const) {
     const { host } = await roomWithBots(1, 2, game);
     host.send({ t: 'room', action: { type: 'settings', game, patch: { rounds: 5, seconds: 10 } } });
+    host.send({ t: 'room', action: { type: 'pace', pace: 'fast' } }); // reveals follow «سرعة اللعب»
     await settle();
     host.send({ t: 'room', action: { type: 'start' } });
     await settle();
