@@ -9,16 +9,23 @@
  *      affix rules (checked with spylls, a faithful Python port of Hunspell: nspell ignores most of
  *      this dictionary's prefixes/suffixes and rejects even «الأمر» or «كتابه»), or
  *   2. it is on the small hand-checked ALLOW list (very common, correctly spelled فصحى forms that
- *      Hunspell misses, e.g. «قتلوه», «حفيدة»),
+ *      Hunspell misses, e.g. «قتلوه», «حفيدة»), or
+ *   3. it is an everyday form of an everyday dictionary entry: tools/hunspell-forms.ts expands the
+ *      entries said ≥10 times in the subtitles with «ال» and one everyday ending (plurals, dual,
+ *      feminine, the common pronouns on nouns, the subject endings on verbs — «جرذات», «قروده»,
+ *      «خردلة», «شفقات»); forms ending in «يي» («يوميي») are left out,
  *   and it is not on the DIALECT blocklist below. Subtitle frequency alone no longer makes a word valid:
  *   that is how Egyptian/Tunisian forms («عايزة», «بتاعك», «علشان», «يقولو»…) and typos got in.
  *   (The «كلمة السر» answers are always accepted too: see server/games/wordle.ts.)
+ *   (Whatever else Hunspell accepts is still checked at run time: see server/games/wordle.ts.)
  *   pip install spylls && node tools/wordle-dict.mjs && mv valid5.txt server/data/wordle-valid.txt
+ *   (needs bun on the PATH for step 3)
  * tools/common-words.mjs imports DIALECT from here.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
  * Common dialect forms (any length; each tool normalises them its own way). Words that are also
@@ -26,33 +33,10 @@ import { pathToFileURL } from 'node:url';
  * unless the فصحى reading is rare and the dialect one is what everybody means («شوية», «بتعرف»).
  * Also left out: forms that normalise like a فصحى word in one of the lists («ايه» = «آية», «دي» = «دية»,
  * «ولاده» = «ولادة», «برده» = «بردة», «هلأ» = «هلا»).
+ * The list lives in server/data/dialect-words.txt (whitespace-separated): the server reads it too, so a
+ * guess the Hunspell check would let through (it reads «عايز», «بتقول», «كده» as rare فصحى forms) is refused.
  */
-export const DIALECT = `
-  شو ليش هيك هلق كتير كتيرة كتيره كتار منيح منيحة منيحه منيحين بدي بدك بدها بدنا بدهم بدكن بدكم بدكو
-  شلون شلونك شلونكم مشان منشان مشانك منشانك عنجد قديش اديش زلمة زلمي تعا هيدا هيدي هادا هاي هاذا هاذي هاذاكا
-  بحكي بتحكي بيحكي منحكي عمبحكي عمبقول شوية شويه اشوفك تشوفي يشوفك شوفي شوفوا شوفو شوف شفتو شايف شايفة شايفه
-  شايفين شايفك شايفني شوفيه شوفها شوفهم اشوفه تشوفك تشوفه تشوفيه يشوفه نشوفك نشوفه شفتني مبارح امبارح بكرا وين وينك وينو وينه وينها وينكم وينهم شي
-  ده فين ليه كده كدا كدة عشان علشان عشانك عشانه عشاني عشانها عشانكم عشانهم يلا يالا ازاي إزاي ازيك
-  ازيكم ازيكو إزيك ازيكي بردو برضه برضو لسه لسة دلوقت دلوقتي النهارده النهاردة مفيش مافيش معرفش ماعرفش
-  مقدرش ماقدرش مكنتش ماكنتش مكانش ماكانش مشفتش متقلقش ماتقلقش متخافش ماتخافش متزعلش معملتش مقولتش متعرفش
-  ماتعرفش ميهمنيش مايهمنيش مش موش مانيش ماناش ماهوش ماهيش عايز عاوز عايزة عايزه عاوزة عاوزه عايزين عاوزين
-  عايزاك عاوزاك بتاع بتاعي بتاعك بتاعه بتاعة بتاعت بتاعتي بتاعتك بتاعته بتاعها بتاعنا بتاعهم بتوع بتوعي بتوعك
-  بتوعه بتوعنا عيلتي عيلتك عيلته اوضة اوضه اوضتي اوضتك اوضته مراتي مراتك مراته اخويا ابويا ياريت معايا معاك
-  معاكي معاكو معاكم معانا معاه معاها معاهم عليكي إليكي اليكي عندكي ليكي فيكي بيكي منكي عنكي عليكو عندكو ليكو
-  منكو بيكو فيكو عنكو ويايا وياك وياكي ولادي ولادك هدومي هدومك هدومه فاكر فاكرة فاكره فاكرين فاكراني
-  فاكرني مستني مستنية مستنيه مستنيك مستنياك اتفضل اتفضلي اتفضلوا اتفضلو اتجوز اتجوزت اتجوزنا اتجوزها كويس
-  كويسة كويسه كويسين جعان جعانة جعانه بيعمل بتعمل بنعمل بيقول بتقول بنقول بيحب بتحب بنحب بتحبني بيحبني بتعرف
-  بيعرف بنعرف بتروح بيروح بنروح بتشوف بيشوف بنشوف بتاكل بياكل بتلعب بيلعب بتكلم بيتكلم بتتكلم بتفكر بيفكر
-  بتدور بيدور بتعملي بتعمله هعمل هيعمل هتعمل هنعمل هقول هيقول هتقول هنقول هروح هيروح هتروح هنروح هشوف هيشوف
-  هتشوف هنشوف هيكون هتكون هنكون هيموت هتموت هموت هقتلك هتندم هتعرف هيعرف هنعرف هتيجي هييجي هاجي هيجي
-  برشا برشة ياسرة توة هكا هكاكة هكاكا هكاكه زادة باش شنوة شنوا شنية شنيا علاش كيفاش وقتاش فماش مافماش نحكيو
-  نمشيو نعملو تعملو يعملو تحبو نحبو يحبو نقولو تقولو يقولو نجيو تجيو يجيو شكون اشكون شبيك شبيكم خويا ياخي
-  ماعادش نورمال منغير
-  بزاف دابا شنو بغيت بغيتو بغا كنبغيك كيبغي كتبغي كنبغي كنعرف كيعرف كتعرف كنقول كيقول كتقول كندير كيدير كتدير
-  كنشوف كيشوف كتشوف ديال ديالي ديالك ديالو ديالها ديالنا ديالهم ديالكم واخا مزيان مزيانة مزيانه زوين زوينة
-  زوينه ختي هادشي داكشي هاكا هاكداك بلاتي دغيا حيت خاصو ماكاين ماكاينش عطيني عطيتك عطيتي عطاني خليني خلينا
-  خليها خليهم خليك خليكم ياك ياكما كاع
-`.split(/\s+/).filter(Boolean);
+export const DIALECT = fs.readFileSync(new URL('../server/data/dialect-words.txt', import.meta.url), 'utf8').split(/\s+/).filter(Boolean);
 
 /** Correct, very common فصحى forms (≥100 uses in the subtitles) that Hunspell does not know. */
 export const ALLOW = `
@@ -99,10 +83,23 @@ function build() {
     const k = norm(w);
     if (is5(k)) stems.add(k);
   }
+  // 3. everyday forms of the entries said ≥10 times (stems normalised like norm(): ة → ه too)
+  const everyday = new Set();
+  for (const line of fs.readFileSync('ar_full.txt', 'utf8').split('\n')) {
+    const [w, c] = line.split(' ');
+    if (Number(c) < 10) break;
+    const k = norm(w ?? '').replace(/ة/g, 'ه');
+    if (/^[ء-ي]+$/.test(k)) everyday.add(k);
+  }
+  fs.writeFileSync('stems10.txt', [...everyday].join('\n') + '\n');
+  const tool = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hunspell-forms.ts');
+  const gen = spawnSync('bun', [tool, '--len', '5', '--prefixes', 'article', '--stems', 'stems10.txt', '--everyday'], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'inherit'] });
+  if (gen.status !== 0) throw new Error('tools/hunspell-forms.ts failed (is bun installed?)');
+  const forms = new Set(gen.stdout.split('\n').filter((k) => is5(k) && !k.endsWith('يي')));
   const block = new Set(DIALECT.map(norm));
-  const words = new Set([...stems, ...hunspell, ...ALLOW.map(norm)].filter((k) => !block.has(k)));
+  const words = new Set([...stems, ...hunspell, ...ALLOW.map(norm), ...forms].filter((k) => !block.has(k)));
   console.log('dictionary entries', stems.size, 'hunspell-accepted subtitle words', hunspell.size, 'allowed', ALLOW.length,
-    'blocked', [...block].filter((k) => stems.has(k) || hunspell.has(k)).length, 'final', words.size);
+    'everyday forms', forms.size, 'blocked', [...block].filter((k) => stems.has(k) || hunspell.has(k) || forms.has(k)).length, 'final', words.size);
   fs.writeFileSync('valid5.txt', [...words].sort().join('\n'));
   console.log('sample:', [...words].sort(() => Math.random() - 0.5).slice(0, 60).join(' '));
 }

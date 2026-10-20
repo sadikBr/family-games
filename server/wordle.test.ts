@@ -7,7 +7,7 @@ import { expect, test } from 'bun:test';
 
 import { DEFAULT_SETTINGS, GAME_IDS, resolveGame, type PlayerInfo, type ServerMsg, type WordleSettings, type WordleView } from '../src/shared/protocol';
 import { MAX_TRIES, WORD_LEN, markGuess, normWord } from '../src/shared/wordle';
-import { HURRY_MS, QWORD_KEYS, REVEAL_MS, REVEAL_VERSE_MS, ROUND_MS, VALID_GUESSES, wordle, qwordValid, qwordVerse } from './games/wordle';
+import { HURRY_MS, QWORD_KEYS, REVEAL_MS, REVEAL_VERSE_MS, ROUND_MS, VALID_GUESSES, validGuess, wordle, qwordValid, qwordVerse } from './games/wordle';
 import { WORDLE_WORDS } from './content-games2';
 import { quranFull, verseText } from './qquote-quran';
 import { QWORD_ANSWERS, QWORD_CAT_LABEL, type QwordCat } from './qword-content';
@@ -288,8 +288,8 @@ test('everyday words: dictionary guesses only, no verse, a shorter reveal; old r
   const s: any = wordle.start(ctx, ['a', 'b'], { rounds: 2 });
   expect(s.words.every((w: any) => w.quran === null && WORDLE_WORDS.includes(w.word))).toBe(true);
   const answer = s.words[0].key;
-  // a Quran word that is not in the dictionary is refused here
-  const quranOnly = [...quranWordIndex().keys()].find((w) => !VALID_GUESSES.has(w))!;
+  // a Quran word that is not in the dictionary (the list, then Hunspell) is refused here
+  const quranOnly = [...quranWordIndex().keys()].find((w) => !validGuess(w, false))!;
   expect(() => wordle.act(ctx, s, 'a', { type: 'guess', word: quranOnly })).toThrow('ليست في القاموس');
   const v0 = view(ctx, s, 'a');
   expect(v0.words).toBe('general');

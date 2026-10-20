@@ -12,11 +12,18 @@
  * long vowels written or not, ة/ه/ا at the end, hamza, a doubled letter, and the letters that sound
  * alike in loanwords (ط/ت, ص/س, ض/د, ظ/ز, ث/ت/س, ذ/د/ز, ق/ك). Candidates come from a "skeleton" index
  * (the word without its vowels, alike-sounding letters merged), built lazily like the line index.
+ *
+ * Last, for the common-noun columns (animal, plant, thing, job), the Arabic Hunspell dictionary with
+ * its affix rules (server/hunspell.ts): the list holds the dictionary's stems only, Hunspell also knows
+ * their plurals, dual, feminine, attached pronouns and verb forms («مدارس», «طاولات», «معلمون»,
+ * «كتابهم»), with or without «ال». Never with و/ف/ب/ك/ل/س in front: «بقلم» would pass for ب with
+ * any word. Names of people and places stay with the lists.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { norm, stripAl } from '../src/shared/arabic';
+import { arabicSpeller, spellArabic } from './hunspell';
 import { NAMES_EXTRA, NAMES_WORDS } from './names-words';
 
 let text = '';
@@ -325,7 +332,20 @@ function finalAlif(s: string): string[] {
   return re.test(s) ? [s.replace(re, '$1ى'), s.replace(re, '$1ة')] : [];
 }
 
-export type WordMatch = 'list' | 'dict' | 'list-spelling' | 'list-slip' | 'dict-spelling';
+export type WordMatch = 'list' | 'dict' | 'list-spelling' | 'list-slip' | 'dict-spelling' | 'hunspell';
+
+/** The columns where Hunspell's forms count (the others are names of people and places). */
+const SPELL_CATS = new Set(['animal', 'plant', 'thing', 'job']);
+const spellCat = (cat?: string) => !cat || SPELL_CATS.has(cat);
+
+/**
+ * One normalised word (no «ال») Hunspell knows: an entry with its endings, or with «ال» in front
+ * («الماس» had its «ال» taken off by the key) — no other prefix, no grammar word («من», «هذا»).
+ */
+function spelled(w: string): boolean {
+  if (!spellArabic(w, { prefixes: 'none', noGrammar: true }) && !spellArabic('ال' + w, { prefixes: 'article', noGrammar: true })) return false;
+  return !arabicSpeller()?.isGrammarWord(w); // «من» is not «المنّ»
+}
 
 /** Small words of an answer, normalised (no «ال»), and the whole answer without spaces. */
 function parts(answer: string) {
@@ -372,6 +392,12 @@ export function wordMatch(answer: string, cat?: string): WordMatch | null {
     const m = tolerant(s);
     if (m) return m;
   }
+  // the Hunspell dictionary, for the common-noun columns: every word known, by the lists or by it
+  if (spellCat(cat))
+    for (const s of forms) {
+      const { key, words } = parts(s);
+      if (key && words.every((w) => exactWord(w) || spelled(w) || looseCurated(w))) return 'hunspell';
+    }
   return null;
 }
 
