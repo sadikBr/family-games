@@ -32,6 +32,9 @@ import { StepsSettings } from './steps';
 import { MapquizSettings } from './mapquiz';
 import { FastSettings } from './fast';
 import { BilliardsSettings } from './billiards';
+import { EstimateSettings } from './estimate';
+import { TruefalseSettings } from './truefalse';
+import { FlagsSettings } from './flags';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -103,6 +106,12 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <FastSettings room={room} editable={editable} />;
     case 'billiards':
       return <BilliardsSettings room={room} editable={editable} />;
+    case 'estimate':
+      return <EstimateSettings room={room} editable={editable} />;
+    case 'truefalse':
+      return <TruefalseSettings room={room} editable={editable} />;
+    case 'flags':
+      return <FlagsSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (

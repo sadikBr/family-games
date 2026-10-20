@@ -68,6 +68,9 @@ import { steps } from './games/steps';
 import { mapquiz } from './games/mapquiz';
 import { fast } from './games/fast';
 import { billiards } from './games/billiards';
+import { estimate } from './games/estimate';
+import { truefalse } from './games/truefalse';
+import { flags } from './games/flags';
 import { prophets } from './games/prophets';
 import { mosque } from './games/mosque';
 import { rami } from './games/rami';
@@ -166,6 +169,9 @@ const MODULES: Record<GameId, AnyModule> = {
   rami,
   fast,
   billiards,
+  estimate,
+  truefalse,
+  flags,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
