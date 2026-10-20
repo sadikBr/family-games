@@ -2,7 +2,8 @@
  * «البلياردو» — the types shared by the server and the app: settings, the view each phone gets, the
  * game's card on the home screen. The table geometry and the physics are in billiards-physics.ts.
  *
- * Two modes in one game: «الكرة 8» (2 players, or 4 as two teams) and «الكرة 9» (2–4 players). The
+ * Three modes in one game: «الكرة 8» (2 players, or 4 as two teams), «الكرة 9» (2–4 players) and
+ * «سنوكر» (2 players, or 4 as two teams, on a 12-foot table with 15 reds and the six colours). The
  * server plays every shot with the deterministic physics and sends every phone the recorded trajectories
  * once (`shot`, only in the first moments after the stroke); each phone plays them back smoothly, then
  * shows the final positions (`balls`), which are already in the view during the playback (someone who
@@ -10,7 +11,9 @@
  * the end of the rack) is applied when the playback is over.
  */
 
-export type BilliardsMode = 'eight' | 'nine';
+export type BilliardsMode = 'eight' | 'nine' | 'snooker';
+/** Snooker: what is on — a red, a colour after a red (the one nominated), or a given colour (16 yellow … 21 black) once the reds are gone. */
+export type SnookerOn = 'red' | 'colour' | number;
 export type BilliardsGroup = 'solids' | 'stripes';
 export type BilliardsGuide = 'long' | 'short' | 'off';
 
@@ -18,7 +21,7 @@ export const BILLIARDS_RACES = [1, 2, 3] as const;
 
 export interface BilliardsSettings {
   mode: BilliardsMode;
-  /** racks to win the match: 1, 2 or 3 */
+  /** racks (snooker: frames) to win the match: 1, 2 or 3 */
   race: number;
   /** 8-ball: the pocket for the 8 must be called before shooting at it */
   callPocket: boolean;
@@ -88,8 +91,8 @@ export interface BilliardsView {
   targets: number[];
   /** 8-ball: the shooter must call the pocket for the 8 before shooting */
   needCall: boolean;
-  /** the shooter's live aim, relayed to everyone: angle (rad), the cue ball while placing it, the called pocket */
-  aim: { seq: number; a: number; cue: [number, number] | null; pocket: number | null } | null;
+  /** the shooter's live aim, relayed to everyone: angle (rad), the cue ball while placing it, the called pocket, the nominated colour (snooker) */
+  aim: { seq: number; a: number; cue: [number, number] | null; pocket: number | null; nom?: number | null } | null;
   /** the last shot's id (always), and its recorded trajectories (only right after the stroke) */
   shotId: number;
   shot: BilliardsShot | null;
@@ -103,6 +106,20 @@ export interface BilliardsView {
   nextAt: number | null;
   callPocket: boolean;
   guide: BilliardsGuide;
+  /** snooker: the score (absent in 8-ball and 9-ball) */
+  snooker?: BilliardsSnooker | null;
+}
+
+/** Snooker's scoreboard. */
+export interface BilliardsSnooker {
+  /** points per side this frame */
+  scores: number[];
+  /** the current break («السلسلة») */
+  brk: number;
+  /** what is on now */
+  on: SnookerOn;
+  /** points still on the table («المتبقي على الطاولة») */
+  remaining: number;
 }
 
 export const BALL_COLOR: Record<number, string> = {
@@ -122,7 +139,15 @@ export const BALL_COLOR: Record<number, string> = {
   13: '#F07F1E',
   14: '#1E9A55',
   15: '#8E2A2A',
+  // snooker: the colours (16 yellow … 21 black) and the reds (22 … 36)
+  16: '#F3C613',
+  17: '#178A47',
+  18: '#7B4520',
+  19: '#2358D6',
+  20: '#F48DB4',
+  21: '#151518',
 };
+for (let id = 22; id <= 36; id++) BALL_COLOR[id] = '#C81E24';
 
 export const isStripe = (id: number) => id >= 9 && id <= 15;
 export const isSolid = (id: number) => id >= 1 && id <= 7;
@@ -134,7 +159,7 @@ export const GROUP_SHORT: Record<BilliardsGroup, string> = { solids: 'الكام
 export const POCKET_NAME = ['الجيب الأعلى الأيسر', 'الجيب الأعلى الأيمن', 'الجيب الأوسط الأيسر', 'الجيب الأوسط الأيمن', 'الجيب الأسفل الأيسر', 'الجيب الأسفل الأيمن'];
 
 /** «الكرة 8» / «الكرة 9». */
-export const MODE_NAME: Record<BilliardsMode, string> = { eight: 'الكرة 8', nine: 'الكرة 9' };
+export const MODE_NAME: Record<BilliardsMode, string> = { eight: 'الكرة 8', nine: 'الكرة 9', snooker: 'سنوكر' };
 
 const EIGHT_HOWTO = [
   'كل لاعب على هاتفه. اسحب إصبعك على الطاولة لتدوير العصا (السحب البطيء أدق)، أو المس كرة للتصويب نحوها، واضبط الدقة بالسهمين، واختر نقطة ضرب البيضاء من زر الكرة البيضاء الصغيرة، ثم اسحب شريط القوة جانباً واتركه للضرب.',
@@ -153,16 +178,26 @@ const NINE_HOWTO = [
   'من لاعبَين إلى أربعة، كل واحد لنفسه، والدور بالتناوب. الفائز بالشوط يكسر الشوط التالي.',
 ];
 
+const SNOOKER_HOWTO = [
+  'كل لاعب على هاتفه. اسحب إصبعك على الطاولة لتدوير العصا (السحب البطيء أدق)، أو المس كرة للتصويب نحوها، واضبط الدقة بالسهمين، واختر نقطة ضرب البيضاء من زر الكرة البيضاء الصغيرة، ثم اسحب شريط القوة جانباً واتركه للضرب.',
+  'سنوكر على طاولة كبيرة: 15 كرة حمراء وستة ألوان. الأصفر 2، الأخضر 3، البني 4، الأزرق 5، الوردي 6، الأسود 7، والحمراء نقطة واحدة.',
+  'المطلوب أولاً كرة حمراء. بعد إدخال حمراء يأتي دور لون: المس اللون لاختياره (وإلا فاللون الذي تصوّب نحوه)، وإدخاله يضيف قيمته ويعود اللون إلى مكانه، ثم حمراء من جديد.',
+  'بعد آخر كرة حمراء تدخل الألوان بالترتيب: الأصفر، الأخضر، البني، الأزرق، الوردي، ثم الأسود، ولا تعود إلى مكانها. ينتهي الإطار مع الأسود، والأعلى نقاطاً يفوز به؛ وعند التعادل يعود الأسود إلى مكانه وأول نقطة تحسم الإطار.',
+  'الخطأ يعطي الخصم 4 نقاط على الأقل (أو قيمة الكرة المطلوبة أو الكرة الملموسة أولاً أو الكرة الداخلة خطأً إن كانت أكبر): لمس كرة غير مطلوبة أولاً، أو عدم لمس أي كرة، أو سقوط البيضاء، أو إدخال كرة غير مطلوبة. يلعب الخصم من حيث توقفت البيضاء، أو من داخل نصف الدائرة إن سقطت.',
+  'لاعبان، أو أربعة في فريقين يتناوبان. الكسر بالتناوب بين الإطارات، وعدد الإطارات للفوز في الإعدادات.',
+];
+
 export const BILLIARDS_INFO = {
   title: 'البلياردو',
-  tagline: 'الكرة 8 أو الكرة 9 على طاولة حقيقية: صوّب، اختر القوة، واضرب.',
+  tagline: 'الكرة 8 أو الكرة 9 أو السنوكر على طاولة حقيقية: صوّب، اختر القوة، واضرب.',
   color: '#1C8C64',
   maxPlayers: 4,
   howTo: EIGHT_HOWTO,
 };
 
-/** The cover text for 9-ball. */
+/** The cover text for 9-ball and snooker. */
 export function billiardsVariant(s: BilliardsSettings | undefined): { tagline: string; howTo: string[] } | null {
+  if (s?.mode === 'snooker') return { tagline: 'سنوكر: 15 كرة حمراء وستة ألوان على طاولة كبيرة، حمراء ثم لون، والأعلى نقاطاً يفوز بالإطار.', howTo: SNOOKER_HOWTO };
   if (s?.mode !== 'nine') return null;
   return { tagline: 'الكرة 9: الكرات من 1 إلى 9، المس الأصغر أولاً، ومن يدخل الكرة 9 يربح الشوط.', howTo: NINE_HOWTO };
 }

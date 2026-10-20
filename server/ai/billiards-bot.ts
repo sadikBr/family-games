@@ -14,9 +14,15 @@
  * Strength (the room's «مستوى البوتات»): «سهل» aims with a wide error, picks the easiest pot by eye and
  * plays no position; «ذكي» has a small error, some follow / draw and position; «خبير» a tiny error, the
  * full evaluation (position, banks, combinations, safeties). Every decision stops by its time budget.
+ *
+ * Snooker (snookerShot): the same pots and physics on the snooker table. On a red, the reds; after a
+ * red, every colour weighed by its value against its difficulty (the colour of the chosen pot is the one
+ * nominated, so never an impossible one); «خبير» also scores where the cue ball stops for the next red
+ * or colour. When nothing is on: a safety that leaves the next player nothing, the cue ball close to a
+ * cushion. The break-off: a thin contact on the end red of the triangle's back row, back towards baulk.
  */
 import type { BotLevel } from '../../src/shared/protocol';
-import { groupBalls, type BilliardsGroup, type BilliardsMode } from '../../src/shared/games/billiards';
+import { groupBalls, type BilliardsGroup, type BilliardsMode, type SnookerOn } from '../../src/shared/games/billiards';
 import {
   BREAK_SPOT,
   DRAG,
@@ -25,23 +31,27 @@ import {
   FOOT_Y,
   G,
   HEAD_Y,
-  L,
   MAX_SPEED,
   MU_SLIDE,
-  POCKET_DRAW,
-  POCKETS,
-  R,
+  BAULK_Y,
+  POOL,
   ROLL,
-  W,
+  SNOOKER,
+  aimGuide,
+  isColour,
+  isRed,
   legalCueSpot,
+  respotColours,
+  snookerValue,
   nearestCueSpot,
   powerOf,
   simulate,
   straightDrop,
   type BallPos,
   type SimResult,
+  type Table,
 } from '../../src/shared/games/billiards-physics';
-import { judge, legalTargets, onEight, type Situation, type Verdict } from '../billiards-rules';
+import { judge, judgeSnooker, legalTargets, onEight, snookerFirstOn, snookerNextOn, snookerTargets, type Situation, type Verdict } from '../billiards-rules';
 
 export interface BotInput {
   mode: BilliardsMode;
@@ -57,6 +67,8 @@ export interface BotInput {
   rnd?: () => number;
   /** ms (defaults by level) */
   budget?: number;
+  /** snooker: what is on (and the score, for the bots' appetite for risk) */
+  snooker?: { on: SnookerOn; lead?: number; remaining?: number };
 }
 
 export interface BotShot {
@@ -65,6 +77,8 @@ export interface BotShot {
   spin: number;
   cue?: { x: number; y: number };
   pocket?: number;
+  /** snooker: the colour nominated */
+  nom?: number;
 }
 
 const LEVEL = {
@@ -74,6 +88,12 @@ const LEVEL = {
 } as const;
 
 const DEG = Math.PI / 180;
+
+/**
+ * The table of the decision being made (set at the start of botShot; a decision runs synchronously from
+ * start to end, so the helpers below can read it instead of passing it everywhere).
+ */
+let T: Table = POOL;
 const hyp = Math.hypot;
 
 /* ------------------------------------------------------------------ */
@@ -132,7 +152,7 @@ function cueFor(d: number, v1: number) {
 /* ------------------------------------------------------------------ */
 
 /** No ball (except `skip`) within `clear` of the segment a → b. */
-function pathClear(ax: number, ay: number, bx: number, by: number, balls: BallPos[], skip: number[], clear = 2 * R - 0.5): boolean {
+function pathClear(ax: number, ay: number, bx: number, by: number, balls: BallPos[], skip: number[], clear = 2 * T.R - 0.5): boolean {
   const dx = bx - ax;
   const dy = by - ay;
   const len2 = dx * dx + dy * dy;
@@ -158,7 +178,7 @@ interface Window {
 function pocketWindow(x: number, y: number, pocket: number, cache: Map<string, Window | null>): Window | null {
   const key = `${Math.round(x)},${Math.round(y)},${pocket}`;
   if (cache.has(key)) return cache.get(key)!;
-  const p = POCKET_DRAW[pocket];
+  const p = T.holes[pocket];
   const dist = hyp(p.x - x, p.y - y);
   const base = Math.atan2(p.y - y, p.x - x);
   // a narrower fan from far away (the pocket looks smaller)
@@ -167,7 +187,7 @@ function pocketWindow(x: number, y: number, pocket: number, cache: Map<string, W
   const ok: boolean[] = [];
   for (let i = 0; i < n; i++) {
     const a = base - span + (2 * span * i) / (n - 1);
-    ok.push(straightDrop(x, y, Math.cos(a), Math.sin(a)) === pocket);
+    ok.push(straightDrop(x, y, Math.cos(a), Math.sin(a), T) === pocket);
   }
   let bestLen = 0;
   let bestMid = -1;
@@ -217,15 +237,15 @@ function findPots(cx: number, cy: number, balls: BallPos[], targets: number[], m
   const pots: Pot[] = [];
   const others = balls.filter((b) => b.id !== 0);
   const tryPot = (obj: BallPos, pocket: number, w: Window, first: BallPos, extra: number[]) => {
-    const gx = obj.x - 2 * R * Math.cos(w.dir);
-    const gy = obj.y - 2 * R * Math.sin(w.dir);
-    if (gx < R - 1 || gx > W - R + 1 || gy < R - 1 || gy > L - R + 1) return null;
+    const gx = obj.x - 2 * T.R * Math.cos(w.dir);
+    const gy = obj.y - 2 * T.R * Math.sin(w.dir);
+    if (gx < T.R - 1 || gx > T.W - T.R + 1 || gy < T.R - 1 || gy > T.L - T.R + 1) return null;
     return { gx, gy };
   };
   for (const t of targets) {
     const obj = others.find((b) => b.id === t);
     if (!obj) continue;
-    for (let p = 0; p < POCKETS.length; p++) {
+    for (let p = 0; p < T.pockets.length; p++) {
       const w = pocketWindow(obj.x, obj.y, p, cache);
       if (!w) continue;
       const g = tryPot(obj, p, w, obj, []);
@@ -240,7 +260,7 @@ function findPots(cx: number, cy: number, balls: BallPos[], targets: number[], m
       const ex = obj.x + Math.cos(w.dir) * w.dist;
       const ey = obj.y + Math.sin(w.dir) * w.dist;
       if (!pathClear(obj.x, obj.y, ex, ey, others, [t, 0])) continue;
-      const allow = ((w.width / 2) * 2 * R * Math.cos(cut)) / Math.max(dCG, 2 * R);
+      const allow = ((w.width / 2) * 2 * T.R * Math.cos(cut)) / Math.max(dCG, 2 * T.R);
       const q = erf(allow / (sigma * DEG * Math.SQRT2));
       const vObj = launchFor(w.dist + 70);
       const v1 = vObj / (Math.max(0.12, Math.cos(cut)) * ((1 + E_BALL) / 2));
@@ -252,18 +272,18 @@ function findPots(cx: number, cy: number, balls: BallPos[], targets: number[], m
     const low = others.find((b) => b.id === targets[0]);
     const nine = others.find((b) => b.id === 9);
     if (low && nine) {
-      for (let p = 0; p < POCKETS.length; p++) {
+      for (let p = 0; p < T.pockets.length; p++) {
         const w = pocketWindow(nine.x, nine.y, p, cache);
         if (!w) continue;
-        const g9x = nine.x - 2 * R * Math.cos(w.dir);
-        const g9y = nine.y - 2 * R * Math.sin(w.dir);
+        const g9x = nine.x - 2 * T.R * Math.cos(w.dir);
+        const g9y = nine.y - 2 * T.R * Math.sin(w.dir);
         const d1 = Math.atan2(g9y - low.y, g9x - low.x);
         const dLow = hyp(g9x - low.x, g9y - low.y);
         let cut1 = Math.abs(d1 - w.dir);
         if (cut1 > Math.PI) cut1 = 2 * Math.PI - cut1;
         if (cut1 > 45 * DEG || dLow > 700) continue;
-        const gx = low.x - 2 * R * Math.cos(d1);
-        const gy = low.y - 2 * R * Math.sin(d1);
+        const gx = low.x - 2 * T.R * Math.cos(d1);
+        const gy = low.y - 2 * T.R * Math.sin(d1);
         const dCG = hyp(gx - cx, gy - cy);
         const aim = Math.atan2(gy - cy, gx - cx);
         let cut = Math.abs(aim - d1);
@@ -272,7 +292,7 @@ function findPots(cx: number, cy: number, balls: BallPos[], targets: number[], m
         if (!pathClear(cx, cy, gx, gy, others, [low.id])) continue;
         if (!pathClear(low.x, low.y, g9x, g9y, others, [low.id, 9, 0])) continue;
         if (!pathClear(nine.x, nine.y, nine.x + Math.cos(w.dir) * w.dist, nine.y + Math.sin(w.dir) * w.dist, others, [9, low.id, 0])) continue;
-        const allow = ((w.width / 2) * 2 * R * Math.cos(cut) * 2 * R * Math.cos(cut1)) / (Math.max(dCG, 2 * R) * Math.max(dLow, 2 * R));
+        const allow = ((w.width / 2) * 2 * T.R * Math.cos(cut) * 2 * T.R * Math.cos(cut1)) / (Math.max(dCG, 2 * T.R) * Math.max(dLow, 2 * T.R));
         const q = erf(allow / (sigma * DEG * Math.SQRT2)) * 0.85;
         const vObj = launchFor(w.dist + 70) / (Math.max(0.2, Math.cos(cut1)) * 0.975);
         const v1 = launchFor(dLow) + vObj;
@@ -362,7 +382,7 @@ function scoreResult(c: Ctx, res: SimResult, called: number | null, q: number): 
 function stuck(balls: BallPos[], id: number, cache: Map<string, Window | null>) {
   const b = balls.find((x) => x.id === id);
   if (!b) return false;
-  for (let p = 0; p < POCKETS.length; p++) {
+  for (let p = 0; p < T.pockets.length; p++) {
     const w = pocketWindow(b.x, b.y, p, cache);
     if (w && pathClear(b.x, b.y, b.x + Math.cos(w.dir) * w.dist, b.y + Math.sin(w.dir) * w.dist, balls, [id, 0])) return false;
   }
@@ -371,7 +391,7 @@ function stuck(balls: BallPos[], id: number, cache: Map<string, Window | null>) 
 
 function sim(c: Ctx, balls: BallPos[], s: BotShot) {
   c.sims++;
-  return simulate(balls, { angle: s.angle, power: s.power, spin: s.spin });
+  return simulate(balls, { angle: s.angle, power: s.power, spin: s.spin }, false, undefined, T);
 }
 
 /** The balls with the cue ball at (x, y). */
@@ -434,17 +454,17 @@ function bestFrom(c: Ctx, balls: BallPos[], cx: number, cy: number, deep: boolea
     for (const t of targets) {
       const obj = balls.find((b) => b.id === t);
       if (!obj) continue;
-      for (let p = 0; p < POCKETS.length && now() < c.deadline; p++) {
-        const pk = POCKET_DRAW[p];
+      for (let p = 0; p < T.pockets.length && now() < c.deadline; p++) {
+        const pk = T.holes[p];
         for (const rail of [0, 1, 2, 3]) {
           // mirror across the line the ball's centre bounces on
-          const mx = rail === 0 ? 2 * R - pk.x : rail === 1 ? 2 * (W - R) - pk.x : pk.x;
-          const my = rail === 2 ? 2 * R - pk.y : rail === 3 ? 2 * (L - R) - pk.y : pk.y;
-          if ((rail === 0 && pk.x < 1) || (rail === 1 && pk.x > W - 1) || (rail === 2 && pk.y < 1) || (rail === 3 && pk.y > L - 1)) continue;
+          const mx = rail === 0 ? 2 * T.R - pk.x : rail === 1 ? 2 * (T.W - T.R) - pk.x : pk.x;
+          const my = rail === 2 ? 2 * T.R - pk.y : rail === 3 ? 2 * (T.L - T.R) - pk.y : pk.y;
+          if ((rail === 0 && pk.x < 1) || (rail === 1 && pk.x > T.W - 1) || (rail === 2 && pk.y < 1) || (rail === 3 && pk.y > T.L - 1)) continue;
           const dir = Math.atan2(my - obj.y, mx - obj.x);
-          const gx = obj.x - 2 * R * Math.cos(dir);
-          const gy = obj.y - 2 * R * Math.sin(dir);
-          if (gx < R || gx > W - R || gy < R || gy > L - R) continue;
+          const gx = obj.x - 2 * T.R * Math.cos(dir);
+          const gy = obj.y - 2 * T.R * Math.sin(dir);
+          if (gx < T.R || gx > T.W - T.R || gy < T.R || gy > T.L - T.R) continue;
           const aim = Math.atan2(gy - cy, gx - cx);
           let cut = Math.abs(aim - dir);
           if (cut > Math.PI) cut = 2 * Math.PI - cut;
@@ -472,7 +492,7 @@ function bestFrom(c: Ctx, balls: BallPos[], cx: number, cy: number, deep: boolea
       if (!obj) continue;
       const a0 = Math.atan2(obj.y - cy, obj.x - cx);
       const d = hyp(obj.x - cx, obj.y - cy);
-      for (const f of [0, -0.5, 0.5, -0.85, 0.85]) angles.push(a0 + Math.asin(Math.max(-1, Math.min(1, (f * 2 * R) / Math.max(d, 2 * R)))));
+      for (const f of [0, -0.5, 0.5, -0.85, 0.85]) angles.push(a0 + Math.asin(Math.max(-1, Math.min(1, (f * 2 * T.R) / Math.max(d, 2 * T.R)))));
     }
     const n = lvl === 'expert' ? 72 : lvl === 'smart' ? 36 : 16;
     const start = c.rnd() * ((2 * Math.PI) / n);
@@ -483,7 +503,7 @@ function bestFrom(c: Ctx, balls: BallPos[], cx: number, cy: number, deep: boolea
     if (eightCall) {
       const eight = balls.find((b) => b.id === 8);
       let bw = 0;
-      for (let p = 0; p < POCKETS.length && eight; p++) {
+      for (let p = 0; p < T.pockets.length && eight; p++) {
         const w = pocketWindow(eight.x, eight.y, p, c.cache);
         if (w && w.width > bw) {
           bw = w.width;
@@ -516,7 +536,7 @@ function breakShot(c: Ctx): BotShot {
   for (let i = 0; i < tries; i++) {
     if (best && now() > c.deadline) break;
     const off = i === 0 ? 0 : (c.rnd() - 0.5) * (inp.mode === 'nine' ? 600 : 400);
-    const x = Math.max(R + 5, Math.min(W - R - 5, BREAK_SPOT.x + off));
+    const x = Math.max(T.R + 5, Math.min(T.W - T.R - 5, BREAK_SPOT.x + off));
     const y = HEAD_Y + 40 + c.rnd() * 120;
     const angle = Math.atan2(hy - y, hx - x) + (c.rnd() - 0.5) * 0.4 * DEG;
     const shot: BotShot = { angle, power, spin: -0.2, cue: { x, y } };
@@ -527,6 +547,217 @@ function breakShot(c: Ctx): BotShot {
     if (!best || score > best.score) best = { shot, score };
   }
   return best!.shot;
+}
+
+/* ------------------------------------------------------------------ */
+/* Snooker                                                              */
+/* ------------------------------------------------------------------ */
+
+/** How much a colour is worth to the bot after a red (difficulty first, value as a tie-breaker). */
+const colourWeight = (id: number) => 0.55 + (0.45 * snookerValue(id)) / 7;
+
+/** The best pot (0 … 1, value-weighted on a colour) from (cx, cy) with `on`, and how many good ones. */
+function snkQuality(cx: number, cy: number, balls: BallPos[], on: SnookerOn, cache: Map<string, Window | null>): { best: number; good: number } {
+  const targets = snookerTargets(balls.map((b) => b.id), on);
+  if (!targets.length) return { best: 0, good: 0 };
+  const pots = findPots(cx, cy, balls, targets, 'snooker', 0.45, cache, false);
+  let best = 0;
+  let good = 0;
+  for (const p of pots) {
+    const q = p.q * (p.vMin > 5000 ? 0.6 : 1) * (on === 'colour' ? colourWeight(p.target) : 1);
+    if (q > best) best = q;
+    if (q > 0.5) good++;
+  }
+  return { best, good };
+}
+
+/** Score a played-out snooker shot for the shooter (`q`: the chance to make it for real). */
+function scoreSnooker(c: Ctx, res: SimResult, on: SnookerOn, nom: number | null, q: number): number {
+  const ids = c.inp.balls.filter((b) => b.id !== 0 || !c.inp.inHand).map((b) => b.id).filter((id) => id !== 0);
+  const v = judgeSnooker({ onTable: ids, on, nominated: nom }, res);
+  const after = v.respot.length ? respotColours(res.balls, v.respot) : res.balls;
+  const cue = after.find((b) => b.id === 0);
+  const afterIds = after.map((b) => b.id);
+  const lvl = c.inp.level;
+  if (v.frameOver && !v.foul) return 50000 * Math.max(0.05, q);
+  if (v.foul) {
+    // the other side scores and plays from where the cue ball stopped
+    const opp = cue ? snkQuality(cue.x, cue.y, after, snookerFirstOn(afterIds), c.cache).best : 0.6;
+    return -500 - v.penalty * 90 - 300 * opp;
+  }
+  if (v.cont && cue) {
+    let pos = 0;
+    if (lvl !== 'easy') {
+      const sq = snkQuality(cue.x, cue.y, after, snookerNextOn(afterIds, on, true), c.cache);
+      pos = 420 * sq.best + 50 * Math.min(3, sq.good);
+      if (lvl === 'smart') pos *= 0.5;
+    }
+    return 1000 * q + 70 * v.points * q + pos * q - (1 - q) * 500;
+  }
+  if (!cue) return -900;
+  // the table passes: how much does the next player get, and is the cue ball tight on a cushion?
+  const sq = snkQuality(cue.x, cue.y, after, snookerFirstOn(afterIds), c.cache);
+  const d = Math.min(cue.x - T.R, T.W - T.R - cue.x, cue.y - T.R, T.L - T.R - cue.y);
+  return -150 - 450 * sq.best - 40 * Math.min(3, sq.good) + 50 * Math.max(0, 1 - d / 150);
+}
+
+/** The best snooker shot from (cx, cy): pots (value vs difficulty, position), then a safety. */
+function snookerFrom(c: Ctx, balls: BallPos[], cx: number, cy: number, on: SnookerOn, deep: boolean): Scored | null {
+  const lvl = c.inp.level;
+  const ids = balls.map((b) => b.id);
+  const targets = snookerTargets(ids, on);
+  const pots = findPots(cx, cy, balls, targets, 'snooker', Math.max(c.sigma, lvl === 'expert' ? 0.22 : c.sigma), c.cache, false);
+  const weight = (t: number) => (on === 'colour' ? colourWeight(t) : 1);
+  pots.sort((a, b) => b.q * weight(b.target) - a.q * weight(a.target));
+  let best: Scored | null = null;
+  const consider = (shot: BotShot, score: number) => {
+    if (!best || score > best.score) best = { shot, score };
+  };
+  const nomOf = (t: number) => (on === 'colour' ? t : undefined);
+
+  if (lvl === 'easy') {
+    const p = pots[0];
+    if (p && p.q > 0.12) {
+      consider({ angle: p.angle, power: Math.min(0.9, powerOf(p.vMin * 1.6)), spin: 0, nom: nomOf(p.target) }, p.q * 1000);
+      return best;
+    }
+  } else {
+    const spins = lvl === 'expert' ? [0, 0.55, -0.55] : [0, 0.5];
+    const mults = lvl === 'expert' ? [1.25, 1.7, 2.4] : [1.35, 2];
+    const top = pots.slice(0, deep ? (lvl === 'expert' ? 7 : 4) : 2);
+    for (const p of top) {
+      for (const m of mults) {
+        for (const spin of spins) {
+          if (now() > c.deadline && best) break;
+          const shot: BotShot = { angle: p.angle, power: Math.min(0.95, powerOf(p.vMin * m)), spin, nom: nomOf(p.target) };
+          const res = sim(c, balls, shot);
+          const potted = res.pocketed.some((x) => x.id === p.target);
+          consider(shot, scoreSnooker(c, res, on, shot.nom ?? null, potted ? p.q : 0.05));
+        }
+      }
+    }
+    // expert: not a knife edge
+    if (best && lvl === 'expert' && (best as Scored).score > 0 && now() < c.deadline) {
+      const b = best as Scored;
+      let made = 0;
+      for (const d of [-0.15, 0.15]) {
+        const res = sim(c, balls, { ...b.shot, angle: b.shot.angle + d * DEG });
+        const v = judgeSnooker({ onTable: ids.filter((id) => id !== 0), on, nominated: b.shot.nom ?? null }, res);
+        if (v.cont && !v.foul) made++;
+      }
+      if (made < 2) b.score -= (2 - made) * 350;
+    }
+  }
+
+  // a safety: hit a ball on (thin, half, full) or sweep around, leave nothing
+  const fine = best && (best as Scored).score > 300;
+  if (!fine && now() < c.deadline) {
+    const angles: number[] = [];
+    // the nearest few balls on (pruned: a table of reds has too many)
+    const near = targets
+      .map((t) => balls.find((b) => b.id === t)!)
+      .filter(Boolean)
+      .sort((a, b) => hyp(a.x - cx, a.y - cy) - hyp(b.x - cx, b.y - cy))
+      .slice(0, lvl === 'expert' ? 5 : 3);
+    for (const obj of near) {
+      const a0 = Math.atan2(obj.y - cy, obj.x - cx);
+      const d = hyp(obj.x - cx, obj.y - cy);
+      for (const f of [0, -0.55, 0.55, -0.9, 0.9]) angles.push(a0 + Math.asin(Math.max(-1, Math.min(1, (f * 2 * T.R) / Math.max(d, 2 * T.R)))));
+    }
+    const n = lvl === 'expert' ? 40 : lvl === 'smart' ? 20 : 10;
+    const start = c.rnd() * ((2 * Math.PI) / n);
+    for (let i = 0; i < n; i++) angles.push(start + (i * 2 * Math.PI) / n);
+    // a long table: enough pace to reach the ball (and a cushion) from far away
+    const powers = lvl === 'easy' ? [0.48] : lvl === 'smart' ? [0.34, 0.5] : [0.26, 0.38, 0.55];
+    for (const a of angles) {
+      // on a colour, the one the cue is aimed at is nominated (none: the shot is judged as it comes)
+      let nom: number | undefined;
+      if (on === 'colour') {
+        const g = aimGuide(balls, cx, cy, a, T);
+        if (g.ball === null || !isColour(g.ball)) continue;
+        nom = g.ball;
+      }
+      for (const power of powers) {
+        if (now() > c.deadline && best) break;
+        const shot: BotShot = { angle: a, power, spin: 0, nom };
+        const res = sim(c, balls, shot);
+        consider(shot, scoreSnooker(c, res, on, nom ?? null, 0.5));
+      }
+    }
+  }
+  return best;
+}
+
+/** The break-off: from the D, a thin contact on the end red of the back row, the cue ball back to baulk. */
+function snookerBreak(c: Ctx, objects: BallPos[]): BotShot {
+  const reds = objects.filter((b) => isRed(b.id));
+  const backY = Math.min(...reds.map((b) => b.y));
+  const end = reds.filter((b) => b.y < backY + 5).reduce((a, b) => (b.x > a.x ? b : a));
+  const lvl = c.inp.level;
+  const cands: BotShot[] = [];
+  for (const dx of lvl === 'easy' ? [140] : [140, 70, 210]) {
+    for (const f of lvl === 'easy' ? [0.88] : [0.88, 0.8, 0.94]) {
+      for (const power of lvl === 'easy' ? [0.5] : [0.5, 0.44, 0.58]) {
+        const x = T.W / 2 + dx;
+        const y = BAULK_Y + 15;
+        // aim so the cue ball's centre passes f · 2R to the right of the red's centre
+        const d = hyp(end.x - x, end.y - y);
+        const a = Math.atan2(end.y - y, end.x - x) + Math.asin(Math.min(0.99, (f * 2 * T.R) / d));
+        cands.push({ angle: a, power, spin: 0, cue: { x, y } });
+      }
+    }
+  }
+  if (lvl === 'easy') return cands[0];
+  let best: Scored | null = null;
+  for (const shot of cands) {
+    if (best && now() > c.deadline) break;
+    const res = sim(c, withCue(objects, shot.cue!.x, shot.cue!.y), shot);
+    const sc = scoreSnooker(c, res, 'red', null, 0.5);
+    if (!best || sc > best.score) best = { shot, score: sc };
+  }
+  return best!.shot;
+}
+
+/** Snooker: the shot (before the human error). */
+function snookerShot(c: Ctx, on: SnookerOn): BotShot {
+  const { inp } = c;
+  const objects = inp.balls.filter((b) => b.id !== 0);
+  if (inp.inHand) {
+    if (inp.breakShot && on === 'red' && objects.filter((b) => isRed(b.id)).length === 15) return snookerBreak(c, objects);
+    // spots in the D, each scored by its best pot, the best few played out in full
+    const spots: { x: number; y: number; q: number }[] = [];
+    const step = inp.level === 'easy' ? 90 : 45;
+    const z = T.zone.kind === 'd' ? T.zone : { cx: T.W / 2, cy: BAULK_Y, r: 292 };
+    for (let y = z.cy + 2; y <= z.cy + z.r; y += step) {
+      for (let x = z.cx - z.r; x <= z.cx + z.r; x += step) {
+        if (!legalCueSpot(objects, x, y, true, T)) continue;
+        const sq = snkQuality(x, y, objects, on, c.cache);
+        spots.push({ x, y, q: sq.best + 0.05 * sq.good });
+      }
+    }
+    spots.sort((a, b) => b.q - a.q);
+    const picks: typeof spots = [];
+    for (const sp of spots) {
+      if (picks.length >= (inp.level === 'easy' ? 1 : inp.level === 'smart' ? 2 : 3)) break;
+      if (picks.every((p) => hyp(p.x - sp.x, p.y - sp.y) > 90)) picks.push(sp);
+    }
+    if (!picks.length) picks.push({ ...nearestCueSpot(objects, T.breakSpot.x, T.breakSpot.y, true, T), q: 0 });
+    let best: (Scored & { cue: { x: number; y: number } }) | null = null;
+    for (const p of picks) {
+      if (best && now() > c.deadline) break;
+      const b = snookerFrom(c, withCue(objects, p.x, p.y), p.x, p.y, on, p === picks[0]);
+      if (b && (!best || b.score > best.score)) best = { ...b, cue: { x: p.x, y: p.y } };
+    }
+    return best ? { ...best.shot, cue: best.cue } : { angle: -Math.PI / 2, power: 0.4, spin: 0, cue: { x: picks[0].x, y: picks[0].y } };
+  }
+  const cue = inp.balls.find((b) => b.id === 0)!;
+  const b = snookerFrom(c, inp.balls, cue.x, cue.y, on, true);
+  if (b) return b.shot;
+  // nothing at all: roll gently at the nearest ball on
+  const t = snookerTargets(objects.map((x) => x.id), on)
+    .map((id) => objects.find((x) => x.id === id)!)
+    .sort((a, b2) => hyp(a.x - cue.x, a.y - cue.y) - hyp(b2.x - cue.x, b2.y - cue.y))[0];
+  return { angle: t ? Math.atan2(t.y - cue.y, t.x - cue.x) : -Math.PI / 2, power: 0.35, spin: 0, nom: t && on === 'colour' ? t.id : undefined };
 }
 
 function gauss(rnd: () => number) {
@@ -548,8 +779,18 @@ export function botShot(inp: BotInput): BotShot & { sims: number } {
   const c: Ctx = { inp, sit, sigma: lv.sigma, cache: new Map(), deadline: now() + (inp.budget ?? lv.budget), rnd, sims: 0 };
   const objects = inp.balls.filter((b) => b.id !== 0);
   let shot: BotShot;
+  T = inp.mode === 'snooker' ? SNOOKER : POOL;
 
-  if (inp.breakShot) {
+  if (inp.mode === 'snooker') {
+    const on = inp.snooker?.on ?? snookerFirstOn(objects.map((b) => b.id));
+    shot = snookerShot(c, on);
+    if (on === 'colour' && shot.nom === undefined) {
+      // never shoot at a colour without naming one that is on the table
+      const cue = shot.cue ?? inp.balls.find((b) => b.id === 0)!;
+      const g = aimGuide(inp.balls.filter((b) => b.id !== 0 || !inp.inHand), cue.x, cue.y, shot.angle, T);
+      if (g.ball !== null && isColour(g.ball)) shot.nom = g.ball;
+    }
+  } else if (inp.breakShot) {
     shot = breakShot(c);
   } else if (inp.inHand) {
     const kitchen = inp.inHand === 'kitchen';
@@ -557,8 +798,8 @@ export function botShot(inp: BotInput): BotShot & { sims: number } {
     // a grid of spots, each scored by its best pot
     const spots: { x: number; y: number; q: number }[] = [];
     const step = inp.level === 'easy' ? 160 : 70;
-    for (let y = kitchen ? HEAD_Y + 10 : R + 10; y <= L - R - 5; y += step) {
-      for (let x = R + 10; x <= W - R - 5; x += step) {
+    for (let y = kitchen ? HEAD_Y + 10 : T.R + 10; y <= T.L - T.R - 5; y += step) {
+      for (let x = T.R + 10; x <= T.W - T.R - 5; x += step) {
         if (!legalCueSpot(objects, x, y, kitchen)) continue;
         const sq = shotQuality(x, y, objects, targets, inp.mode, c.cache);
         spots.push({ x, y, q: sq.best + 0.05 * sq.good });
@@ -571,7 +812,7 @@ export function botShot(inp: BotInput): BotShot & { sims: number } {
       if (picks.every((p) => hyp(p.x - s.x, p.y - s.y) > 140)) picks.push(s);
     }
     if (!picks.length) {
-      const p = nearestCueSpot(objects, W / 2, kitchen ? HEAD_Y + 100 : L / 2, kitchen);
+      const p = nearestCueSpot(objects, T.W / 2, kitchen ? HEAD_Y + 100 : T.L / 2, kitchen);
       picks.push({ ...p, q: 0 });
     }
     let best: (Scored & { cue: { x: number; y: number } }) | null = null;
@@ -588,8 +829,8 @@ export function botShot(inp: BotInput): BotShot & { sims: number } {
     shot = b ? b.shot : { angle: Math.atan2(FOOT_Y - cue.y, FOOT_X - cue.x), power: 0.4, spin: 0 };
   }
 
-  // the human hand: a small error in the aim and the stroke
-  const angle = shot.angle + gauss(rnd) * lv.sigma * DEG * (inp.breakShot ? 0.5 : 1);
+  // the human hand: a small error in the aim and the stroke (snooker's long table: a little steadier)
+  const angle = shot.angle + gauss(rnd) * lv.sigma * DEG * (inp.breakShot ? 0.5 : 1) * (inp.mode === 'snooker' ? 0.7 : 1);
   const power = Math.max(0.05, Math.min(1, shot.power * (1 + gauss(rnd) * lv.powerSigma)));
   let pocket = shot.pocket;
   if (pocket === undefined && inp.callPocket && onEight(sit)) pocket = 0;

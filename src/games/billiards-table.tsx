@@ -1,7 +1,7 @@
 /**
  * «البلياردو» — the table on a phone: the balls, the playback of a shot, the cue stick, the aim guide,
  * and the shooter's touches (drag anywhere to aim, drag the cue ball while it is in hand, tap a pocket
- * to call the 8).
+ * to call the 8, tap a colour to nominate it in snooker).
  *
  * Playback: the server sends a shot's recorded keyframes once (view.shot, cached here by id). When it
  * arrives, every moving ball's orientation is integrated along its track (rolling without slipping, see
@@ -31,27 +31,26 @@ import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { unpackBalls, type BilliardsGuide, type BilliardsView } from '@/shared/games/billiards';
 import {
-  L,
-  POCKET_DRAW,
-  R,
-  W,
   aimGuide,
   decodeTrack,
+  isColour,
   legalCueSpot,
   nearestCueSpot,
   nearestPocket,
+  tableOf,
   type BallPos,
+  type Table,
   type Track,
 } from '@/shared/games/billiards-physics';
 import { C } from '@/theme';
 import { useScrollLock } from '@/ui/screen';
 
-import { CueSvg, RAIL, TABLE_H, TableSvg, scaleFor } from './billiards-art';
+import { CueSvg, TableSvg, frameOf, scaleFor } from './billiards-art';
 import { MovingBall, StaticBall, lastOrient, orientTimeline, orientations } from './billiards-ball';
 import { useSettled } from './touch-motion';
 
 /** The cue's pull when its tip touches the cue ball (the stick rests 0.35 R behind it at 0). */
-export const CONTACT = -(0.35 * R) / 160;
+export const CONTACT = -(0.35 * 28.575) / 160;
 
 /** The shooter let go of the power bar: the cue strokes forward (and comes back if no shot follows). */
 export function strike(pull: SharedValue<number>, power: number) {
@@ -78,7 +77,7 @@ interface Play {
 }
 
 /** The shot being played back (null when the balls are still), and its clock. */
-function usePlayback(view: BilliardsView): { play: Play | null; clock: SharedValue<number>; settled: boolean } {
+function usePlayback(view: BilliardsView, t: Table): { play: Play | null; clock: SharedValue<number>; settled: boolean } {
   const settled = useSettled();
   const reduced = useReducedMotion();
   const clock = useSharedValue(0);
@@ -88,12 +87,12 @@ function usePlayback(view: BilliardsView): { play: Play | null; clock: SharedVal
     const s = view.shot;
     let play: Play | null = null;
     if (s && s.id === view.shotId && settled && !reduced) {
-      const drops = new Map(s.pk.map(([b, p, t]) => [b, { t, x: POCKET_DRAW[p]?.x ?? 0, y: POCKET_DRAW[p]?.y ?? 0 }]));
+      const drops = new Map(s.pk.map(([b, p, ms]) => [b, { t: ms, x: t.holes[p]?.x ?? 0, y: t.holes[p]?.y ?? 0 }]));
       const balls: Record<number, Moving> = {};
       for (const [sid, enc] of Object.entries(s.tr)) {
         const id = Number(sid);
         const track = decodeTrack(enc);
-        balls[id] = { track, qs: orientTimeline(track, orientations.start(id), R), drop: drops.get(id) ?? null };
+        balls[id] = { track, qs: orientTimeline(track, orientations.start(id), t.R), drop: drops.get(id) ?? null };
       }
       play = { id: s.id, at: s.at, dur: s.dur, balls };
     }
@@ -127,15 +126,15 @@ function usePlayback(view: BilliardsView): { play: Play | null; clock: SharedVal
  * The cue stick behind the cue ball, pointing along `angle`, pulled back by `pull` (0 … 1; CONTACT at
  * the stroke), with its shadow on the cloth (away from the light), faded by `fade`.
  */
-function CueStick({ cx, cy, angle, pull, fade, k, mine }: { cx: number; cy: number; angle: SharedValue<number>; pull: SharedValue<number>; fade: SharedValue<number>; k: number; mine: boolean }) {
-  const len = 1120 * k;
+function CueStick({ cx, cy, angle, pull, fade, k, mine, R, rail }: { cx: number; cy: number; angle: SharedValue<number>; pull: SharedValue<number>; fade: SharedValue<number>; k: number; mine: boolean; R: number; rail: number }) {
+  const len = (rail > 80 ? 1400 : 1120) * k;
   const th = Math.max(5.5, 27 * k);
   const box = len + 220 * k;
   const sh = Math.max(3, 16 * k);
   const turn = useAnimatedStyle(() => ({ opacity: fade.get(), transform: [{ rotate: `${angle.get()}rad` }] }));
   const shTurn = useAnimatedStyle(() => ({ opacity: fade.get() * 0.32, transform: [{ rotate: `${angle.get()}rad` }] }));
   const stick = useAnimatedStyle(() => ({ transform: [{ translateX: -(R * 1.35 + 160 * pull.get()) * k }] }));
-  const frame = { left: (RAIL + cx) * k - box, top: (RAIL + cy) * k - box, width: box * 2, height: box * 2 };
+  const frame = { left: (rail + cx) * k - box, top: (rail + cy) * k - box, width: box * 2, height: box * 2 };
   const body = { left: box - len, top: box - th / 2, width: len, height: th };
   return (
     <>
@@ -154,9 +153,10 @@ function CueStick({ cx, cy, angle, pull, fade, k, mine }: { cx: number; cy: numb
 }
 
 /** The aim guide: a thin line to the contact, the ghost ball there, where the object ball and the cue ball go. */
-const AimGuide = memo(function AimGuide({ objects, cx, cy, angle, k, width, mode, targets }: { objects: BallPos[]; cx: number; cy: number; angle: number; k: number; width: number; mode: BilliardsGuide; targets: number[] }) {
+const AimGuide = memo(function AimGuide({ objects, cx, cy, angle, k, width, mode, targets, table }: { objects: BallPos[]; cx: number; cy: number; angle: number; k: number; width: number; mode: BilliardsGuide; targets: number[]; table: Table }) {
   if (mode === 'off') return null;
-  const g = aimGuide(objects, cx, cy, angle);
+  const { R, rail: RAIL } = table;
+  const g = aimGuide(objects, cx, cy, angle, table);
   const P = (x: number, y: number) => [(RAIL + x) * k, (RAIL + y) * k] as const;
   const long = mode === 'long';
   const maxLen = long ? Infinity : 420;
@@ -175,7 +175,7 @@ const AimGuide = memo(function AimGuide({ objects, cx, cy, angle, k, width, mode
   const objLen = long ? 460 : 160;
   const cueLen = long ? 240 : 0;
   return (
-    <Svg width={width} height={TABLE_H * k} style={styles.abs} pointerEvents="none">
+    <Svg width={width} height={frameOf(table).h * k} style={styles.abs} pointerEvents="none">
       <Line x1={x0} y1={y0} x2={x1} y2={y1} stroke="rgba(0,0,0,0.25)" strokeWidth={sw + 1.2} strokeLinecap="round" />
       <Line x1={x0} y1={y0} x2={x1} y2={y1} stroke={color} strokeWidth={sw} strokeLinecap="round" />
       {hitShown ? (
@@ -202,6 +202,10 @@ export interface Aiming {
   setCue: (p: { x: number; y: number }) => void;
   pocket: number | null;
   setPocket: (p: number) => void;
+  /** snooker, a colour on: the nominated colour (tapped, or the one aimed at) and whether it was tapped */
+  nom: number | null;
+  nomPicked: boolean;
+  setNom: (id: number) => void;
   /** 0 … 1 while the power bar is pulled (the stick follows); CONTACT at the stroke */
   pull: SharedValue<number>;
 }
@@ -215,10 +219,12 @@ const turnTo = (a: number, b: number) => {
 };
 
 export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; width: number; aiming: Aiming | null }) {
-  const k = scaleFor(width);
-  const height = TABLE_H * k;
+  const table = tableOf(view.mode);
+  const { W, L, R, rail: RAIL } = table;
+  const k = scaleFor(width, table);
+  const height = frameOf(table).h * k;
   const size = 2 * R * k;
-  const { play, clock, settled } = usePlayback(view);
+  const { play, clock, settled } = usePlayback(view, table);
   const balls = useMemo(() => unpackBalls(view.balls), [view.balls]);
   const objects = useMemo(() => balls.filter((b) => b.id !== 0), [balls]);
   const mine = !!aiming && view.phase === 'aim';
@@ -287,12 +293,12 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
     const p = toMm(px, py);
     start.current = { x: px, y: py, pocket: -1, at: wallMs(), moved: 0 };
     const cue = view.inHand ? aiming.cue : onTable;
-    if (view.inHand && cue && Math.hypot(p.x - cue.x, p.y - cue.y) * k < Math.max(24, size * 1.3)) {
+    if (view.inHand && cue && Math.hypot(p.x - cue.x, p.y - cue.y) * k < Math.max(24, size * 1.6)) {
       mode.current = 'place';
       return;
     }
     if (view.needCall) {
-      const np = nearestPocket(p.x, p.y);
+      const np = nearestPocket(p.x, p.y, table);
       if (np.dist * k < 30) {
         mode.current = 'pocket';
         start.current.pocket = np.pocket;
@@ -353,7 +359,7 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
     if (!aiming || !mine) return;
     if (mode.current === 'place' && aiming.cue) {
       const c = aiming.cue;
-      if (!legalCueSpot(objects, c.x, c.y, kitchen)) aiming.setCue(nearestCueSpot(objects, c.x, c.y, kitchen));
+      if (!legalCueSpot(objects, c.x, c.y, kitchen, table)) aiming.setCue(nearestCueSpot(objects, c.x, c.y, kitchen, table));
       haptic.tap();
     } else if (mode.current === 'pocket' && start.current.pocket >= 0) {
       aiming.setPocket(start.current.pocket);
@@ -362,9 +368,20 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
       // a quick tap right on a ball aims straight at it (a tap anywhere else changes nothing)
       const cue = view.inHand ? aiming.cue : onTable;
       const t = toMm(start.current.x, start.current.y);
-      const hit = cue ? objects.find((b) => Math.hypot(b.x - t.x, b.y - t.y) * k < Math.max(16, size * 0.9)) : undefined;
+      // (the nearest ball within reach: snooker balls are small and close together)
+      let hit: BallPos | undefined;
+      let bd = Math.max(16, size * 0.9) / k;
+      for (const b of cue ? objects : []) {
+        const d = Math.hypot(b.x - t.x, b.y - t.y);
+        if (d < bd) {
+          bd = d;
+          hit = b;
+        }
+      }
       if (cue && hit) {
         aiming.setAngle(Math.atan2(hit.y - cue.y, hit.x - cue.x));
+        // snooker, a colour on: tapping a colour nominates it
+        if (view.snooker?.on === 'colour' && isColour(hit.id)) aiming.setNom(hit.id);
         haptic.tap();
       }
     }
@@ -402,28 +419,40 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
   const restBreak = view.breakShot;
 
   const calledPocket = mine ? aiming!.pocket : (view.aim?.pocket ?? null);
-  const handOk = mine && view.inHand && aiming!.cue ? legalCueSpot(objects, aiming!.cue.x, aiming!.cue.y, kitchen) : true;
+  const handOk = mine && view.inHand && aiming!.cue ? legalCueSpot(objects, aiming!.cue.x, aiming!.cue.y, kitchen, table) : true;
+  // snooker: the nominated colour (mine, or the shooter's relayed one)
+  const nom = view.snooker?.on === 'colour' && view.phase === 'aim' && !play ? (mine ? aiming!.nom : (view.aim?.nom ?? null)) : null;
+  const nomBall = nom !== null ? objects.find((b) => b.id === nom) : undefined;
+  const nomSolid = mine ? aiming!.nomPicked : true;
   const fewTargets = view.phase === 'aim' && view.targets.length <= 2 && !play ? view.targets : [];
   const toPx: [number, number] = [k, RAIL * k];
 
   return (
     <View testID="billiards-table" style={[styles.table, { width, height }]}>
-      <TableSvg width={width} kitchen={view.inHand === 'kitchen' && view.phase === 'aim'} />
+      <TableSvg width={width} kitchen={view.inHand === 'kitchen' && view.phase === 'aim'} table={table} />
       {/* the legal ball(s) to hit, when there are only one or two */}
       {fewTargets.map((t) => {
         const b = objects.find((x) => x.id === t);
         if (!b) return null;
         return <Animated.View key={`t${t}-${view.shotId}`} entering={settled ? FadeIn.duration(300) : undefined} pointerEvents="none" style={[styles.ring, { left: (RAIL + b.x) * k - size * 0.85, top: (RAIL + b.y) * k - size * 0.85, width: size * 1.7, height: size * 1.7, borderRadius: size }]} />;
       })}
+      {nomBall ? (
+        <View
+          key={`nom${nom}`}
+          pointerEvents="none"
+          accessibilityLabel="الكرة المختارة"
+          style={[styles.nomRing, { left: (RAIL + nomBall.x) * k - size * 1.05, top: (RAIL + nomBall.y) * k - size * 1.05, width: size * 2.1, height: size * 2.1, borderRadius: size * 1.05, borderStyle: nomSolid ? 'solid' : 'dashed', borderWidth: nomSolid ? 2 : 1.5 }]}
+        />
+      ) : null}
       {view.needCall || calledPocket !== null
-        ? POCKET_DRAW.map((p, i) => {
+        ? table.holes.map((p, i) => {
             const on = calledPocket === i;
             if (!view.needCall && !on) return null;
             const r = Math.max(12, p.r * k + 3);
             return <View key={`p${i}`} pointerEvents="none" style={[styles.pocketRing, { left: (RAIL + p.x) * k - r, top: (RAIL + p.y) * k - r, width: r * 2, height: r * 2, borderRadius: r, borderColor: on ? C.yellow : 'rgba(242,179,61,0.6)', backgroundColor: on ? 'rgba(242,179,61,0.35)' : 'transparent', borderWidth: on ? 3 : 1.5 }]} />;
           })
         : null}
-      {mine && cueAt && !play ? <AimGuide objects={objects} cx={cueAt.x} cy={cueAt.y} angle={aiming!.angle} k={k} width={width} mode={view.guide} targets={view.targets} /> : null}
+      {mine && cueAt && !play ? <AimGuide objects={objects} cx={cueAt.x} cy={cueAt.y} angle={aiming!.angle} k={k} width={width} mode={view.guide} targets={view.targets} table={table} /> : null}
       {shown.map((b) =>
         b.moving ? (
           <MovingBall key={`${b.id}-p${play?.id}`} id={b.id} size={size} track={b.moving.track} qs={b.moving.qs} radius={R} clock={clock} toPx={toPx} drop={b.moving.drop} />
@@ -439,7 +468,7 @@ export function BilliardsTable({ view, width, aiming }: { view: BilliardsView; w
           <View style={[styles.handRing, { left: -size * 0.45, top: -size * 0.45, width: size * 1.9, height: size * 1.9, borderRadius: size, borderColor: handOk ? 'rgba(255,255,255,0.8)' : C.red }]} />
         </View>
       ) : null}
-      {stickAt ? <CueStick cx={stickAt.x} cy={stickAt.y} angle={angleSV} pull={pull} fade={fade} k={k} mine={mine} /> : null}
+      {stickAt ? <CueStick cx={stickAt.x} cy={stickAt.y} angle={angleSV} pull={pull} fade={fade} k={k} mine={mine} R={R} rail={RAIL} /> : null}
       {mine ? (
         <GestureDetector gesture={pan}>
           <View style={StyleSheet.absoluteFill} accessibilityLabel="الطاولة: اسحب للتصويب" />
@@ -455,4 +484,5 @@ const styles = StyleSheet.create({
   ring: { position: 'absolute', borderWidth: 1.5, borderColor: 'rgba(255,230,140,0.8)' },
   pocketRing: { position: 'absolute' },
   handRing: { position: 'absolute', borderWidth: 1.5, borderStyle: 'dashed' },
+  nomRing: { position: 'absolute', borderColor: '#FFE27A', backgroundColor: 'rgba(255,226,122,0.12)' },
 });

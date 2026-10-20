@@ -20,6 +20,7 @@
  * (`orientTimeline`), and interpolated on the UI thread (one rotation about the segment's axis). A ball at
  * rest keeps its last orientation (`orientations`, kept for the session, so a later shot continues from
  * it); a phone that joins late starts from a random one; a fresh rack shows its numbers facing up.
+ * Snooker balls (ids 16 … 36) are plain colours, lit the same way.
  */
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -200,7 +201,7 @@ export const orientations = {
     if (!freshRack) return;
     freshRack = false;
     // the balls that did not move keep their rack orientation
-    for (let id = 0; id <= 15; id++) if (!rest.has(id)) rest.set(id, rackOrient(id));
+    for (let id = 0; id <= 36; id++) if (!rest.has(id)) rest.set(id, rackOrient(id));
   },
 };
 
@@ -358,6 +359,8 @@ interface Look {
 function lookOf(id: number, size: number, numbers: boolean): Look {
   const color = BALL_COLOR[id] ?? '#999999';
   if (id === 0) return { base: IVORY, stripe: false, band: IVORY, disc: { a: DOT_A, color: '#D23A3A', label: null } };
+  // snooker: plain balls, no numbers
+  if (id >= 16) return { base: color, stripe: false, band: color, disc: null };
   const label = numbers && size >= 9 ? String(id) : null;
   return { base: color, stripe: isStripe(id), band: color, disc: { a: DISC_A, color: DISC, label } };
 }

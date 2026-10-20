@@ -4,8 +4,10 @@
  *
  * The table is drawn VERTICALLY: x runs across (0 … W), y runs along the table (0 … L), the foot rail
  * (where the balls are racked) at the top (y = 0) and the head rail (where the break is played from) at
- * the bottom (y = L). Units: millimetres and seconds. A 7-foot table: 1980 × 990 mm of cloth, balls
- * of 57.15 mm.
+ * the bottom (y = L). Units: millimetres and seconds. Two tables (`Table`): pool (8-ball and 9-ball) on
+ * a 7-foot table, 1980 × 990 mm of cloth, balls of 57.15 mm; snooker on a 12-foot table, 3569 × 1778
+ * mm, balls of 52.5 mm, narrow pockets with rounded jaws. Every function takes the table (pool when
+ * left out).
  *
  * The simulation is deterministic (same balls + same shot → the same result, bit for bit): a fixed time
  * step of 1/240 s, and inside each step every collision is found exactly (time of impact) and resolved
@@ -16,57 +18,14 @@
  *   roll (that is what makes follow and draw work after a collision); then rolling resistance (plus a
  *   little drag) slows it down until it stops.
  * - Ball–ball: equal masses, a slightly inelastic exchange along the line of centres (no throw).
- * - Cushions: the six rails between the pockets, with rounded noses at the pocket jaws (a ball that
- *   comes in too steep rattles off the nose); a ball whose centre passes the cushion line in a mouth
- *   drops.
+ * - Cushions: the six rails between the pockets, with noses at the pocket jaws (sharp for pool,
+ *   rounded for snooker: a ball that comes in too steep rattles off them); a ball whose centre passes
+ *   the cushion line in a mouth drops — always over the hole drawn there.
  */
 
-export const W = 990;
-export const L = 1980;
-export const R = 28.575;
-/** The head string (the break is played from below it: y ≥ HEAD_Y). */
-export const HEAD_Y = L * 0.75;
-/** The foot spot (the apex of the rack). */
-export const FOOT_X = W / 2;
-export const FOOT_Y = L * 0.25;
-
-/** Distance from a corner, along each rail, to the nose of the corner pocket's jaw (mouth ≈ 2 balls). */
-export const CORNER_NOSE = 82;
-/** Half the side pocket's mouth, along the long rail. */
-export const SIDE_HALF = 66;
-
-/** Pockets, in this order: 0 top-left, 1 top-right, 2 middle-left, 3 middle-right, 4 bottom-left, 5 bottom-right. */
-export const POCKETS: { x: number; y: number; corner: boolean }[] = [
-  { x: 0, y: 0, corner: true },
-  { x: W, y: 0, corner: true },
-  { x: 0, y: L / 2, corner: false },
-  { x: W, y: L / 2, corner: false },
-  { x: 0, y: L, corner: true },
-  { x: W, y: L, corner: true },
-];
-
-/** Where a pocket is drawn (its hole, a little outside the cloth) and how big. */
-export const POCKET_DRAW = POCKETS.map((p) => {
-  const ox = p.x === 0 ? -1 : p.x === W ? 1 : 0;
-  const oy = p.y === 0 ? -1 : p.y === L ? 1 : 0;
-  return p.corner ? { x: p.x + ox * 14, y: p.y + oy * 14, r: 58 } : { x: p.x + ox * 22, y: p.y, r: 54 };
-});
-
-/** The noses of the jaws (rounded cushion ends at the pocket mouths). */
-export const NOSES: { x: number; y: number }[] = [
-  { x: CORNER_NOSE, y: 0 },
-  { x: W - CORNER_NOSE, y: 0 },
-  { x: CORNER_NOSE, y: L },
-  { x: W - CORNER_NOSE, y: L },
-  { x: 0, y: CORNER_NOSE },
-  { x: 0, y: L / 2 - SIDE_HALF },
-  { x: 0, y: L / 2 + SIDE_HALF },
-  { x: 0, y: L - CORNER_NOSE },
-  { x: W, y: CORNER_NOSE },
-  { x: W, y: L / 2 - SIDE_HALF },
-  { x: W, y: L / 2 + SIDE_HALF },
-  { x: W, y: L - CORNER_NOSE },
-];
+/* ------------------------------------------------------------------ */
+/* The tables                                                           */
+/* ------------------------------------------------------------------ */
 
 /** A straight cushion: the line x = c (vertical) or y = c (horizontal), from a to b along the other axis; n = which side the cloth is (+1: larger values). */
 interface Seg {
@@ -76,17 +35,154 @@ interface Seg {
   b: number;
   n: 1 | -1;
 }
-const SEGS: Seg[] = [
-  { v: false, c: 0, a: CORNER_NOSE, b: W - CORNER_NOSE, n: 1 },
-  { v: false, c: L, a: CORNER_NOSE, b: W - CORNER_NOSE, n: -1 },
-  { v: true, c: 0, a: CORNER_NOSE, b: L / 2 - SIDE_HALF, n: 1 },
-  { v: true, c: 0, a: L / 2 + SIDE_HALF, b: L - CORNER_NOSE, n: 1 },
-  { v: true, c: W, a: CORNER_NOSE, b: L / 2 - SIDE_HALF, n: -1 },
-  { v: true, c: W, a: L / 2 + SIDE_HALF, b: L - CORNER_NOSE, n: -1 },
+
+/**
+ * A table's geometry (one per game family): the cloth, the balls, the pockets (the noses of the jaws,
+ * the visible holes) and the frame drawn around it. Pockets are always in this order: 0 top-left,
+ * 1 top-right, 2 middle-left, 3 middle-right, 4 bottom-left, 5 bottom-right.
+ */
+export interface Table {
+  id: 'pool' | 'snooker';
+  /** the cloth, between the cushion noses (mm) */
+  W: number;
+  L: number;
+  /** the balls' radius */
+  R: number;
+  /** distance from a corner, along each rail, to where the corner pocket's jaw begins */
+  cornerNose: number;
+  /** half the middle pocket's mouth, along the long rail */
+  sideHalf: number;
+  /** the radius of the jaws' rounded ends (0: a sharp nose) */
+  noseR: number;
+  pockets: { x: number; y: number; corner: boolean }[];
+  /** the visible holes (a ball always drops with its centre over its hole) */
+  holes: { x: number; y: number; r: number }[];
+  /** the centres of the jaws' rounded ends (a ball touches one at R + noseR) */
+  noses: { x: number; y: number }[];
+  segs: Seg[];
+  /** how far past the cushion line a ball's centre goes before it drops */
+  drop: number;
+  /** the frame drawn around the cloth (wood + cushion) and the cushion alone (mm) */
+  rail: number;
+  cush: number;
+  /** where the cue ball may be placed for the break: pool behind the head string (y ≥ y0), snooker inside the D */
+  zone: { kind: 'line'; y: number } | { kind: 'd'; cx: number; cy: number; r: number };
+  /** where the cue ball waits for the break */
+  breakSpot: { x: number; y: number };
+}
+
+function makeTable(o: Omit<Table, 'pockets' | 'noses' | 'segs' | 'drop'> & { drop?: number }): Table {
+  const { W: w, L: l, cornerNose: cn, sideHalf: sh, noseR: rn } = o;
+  return {
+    ...o,
+    drop: o.drop ?? o.R * 0.3,
+    pockets: [
+      { x: 0, y: 0, corner: true },
+      { x: w, y: 0, corner: true },
+      { x: 0, y: l / 2, corner: false },
+      { x: w, y: l / 2, corner: false },
+      { x: 0, y: l, corner: true },
+      { x: w, y: l, corner: true },
+    ],
+    // each rounded end touches its cushion's line where the cushion stops, and curves away into the pocket
+    noses: [
+      { x: cn, y: -rn },
+      { x: w - cn, y: -rn },
+      { x: cn, y: l + rn },
+      { x: w - cn, y: l + rn },
+      { x: -rn, y: cn },
+      { x: -rn, y: l / 2 - sh },
+      { x: -rn, y: l / 2 + sh },
+      { x: -rn, y: l - cn },
+      { x: w + rn, y: cn },
+      { x: w + rn, y: l / 2 - sh },
+      { x: w + rn, y: l / 2 + sh },
+      { x: w + rn, y: l - cn },
+    ],
+    segs: [
+      { v: false, c: 0, a: cn, b: w - cn, n: 1 },
+      { v: false, c: l, a: cn, b: w - cn, n: -1 },
+      { v: true, c: 0, a: cn, b: l / 2 - sh, n: 1 },
+      { v: true, c: 0, a: l / 2 + sh, b: l - cn, n: 1 },
+      { v: true, c: w, a: cn, b: l / 2 - sh, n: -1 },
+      { v: true, c: w, a: l / 2 + sh, b: l - cn, n: -1 },
+    ],
+  };
+}
+
+/** The six holes: corners on the diagonal `corner` mm outside the cloth's corner, middles `side` mm outside the rail line. */
+const holesAt = (w: number, l: number, corner: number, cr: number, side: number, sr: number) => [
+  { x: -corner, y: -corner, r: cr },
+  { x: w + corner, y: -corner, r: cr },
+  { x: -side, y: l / 2, r: sr },
+  { x: w + side, y: l / 2, r: sr },
+  { x: -corner, y: l + corner, r: cr },
+  { x: w + corner, y: l + corner, r: cr },
 ];
 
-/** How far past the cushion line a ball's centre goes before it drops. */
-const DROP = R * 0.3;
+/**
+ * Pool: a 7-foot table, 1980 × 990 mm of cloth, balls of 57.15 mm. Corner mouths 120 mm across the
+ * jaws (2.1 balls), middles 134 mm (2.35 balls); the holes 116 and 110 mm across (2.03 and 1.92 balls),
+ * the corner holes centred on the cloth's corners — every drop point is over a hole.
+ */
+export const POOL: Table = makeTable({
+  id: 'pool',
+  W: 990,
+  L: 1980,
+  R: 28.575,
+  cornerNose: 85,
+  sideHalf: 67,
+  noseR: 0,
+  holes: holesAt(990, 1980, 0, 58, 14, 55),
+  rail: 80,
+  cush: 24,
+  zone: { kind: 'line', y: 1980 * 0.75 },
+  breakSpot: { x: 495, y: 1980 * 0.75 + 120 },
+});
+
+/** Snooker: the baulk line (737 mm from the bottom cushion) and the D (radius 292 mm). */
+const SNK_W = 1778;
+const SNK_L = 3569;
+export const BAULK_Y = SNK_L - 737;
+export const D_R = 292;
+
+/**
+ * Snooker: a 12-foot table, 3569 × 1778 mm of cloth, balls of 52.5 mm. Narrow pockets with rounded
+ * jaws: corner mouths ≈ 1.7 balls, middles ≈ 1.85 balls; the holes sit further back behind the jaws.
+ */
+export const SNOOKER: Table = makeTable({
+  id: 'snooker',
+  W: SNK_W,
+  L: SNK_L,
+  R: 26.25,
+  cornerNose: 70.6,
+  sideHalf: 66.5,
+  noseR: 18,
+  holes: holesAt(SNK_W, SNK_L, 15, 45, 22, 46),
+  rail: 84,
+  cush: 26,
+  zone: { kind: 'd', cx: SNK_W / 2, cy: BAULK_Y, r: D_R },
+  breakSpot: { x: SNK_W / 2 + 120, y: BAULK_Y + 50 },
+});
+
+/** The table of a mode. */
+export const tableOf = (mode: string): Table => (mode === 'snooker' ? SNOOKER : POOL);
+
+/* The pool table's numbers, as before (8-ball and 9-ball use them directly). */
+export const W = POOL.W;
+export const L = POOL.L;
+export const R = POOL.R;
+/** The head string (the break is played from below it: y ≥ HEAD_Y). */
+export const HEAD_Y = L * 0.75;
+/** The foot spot (the apex of the rack). */
+export const FOOT_X = W / 2;
+export const FOOT_Y = L * 0.25;
+export const CORNER_NOSE = POOL.cornerNose;
+export const SIDE_HALF = POOL.sideHalf;
+export const POCKETS = POOL.pockets;
+/** Where a pocket is drawn (its hole) and how big. */
+export const POCKET_DRAW = POOL.holes;
+export const NOSES = POOL.noses;
 
 export const G = 9810;
 export const MU_SLIDE = 0.2;
@@ -128,6 +224,8 @@ interface Body {
   sy: number;
   on: boolean;
   moving: boolean;
+  /** |vx| + |vy| during the current sub-step */
+  sp: number;
 }
 
 export interface Shot {
@@ -144,6 +242,9 @@ export interface Pocketed {
   pocket: number;
   /** seconds since the stroke */
   t: number;
+  /** where its centre was when it dropped (the simulation fills it in) */
+  x?: number;
+  y?: number;
 }
 
 export interface SimResult {
@@ -197,8 +298,13 @@ function toiPoint(px: number, py: number, vx: number, vy: number, qx: number, qy
  * ended. `record` also returns the trajectories for the phones. `trace` (tests) gets the total kinetic
  * energy (per unit mass, translation + rotation) after every step.
  */
-export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (t: number, energy: number) => void): SimResult {
-  const bodies: Body[] = start.map((b) => ({ id: b.id, x: b.x, y: b.y, vx: 0, vy: 0, sx: 0, sy: 0, on: true, moving: false }));
+export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (t: number, energy: number) => void, table: Table = POOL): SimResult {
+  const { W, L, R, drop: DROP } = table;
+  const SEGS = table.segs;
+  const NOSES = table.noses;
+  const POCKETS = table.pockets;
+  const noseD = R + table.noseR;
+  const bodies: Body[] = start.map((b) => ({ id: b.id, x: b.x, y: b.y, vx: 0, vy: 0, sx: 0, sy: 0, on: true, moving: false, sp: 0 }));
   const cue = bodies.find((b) => b.id === 0);
   const pocketed: Pocketed[] = [];
   let firstHit: number | null = null;
@@ -248,6 +354,9 @@ export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (
       let bi: Body | null = null;
       let bj: Body | null = null;
       let segOrNose = -1;
+      // speeds this sub-step (a pair further apart than they can close in the rest of the step is skipped:
+      // it could not touch before `best` anyway, so the result is exactly the same, only faster)
+      for (const b of bodies) b.sp = b.on ? Math.abs(b.vx) + Math.abs(b.vy) : 0;
       for (let i = 0; i < bodies.length; i++) {
         const a = bodies[i];
         if (!a.on || (a.vx === 0 && a.vy === 0)) continue;
@@ -257,6 +366,10 @@ export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (
           const b = bodies[j];
           if (!b.on) continue;
           if (j < i && (b.vx !== 0 || b.vy !== 0)) continue; // that pair was checked from b
+          const reach = 2 * R + (a.sp + b.sp) * best + 1;
+          const ddx = a.x - b.x;
+          const ddy = a.y - b.y;
+          if (ddx > reach || ddx < -reach || ddy > reach || ddy < -reach) continue;
           const te = toiPoint(a.x - b.x, a.y - b.y, a.vx - b.vx, a.vy - b.vy, 0, 0, 2 * R);
           if (te >= 0 && te < best) {
             best = te;
@@ -287,7 +400,7 @@ export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (
         for (let s = 0; s < NOSES.length; s++) {
           const q = NOSES[s];
           if (Math.abs(a.x - q.x) > 400 && Math.abs(a.y - q.y) > 400) continue;
-          const te = toiPoint(a.x, a.y, a.vx, a.vy, q.x, q.y, R);
+          const te = toiPoint(a.x, a.y, a.vx, a.vy, q.x, q.y, noseD);
           if (te >= 0 && te < best) {
             best = te;
             kind = 3;
@@ -389,7 +502,7 @@ export function simulate(start: BallPos[], shot: Shot, record = false, trace?: (
         a.on = false;
         a.vx = a.vy = a.sx = a.sy = 0;
         a.moving = false;
-        pocketed.push({ id: a.id, pocket, t: te });
+        pocketed.push({ id: a.id, pocket, t: te, x: a.x, y: a.y });
       }
     }
 
@@ -563,28 +676,49 @@ export function trackAt(tr: Track, ms: number): { x: number; y: number } {
 /* Placing balls                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Is (x, y) a legal spot for the cue ball (on the cloth, touching no ball; behind the head string for a break)? */
-export function legalCueSpot(balls: BallPos[], x: number, y: number, kitchen: boolean): boolean {
+/** Is (x, y) inside the break zone (pool: behind the head string; snooker: inside the D)? */
+export function inZone(x: number, y: number, t: Table = POOL): boolean {
+  const z = t.zone;
+  if (z.kind === 'line') return y >= z.y;
+  return y >= z.cy && hyp(x - z.cx, y - z.cy) <= z.r;
+}
+
+/** Is (x, y) a legal spot for the cue ball (on the cloth, touching no ball; in the break zone when `kitchen`)? */
+export function legalCueSpot(balls: BallPos[], x: number, y: number, kitchen: boolean, t: Table = POOL): boolean {
+  const { W, L, R } = t;
   if (!(x >= R && x <= W - R && y >= R && y <= L - R)) return false;
-  if (kitchen && y < HEAD_Y) return false;
+  if (kitchen && !inZone(x, y, t)) return false;
   return balls.every((b) => b.id === 0 || hyp(b.x - x, b.y - y) >= 2 * R + 0.5);
 }
 
 /** The nearest legal spot to (x, y) (searching outwards), for a cue ball dragged onto another ball. */
-export function nearestCueSpot(balls: BallPos[], x: number, y: number, kitchen: boolean): { x: number; y: number } {
-  const cx = Math.max(R, Math.min(W - R, x));
-  const cy = Math.max(kitchen ? HEAD_Y : R, Math.min(L - R, y));
-  if (legalCueSpot(balls, cx, cy, kitchen)) return { x: cx, y: cy };
+export function nearestCueSpot(balls: BallPos[], x: number, y: number, kitchen: boolean, t: Table = POOL): { x: number; y: number } {
+  const { W, L, R } = t;
+  let cx = Math.max(R, Math.min(W - R, x));
+  let cy = Math.max(R, Math.min(L - R, y));
+  if (kitchen) {
+    const z = t.zone;
+    if (z.kind === 'line') cy = Math.max(z.y, cy);
+    else {
+      cy = Math.max(z.cy, cy);
+      const d = hyp(cx - z.cx, cy - z.cy);
+      if (d > z.r - 0.5) {
+        cx = z.cx + ((cx - z.cx) * (z.r - 0.5)) / d;
+        cy = z.cy + ((cy - z.cy) * (z.r - 0.5)) / d;
+      }
+    }
+  }
+  if (legalCueSpot(balls, cx, cy, kitchen, t)) return { x: cx, y: cy };
   for (let r = 4; r < 1200; r += 4) {
     const n = Math.max(8, Math.round(r / 6));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const px = cx + Math.cos(a) * r;
       const py = cy + Math.sin(a) * r;
-      if (legalCueSpot(balls, px, py, kitchen)) return { x: px, y: py };
+      if (legalCueSpot(balls, px, py, kitchen, t)) return { x: px, y: py };
     }
   }
-  return { x: W / 2, y: L - 3 * R };
+  return { ...t.breakSpot };
 }
 
 /** A re-spotted ball: on the foot spot, or the nearest free spot behind it towards the foot rail (then towards the head). */
@@ -651,6 +785,66 @@ export function rackNine(rnd: () => number): BallPos[] {
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* Snooker: the balls and their spots                                   */
+/* ------------------------------------------------------------------ */
+
+/** Snooker ball ids: the colours 16 (yellow, 2 points) … 21 (black, 7 points), the reds 22 … 36. */
+export const YELLOW = 16;
+export const BLACK = 21;
+export const COLOURS = [16, 17, 18, 19, 20, 21];
+export const REDS = Array.from({ length: 15 }, (_, i) => 22 + i);
+export const isRed = (id: number) => id >= 22 && id <= 36;
+export const isColour = (id: number) => id >= YELLOW && id <= BLACK;
+/** A snooker ball's value: a red 1, yellow 2 … black 7. */
+export const snookerValue = (id: number) => (isRed(id) ? 1 : isColour(id) ? id - 14 : 0);
+
+/** The colours' spots: yellow / brown / green on the baulk line (the D), blue in the centre, pink, black. */
+export const SPOTS: Record<number, { x: number; y: number }> = {
+  16: { x: SNK_W / 2 + D_R, y: BAULK_Y },
+  17: { x: SNK_W / 2 - D_R, y: BAULK_Y },
+  18: { x: SNK_W / 2, y: BAULK_Y },
+  19: { x: SNK_W / 2, y: SNK_L / 2 },
+  20: { x: SNK_W / 2, y: SNK_L / 4 },
+  21: { x: SNK_W / 2, y: 324 },
+};
+
+/** The 15 reds in a triangle, its apex just behind the pink; the colours on their spots. */
+export function rackSnooker(rnd: () => number): BallPos[] {
+  const r = SNOOKER.R;
+  const d = 2 * r + 0.3;
+  const apexY = SPOTS[20].y - 2 * r - 1.5;
+  const balls: BallPos[] = COLOURS.map((id) => ({ id, ...SPOTS[id] }));
+  let k = 0;
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col <= row; col++) {
+      balls.push({ id: REDS[k++], x: SNK_W / 2 + (col - row / 2) * d + (rnd() - 0.5) * 0.08, y: apexY - row * d * (Math.sqrt(3) / 2) + (rnd() - 0.5) * 0.08 });
+    }
+  }
+  return balls;
+}
+
+/**
+ * Snooker: where re-spotted colours go (`ids`, placed highest value first): on its own spot when free,
+ * else on the highest free spot, else on the nearest free point from its spot towards the top cushion
+ * (then towards the bottom one). Returns the balls with them added.
+ */
+export function respotColours(balls: BallPos[], ids: number[]): BallPos[] {
+  const r = SNOOKER.R;
+  const out = balls.slice();
+  const free = (x: number, y: number) => out.every((b) => hyp(b.x - x, b.y - y) >= 2 * r + 0.5);
+  for (const id of [...ids].sort((a, b) => b - a)) {
+    const own = SPOTS[id];
+    let at: { x: number; y: number } | null = null;
+    if (free(own.x, own.y)) at = own;
+    for (let c = BLACK; !at && c >= YELLOW; c--) if (free(SPOTS[c].x, SPOTS[c].y)) at = SPOTS[c];
+    for (let y = own.y - 1; !at && y >= r; y -= 1) if (free(own.x, y)) at = { x: own.x, y };
+    for (let y = own.y + 1; !at && y <= SNK_L - r; y += 1) if (free(own.x, y)) at = { x: own.x, y };
+    out.push({ id, ...(at ?? own) });
+  }
+  return out;
+}
+
 /** Where the cue ball waits for the break (in hand behind the head string). */
 export const BREAK_SPOT = { x: W / 2, y: HEAD_Y + 120 };
 
@@ -671,7 +865,8 @@ export interface Guide {
 }
 
 /** The first thing the cue ball meets along `angle` from (cx, cy), and what goes where after contact. */
-export function aimGuide(balls: BallPos[], cx: number, cy: number, angle: number): Guide {
+export function aimGuide(balls: BallPos[], cx: number, cy: number, angle: number, t: Table = POOL): Guide {
+  const { W, L, R } = t;
   const dx = Math.cos(angle);
   const dy = Math.sin(angle);
   let best = Infinity;
@@ -713,9 +908,10 @@ export function aimGuide(balls: BallPos[], cx: number, cy: number, angle: number
  * A lone ball leaving (x, y) in direction (dx, dy) (unit): the pocket it drops into before touching any
  * cushion or jaw, or −1. The bots use it to find how wide a pocket looks from a ball.
  */
-export function straightDrop(x: number, y: number, dx: number, dy: number): number {
+export function straightDrop(x: number, y: number, dx: number, dy: number, t: Table = POOL): number {
+  const { W, L, R, drop: DROP } = t;
   let best = Infinity;
-  for (const g of SEGS) {
+  for (const g of t.segs) {
     const p = g.v ? x : y;
     const v = g.v ? dx : dy;
     if (v * g.n >= 0) continue;
@@ -725,8 +921,8 @@ export function straightDrop(x: number, y: number, dx: number, dy: number): numb
     const along = g.v ? y + dy * te : x + dx * te;
     if (along >= g.a && along <= g.b && te < best) best = te;
   }
-  for (const q of NOSES) {
-    const te = toiPoint(x, y, dx, dy, q.x, q.y, R);
+  for (const q of t.noses) {
+    const te = toiPoint(x, y, dx, dy, q.x, q.y, R + t.noseR);
     if (te >= 0 && te < best) best = te;
   }
   const tl = dx < 0 ? (x + DROP) / -dx : dx > 0 ? (W + DROP - x) / dx : Infinity;
@@ -737,7 +933,7 @@ export function straightDrop(x: number, y: number, dx: number, dy: number): numb
   const py = y + dy * td;
   let pocket = -1;
   let bd = Infinity;
-  POCKETS.forEach((p, i) => {
+  t.pockets.forEach((p, i) => {
     const d = hyp(p.x - px, p.y - py);
     if (d < bd) {
       bd = d;
@@ -748,10 +944,10 @@ export function straightDrop(x: number, y: number, dx: number, dy: number): numb
 }
 
 /** Which pocket a point is nearest to (for tapping a pocket). */
-export function nearestPocket(x: number, y: number): { pocket: number; dist: number } {
+export function nearestPocket(x: number, y: number, t: Table = POOL): { pocket: number; dist: number } {
   let pocket = 0;
   let dist = Infinity;
-  POCKET_DRAW.forEach((p, i) => {
+  t.holes.forEach((p, i) => {
     const d = hyp(p.x - x, p.y - y);
     if (d < dist) {
       dist = d;

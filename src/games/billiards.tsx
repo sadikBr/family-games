@@ -1,8 +1,9 @@
 /**
- * «البلياردو» — the game screen: the players' strips (group, balls left, racks won), a line for what
- * just happened (a foul, a group, the 8 / the 9) or what to do now, the table (billiards-table.tsx) with
- * a column beside it (the shooter's spin, fine aim and the power bar — pull it down and let go to shoot;
- * for everyone else, the balls pocketed this rack), and the end of a rack / the match.
+ * «البلياردو» — the game screen: the players' strips (group, balls left, racks won; in snooker the
+ * score, the break, what is on and the points left on the table), a line for what just happened (a foul,
+ * a group, the 8 / the 9) or what to do now, the table (billiards-table.tsx) with a bar under it (the
+ * shooter's spin, fine aim and the power pad — slide it sideways and let go to shoot; for everyone else,
+ * the balls pocketed this rack), and the end of a rack / the match.
  *
  * The shooter's aim is sent a few times a second so the others see the cue turn.
  *
@@ -33,8 +34,9 @@ import {
   type BilliardsMode,
   type BilliardsSettings as Settings,
   type BilliardsView,
+  type SnookerOn,
 } from '@/shared/games/billiards';
-import { legalCueSpot, nearestCueSpot } from '@/shared/games/billiards-physics';
+import { aimGuide, isColour, legalCueSpot, nearestCueSpot, tableOf } from '@/shared/games/billiards-physics';
 import { li } from '@/shared/li';
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
@@ -45,7 +47,7 @@ import { useImmersive } from '@/ui/immersive';
 import { useContentWidth, useScrollLock } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
-import { RAIL, TABLE_H, TABLE_W } from './billiards-art';
+import { frameOf } from './billiards-art';
 import { StaticBall } from './billiards-ball';
 import { BilliardsTable, strike, type Aiming } from './billiards-table';
 import { PlayAgain, ResultBanner } from './common';
@@ -148,6 +150,59 @@ function Sides({ view, h }: { view: BilliardsView; h: Helpers }) {
   );
 }
 
+/** «كرة حمراء» / «لون» / «الأصفر» … (what is on). */
+const ON_COLOUR: Record<number, string> = { 16: 'الأصفر', 17: 'الأخضر', 18: 'البني', 19: 'الأزرق', 20: 'الوردي', 21: 'الأسود' };
+const onLabel = (on: SnookerOn) => (on === 'red' ? 'كرة حمراء' : on === 'colour' ? 'لون' : ON_COLOUR[on] ?? '');
+
+/** Snooker: each side's score (the current break under the shooter's), what is on and the points left. */
+function SnookerBoard({ view, h }: { view: BilliardsView; h: Helpers }) {
+  const cw = useContentWidth();
+  const snk = view.snooker!;
+  const n = view.sides.length;
+  const chipW = (cw - GAP * (n - 1)) / n;
+  const activeSide = view.phase === 'aim' || view.phase === 'rolling' ? view.side : -1;
+  return (
+    <View style={{ gap: 4 }}>
+      <Row gap={GAP} style={{ justifyContent: 'center' }}>
+        {view.sides.map((side, i) => {
+          const on = i === activeSide && !side.out;
+          const color = h.player(side.ids[0]).color;
+          const me = side.ids.includes(h.me);
+          const label = me && side.ids.length === 1 ? (chipW < 150 ? 'أنت' : `${h.player(side.ids[0]).name} (أنت)`) : sideName(h, side.ids);
+          return (
+            <View
+              key={i}
+              accessibilityLabel={`${sideName(h, side.ids)}: ${snk.scores[i] ?? 0} نقطة${on ? ` — الدور الآن، السلسلة ${snk.brk}` : ''}`}
+              style={[styles.chip, { width: chipW, opacity: side.out ? 0.45 : 1 }, on && { borderColor: color, backgroundColor: alpha(color, 0.2) }]}>
+              <Row gap={6}>
+                <Row gap={-6}>
+                  {side.ids.map((id) => (
+                    <Avatar key={id} player={h.player(id)} size={side.ids.length > 1 ? 24 : 28} />
+                  ))}
+                </Row>
+                <View style={{ flex: 1 }}>
+                  <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13 }}>
+                    {label}
+                  </Txt>
+                  <Txt v="tiny" color={on ? C.yellow : C.dim} numberOfLines={1} style={{ fontSize: 11, lineHeight: 15 }}>
+                    {on ? `السلسلة ${num(snk.brk)}` : view.race > 1 ? `الإطارات: ${num(side.wins)}` : ' '}
+                  </Txt>
+                </View>
+                <Txt v="bold" color={on ? C.text : C.muted} style={{ fontSize: 22, lineHeight: 28 }}>
+                  {num(snk.scores[i] ?? 0)}
+                </Txt>
+              </Row>
+            </View>
+          );
+        })}
+      </Row>
+      <Txt v="tiny" center color={C.muted} numberOfLines={1} style={{ fontSize: 12 }}>
+        {`المطلوب: ${onLabel(snk.on)} — المتبقي على الطاولة: ${num(snk.remaining)}`}
+      </Txt>
+    </View>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* What happened / what to do                                           */
 /* ------------------------------------------------------------------ */
@@ -162,8 +217,20 @@ interface Info {
 }
 
 /** What the banner (or, in full screen, the toast) says: what just happened, or what to do now. */
-function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number | null): Info | null {
+function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number | null, nom: number | null): Info | null {
   const n = view.note;
+  const snk = view.snooker;
+  if (view.phase === 'aim' && mine && snk) {
+    const on = snk.on;
+    let text = `المطلوب: ${onLabel(on)}`;
+    if (on === 'colour') text = nom !== null ? `الكرة المختارة: ${ON_COLOUR[nom]} — المس لوناً آخر لتغييرها` : 'المطلوب لون: المس اللون لاختياره، أو صوّب نحوه';
+    if (view.inHand) text = view.breakShot ? 'الكسر: اسحب البيضاء داخل نصف الدائرة' : `الكرة في اليد داخل نصف الدائرة — المطلوب: ${onLabel(on)}`;
+    let sub: string | undefined;
+    if (n && n.kind === 'foul') sub = n.text;
+    else if (n && n.kind !== 'rack') sub = n.text;
+    else if (on === 'colour' && view.inHand) sub = nom !== null ? `الكرة المختارة: ${ON_COLOUR[nom]}` : undefined;
+    return { tone: 'mine', text, sub, key: `mine-${view.shotId}-${view.inHand}-${on}-${nom}`, keep: !!view.inHand || on === 'colour' };
+  }
   if (view.phase === 'aim' && mine) {
     const call = view.needCall && pocket === null;
     let text = 'اسحب على الطاولة لتدوير العصا، أو المس كرة للتصويب نحوها، ثم اسحب شريط القوة جانباً واتركه';
@@ -180,10 +247,17 @@ function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number |
     return { tone: n.kind === 'foul' ? 'foul' : n.kind === 'group' ? 'good' : 'info', text: n.text, sub: n.sub, key: `n${n.id}` };
   }
   if (view.phase === 'aim' && view.shooter) {
+    const relayed = view.aim?.nom ?? null;
     return {
       tone: 'info',
       text: view.breakShot ? `الكسر ${li(h.player(view.shooter).name)}` : `الدور ${li(h.player(view.shooter).name)}`,
-      sub: view.mode === 'nine' && view.targets.length ? `الكرة المطلوبة: ${view.targets[0]}` : undefined,
+      sub: snk
+        ? snk.on === 'colour' && relayed !== null
+          ? `الكرة المختارة: ${ON_COLOUR[relayed]}`
+          : `المطلوب: ${onLabel(snk.on)}`
+        : view.mode === 'nine' && view.targets.length
+          ? `الكرة المطلوبة: ${view.targets[0]}`
+          : undefined,
       key: `t-${view.shooter}-${view.shotId}`,
     };
   }
@@ -253,6 +327,25 @@ function TurnPill({ view, h }: { view: BilliardsView; h: Helpers }) {
   if (!view.shooter || (view.phase !== 'aim' && view.phase !== 'rolling')) return null;
   const p = h.player(view.shooter);
   const me = view.shooter === h.me;
+  const snk = view.snooker;
+  if (snk) {
+    // snooker: both scores (the shooter's side lit), the break and what is on
+    return (
+      <View pointerEvents="none" style={[styles.pill, { borderColor: alpha(p.color, 0.9), direction: 'rtl' }]} accessibilityLabel={`${view.sides.map((s, i) => `${sideName(h, s.ids)} ${snk.scores[i]}`).join('، ')} — الدور ${li(p.name)} — المطلوب: ${onLabel(snk.on)}`}>
+        {view.sides.map((side, i) => (
+          <Row key={i} gap={3} style={{ opacity: i === view.side ? 1 : 0.6 }}>
+            <Avatar player={h.player(side.ids[0])} size={16} />
+            <Txt v="bold" style={{ fontSize: 12, lineHeight: 16 }}>
+              {num(snk.scores[i] ?? 0)}
+            </Txt>
+          </Row>
+        ))}
+        <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ fontSize: 10.5, lineHeight: 15 }}>
+          {`${snk.brk ? `السلسلة ${snk.brk} · ` : ''}${onLabel(snk.on)}`}
+        </Txt>
+      </View>
+    );
+  }
   return (
     <View pointerEvents="none" style={[styles.pill, { borderColor: alpha(p.color, 0.9) }]} accessibilityLabel={me ? 'الدور لك' : `الدور ${li(p.name)}`}>
       <Avatar player={p} size={18} />
@@ -469,8 +562,8 @@ function Tray({ view, height, width }: { view: BilliardsView; height: number; wi
   const fit = Math.max(1, Math.floor(((width ?? height) - 8) / (size + 3)));
   return (
     <View style={[styles.tray, width ? { width, height, flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 0 } : { height }]} accessibilityLabel={`الكرات في الجيوب: ${all.length}`}>
-      {all.slice(-fit).map((b) => (
-        <MiniBall key={b} id={b} size={size} />
+      {all.slice(-fit).map((b, i) => (
+        <MiniBall key={`${i}-${b}`} id={b} size={size} />
       ))}
     </View>
   );
@@ -485,7 +578,10 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
   const cw = useContentWidth();
   const { width: winW, height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const ratio = TABLE_H / TABLE_W;
+  const table = tableOf(view.mode);
+  const frame = frameOf(table);
+  const ratio = frame.h / frame.w;
+  const snk = view.snooker ?? null;
 
   // —— full screen (kept for the session; not over the end of the match) ——
   const [fullOn, setFullOn] = useState(fullChoice);
@@ -538,10 +634,10 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
 
   // —— my aim (local while I aim; sent a few times a second) ——
   const turnKey = `${view.rack}|${view.shotId}|${view.shooter}|${view.inHand}`;
-  const [aim, setAim] = useState(() => ({ key: turnKey, angle: view.aim?.a ?? -Math.PI / 2, cue: view.aim?.cue ? { x: view.aim.cue[0], y: view.aim.cue[1] } : null, pocket: null as number | null, spin: 0 }));
+  const [aim, setAim] = useState(() => ({ key: turnKey, angle: view.aim?.a ?? -Math.PI / 2, cue: view.aim?.cue ? { x: view.aim.cue[0], y: view.aim.cue[1] } : null, pocket: null as number | null, nom: null as number | null, spin: 0 }));
   let a = aim;
   if (aim.key !== turnKey) {
-    a = { key: turnKey, angle: view.aim?.a ?? aim.angle, cue: view.aim?.cue ? { x: view.aim.cue[0], y: view.aim.cue[1] } : null, pocket: null, spin: 0 };
+    a = { key: turnKey, angle: view.aim?.a ?? aim.angle, cue: view.aim?.cue ? { x: view.aim.cue[0], y: view.aim.cue[1] } : null, pocket: null, nom: null, spin: 0 };
     setAim(a);
   }
   const pull = useSharedValue(0);
@@ -553,10 +649,20 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
   useEffect(() => () => {
     if (trailing.current) clearTimeout(trailing.current);
   }, []);
+  const objectsNow = unpackBalls(view.balls).filter((b) => b.id !== 0);
+  /** snooker, a colour on: the colour nominated — tapped, else the one the cue is aimed at */
+  const nomOf = (x: typeof a): number | null => {
+    if (snk?.on !== 'colour') return null;
+    if (x.nom !== null) return x.nom;
+    const cue = view.inHand ? x.cue : (unpackBalls(view.balls).find((b) => b.id === 0) ?? null);
+    if (!cue) return null;
+    const g = aimGuide(objectsNow, cue.x, cue.y, x.angle, table);
+    return g.ball !== null && isColour(g.ball) ? g.ball : null;
+  };
   const send = () => {
     const x = latest.current;
     trailing.current = null;
-    h.act('aim', { a: x.angle, cue: x.cue ? [x.cue.x, x.cue.y] : undefined, pocket: x.pocket ?? undefined });
+    h.act('aim', { a: x.angle, cue: x.cue ? [x.cue.x, x.cue.y] : undefined, pocket: x.pocket ?? undefined, nom: nomOf(x) ?? undefined });
   };
   const queueSend = () => {
     // at most about six aims a second: the first change waits a moment, later ones join it
@@ -578,6 +684,9 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
         setCue: (cue) => update({ cue }),
         pocket: a.pocket,
         setPocket: (pocket) => update({ pocket }),
+        nom: nomOf(a),
+        nomPicked: a.nom !== null,
+        setNom: (nom) => update({ nom }),
         pull,
       }
     : null;
@@ -592,10 +701,9 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
     }
     let cue = x.cue;
     if (view.inHand) {
-      const objects = unpackBalls(view.balls).filter((b) => b.id !== 0);
       const kitchen = view.inHand === 'kitchen';
-      if (!cue) cue = nearestCueSpot(objects, 495, 1600, kitchen);
-      else if (!legalCueSpot(objects, cue.x, cue.y, kitchen)) cue = nearestCueSpot(objects, cue.x, cue.y, kitchen);
+      if (!cue) cue = nearestCueSpot(objectsNow, table.breakSpot.x, table.breakSpot.y, kitchen, table);
+      else if (!legalCueSpot(objectsNow, cue.x, cue.y, kitchen, table)) cue = nearestCueSpot(objectsNow, cue.x, cue.y, kitchen, table);
     }
     if (trailing.current) {
       clearTimeout(trailing.current);
@@ -603,18 +711,21 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
     }
     haptic.medium();
     strike(pull, power);
-    h.act('shot', { a: x.angle, power, spin: x.spin, cue: cue ? [cue.x, cue.y] : undefined, pocket: x.pocket ?? undefined });
+    h.act('shot', { a: x.angle, power, spin: x.spin, cue: cue ? [cue.x, cue.y] : undefined, pocket: x.pocket ?? undefined, nom: nomOf(x) ?? undefined });
   };
 
   const winnerSide = view.winner !== null ? view.sides[view.winner] : null;
   const iWon = !!winnerSide && winnerSide.ids.includes(h.me);
   const winName = winnerSide ? sideName(h, winnerSide.ids) : '';
-  let info = infoOf(view, h, mine, a.pocket);
+  let info = infoOf(view, h, mine, a.pocket, mine ? nomOf(a) : null);
+  const word = snk ? 'الإطار' : 'الشوط';
   // full screen: the shooter's usual "how to aim" line is not repeated over the table; a foul or a
   // group before my turn still shows
   if (full && info?.tone === 'mine' && !info.keep) info = info.sub ? { tone: view.note?.kind === 'foul' ? 'foul' : 'info', text: info.sub, key: `${info.key}-s` } : null;
+  // snooker in full screen: whose turn it is fits on one line (what is on is in the score pill)
+  if (full && snk && info?.key.startsWith('t-')) info = { ...info, sub: undefined };
   if (full && view.phase === 'rack' && winnerSide) {
-    info = { tone: 'good', text: `الشوط ${li(winName)}`, sub: view.sides.map((s) => `${sideName(h, s.ids)}: ${s.wins}`).join(' — '), key: `rack${view.rack}`, keep: true };
+    info = { tone: 'good', text: `${word} ${li(winName)}`, sub: view.note?.kind === 'rack' && snk ? view.note.sub : view.sides.map((s) => `${sideName(h, s.ids)}: ${s.wins}`).join(' — '), key: `rack${view.rack}`, keep: true };
   }
 
   const stepAngle = (d: number) => update({ angle: latest.current.angle + d * FINE });
@@ -626,7 +737,7 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
 
   return (
     <>
-      {full ? null : <Sides view={view} h={h} />}
+      {full ? null : snk ? <SnookerBoard view={view} h={h} /> : <Sides view={view} h={h} />}
       {full ? null : view.phase === 'final' && winnerSide ? (
         <ResultBanner
           tone={iWon ? 'good' : seated ? 'bad' : 'neutral'}
@@ -646,10 +757,11 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
         </View>
         {full ? (
           <View style={{ position: 'absolute', top: (winH - insets.top - insets.bottom - tableH - BAR - 6) / 2, alignSelf: 'center', width: tw, alignItems: 'center' }} pointerEvents="box-none">
-            <View style={{ marginTop: Math.max(1, (RAIL * (tw / TABLE_W) - 21) / 2) }} pointerEvents="none">
+            <View style={{ marginTop: Math.max(1, (frame.rail * (tw / frame.w) - 21) / 2) }} pointerEvents="none">
               <TurnPill view={view} h={h} />
             </View>
-            <Toast info={info} top={RAIL * (tw / TABLE_W) + 30} width={tw} />
+            {/* snooker: between the black's spot (close to the top cushion) and the reds */}
+            <Toast info={info} top={snk ? (frame.rail + 358) * (tw / frame.w) : frame.rail * (tw / frame.w) + 30} width={tw} />
           </View>
         ) : null}
         {view.phase === 'final' && !full ? null : (
@@ -672,7 +784,9 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
       {full ? null : (
         <Row center gap={10} style={{ flexWrap: 'wrap' }}>
           <Txt v="tiny" color={C.dim}>
-            {`${MODE_NAME[view.mode]} — ${view.race > 1 ? `الشوط ${view.rack} — الفوز بـ${view.race} أشواط` : 'شوط واحد'}`}
+            {snk
+              ? `${MODE_NAME[view.mode]} — ${view.race > 1 ? `الإطار ${view.rack} — الفوز بـ${view.race} إطارات` : 'إطار واحد'}`
+              : `${MODE_NAME[view.mode]} — ${view.race > 1 ? `الشوط ${view.rack} — الفوز بـ${view.race} أشواط` : 'شوط واحد'}`}
           </Txt>
           {seated && view.phase !== 'final' ? <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} /> : null}
         </Row>
@@ -698,9 +812,10 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
 function RackPause({ view, h, winName }: { view: BilliardsView; h: Helpers; winName: string }) {
   const left = useCountdown(view.nextAt);
   const settled = useSettled();
+  const snooker = !!view.snooker;
   return (
     <Animated.View entering={settled ? FadeIn.duration(260) : undefined} style={[styles.banner, { backgroundColor: alpha(C.green, 0.22), borderColor: alpha(C.green, 0.6), paddingVertical: 10 }]}>
-      <Txt v="h2" center>{`الشوط ${li(winName)}`}</Txt>
+      <Txt v="h2" center>{`${snooker ? 'الإطار' : 'الشوط'} ${li(winName)}`}</Txt>
       {view.note?.sub ? (
         <Txt v="tiny" center color={C.muted}>
           {view.note.sub}
@@ -709,7 +824,7 @@ function RackPause({ view, h, winName }: { view: BilliardsView; h: Helpers; winN
       <Txt v="tiny" center color={C.text}>
         {view.sides.map((s) => `${sideName(h, s.ids)}: ${s.wins}`).join(' — ')}
       </Txt>
-      <Txt v="tiny" center color={C.dim}>{`الشوط التالي بعد ${num(Math.ceil(left / 1000))} — الكسر للفائز`}</Txt>
+      <Txt v="tiny" center color={C.dim}>{snooker ? `الإطار التالي بعد ${num(Math.ceil(left / 1000))} — الكسر بالتناوب` : `الشوط التالي بعد ${num(Math.ceil(left / 1000))} — الكسر للفائز`}</Txt>
     </Animated.View>
   );
 }
@@ -721,8 +836,15 @@ function RackPause({ view, h, winName }: { view: BilliardsView; h: Helpers; winN
 const MODES: { key: BilliardsMode; label: string }[] = [
   { key: 'eight', label: 'الكرة 8' },
   { key: 'nine', label: 'الكرة 9' },
+  { key: 'snooker', label: 'سنوكر' },
 ];
 const RACES = BILLIARDS_RACES.map((r) => ({ key: String(r), label: r === 1 ? 'شوط واحد' : r === 2 ? 'شوطان' : `${num(r)} أشواط` }));
+const FRAMES = BILLIARDS_RACES.map((r) => ({ key: String(r), label: r === 1 ? 'إطار واحد' : r === 2 ? 'إطاران' : `${num(r)} إطارات` }));
+const MODE_NOTE: Record<BilliardsMode, string> = {
+  eight: 'لاعبان، أو أربعة في فريقين.',
+  nine: 'من لاعبَين إلى أربعة، كل واحد لنفسه.',
+  snooker: 'سنوكر على طاولة كبيرة: 15 حمراء وستة ألوان، حمراء ثم لون. لاعبان، أو أربعة في فريقين.',
+};
 const GUIDES: { key: BilliardsGuide; label: string }[] = [
   { key: 'long', label: 'طويل' },
   { key: 'short', label: 'قصير' },
@@ -737,10 +859,10 @@ export function BilliardsSettings({ room, editable }: { room: RoomView; editable
       <Txt v="bold">اللعبة</Txt>
       <ChipPicker editable={editable} value={s.mode} onChange={(mode) => change({ mode })} options={MODES} />
       <Txt v="tiny" color={C.muted}>
-        {s.mode === 'eight' ? 'لاعبان، أو أربعة في فريقين.' : 'من لاعبَين إلى أربعة، كل واحد لنفسه.'}
+        {MODE_NOTE[s.mode] ?? MODE_NOTE.eight}
       </Txt>
-      <Txt v="bold">عدد الأشواط للفوز</Txt>
-      <ChipPicker<string> editable={editable} value={String(s.race)} onChange={(v) => change({ race: Number(v) })} options={RACES} />
+      <Txt v="bold">{s.mode === 'snooker' ? 'عدد الإطارات للفوز' : 'عدد الأشواط للفوز'}</Txt>
+      <ChipPicker<string> editable={editable} value={String(s.race)} onChange={(v) => change({ race: Number(v) })} options={s.mode === 'snooker' ? FRAMES : RACES} />
       {s.mode === 'eight' ? <Toggle label="تسمية جيب الكرة 8" value={s.callPocket} editable={editable} onChange={(callPocket) => change({ callPocket })} /> : null}
       <Txt v="bold">خط التصويب</Txt>
       <ChipPicker editable={editable} value={s.guide} onChange={(guide) => change({ guide })} options={GUIDES} />
