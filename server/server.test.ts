@@ -107,6 +107,11 @@ class Phone {
 }
 
 const settle = (ms = 80) => Bun.sleep(ms);
+/** Wait until `ok()` holds (polling), for steps whose timing depends on server ticks and load. */
+async function until(ok: () => boolean, ms = 8000) {
+  const end = Date.now() + ms;
+  while (!ok() && Date.now() < end) await Bun.sleep(40);
+}
 
 async function makeRoom(n: number, game: RoomView['game']) {
   const phones = Array.from({ length: n }, (_, i) => new Phone(`player-${game}-${i}`, `لاعب ${i}`));
@@ -447,7 +452,7 @@ test('اسم ولد اسم بنت: stop, review, reject and score 10 / 5 / 0', a
   await settle();
   let v = host.view<NamesView>();
   expect(v.phase).toBe('spin');
-  await Bun.sleep(4200); // the 3.2 s spin, ended by the next tick
+  await until(() => host.view<NamesView>()?.phase === 'write'); // after the 3.2 s spin
   v = host.view<NamesView>();
   expect(v.phase).toBe('write');
   expect(v.board).toBeNull();
@@ -506,7 +511,7 @@ test('اسم ولد اسم بنت with «ستوب» off: finishing early waits f
   expect(host.room!.settings.names.stop).toBe(false);
   host.send({ t: 'room', action: { type: 'pace', pace: 'fast' } }); // the spin's pause follows «سرعة اللعب»
   host.send({ t: 'room', action: { type: 'start' } });
-  await Bun.sleep(4200); // the 3.2 s spin, ended by the next tick
+  await until(() => host.view<NamesView>()?.phase === 'write'); // after the 3.2 s spin
   const L = host.view<NamesView>().letter;
   const cats = ['boy', 'girl', 'animal', 'plant', 'thing', 'country', 'job'];
   const [A, B] = phones;
@@ -929,7 +934,7 @@ test('islamic quiz and surah with bots: answers, reveal, final scores', async ()
     host.send({ t: 'room', action: { type: 'pace', pace: 'fast' } }); // reveals follow «سرعة اللعب»
     await settle();
     host.send({ t: 'room', action: { type: 'start' } });
-    await settle();
+    await until(() => host.view<McqView>()?.phase === 'ask');
     const v0 = host.view<McqView>();
     expect(v0.phase).toBe('ask');
     expect(v0.options.length).toBe(4);
