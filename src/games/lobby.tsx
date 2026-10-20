@@ -7,7 +7,7 @@ import { Icon } from '@/art/icons';
 import { GroupWaiting } from '@/groups/waiting-panel';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
-import { BOT_GAMES, BOT_LEVELS, BOT_LEVEL_LABEL, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
+import { BOT_GAMES, BOT_LEVELS, BOT_LEVEL_LABEL, GAME_MAX_BOTS, MAX_BOTS, MAX_PLAYERS, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Card, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
@@ -83,7 +83,7 @@ export function Lobby({ room }: { room: RoomView }) {
   const kickPlayer = room.players.find((p) => p.id === kick);
   // empty seats: the ones still needed, or one more if there is room
   const free = maxSeats ? Math.max(0, maxSeats - online) : 99;
-  const canBot = isHost && botsAllowed && botCount < MAX_BOTS && !(room.tournament?.stage === 'setup' && room.tournament.config.format === 'knockout');
+  const canBot = isHost && botsAllowed && botCount < (GAME_MAX_BOTS[room.game] ?? MAX_BOTS) && !(room.tournament?.stage === 'setup' && room.tournament.config.format === 'knockout');
   const emptySeats = room.tournament?.stage === 'setup' && room.tournament.config.format === 'knockout' ? 1 : Math.min(free, Math.max(missing, 1));
   const setup = room.tournament?.stage === 'setup';
   const league = setup && room.tournament?.config.format === 'league';

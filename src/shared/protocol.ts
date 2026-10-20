@@ -189,8 +189,10 @@ export const GAME_IDS: GameId[] = [
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames'];
 export const MAX_BOTS = 8;
+/** Games that take fewer bots than MAX_BOTS: in «الكلمات السرية» a bot can only lead a team (one per team). */
+export const GAME_MAX_BOTS: Partial<Record<GameId, number>> = { codenames: 2 };
 
 export const MIN_PLAYERS: Record<GameId, number> = {
   imposter: 3,

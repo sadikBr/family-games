@@ -10,6 +10,7 @@ import { norm, stripAl } from '../src/shared/arabic';
 import { IMPOSTER_HINTS, POTATO_ANSWERS } from './bot-content';
 import { CHARADES_ALL } from './charades-content';
 import { HEADSUP_CATEGORIES, IMPOSTER_CATEGORIES, POTATO_PROMPTS, TABOO_CARDS } from './content';
+import { CODENAMES_ENTRIES } from './codenames-links';
 import { CODENAMES_WORDS, DRAW_WORDS } from './content-extra';
 import { TRAITS } from './imposter-traits';
 import { SPY_LOCATIONS } from './spy-content';
@@ -75,6 +76,8 @@ function allContent(): [string, string][] {
   POTATO_PROMPTS.forEach((p) => add('potato prompt', p));
   for (const [p, answers] of Object.entries(POTATO_ANSWERS)) answers.forEach((a) => add(`potato ${p}`, a));
   CODENAMES_WORDS.forEach((w) => add('codenames', w));
+  // the spymaster bot gives these words as clues
+  for (const e of CODENAMES_ENTRIES) e.links.forEach((l) => add(`codenames ${e.word}`, l));
   DRAW_WORDS.forEach((w) => add('draw', w));
   CHARADES_ALL.forEach((c) => add(`charades ${c.cat}`, c.word));
   for (const l of SPY_LOCATIONS) {
