@@ -70,7 +70,7 @@ if (-not $Message) { $Message = "update-$(Get-Date -Format 'yyyy-MM-dd-HHmm')" }
 Step 'Checking the runtime version'
 $rvOut = & bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String
 $runtime = ''
-if ($rvOut -match '"runtimeVersion":"([0-9a-f]+)"') { $runtime = $Matches[1] }
+if ($rvOut -match '"runtimeVersion":"([^"]+)"') { $runtime = $Matches[1] }
 $apkFile = Join-Path $root '.apk-runtime'
 $apkRuntime = ''
 if (Test-Path $apkFile) { $apkRuntime = (Get-Content $apkFile -Raw).Trim() }

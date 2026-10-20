@@ -160,15 +160,16 @@ if (-not $env:EXPO_PUBLIC_SERVER_URL) {
 Write-Host "Server: $env:EXPO_PUBLIC_SERVER_URL"
 $env:NODE_ENV = 'production'
 
-# --- the runtime version (over-the-air updates only reach APKs with the same one). Computed here,
-# before prebuild, exactly the way "eas update" computes it when publishing, and handed to Gradle:
-# left to Gradle, it is computed after prebuild from a different view of the project and doesn't match.
+# --- the runtime version (over-the-air updates only reach APKs with the same one): the fixed
+# "runtimeVersion" of app.json (the same on every computer). Changed by hand, with a new APK, when
+# something native changes. (If app.json ever goes back to a fingerprint policy, it is computed here
+# before prebuild, the way "eas update" does, and handed to Gradle.)
 $runtime = ''
 if (-not $Debug) {
   Step 'Computing the runtime version (for over-the-air updates)'
   if ($useBun) { $rvOut = & bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String }
   else { $rvOut = & npx expo-updates runtimeversion:resolve --platform android --workflow managed 2>$null | Out-String }
-  if ($rvOut -match '"runtimeVersion":"([0-9a-f]+)"') {
+  if ($rvOut -match '"runtimeVersion":"([^"]+)"') {
     $runtime = $Matches[1]
     $env:EXPO_UPDATES_FINGERPRINT_OVERRIDE = $runtime
     Write-Host "Runtime version: $runtime"

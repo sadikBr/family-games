@@ -37,7 +37,7 @@ echo "Server: $EXPO_PUBLIC_SERVER_URL"
 
 # Will the update reach the phones? Only APKs with the same runtime version take it.
 step 'Checking the runtime version'
-runtime=$(bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>/dev/null | grep -o '"runtimeVersion":"[0-9a-f]*"' | head -n1 | cut -d'"' -f4)
+runtime=$(bunx expo-updates runtimeversion:resolve --platform android --workflow managed 2>/dev/null | grep -o '"runtimeVersion":"[^"]*"' | head -n1 | cut -d'"' -f4)
 echo "This update:    ${runtime:-unknown} (the app's profile screen shows the first 6 characters of its own)"
 if [ -f .apk-runtime ]; then
   apk=$(tr -d '[:space:]' < .apk-runtime)
