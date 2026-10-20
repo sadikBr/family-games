@@ -42,6 +42,9 @@ import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
 import { FastGame } from './fast';
 import { BilliardsGame } from './billiards';
+import { EstimateGame } from './estimate';
+import { TruefalseGame } from './truefalse';
+import { FlagsGame } from './flags';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -180,6 +183,12 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <FastGame room={room} view={view} />;
     case 'billiards':
       return <BilliardsGame room={room} view={view} />;
+    case 'estimate':
+      return <EstimateGame room={room} view={view} />;
+    case 'truefalse':
+      return <TruefalseGame room={room} view={view} />;
+    case 'flags':
+      return <FlagsGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

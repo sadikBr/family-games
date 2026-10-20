@@ -53,8 +53,9 @@ test('fusha: no dialect words or phrases in player-facing strings', () => {
       if (!/[\u0621-\u064A]/.test(line)) return;
       const t = line.trim();
       if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return; // comments
-      // exceptions: the tajweed term «مدّ لازم», and the روندا calls «ف جوج» / «ف ثلاثة» (names of the game's own calls, like «روندا»)
-      for (const [w, re] of WORDS) if (re.test(line) && !(w === 'لازم' && /مدّ? لازم|المد اللازم|اللازم/.test(line)) && !(w === 'جوج' && /ف جوج/.test(line))) hits.push(`${f}:${i + 1}: «${w}» → «${DIALECT[w]}»`);
+      // exceptions: the tajweed term «مدّ لازم», the روندا calls «ف جوج» / «ف ثلاثة» (names of the game's own calls, like «روندا»),
+      // and «صحّ» as the name and the button of «صح أم خطأ» (the textbook form «صحّ أم خطأ»)
+      for (const [w, re] of WORDS) if (re.test(line) && !(w === 'لازم' && /مدّ? لازم|المد اللازم|اللازم/.test(line)) && !(w === 'جوج' && /ف جوج/.test(line)) && !(w === 'صح' && /truefalse/.test(f))) hits.push(`${f}:${i + 1}: «${w}» → «${DIALECT[w]}»`);
       for (const p of PHRASES) if (line.includes(p)) hits.push(`${f}:${i + 1}: «${p}»`);
     });
   }
