@@ -518,14 +518,15 @@ test('اسم ولد اسم بنت with «ستوب» off: finishing early waits f
   for (const cat of cats) A.act({ type: 'answer', cat, text: `${L}${cat}x` });
   await settle();
   A.act({ type: 'stop' });
-  await settle();
+  // (checking the answers may load the Hunspell dictionary first)
+  await until(() => host.view<NamesView>()?.done.includes(A.id));
   let v = host.view<NamesView>();
   expect(v.phase).toBe('write'); // nobody is stopped
   expect(v.done).toEqual([A.id]);
   for (const cat of cats) B.act({ type: 'answer', cat, text: `${L}${cat}yy` });
   await settle();
   B.act({ type: 'stop' });
-  await settle();
+  await until(() => host.view<NamesView>()?.phase === 'stopping');
   v = host.view<NamesView>();
   expect(v.phase).toBe('stopping'); // everyone is done
 }, 15000);
