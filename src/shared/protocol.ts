@@ -390,7 +390,14 @@ export interface LudoSettings {
 }
 export interface CodenamesSettings {
   assassin: boolean;
+  /** seconds the spymaster has to give a clue (0 = no limit) */
+  clueSeconds?: number;
+  /** seconds the team has to reveal words after the clue (0 = no limit) */
+  guessSeconds?: number;
 }
+/** the time limits offered for «الكلمات السرية» (0 = no limit) */
+export const CODENAMES_CLUE_SECONDS = [0, 60, 90, 120, 180] as const;
+export const CODENAMES_GUESS_SECONDS = [0, 60, 120, 180, 300] as const;
 export interface DamaSettings {
   flyingKings: boolean;
   backCapture: boolean; // men may capture backwards
@@ -556,7 +563,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   unoflip: { target: 250 },
   hez2: HEZ2_DEFAULTS,
   ludo: { exitOnOne: false, podium: false, quick: false },
-  codenames: { assassin: true },
+  codenames: { assassin: true, clueSeconds: 0, guessSeconds: 0 },
   dama: { flyingKings: true, backCapture: true, maxCapture: true },
   draw: { rounds: 2, seconds: 80 },
   estate: { startCash: 1500, rounds: 15 },
@@ -1015,6 +1022,9 @@ export interface CodenamesView {
   turnNote: { team: 'red' | 'blue'; text: string } | null;
   /** team screen message, e.g. after a team lost its players */
   notice: string | null;
+  /** when the clue / guessing time runs out (null = no limit), and that phase's full time (s) */
+  endsAt?: number | null;
+  seconds?: number;
 }
 
 /** Board: 64 squares, row-major from the top. 1 / 2 = white man / king, -1 / -2 = black man / king. */

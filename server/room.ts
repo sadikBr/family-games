@@ -2,6 +2,8 @@ import type { ServerWebSocket } from 'bun';
 
 import {
   BOT_GAMES,
+  CODENAMES_CLUE_SECONDS,
+  CODENAMES_GUESS_SECONDS,
   type QuizCategory,
   type TriviaCategory,
   DEFAULT_SETTINGS,
@@ -990,6 +992,8 @@ export class Room {
         break;
       case 'codenames':
         this.settings.codenames.assassin = bool(patch.assassin, this.settings.codenames.assassin);
+        if ((CODENAMES_CLUE_SECONDS as readonly unknown[]).includes(patch.clueSeconds)) this.settings.codenames.clueSeconds = patch.clueSeconds as number;
+        if ((CODENAMES_GUESS_SECONDS as readonly unknown[]).includes(patch.guessSeconds)) this.settings.codenames.guessSeconds = patch.guessSeconds as number;
         break;
       case 'dama':
         this.settings.dama.flyingKings = bool(patch.flyingKings, this.settings.dama.flyingKings);

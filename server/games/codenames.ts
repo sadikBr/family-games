@@ -32,6 +32,8 @@ interface State {
   turnNote: { team: Team; text: string; until: number } | null;
   /** shown on the team screen (e.g. a team lost its last players) */
   notice: string | null;
+  /** when the clue / guessing time runs out (null = no limit set) */
+  endsAt: number | null;
 }
 
 /** why the last turn ended stays up this long */
@@ -40,6 +42,13 @@ const TEAM_NAME: Record<Team, string> = { red: 'الفريق الأحمر', blue
 const COLOR_NAME: Record<CodeColor, string> = { red: 'للأحمر', blue: 'للأزرق', neutral: 'محايدة', assassin: 'الكلمة السوداء' };
 
 const other = (t: Team): Team => (t === 'red' ? 'blue' : 'red');
+/** the time limit of the current phase in seconds (0 = none) */
+const limitOf = (s: State) => (s.phase === 'clue' ? (s.settings.clueSeconds ?? 0) : s.phase === 'guess' ? (s.settings.guessSeconds ?? 0) : 0);
+/** start the clock of the phase just entered (or clear it) */
+function startClock(ctx: GameCtx, s: State) {
+  const sec = limitOf(s);
+  s.endsAt = sec > 0 ? ctx.now + sec * 1000 : null;
+}
 const teamOf = (s: State, id: string): Team | null => (s.teams.red.includes(id) ? 'red' : s.teams.blue.includes(id) ? 'blue' : null);
 const left = (s: State, t: Team) => s.key.filter((k, i) => k === t && !s.revealed[i]).length;
 
@@ -71,6 +80,7 @@ function endTurn(ctx: GameCtx, s: State, why: string) {
   s.guessesLeft = 0;
   s.proposals = {};
   s.phase = 'clue';
+  startClock(ctx, s);
 }
 
 function reveal(ctx: GameCtx, s: State, by: string, i: number) {
@@ -81,6 +91,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
   s.proposals = Object.fromEntries(Object.entries(s.proposals).filter(([, v]) => v !== i));
   if (color === 'assassin') {
     s.phase = 'final';
+    s.endsAt = null;
     s.winner = other(s.turn);
     s.reason = 'assassin';
     ctx.fx('boom', by);
@@ -90,6 +101,7 @@ function reveal(ctx: GameCtx, s: State, by: string, i: number) {
   for (const t of ['red', 'blue'] as Team[]) {
     if (left(s, t) === 0) {
       s.phase = 'final';
+      s.endsAt = null;
       s.winner = t;
       s.reason = 'words';
       ctx.fx('win');
@@ -135,6 +147,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       log: [],
       turnNote: null,
       notice: null,
+      endsAt: null,
     };
     ctx.fx('start');
     return s;
@@ -162,6 +175,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
         s.notice = null;
         deal(s);
         s.phase = 'clue';
+        startClock(ctx, s);
         ctx.fx('start');
       }
       return;
@@ -169,6 +183,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
     if (s.phase === 'final') {
       if (a.type === 'again') {
         s.phase = 'teams';
+        s.endsAt = null;
         // the spymaster role moves to the next player of each team
         for (const t of ['red', 'blue'] as Team[]) {
           const list = s.teams[t];
@@ -189,6 +204,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       s.clue = { word, n };
       s.guessesLeft = n === 0 ? 25 : n + 1;
       s.phase = 'guess';
+      startClock(ctx, s);
       s.log.push({ team: s.turn, clue: word, n, picks: [] });
       ctx.fx('reveal');
       // the clue as every screen shows it (the spymaster gives it publicly)
@@ -215,11 +231,25 @@ export const codenames: GameModule<State, CodenamesSettings> = {
   },
 
   tick(ctx, s) {
+    let changed = false;
+    if (s.endsAt !== null && ctx.now >= s.endsAt && (s.phase === 'clue' || s.phase === 'guess')) {
+      // time's up: no clue → the other team plays; guessing → the team's turn ends
+      const team = TEAM_NAME[s.turn];
+      if (s.phase === 'clue') {
+        endTurn(ctx, s, 'انتهى وقت التلميح');
+        ctx.say?.(`انتهى وقت التلميح ل${team.slice(1)}`, undefined, PVOICE.timeUp);
+      } else {
+        endTurn(ctx, s, 'انتهى وقت التخمين');
+        ctx.say?.(`انتهى وقت التخمين ل${team.slice(1)}`, undefined, PVOICE.timeUp);
+      }
+      ctx.fx('buzz');
+      changed = true;
+    }
     if (s.turnNote && ctx.now >= s.turnNote.until) {
       s.turnNote = null;
-      return true;
+      changed = true;
     }
-    return false;
+    return changed;
   },
 
   view(ctx, s, me): CodenamesView {
@@ -247,6 +277,8 @@ export const codenames: GameModule<State, CodenamesSettings> = {
       log: s.log,
       turnNote: s.turnNote ? { team: s.turnNote.team, text: s.turnNote.text } : null,
       notice: s.phase === 'teams' ? s.notice : null,
+      endsAt: s.endsAt,
+      seconds: limitOf(s),
     };
   },
 
@@ -262,6 +294,7 @@ export const codenames: GameModule<State, CodenamesSettings> = {
     const broken = (['red', 'blue'] as Team[]).find((t) => s.teams[t].length < 2 || !s.spymasters[t]);
     if (broken) {
       s.phase = 'teams';
+      s.endsAt = null;
       s.clue = null;
       s.guessesLeft = 0;
       s.proposals = {};

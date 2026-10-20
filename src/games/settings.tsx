@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { client } from '@/lib/client';
 import { MEMORY_SIZES } from '@/shared/memory';
 import { XO_SIZES, inRow } from '@/shared/xo';
-import type { GameId, RoomView } from '@/shared/protocol';
+import { CODENAMES_CLUE_SECONDS, CODENAMES_GUESS_SECONDS, type GameId, type RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
@@ -228,7 +228,29 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
     }
     case 'codenames': {
       const { settings, change } = settingsFor(room, 'codenames');
-      return <Toggle label="الكلمة السوداء (تخسر إذا كشفتها)" value={settings.assassin} editable={editable} onChange={(assassin) => change({ assassin })} />;
+      const secs = (v: number) => ({ 0: 'بلا حد', 60: 'دقيقة', 90: 'دقيقة ونصف', 120: 'دقيقتان', 180: '3 دقائق', 300: '5 دقائق' })[v] ?? `${v} ث`;
+      return (
+        <View style={{ gap: 10 }}>
+          <Toggle label="الكلمة السوداء (تخسر إذا كشفتها)" value={settings.assassin} editable={editable} onChange={(assassin) => change({ assassin })} />
+          <Txt v="bold">وقت القائد للتلميح</Txt>
+          <ChipPicker<string>
+            editable={editable}
+            value={String(settings.clueSeconds ?? 0)}
+            onChange={(v) => change({ clueSeconds: Number(v) })}
+            options={CODENAMES_CLUE_SECONDS.map((v) => ({ key: String(v), label: secs(v) }))}
+          />
+          <Txt v="bold">وقت الفريق للتخمين</Txt>
+          <ChipPicker<string>
+            editable={editable}
+            value={String(settings.guessSeconds ?? 0)}
+            onChange={(v) => change({ guessSeconds: Number(v) })}
+            options={CODENAMES_GUESS_SECONDS.map((v) => ({ key: String(v), label: secs(v) }))}
+          />
+          <Txt v="tiny" color={C.muted}>
+            إذا انتهى وقت التلميح ينتقل الدور إلى الفريق الآخر، وإذا انتهى وقت التخمين ينتهي دور الفريق.
+          </Txt>
+        </View>
+      );
     }
     case 'dama': {
       const { settings, change } = settingsFor(room, 'dama');

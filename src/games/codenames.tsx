@@ -11,7 +11,7 @@ import { useAccent } from '@/ui/accent';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
 import { Field } from '@/ui/field';
-import { Confetti } from '@/ui/fun';
+import { Confetti, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { li } from '@/shared/li';
 
@@ -217,6 +217,7 @@ export function CodenamesGame({ room, view }: { room: RoomView; view: CodenamesV
           </Txt>
         </Animated.View>
       ) : null}
+      {view.endsAt && view.seconds ? <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={iGiveClue || iGuess} /> : null}
       <View style={[styles.banner, { backgroundColor: alpha(TEAM[view.turn].color, 0.22), borderColor: TEAM[view.turn].color }]}>
         {view.clue ? (
           <>
