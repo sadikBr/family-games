@@ -13,11 +13,11 @@
  */
 import { setStatusBarHidden } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, FadeIn, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import { GameArt } from '@/art/game-art';
 import { client } from '@/lib/client';
@@ -166,7 +166,7 @@ function infoOf(view: BilliardsView, h: Helpers, mine: boolean, pocket: number |
   const n = view.note;
   if (view.phase === 'aim' && mine) {
     const call = view.needCall && pocket === null;
-    let text = 'اسحب على الطاولة لتدوير العصا، أو المس كرة للتصويب نحوها، ثم اسحب شريط القوة واتركه';
+    let text = 'اسحب على الطاولة لتدوير العصا، أو المس كرة للتصويب نحوها، ثم اسحب شريط القوة جانباً واتركه';
     let sub: string | undefined;
     if (call) text = 'اختر جيب الكرة 8: اضغط على الجيب';
     else if (view.inHand === 'kitchen') text = 'الكسر: اسحب الكرة البيضاء خلف الخط، ثم صوّب';
@@ -315,41 +315,107 @@ function FineBtn({ dir, onStep }: { dir: 1 | -1; onStep: (d: number) => void }) 
   );
 }
 
-const SPIN_LABEL: Record<string, string> = { '-1': 'سحب قوي', '-0.5': 'سحب', '0': 'عادية', '0.5': 'تتبع', '1': 'تتبع قوي' };
+function spinLabel(spin: number) {
+  if (spin > 0.6) return 'تتبع قوي';
+  if (spin > 0.15) return 'تتبع';
+  if (spin < -0.6) return 'سحب قوي';
+  if (spin < -0.15) return 'سحب';
+  return 'عادية';
+}
 
-function SpinPicker({ spin, setSpin, d = 34 }: { spin: number; setSpin: (s: number) => void; d?: number }) {
+/** A cue ball with a red dot where the tip will strike it (spin −1 … 1 = bottom … top). */
+function HitBall({ d, spin }: { d: number; spin: number }) {
   return (
-    <Pressable
-      accessibilityRole="adjustable"
-      accessibilityLabel={`نوع الضربة: ${SPIN_LABEL[String(spin)]}`}
-      onPress={(e) => {
-        haptic.tap();
-        const up = e.nativeEvent.locationY < d / 2;
-        setSpin(Math.max(-1, Math.min(1, spin + (up ? 0.5 : -0.5))));
-      }}
-      style={{ alignItems: 'center', gap: 2 }}>
-      <Svg width={d} height={d}>
-        <Circle cx={d / 2} cy={d / 2} r={d / 2 - 1} fill="#F7F3E8" stroke="rgba(0,0,0,0.4)" />
-        <Path d={`M3 ${d / 2} H${d - 3} M${d / 2} 3 V${d - 3}`} stroke="rgba(0,0,0,0.12)" strokeWidth={1} />
-        <Circle cx={d / 2} cy={d / 2 - spin * (d / 2) * 0.55} r={4.2} fill={C.red} />
-      </Svg>
-      <Txt v="tiny" center color={C.muted} numberOfLines={1} style={{ fontSize: 10, lineHeight: 13 }}>
-        {SPIN_LABEL[String(spin)]}
-      </Txt>
-    </Pressable>
+    <Svg width={d} height={d}>
+      <Defs>
+        <RadialGradient id={`hb${d}`} cx="38%" cy="32%" r="70%">
+          <Stop offset="0" stopColor="#FFFFFF" />
+          <Stop offset="0.65" stopColor="#ECE6D6" />
+          <Stop offset="1" stopColor="#B9B09A" />
+        </RadialGradient>
+      </Defs>
+      <Circle cx={d / 2} cy={d / 2} r={d / 2 - 1} fill={`url(#hb${d})`} stroke="rgba(0,0,0,0.35)" />
+      <Path d={`M${d * 0.12} ${d / 2} H${d * 0.88} M${d / 2} ${d * 0.12} V${d * 0.88}`} stroke="rgba(0,0,0,0.13)" strokeWidth={1} />
+      <Circle cx={d / 2} cy={d / 2 - spin * (d / 2) * 0.62} r={Math.max(3.6, d * 0.075)} fill={C.red} stroke="rgba(0,0,0,0.25)" />
+    </Svg>
   );
 }
 
 /**
- * Pull and let go: the stroke (down the vertical bar beside the table; to the left along the full-screen
- * bar). A pull of almost nothing cancels.
+ * The hit point: a small cue ball in the bar; tapping it opens a large one to touch (or slide on)
+ * where the cue tip strikes — high for follow, low for draw (the ball returns toward the cue).
  */
-function PowerBar({ length, horizontal = false, onPull, onShoot, disabled }: { length: number; horizontal?: boolean; onPull: (p: number) => void; onShoot: (p: number) => void; disabled: boolean }) {
+function HitPointBtn({ spin, setSpin, disabled }: { spin: number; setSpin: (s: number) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const D = 210;
+  const fromY = (y: number) => {
+    const v = -(y - D / 2) / ((D / 2) * 0.62);
+    return Math.max(-1, Math.min(1, Math.round(v * 4) / 4));
+  };
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`نقطة ضرب البيضاء: ${spinLabel(spin)}`}
+        disabled={disabled}
+        onPress={() => {
+          haptic.tap();
+          setOpen(true);
+        }}
+        style={({ pressed }) => [styles.colBtn, pressed && { backgroundColor: C.surfaceStrong }, disabled && { opacity: 0.45 }]}>
+        <HitBall d={28} spin={spin} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={styles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} accessibilityLabel="إغلاق" />
+          <View style={styles.sheet}>
+            <Txt v="title" center>
+              نقطة ضرب البيضاء
+            </Txt>
+            <View
+              accessibilityRole="adjustable"
+              accessibilityLabel={`نقطة الضرب: ${spinLabel(spin)}`}
+              accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+              onAccessibilityAction={(e) => setSpin(Math.max(-1, Math.min(1, spin + (e.nativeEvent.actionName === 'increment' ? 0.25 : -0.25))))}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+              onResponderGrant={(e) => setSpin(fromY(e.nativeEvent.locationY))}
+              onResponderMove={(e) => setSpin(fromY(e.nativeEvent.locationY))}
+              style={{ width: D, height: D, alignSelf: 'center' }}>
+              <View pointerEvents="none">
+                <HitBall d={D} spin={spin} />
+              </View>
+            </View>
+            <Txt v="bold" center color={C.yellow}>
+              {spinLabel(spin)}
+            </Txt>
+            <Txt v="tiny" center color={C.muted}>
+              {'أعلى الكرة: تتبع البيضاء الكرة بعد الاصطدام.\nأسفل الكرة: ترجع البيضاء إلى الخلف.'}
+            </Txt>
+            <Row gap={10} style={{ marginTop: 6 }}>
+              <Btn flex size="md" ghost label="الوسط" onPress={() => setSpin(0)} />
+              <Btn flex size="md" label="تم" onPress={() => setOpen(false)} />
+            </Row>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+/** finger travel (px) for full power */
+const PULL_PX = 170;
+
+/**
+ * Power: press on the pad and slide sideways (either way), then let go to shoot; a slide of almost
+ * nothing cancels. The pad sits in the middle of the bar, away from the screen's edges, so the slide
+ * never starts where the phone's own "back" swipe does.
+ */
+function PowerPad({ length, onPull, onShoot, disabled }: { length: number; onPull: (p: number) => void; onShoot: (p: number) => void; disabled: boolean }) {
   const [p, setP] = useState(0);
   const at0 = useRef(0);
   const cur = useRef(0);
   const hold = useScrollLock();
-  const track = horizontal ? length : length - 26;
   const set = (v: number) => {
     cur.current = v;
     setP(v);
@@ -364,10 +430,10 @@ function PowerBar({ length, horizontal = false, onPull, onShoot, disabled }: { l
     .shouldCancelWhenOutside(false)
     .onBegin((e) => {
       hold(true);
-      at0.current = horizontal ? e.x : e.y;
+      at0.current = e.absoluteX;
       set(0);
     })
-    .onUpdate((e) => set(Math.max(0, Math.min(1, (horizontal ? at0.current - e.x : e.y - at0.current) / (track * 0.92)))))
+    .onUpdate((e) => set(Math.max(0, Math.min(1, Math.abs(e.absoluteX - at0.current) / PULL_PX))))
     .onFinalize(() => {
       hold(false);
       const v = cur.current;
@@ -378,35 +444,18 @@ function PowerBar({ length, horizontal = false, onPull, onShoot, disabled }: { l
       else onPull(0);
     });
   /* eslint-enable react-hooks/refs */
-  const fill = p * track;
+  const fill = p * length;
   const color = p > 0.75 ? C.red : p > 0.4 ? C.orange : C.yellow;
-  const label = `القوة ${Math.round(p * 100)}٪ — ${horizontal ? 'اسحب إلى اليسار' : 'اسحب للأسفل'} واترك للضرب`;
-  if (horizontal) {
-    return (
-      <GestureDetector gesture={pan}>
-        <View accessibilityLabel={label} style={{ width: length, height: 44, justifyContent: 'center', opacity: disabled ? 0.45 : 1 }}>
-          <View style={[styles.powerTrack, { width: length, height: 28 }]}>
-            <View style={[styles.powerFillH, { width: fill, backgroundColor: color }]} />
-            <View style={[styles.powerGripH, { right: Math.max(0, fill - 6) }]} />
-            <View style={styles.powerTextH} pointerEvents="none">
-              <Txt v="tiny" color={p > 0 ? C.yellow : C.muted} style={{ fontSize: 11, lineHeight: 16 }}>
-                {p > 0 ? `${num(Math.round(p * 100))}٪` : 'القوة ←'}
-              </Txt>
-            </View>
-          </View>
-        </View>
-      </GestureDetector>
-    );
-  }
   return (
     <GestureDetector gesture={pan}>
-      <View accessibilityLabel={label} style={[styles.power, { height: length, opacity: disabled ? 0.45 : 1 }]}>
-        <Txt v="tiny" center color={p > 0 ? C.yellow : C.muted} style={{ fontSize: 11, lineHeight: 16 }}>
-          {p > 0 ? `${num(Math.round(p * 100))}٪` : 'القوة'}
-        </Txt>
-        <View style={[styles.powerTrack, { height: track }]}>
-          <View style={[styles.powerFill, { height: fill, backgroundColor: color }]} />
-          <View style={[styles.powerGrip, { top: Math.max(0, fill - 6) }]} />
+      <View accessibilityLabel={`القوة ${Math.round(p * 100)}٪ — اسحب جانباً واترك للضرب`} style={{ width: length, height: 44, justifyContent: 'center', opacity: disabled ? 0.45 : 1 }}>
+        <View style={[styles.powerTrack, { width: length, height: 30 }]}>
+          <View style={[styles.powerFillH, { width: fill, backgroundColor: color }]} />
+          <View style={styles.powerTextH} pointerEvents="none">
+            <Txt v="tiny" center color={p > 0 ? C.text : C.muted} style={{ fontSize: 11, lineHeight: 16 }}>
+              {p > 0 ? `${num(Math.round(p * 100))}٪` : '⟵ القوة ⟶'}
+            </Txt>
+          </View>
         </View>
       </View>
     </GestureDetector>
@@ -475,8 +524,10 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
     const availH = winH - insets.top - insets.bottom - BAR - 10;
     tw = Math.floor(Math.min(availW, availH / ratio));
   } else {
-    const byW = Math.min(cw - COL - GAP, 470);
-    const th = Math.min(byW * ratio, Math.max(winH - 252, byW * ratio * 0.8));
+    // the controls are in a bar under the table (like full screen), so the table can use the width
+    const byW = Math.min(cw, 470);
+    // the table and its bar fit the screen without scrolling (short phones: full screen gives a bigger table)
+    const th = Math.min(byW * ratio, Math.max(winH - 252 - BAR - 8, 300));
     tw = Math.floor(th / ratio);
   }
   const tableH = tw * ratio;
@@ -568,6 +619,7 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
 
   const stepAngle = (d: number) => update({ angle: latest.current.angle + d * FINE });
   const callBlocked = view.needCall && a.pocket === null;
+  const barW = full ? tw : Math.min(cw, Math.max(tw, 300));
   const fullBtn = (
     <IconBtn icon={full ? 'compress' : 'expand'} size={40} label={full ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'} onPress={() => setFull(!full)} />
   );
@@ -589,46 +641,32 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
       )}
 
       <View style={full ? { height: winH - insets.top - insets.bottom, alignItems: 'center', justifyContent: 'center', gap: 6 } : null}>
-        <View style={{ flexDirection: 'row', direction: 'ltr', alignSelf: 'center', gap: GAP }}>
+        <View style={{ alignSelf: 'center' }}>
           <BilliardsTable view={view} width={tw} aiming={aiming} />
-          {full ? null : mine ? (
-            <View style={{ width: COL, height: tableH, alignItems: 'center', gap: 8 }}>
-              <SpinPicker spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
-              <FineBtn dir={-1} onStep={stepAngle} />
-              <FineBtn dir={1} onStep={stepAngle} />
-              <PowerBar length={Math.max(110, tableH - 34 - 16 - 3 * 40 - 4 * 8)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={callBlocked} />
-              {fullBtn}
-            </View>
-          ) : (
-            <View style={{ width: COL, height: tableH, alignItems: 'center', gap: 8 }}>
-              <Tray view={view} height={view.phase === 'final' ? tableH : tableH - 48} />
-              {view.phase === 'final' ? null : fullBtn}
-            </View>
-          )}
         </View>
         {full ? (
-          <>
-            <View style={{ position: 'absolute', top: (winH - insets.top - insets.bottom - tableH - BAR - 6) / 2, alignSelf: 'center', width: tw, alignItems: 'center' }} pointerEvents="box-none">
-              <View style={{ marginTop: Math.max(1, (RAIL * (tw / TABLE_W) - 21) / 2) }} pointerEvents="none">
-                <TurnPill view={view} h={h} />
-              </View>
-              <Toast info={info} top={RAIL * (tw / TABLE_W) + 30} width={tw} />
+          <View style={{ position: 'absolute', top: (winH - insets.top - insets.bottom - tableH - BAR - 6) / 2, alignSelf: 'center', width: tw, alignItems: 'center' }} pointerEvents="box-none">
+            <View style={{ marginTop: Math.max(1, (RAIL * (tw / TABLE_W) - 21) / 2) }} pointerEvents="none">
+              <TurnPill view={view} h={h} />
             </View>
-            <View style={[styles.bar, { width: tw }]}>
-              {fullBtn}
-              {mine ? (
-                <>
-                  <SpinPicker d={28} spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
-                  <FineBtn dir={-1} onStep={stepAngle} />
-                  <FineBtn dir={1} onStep={stepAngle} />
-                  <PowerBar horizontal length={Math.max(90, tw - 40 - 40 - 2 * 40 - 4 * 6)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={callBlocked} />
-                </>
-              ) : (
-                <Tray view={view} height={40} width={tw - 46} />
-              )}
-            </View>
-          </>
+            <Toast info={info} top={RAIL * (tw / TABLE_W) + 30} width={tw} />
+          </View>
         ) : null}
+        {view.phase === 'final' && !full ? null : (
+          <View style={[styles.bar, { width: barW, alignSelf: 'center' }]}>
+            {fullBtn}
+            {mine ? (
+              <>
+                <FineBtn dir={-1} onStep={stepAngle} />
+                <PowerPad length={Math.max(70, barW - 4 * 40 - 4 * 6)} onPull={(p) => pull.set(p)} onShoot={shoot} disabled={callBlocked} />
+                <FineBtn dir={1} onStep={stepAngle} />
+                <HitPointBtn spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
+              </>
+            ) : (
+              <Tray view={view} height={40} width={barW - 46} />
+            )}
+          </View>
+        )}
       </View>
 
       {full ? null : (
@@ -718,9 +756,11 @@ const styles = StyleSheet.create({
   powerTrack: { width: 30, borderRadius: 10, backgroundColor: C.bg3, borderWidth: 1.5, borderColor: C.borderStrong, overflow: 'hidden' },
   powerFill: { position: 'absolute', left: 0, right: 0, top: 0 },
   powerGrip: { position: 'absolute', left: 2, right: 2, height: 12, borderRadius: 4, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)' },
-  powerFillH: { position: 'absolute', top: 0, bottom: 0, right: 0 },
+  powerFillH: { position: 'absolute', top: 0, bottom: 0, left: 0 },
   powerGripH: { position: 'absolute', top: 2, bottom: 2, width: 12, borderRadius: 4, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: 'rgba(0,0,0,0.35)' },
-  powerTextH: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 10 },
+  powerTextH: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(5,6,20,0.72)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  sheet: { width: '100%', maxWidth: 340, borderRadius: 20, backgroundColor: C.bg2, borderWidth: 1, borderColor: C.border, padding: 16, gap: 10 },
   bar: { height: BAR, flexDirection: 'row', direction: 'ltr', alignItems: 'center', gap: 6 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingStart: 2, paddingEnd: 8, height: 22, borderRadius: 11, backgroundColor: 'rgba(16,18,41,0.82)', borderWidth: 1 },
   toast: { position: 'absolute', alignSelf: 'center', borderRadius: 12, borderWidth: 1, backgroundColor: 'rgba(16,18,41,0.86)', paddingVertical: 4, paddingHorizontal: 12 },
