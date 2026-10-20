@@ -7,6 +7,8 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 export type IconName =
   | 'back'
   | 'chevron'
+  /** a small chevron pointing left: «more», onward in right-to-left */
+  | 'forward'
   | 'leaf'
   | 'globe'
   | 'box'
@@ -324,6 +326,8 @@ function shapes(name: IconName, c: string) {
       return <Path d="M12 4v15M6 13l6 6 6-6" {...s} />;
     case 'chevron':
       return <Path d="M6.5 9.5l5.5 5.5 5.5-5.5" {...s} />;
+    case 'forward':
+      return <Path d="M14.5 6.5l-5.5 5.5 5.5 5.5" {...s} />;
     case 'leaf':
       return (
         <>

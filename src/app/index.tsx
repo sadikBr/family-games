@@ -1,51 +1,34 @@
 /**
- * Home. Its one job: get the family into a game fast. From the top: who you are, a greeting, the
- * two ways in (join a room by its code, or go back to the last one), «مجموعاتي» — the family's
- * groups, each with its «لنلعب» button — «لعبة اليوم» — one game picked
- * for the day — the games you played recently, then every game, with search, a «كم عددكم؟» player
- * count and category chips. Tiles take their game's colour; the star keeps a game in favourites.
+ * Home. Its one job: get the family into a game fast, without showing everything at once.
+ * From the top: who you are (and search, sound), a one-line greeting, the two ways in — «العب»
+ * (choose a game and open a room) and «ادخل برمز» (a room's or a group's code) — the way back to the
+ * last room, a three-step welcome for a first visit, the family's groups, then the games as shelves
+ * that scroll sideways: played recently, favourites, «مقترحة لكم» (with «لعبة اليوم»), and one shelf per
+ * category with «عرض الكل». A tap on a game opens its short sheet with «ابدأ».
  */
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { GameArt, HeroArt } from '@/art/game-art';
+import { HeroArt } from '@/art/game-art';
 import { Icon, type IconName } from '@/art/icons';
-import { GAMES, GAME_GROUPS, GAME_ORDER, type GameMeta } from '@/games/meta';
+import { GAMES, GAME_GROUPS } from '@/games/meta';
 import { GroupsSection } from '@/groups/group-card';
-import { JoinGroupModal } from '@/groups/group-forms';
+import { CodeSheet } from '@/home/code-sheet';
+import { GameSheet } from '@/home/game-sheet';
+import { Shelf, dayNumber, suggestions } from '@/home/games';
+import { Welcome } from '@/home/welcome';
 import { client, useClient } from '@/lib/client';
-import { toggleFavorite, useGamePrefs } from '@/lib/prefs';
+import { useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
 import { haptic, isMuted, onMuteChange, setMuted } from '@/lib/sfx';
 import { applyUpdate, useUpdateReady } from '@/lib/updates';
-import { norm } from '@/shared/arabic';
-import { BOT_GAMES, type GameId } from '@/shared/protocol';
-import { C, F, alpha, shade } from '@/theme';
+import type { GameId } from '@/shared/protocol';
+import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { Btn, IconBtn } from '@/ui/btn';
+import { IconBtn } from '@/ui/btn';
 import { Screen, useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
-
-const GAP = 10;
-
-function startGame(id: GameId) {
-  haptic.medium();
-  client.createRoom(id);
-  router.push('/room');
-}
-
-// «3 فأكثر» rather than «3+», which flips to «+3» in right-to-left text
-const playersLabel = (g: GameMeta) => (g.maxPlayers && g.maxPlayers !== g.minPlayers ? num(`${g.minPlayers}–${g.maxPlayers}`) : g.maxPlayers ? num(`${g.minPlayers}`) : `${num(`${g.minPlayers}`)} فأكثر`);
-
-/** «كم عددكم؟»: does a game work for this many people (bots fill the missing seats)? */
-function fits(g: GameMeta, n: number | null) {
-  if (n === null) return true;
-  const max = g.maxPlayers ?? 99;
-  if (n > max) return false;
-  return n >= g.minPlayers || BOT_GAMES.includes(g.id);
-}
 
 function greeting(hour: number) {
   if (hour >= 5 && hour < 12) return 'صباح الخير';
@@ -53,207 +36,59 @@ function greeting(hour: number) {
   return 'سهرة سعيدة';
 }
 
-/* ------------------------------------------------------------------ */
-
-function GameTile({ game, width, fav }: { game: GameMeta; width: number; fav: boolean }) {
-  const art = Math.min(92, width * 0.56);
-  return (
-    <Pressable
-      onPress={() => startGame(game.id)}
-      accessibilityRole="button"
-      accessibilityLabel={`${game.title} — ${game.tagline}`}
-      style={({ pressed }) => [styles.tile, { width, backgroundColor: shade(game.color, -0.62), borderColor: alpha(game.color, 0.35) }, pressed && styles.pressed]}>
-      <View style={[styles.stage, { width: art + 18, height: art + 18, borderRadius: (art + 18) / 2, backgroundColor: alpha(game.color, 0.22) }]}>
-        <GameArt id={game.id} size={art} />
-      </View>
-      <Txt v="h3" center numberOfLines={1} style={{ marginTop: 4 }}>
-        {game.title}
-      </Txt>
-      <Txt v="tiny" center color={C.muted} numberOfLines={2} style={{ minHeight: 32, lineHeight: 16 }}>
-        {game.tagline}
-      </Txt>
-      <Row gap={6} center style={{ marginTop: 4 }}>
-        <View style={styles.meta}>
-          <Icon name="users" size={12} color={C.muted} />
-          <Txt v="tiny" color={C.muted}>
-            {playersLabel(game)}
-          </Txt>
-        </View>
-        {BOT_GAMES.includes(game.id) ? (
-          <View style={styles.meta} accessibilityLabel="يمكن اللعب مع البوتات">
-            <Icon name="bot" size={12} color={C.muted} />
-          </View>
-        ) : null}
-      </Row>
-      <Pressable
-        onPress={() => {
-          haptic.tap();
-          toggleFavorite(game.id);
-        }}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={fav ? `أزل ${game.title} من المفضلة` : `أضف ${game.title} إلى المفضلة`}
-        style={styles.star}>
-        <Icon name={fav ? 'starFull' : 'star'} size={20} color={fav ? C.yellow : alpha('#FFFFFF', 0.45)} />
-      </Pressable>
-    </Pressable>
-  );
-}
-
-function Grid({ ids, tileWidth, favorites }: { ids: GameId[]; tileWidth: number; favorites: GameId[] }) {
-  return (
-    <View style={styles.grid}>
-      {ids.map((id) => (
-        <GameTile key={id} game={GAMES[id]} width={tileWidth} fav={favorites.includes(id)} />
-      ))}
-    </View>
-  );
-}
-
-/** «لعبة اليوم»: one game, big, to try something new. */
-function Featured({ game }: { game: GameMeta }) {
-  const base = shade(game.color, -0.5);
-  return (
-    <Animated.View entering={FadeInDown.duration(380)}>
-      <Pressable
-        onPress={() => startGame(game.id)}
-        accessibilityRole="button"
-        accessibilityLabel={`لعبة اليوم: ${game.title}`}
-        style={({ pressed }) => [styles.featured, { backgroundColor: base, borderColor: alpha(game.color, 0.6) }, pressed && styles.pressed]}>
-        <View style={[styles.featuredBurst, { backgroundColor: alpha(game.color, 0.35) }]} />
-        <GameArt id={game.id} size={108} />
-        <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-          <Row gap={6}>
-            <Icon name="sparkle" size={15} color={C.yellow} />
-            <Txt v="tiny" color={C.yellow}>
-              لعبة اليوم
-            </Txt>
-          </Row>
-          <Txt style={styles.featuredTitle} numberOfLines={1}>
-            {game.title}
-          </Txt>
-          <Txt v="small" color={alpha('#FFFFFF', 0.82)} numberOfLines={2}>
-            {game.tagline}
-          </Txt>
-          <Row gap={8} wrap style={{ marginTop: 6 }}>
-            <View style={[styles.playBtn, { backgroundColor: game.color }]}>
-              <Icon name="play" size={14} color="#fff" />
-              <Txt v="bold" color="#fff" style={{ fontSize: 14 }}>
-                العب الآن
-              </Txt>
-            </View>
-            <View style={styles.meta}>
-              <Icon name="users" size={12} color={alpha('#FFFFFF', 0.75)} />
-              <Txt v="tiny" color={alpha('#FFFFFF', 0.75)}>
-                {playersLabel(game)}
-              </Txt>
-            </View>
-          </Row>
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-function RecentRow({ ids }: { ids: GameId[] }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 2 }}>
-      {ids.map((id) => {
-        const g = GAMES[id];
-        return (
-          <Pressable
-            key={id}
-            onPress={() => startGame(id)}
-            accessibilityRole="button"
-            accessibilityLabel={`العب ${g.title} مرة أخرى`}
-            style={({ pressed }) => [styles.recent, { backgroundColor: shade(g.color, -0.62), borderColor: alpha(g.color, 0.35) }, pressed && styles.pressed]}>
-            <GameArt id={id} size={52} />
-            <Txt v="tiny" center numberOfLines={1} style={{ fontFamily: F.bold }}>
-              {g.title}
-            </Txt>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-function Chip({ label, icon, active, onPress }: { label: string; icon?: IconName; active: boolean; onPress: () => void }) {
+/** One of the two ways in: «العب» (solid saffron) or «ادخل برمز» (quiet). */
+function Action({ icon, title, sub, primary, onPress }: { icon: IconName; title: string; sub: string; primary?: boolean; onPress: () => void }) {
+  const fg = primary ? C.ink : C.text;
+  // the narrowest phones: a plain icon (no disc) and a slightly smaller title, so «ادخل برمز» fits
+  const narrow = useContentWidth() < 320;
   return (
     <Pressable
       onPress={() => {
-        haptic.tap();
+        haptic.light();
         onPress();
       }}
       accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={[styles.chip, active && styles.chipOn]}>
-      {icon ? <Icon name={icon} size={14} color={active ? C.ink : C.muted} /> : null}
-      <Txt v="bold" color={active ? C.ink : C.text} style={{ fontSize: 13.5 }}>
-        {label}
+      accessibilityLabel={`${title}: ${sub}`}
+      style={({ pressed }) => [styles.action, primary ? styles.actionPrimary : styles.actionQuiet, pressed && styles.pressed]}>
+      <Row gap={narrow ? 6 : 8}>
+        <View style={[styles.actionIcon, narrow ? styles.actionIconNarrow : { backgroundColor: primary ? alpha(C.ink, 0.14) : alpha(C.yellow, 0.14) }]}>
+          <Icon name={icon} size={18} color={primary ? C.ink : C.yellow} />
+        </View>
+        <Txt style={[styles.actionTitle, narrow && styles.actionTitleNarrow, { color: fg }]} numberOfLines={1}>
+          {title}
+        </Txt>
+      </Row>
+      <Txt v="tiny" color={primary ? alpha(C.ink, 0.75) : C.muted} numberOfLines={1}>
+        {sub}
       </Txt>
     </Pressable>
   );
 }
 
-const COUNTS: (number | null)[] = [null, 2, 3, 4, 5, 6, 8];
-
-/** One of the two quick ways in (room code / group code): a calm tile, the icon carries the colour. */
-function QuickTile({ icon, title, sub, onPress, compact }: { icon: IconName; title: string; sub: string; onPress: () => void; compact?: boolean }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.quick, pressed && styles.pressed]}>
-      <View style={styles.quickIcon}>
-        <Icon name={icon} size={20} color={C.yellow} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Txt v="bold" numberOfLines={2} style={{ lineHeight: 22 }}>
-          {title}
-        </Txt>
-        {compact ? null : (
-          <Txt v="tiny" color={C.dim} numberOfLines={1}>
-            {sub}
-          </Txt>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
 export default function Home() {
   const { profile, isNew, loaded } = useProfile();
-  const { lastCode } = useClient();
+  const { lastCode, groups } = useClient();
   const updateReady = useUpdateReady();
-  const { favorites, recent } = useGamePrefs();
+  const prefs = useGamePrefs();
+  const { favorites, recent } = prefs;
   const [muted, setMutedState] = useState(isMuted());
-  const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<string>('all'); // 'all' | 'fav' | group title
-  const [count, setCount] = useState<number | null>(null);
-  const [joiningGroup, setJoiningGroup] = useState(false);
-  // read once per visit: the greeting and the game of the day
+  const [entering, setEntering] = useState(false);
+  const [sheet, setSheet] = useState<GameId | null>(null);
+  // read once per visit: the greeting and the day's suggestions
   const [now] = useState(() => new Date());
   const contentWidth = useContentWidth();
-  const cols = contentWidth >= 500 ? 3 : 2;
-  const tileWidth = Math.floor((contentWidth - GAP * (cols - 1)) / cols);
   useEffect(() => onMuteChange(setMutedState), []);
 
   if (loaded && isNew) return <Redirect href="/profile?first=1" />;
 
-  const day = Math.floor(now.getTime() / 86_400_000);
-  const featured = GAMES[GAME_ORDER[(day * 7) % GAME_ORDER.length]];
-  const q = norm(query.trim());
-  const searching = q.length > 0;
-  const filtered = group !== 'all' || count !== null || searching;
-  const match = (id: GameId) => {
-    const g = GAMES[id];
-    if (!fits(g, count)) return false;
-    if (searching && !norm(`${g.title} ${g.tagline}`).includes(q)) return false;
-    return true;
-  };
-  const favIds = GAME_ORDER.filter((id) => favorites.includes(id));
+  const day = dayNumber(now);
+  const picks = suggestions(day);
   const recentIds = recent.filter((id) => GAMES[id]).slice(0, 8);
-  const flatIds = (group === 'fav' ? favIds : group === 'all' ? GAME_ORDER : (GAME_GROUPS.find((g) => g.title === group)?.games ?? [])).filter(match);
+  const favIds = favorites.filter((id) => GAMES[id]);
+  const inGroups = !!groups?.length;
+  // the welcome: until «فهمت», and not once a game was played on this phone
+  const welcome = prefs.loaded && !prefs.welcomed && recentIds.length === 0;
+  const seeAll = (group: string) => router.push({ pathname: '/games', params: { group } });
 
   return (
     <Screen
@@ -261,27 +96,23 @@ export default function Home() {
         <Row style={styles.top}>
           <Pressable onPress={() => router.push('/profile')} style={styles.profile} accessibilityRole="button" accessibilityLabel="ملفي">
             <Avatar player={profile} size={34} />
-            <Txt v="bold" numberOfLines={1} style={{ maxWidth: 140 }}>
+            <Txt v="bold" numberOfLines={1} style={{ maxWidth: contentWidth < 320 ? 96 : 140 }}>
               {profile.name || 'لاعب'}
             </Txt>
             <Icon name="edit" size={13} color={C.dim} />
           </Pressable>
           <View style={{ flex: 1 }} />
+          <IconBtn icon="search" size={40} onPress={() => router.push({ pathname: '/games', params: { search: '1' } })} label="ابحث عن لعبة" />
           <IconBtn icon={muted ? 'mute' : 'sound'} size={40} onPress={() => setMuted(!muted)} label={muted ? 'شغّل الصوت' : 'اكتم الصوت'} />
         </Row>
       }>
-      {/* who, and the two ways in */}
-      <View style={styles.hello}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Txt style={styles.helloTitle} numberOfLines={2}>
-            {greeting(now.getHours())}{profile.name ? ` يا ${profile.name}` : ''}
-          </Txt>
-          <Txt v="small" color={C.muted}>
-            ألعاب العائلة — كلٌّ يلعب من هاتفه
-          </Txt>
-        </View>
-        <HeroArt width={Math.min(120, contentWidth * 0.32)} />
-      </View>
+      <Row gap={8} style={styles.hello}>
+        <Txt style={styles.helloTitle} numberOfLines={1}>
+          {greeting(now.getHours())}
+          {profile.name ? ` يا ${profile.name}` : ''}
+        </Txt>
+        <HeroArt width={contentWidth < 340 ? 56 : 66} />
+      </Row>
 
       {updateReady ? (
         // a newer version of the app was downloaded (over the air): one tap to switch to it
@@ -293,7 +124,7 @@ export default function Home() {
               اضغط لإعادة التشغيل عليها (تُستعمل تلقائياً في المرة القادمة)
             </Txt>
           </View>
-          <Icon name="chevron" size={16} color={C.dim} />
+          <Icon name="forward" size={16} color={C.dim} />
         </Pressable>
       ) : null}
 
@@ -309,130 +140,41 @@ export default function Home() {
           <Txt v="bold" style={{ flex: 1 }}>
             ارجع إلى الغرفة {num(lastCode)}
           </Txt>
-          <Icon name="chevron" size={16} color={C.dim} />
+          <Icon name="forward" size={16} color={C.dim} />
         </Pressable>
       ) : null}
 
-      {/* the two ways in with a code: a room (4 digits) or a group (6 letters) */}
-      <Row gap={GAP}>
-        <QuickTile icon="key" title="ادخل غرفة" sub="برمز من 4 أرقام" compact={contentWidth < 340} onPress={() => router.push('/join')} />
-        <QuickTile icon="users" title="انضم إلى مجموعة" sub="برمز من 6 حروف" compact={contentWidth < 340} onPress={() => setJoiningGroup(true)} />
+      {/* the two ways in */}
+      <Row gap={10} style={{ alignItems: 'stretch' }}>
+        <Action primary icon="play" title="العب" sub="اختر لعبة وافتح غرفة" onPress={() => router.push('/games')} />
+        <Action icon="key" title="ادخل برمز" sub="غرفة أو مجموعة" onPress={() => setEntering(true)} />
       </Row>
-      <JoinGroupModal visible={joiningGroup} onClose={() => setJoiningGroup(false)} />
+      <CodeSheet visible={entering} onClose={() => setEntering(false)} />
 
-      <GroupsSection />
+      {welcome ? <Welcome /> : null}
 
-      {!filtered ? <Featured game={featured} /> : null}
+      {inGroups ? <GroupsSection /> : null}
 
-      {!filtered && recentIds.length ? (
-        <View style={{ gap: 8 }}>
-          <Txt v="h2">لعبتموها مؤخراً</Txt>
-          <RecentRow ids={recentIds} />
-        </View>
+      {recentIds.length ? <Shelf title="لعبتموها مؤخراً" icon="clock" ids={recentIds} favorites={favorites} onOpen={setSheet} /> : null}
+      {favIds.length ? (
+        <Shelf title="المفضلة" icon="starFull" iconColor={C.yellow} ids={favIds} favorites={favorites} onOpen={setSheet} onSeeAll={favIds.length > 3 ? () => seeAll('fav') : undefined} />
       ) : null}
+      <Shelf title="مقترحة لكم" icon="sparkle" iconColor={C.yellow} ids={picks} featured={picks[0]} favorites={favorites} onOpen={setSheet} />
 
-      {/* browse */}
-      <View style={{ gap: 10, marginTop: 4 }}>
-        <Row gap={8} style={{ justifyContent: 'space-between' }}>
-          <Txt v="h2">كل الألعاب</Txt>
-          <Txt v="tiny" color={C.dim}>
-            {num(String(GAME_ORDER.length))} لعبة
-          </Txt>
-        </Row>
+      {/* no group yet: one slim row (what groups are, create or join one) */}
+      {inGroups ? null : <GroupsSection />}
 
-        <View style={styles.search}>
-          <Icon name="search" size={18} color={C.dim} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="ابحث عن لعبة…"
-            placeholderTextColor={C.dim}
-            style={styles.searchInput}
-            returnKeyType="search"
-            autoCorrect={false}
-            accessibilityLabel="ابحث عن لعبة"
-          />
-          {query ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityLabel="امسح البحث">
-              <Icon name="close" size={18} color={C.muted} />
-            </Pressable>
-          ) : null}
-        </View>
+      {GAME_GROUPS.map((g, i) => (
+        <Shelf key={g.title} title={g.title} icon={g.icon} ids={g.games} favorites={favorites} onOpen={setSheet} onSeeAll={() => seeAll(String(i))} />
+      ))}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="الكل" active={group === 'all'} onPress={() => setGroup('all')} />
-          {favIds.length ? <Chip label="المفضلة" icon="starFull" active={group === 'fav'} onPress={() => setGroup('fav')} /> : null}
-          {GAME_GROUPS.map((g) => (
-            <Chip key={g.title} label={g.short} icon={g.icon} active={group === g.title} onPress={() => setGroup(group === g.title ? 'all' : g.title)} />
-          ))}
-        </ScrollView>
-
-        <Row gap={8}>
-          <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ flexShrink: 0 }}>
-            كم عددكم؟
-          </Txt>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {COUNTS.map((n) => (
-              <Chip key={String(n)} label={n === null ? 'أي عدد' : n === 8 ? `${num('8')}+` : num(String(n))} active={count === n} onPress={() => setCount(count === n ? null : n)} />
-            ))}
-          </ScrollView>
-        </Row>
-      </View>
-
-      {filtered ? (
-        flatIds.length ? (
-          <Animated.View key={`${group}|${count}|${q}`} entering={FadeIn.duration(160)}>
-            <Grid ids={flatIds} tileWidth={tileWidth} favorites={favorites} />
-          </Animated.View>
-        ) : (
-          <View style={styles.empty}>
-            <Icon name="search" size={30} color={C.dim} />
-            <Txt v="bold" center>
-              لا توجد لعبة بهذا الاختيار
-            </Txt>
-            <Btn
-              size="md"
-              ghost
-              label="اعرض كل الألعاب"
-              onPress={() => {
-                setQuery('');
-                setGroup('all');
-                setCount(null);
-              }}
-            />
-          </View>
-        )
-      ) : (
-        <>
-          {favIds.length ? (
-            <View style={{ gap: 8 }}>
-              <Row gap={6}>
-                <Icon name="starFull" size={18} color={C.yellow} />
-                <Txt v="h3">المفضلة</Txt>
-              </Row>
-              <Grid ids={favIds} tileWidth={tileWidth} favorites={favorites} />
-            </View>
-          ) : null}
-          {GAME_GROUPS.map((g) => (
-            <View key={g.title} style={{ gap: 8 }}>
-              <Row gap={6}>
-                <Icon name={g.icon} size={18} color={C.muted} />
-                <Txt v="h3">{g.title}</Txt>
-              </Row>
-              <Grid ids={g.games} tileWidth={tileWidth} favorites={favorites} />
-            </View>
-          ))}
-          <Txt v="tiny" center color={C.dim}>
-            اضغط على النجمة لتضع لعبة في المفضلة
-          </Txt>
-        </>
-      )}
+      <GameSheet id={sheet} onClose={() => setSheet(null)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  top: { paddingHorizontal: 16, paddingTop: 8 },
+  top: { paddingHorizontal: 16, paddingTop: 8, gap: 8 },
   profile: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -443,10 +185,15 @@ const styles = StyleSheet.create({
     paddingEnd: 12,
     borderRadius: 999,
   },
-  hello: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  helloTitle: { fontFamily: F.display, fontSize: 25, lineHeight: 38, color: C.text },
-  quick: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  quickIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
+  hello: { marginTop: -2, marginBottom: -6 },
+  helloTitle: { flex: 1, fontFamily: F.display, fontSize: 22, lineHeight: 34, color: C.text },
+  action: { flex: 1, gap: 4, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, borderRadius: 20, borderWidth: 1 },
+  actionPrimary: { backgroundColor: C.yellow, borderColor: C.yellow },
+  actionQuiet: { backgroundColor: C.surface, borderColor: C.borderStrong },
+  actionIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  actionIconNarrow: { width: 20 },
+  actionTitle: { flexShrink: 1, fontFamily: F.display, fontSize: 22, lineHeight: 34 },
+  actionTitleNarrow: { fontSize: 20, lineHeight: 31 },
   update: { height: undefined, minHeight: 56, paddingVertical: 8, backgroundColor: alpha(C.yellow, 0.1), borderColor: alpha(C.yellow, 0.5) },
   back: {
     flexDirection: 'row',
@@ -459,49 +206,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: alpha(C.green, 0.5),
   },
-  featured: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-  },
-  featuredBurst: { position: 'absolute', width: 220, height: 220, borderRadius: 110, top: -70, right: -60 },
-  featuredTitle: { fontFamily: F.display, fontSize: 28, lineHeight: 42, color: '#FFFFFF' },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 34, borderRadius: 17 },
-  recent: { width: 96, alignItems: 'center', gap: 2, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 18, borderWidth: 1 },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 46,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  searchInput: { flex: 1, color: C.text, fontFamily: F.bold, fontSize: 16, paddingVertical: 0 },
-  chips: { gap: 6, alignItems: 'center', paddingVertical: 1 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 34,
-    paddingHorizontal: 12,
-    borderRadius: 17,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  chipOn: { backgroundColor: C.yellow, borderColor: C.yellow },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  tile: { alignItems: 'center', gap: 0, paddingTop: 12, paddingBottom: 10, paddingHorizontal: 8, borderRadius: 22, borderWidth: 1 },
-  stage: { alignItems: 'center', justifyContent: 'center' },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, height: 22, borderRadius: 11, backgroundColor: alpha('#000000', 0.22) },
-  star: { position: 'absolute', top: 6, start: 6, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  empty: { alignItems: 'center', gap: 10, paddingVertical: 24 },
+  pressed: { opacity: 0.85 },
 });

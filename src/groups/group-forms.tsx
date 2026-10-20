@@ -1,4 +1,7 @@
-/** «مجموعة جديدة» (a name) and «انضم إلى مجموعة» (the 6-letter code), as small centred sheets. */
+/**
+ * «مجموعة جديدة» (a name) and «انضم إلى مجموعة» (the 6-letter code), as small centred sheets, and
+ * «المجموعات» — what a group is, then either of the two — for the home screen of a phone in no group.
+ */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -14,7 +17,7 @@ import { Txt } from '@/ui/txt';
 
 import { openGroup } from './actions';
 
-function Sheet({ visible, onClose, icon, title, children }: { visible: boolean; onClose: () => void; icon: IconName; title: string; children: ReactNode }) {
+export function Sheet({ visible, onClose, icon, title, children }: { visible: boolean; onClose: () => void; icon: IconName; title: string; children: ReactNode }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={styles.backdrop}>
@@ -34,12 +37,18 @@ function Sheet({ visible, onClose, icon, title, children }: { visible: boolean; 
 }
 
 /** Send a group request and follow its answer (the reply, or a «group» error). */
-function useGroupRequest(a: 'create' | 'join', onDone: (g: GroupInfo) => void) {
+export function useGroupRequest(a: 'create' | 'join', onDone: (g: GroupInfo) => void) {
   const { groupReply, error, status } = useClient();
   const [pending, setPending] = useState<{ reply: number; error: number } | null>(null);
   const done = pending && groupReply && groupReply.a === a && groupReply.id > pending.reply ? groupReply.group : null;
   const doneId = done ? groupReply!.id : 0;
-  const failed = pending && error?.code === 'group' && error.id > pending.error ? error.message : null;
+  // the refusal is kept (the error itself is cleared from the toast after a few seconds)
+  const refused = pending && error?.code === 'group' && error.id > pending.error ? error.message : null;
+  const [failed, setFailed] = useState<string | null>(null);
+  if (refused) {
+    setFailed(refused);
+    setPending(null);
+  }
   const fired = useRef(0);
   useEffect(() => {
     if (!done || fired.current === doneId) return;
@@ -50,11 +59,14 @@ function useGroupRequest(a: 'create' | 'join', onDone: (g: GroupInfo) => void) {
     busy: !!pending && !done && !failed,
     failed,
     offline: status !== 'online',
-    start: () => setPending({ reply: client.snap.groupReply?.id ?? 0, error: client.snap.error?.id ?? 0 }),
+    start: () => {
+      setFailed(null);
+      setPending({ reply: client.snap.groupReply?.id ?? 0, error: client.snap.error?.id ?? 0 });
+    },
   };
 }
 
-function finish(g: GroupInfo, onClose: () => void) {
+export function finishGroupJoin(g: GroupInfo, onClose: () => void) {
   onClose();
   openGroup(g.id);
   askForPushOnce();
@@ -62,7 +74,7 @@ function finish(g: GroupInfo, onClose: () => void) {
 
 function CreateBody({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
-  const req = useGroupRequest('create', (g) => finish(g, onClose));
+  const req = useGroupRequest('create', (g) => finishGroupJoin(g, onClose));
   const clean = cleanGroupName(name);
   const submit = () => {
     if (!clean || req.busy) return;
@@ -105,7 +117,7 @@ function CreateBody({ onClose }: { onClose: () => void }) {
 
 function JoinBody({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
-  const req = useGroupRequest('join', (g) => finish(g, onClose));
+  const req = useGroupRequest('join', (g) => finishGroupJoin(g, onClose));
   const submit = (c: string) => {
     if (c.length !== GROUP_CODE_LEN || req.busy) return;
     req.start();
@@ -149,6 +161,38 @@ function JoinBody({ onClose }: { onClose: () => void }) {
         <Btn size="md" ghost label="إلغاء" onPress={onClose} />
       </View>
     </>
+  );
+}
+
+/** «المجموعات» for a phone in no group yet: what a group is for, then create one or join one by its code. */
+export function GroupsIntroModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [step, setStep] = useState<'intro' | 'create' | 'join'>('intro');
+  const close = () => {
+    onClose();
+    setStep('intro');
+  };
+  return (
+    <Sheet
+      visible={visible}
+      onClose={close}
+      icon={step === 'join' ? 'key' : 'users'}
+      title={step === 'create' ? 'مجموعة جديدة' : step === 'join' ? 'انضم إلى مجموعة' : 'المجموعات'}>
+      {step === 'create' ? (
+        <CreateBody onClose={close} />
+      ) : step === 'join' ? (
+        <JoinBody onClose={close} />
+      ) : (
+        <>
+          <Txt v="small" center color={C.muted}>
+            احفظوا العائلة مرة واحدة: بعدها ضغطة على «لنلعب» تفتح غرفة للجميع وتصلهم الدعوة على هواتفهم.
+          </Txt>
+          <View style={styles.buttons}>
+            <Btn size="md" icon="plus" label="أنشئ مجموعة" onPress={() => setStep('create')} />
+            <Btn size="md" ghost icon="key" label="لديّ رمز مجموعة" onPress={() => setStep('join')} />
+          </View>
+        </>
+      )}
+    </Sheet>
   );
 }
 
