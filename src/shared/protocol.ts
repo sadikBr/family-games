@@ -19,6 +19,7 @@ import { CARCA_DEFAULTS, type CarcaSettings, type CarcaView } from './games/carc
 import { BALOOT_DEFAULTS, type BalootSettings, type BalootView } from './games/baloot';
 import { TOUTI_DEFAULTS, type ToutiSettings, type ToutiView } from './games/touti';
 import { TELEDRAW_DEFAULTS, type TeledrawSettings, type TeledrawView } from './games/teledraw';
+import { STORY_DEFAULTS, type StorySettings, type StoryView } from './games/story';
 import { ONEWORD_DEFAULTS, type OnewordSettings, type OnewordView } from './games/oneword';
 import { BOGGLE_DEFAULTS, type BoggleSettings, type BoggleView } from './games/boggle';
 import { QQUOTE_DEFAULTS, type QquoteSettings, type QquoteView } from './games/qquote';
@@ -47,6 +48,7 @@ export type { CarcaSettings, CarcaView } from './games/carca';
 export type { BalootSettings, BalootView } from './games/baloot';
 export type { ToutiSettings, ToutiView } from './games/touti';
 export type { TeledrawSettings, TeledrawView } from './games/teledraw';
+export type { StorySettings, StoryView } from './games/story';
 export type { OnewordSettings, OnewordView } from './games/oneword';
 export type { BoggleSettings, BoggleView } from './games/boggle';
 export type { QquoteSettings, QquoteView } from './games/qquote';
@@ -112,6 +114,7 @@ export type GameId =
   | 'baloot'
   | 'touti'
   | 'teledraw'
+  | 'story'
   | 'oneword'
   | 'boggle'
   | 'qquote'
@@ -174,6 +177,7 @@ export const GAME_IDS: GameId[] = [
   'baloot',
   'touti',
   'teledraw',
+  'story',
   'oneword',
   'boggle',
   'qquote',
@@ -241,6 +245,7 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   baloot: 4,
   touti: 4,
   teledraw: 3,
+  story: 3,
   oneword: 3,
   boggle: 1,
   qquote: 1,
@@ -256,7 +261,7 @@ export const MIN_PLAYERS: Record<GameId, number> = {
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, story: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4 };
 
 /**
  * Games that were merged into another one: older apps may still ask for them (room create, change of
@@ -535,6 +540,7 @@ export interface AllSettings {
   baloot: BalootSettings;
   touti: ToutiSettings;
   teledraw: TeledrawSettings;
+  story: StorySettings;
   oneword: OnewordSettings;
   boggle: BoggleSettings;
   qquote: QquoteSettings;
@@ -598,6 +604,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   baloot: BALOOT_DEFAULTS,
   touti: TOUTI_DEFAULTS,
   teledraw: TELEDRAW_DEFAULTS,
+  story: STORY_DEFAULTS,
   oneword: ONEWORD_DEFAULTS,
   boggle: BOGGLE_DEFAULTS,
   qquote: QQUOTE_DEFAULTS,
@@ -1486,6 +1493,7 @@ export type GameView =
   | BalootView
   | ToutiView
   | TeledrawView
+  | StoryView
   | OnewordView
   | BoggleView
   | QquoteView

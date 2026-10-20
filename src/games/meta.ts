@@ -12,6 +12,7 @@ import { CARCA_INFO } from '@/shared/games/carca';
 import { BALOOT_INFO, BALOOT_MA_INFO } from '@/shared/games/baloot';
 import { TOUTI_INFO } from '@/shared/games/touti';
 import { TELEDRAW_INFO } from '@/shared/games/teledraw';
+import { STORY_INFO } from '@/shared/games/story';
 import { ONEWORD_INFO } from '@/shared/games/oneword';
 import { BOGGLE_INFO } from '@/shared/games/boggle';
 import { QQUOTE_INFO } from '@/shared/games/qquote';
@@ -80,6 +81,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   baloot: { id: 'baloot', minPlayers: MIN_PLAYERS.baloot, ...BALOOT_INFO, variant: (s) => (s.baloot?.mode === 'morocco' ? BALOOT_MA_INFO : null) },
   touti: { id: 'touti', minPlayers: MIN_PLAYERS.touti, ...TOUTI_INFO },
   teledraw: { id: 'teledraw', minPlayers: MIN_PLAYERS.teledraw, ...TELEDRAW_INFO },
+  story: { id: 'story', minPlayers: MIN_PLAYERS.story, ...STORY_INFO },
   oneword: { id: 'oneword', minPlayers: MIN_PLAYERS.oneword, ...ONEWORD_INFO },
   boggle: { id: 'boggle', minPlayers: MIN_PLAYERS.boggle, ...BOGGLE_INFO },
   qquote: { id: 'qquote', minPlayers: MIN_PLAYERS.qquote, ...QQUOTE_INFO },
@@ -563,14 +565,14 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque'];
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
 
 /** Grouping for the home screen (`short`: the filter chip). A game may sit in two groups («كلمة السر»: words and, for its Quran words, Islamic). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'wave', 'charades', 'spy', 'survey'] },
+  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'story', 'wave', 'charades', 'spy', 'survey'] },
   { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle'] },
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'billiards', 'connect4', 'battleship'] },
