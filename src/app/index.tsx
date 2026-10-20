@@ -3,8 +3,7 @@
  * From the top: who you are (and search, sound), a one-line greeting, the two ways in — «العب»
  * (choose a game and open a room) and «ادخل برمز» (a room's or a group's code) — the way back to the
  * last room, a three-step welcome for a first visit, the family's groups, then the games as shelves
- * that scroll sideways: played recently, favourites, «مقترحة لكم» (with «لعبة اليوم»), and one shelf per
- * category with «عرض الكل». A tap on a game opens its short sheet with «ابدأ».
+ * that scroll sideways: favourites, then one shelf per category with «عرض الكل». A tap on a game opens its short sheet with «ابدأ».
  */
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -16,7 +15,7 @@ import { GAMES, GAME_GROUPS } from '@/games/meta';
 import { GroupsSection } from '@/groups/group-card';
 import { CodeSheet } from '@/home/code-sheet';
 import { GameSheet } from '@/home/game-sheet';
-import { Shelf, dayNumber, suggestions } from '@/home/games';
+import { Shelf } from '@/home/games';
 import { Welcome } from '@/home/welcome';
 import { client, useClient } from '@/lib/client';
 import { useGamePrefs } from '@/lib/prefs';
@@ -74,20 +73,18 @@ export default function Home() {
   const [muted, setMutedState] = useState(isMuted());
   const [entering, setEntering] = useState(false);
   const [sheet, setSheet] = useState<GameId | null>(null);
-  // read once per visit: the greeting and the day's suggestions
+  // read once per visit: the greeting
   const [now] = useState(() => new Date());
   const contentWidth = useContentWidth();
   useEffect(() => onMuteChange(setMutedState), []);
 
   if (loaded && isNew) return <Redirect href="/profile?first=1" />;
 
-  const day = dayNumber(now);
-  const picks = suggestions(day);
-  const recentIds = recent.filter((id) => GAMES[id]).slice(0, 8);
+  const played = recent.some((id) => GAMES[id]);
   const favIds = favorites.filter((id) => GAMES[id]);
   const inGroups = !!groups?.length;
   // the welcome: until «فهمت», and not once a game was played on this phone
-  const welcome = prefs.loaded && !prefs.welcomed && recentIds.length === 0;
+  const welcome = prefs.loaded && !prefs.welcomed && !played;
   const seeAll = (group: string) => router.push({ pathname: '/games', params: { group } });
 
   return (
@@ -155,11 +152,9 @@ export default function Home() {
 
       {inGroups ? <GroupsSection /> : null}
 
-      {recentIds.length ? <Shelf title="لعبتموها مؤخراً" icon="clock" ids={recentIds} favorites={favorites} onOpen={setSheet} /> : null}
       {favIds.length ? (
         <Shelf title="المفضلة" icon="starFull" iconColor={C.yellow} ids={favIds} favorites={favorites} onOpen={setSheet} onSeeAll={favIds.length > 3 ? () => seeAll('fav') : undefined} />
       ) : null}
-      <Shelf title="مقترحة لكم" icon="sparkle" iconColor={C.yellow} ids={picks} featured={picks[0]} favorites={favorites} onOpen={setSheet} />
 
       {/* no group yet: one slim row (what groups are, create or join one) */}
       {inGroups ? null : <GroupsSection />}

@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 
 import { GameArt } from '@/art/game-art';
 import { Icon, type IconName } from '@/art/icons';
-import { GAMES, GAME_GROUPS, GAME_ORDER, type GameMeta } from '@/games/meta';
+import { GAMES, type GameMeta } from '@/games/meta';
 import { client } from '@/lib/client';
 import { haptic } from '@/lib/sfx';
 import { BOT_GAMES, type GameId } from '@/shared/protocol';
@@ -37,29 +37,6 @@ export function fits(g: GameMeta, n: number | null) {
 }
 
 /** The day's number (changes at midnight UTC): picks «لعبة اليوم» and the day's suggestions. */
-export const dayNumber = (now: Date) => Math.floor(now.getTime() / 86_400_000);
-
-export const gameOfTheDay = (day: number): GameId => GAME_ORDER[(day * 7) % GAME_ORDER.length];
-
-/**
- * «مقترحة لكم»: the game of the day, then one game from each category, taken (in turn, day by day)
- * among that category's best-loved games (GAME_ORDER is roughly most-played first).
- */
-export function suggestions(day: number): GameId[] {
-  const out: GameId[] = [gameOfTheDay(day)];
-  GAME_GROUPS.forEach((group, i) => {
-    const top = [...group.games].sort((a, b) => GAME_ORDER.indexOf(a) - GAME_ORDER.indexOf(b)).slice(0, 5);
-    for (let k = 0; k < top.length; k++) {
-      const id = top[(day + i + k) % top.length];
-      if (!out.includes(id)) {
-        out.push(id);
-        break;
-      }
-    }
-  });
-  return out;
-}
-
 /* ------------------------------------------------------------------ */
 
 /** A compact game card: the emblem, the name and the player count. A tap opens the game's sheet. */
