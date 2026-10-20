@@ -40,6 +40,7 @@ import { AsmaGame } from './asma';
 import { StepsGame } from './steps';
 import { MapquizGame } from './mapquiz';
 import { FastGame } from './fast';
+import { BilliardsGame } from './billiards';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -174,6 +175,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <RamiGame room={room} view={view} />;
     case 'fast':
       return <FastGame room={room} view={view} />;
+    case 'billiards':
+      return <BilliardsGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

@@ -31,6 +31,7 @@ import { AsmaSettings } from './asma';
 import { StepsSettings } from './steps';
 import { MapquizSettings } from './mapquiz';
 import { FastSettings } from './fast';
+import { BilliardsSettings } from './billiards';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -100,6 +101,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <RamiSettings room={room} editable={editable} />;
     case 'fast':
       return <FastSettings room={room} editable={editable} />;
+    case 'billiards':
+      return <BilliardsSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (
