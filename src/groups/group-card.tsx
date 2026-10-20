@@ -3,7 +3,6 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { useClient } from '@/lib/client';
@@ -11,11 +10,10 @@ import { useProfile } from '@/lib/profile';
 import type { GroupInfo, PlayerInfo } from '@/shared/protocol';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { Btn } from '@/ui/btn';
 import { Txt, num } from '@/ui/txt';
 
 import { onlineLabel, openGroup, playGroup } from './actions';
-import { CreateGroupModal } from './group-forms';
+import { CreateGroupModal, GroupsIntroModal } from './group-forms';
 
 /** A member's face with a small green dot while their app is open. */
 export function Face({ player, online, size = 34 }: { player: Pick<PlayerInfo, 'avatar' | 'color'>; online: boolean; size?: number }) {
@@ -115,51 +113,60 @@ function GroupRow({ group, me }: { group: GroupInfo; me: string }) {
 
 /**
  * «مجموعاتي» on the home screen: compact rows, one per group, with «مجموعة جديدة» in the title line.
- * Joining a group by its code lives in the home screen's quick tiles.
+ * A phone in no group sees one slim row instead, which explains groups and creates or joins one.
+ * Joining a group by its code also lives in the home screen's «ادخل برمز».
  */
 export function GroupsSection() {
   const { groups } = useClient();
   const { profile } = useProfile();
   const [creating, setCreating] = useState(false);
+  const [intro, setIntro] = useState(false);
   const list = groups ?? [];
+
+  if (!list.length) {
+    return (
+      <>
+        <Pressable
+          onPress={() => setIntro(true)}
+          accessibilityRole="button"
+          accessibilityLabel="المجموعات: العبوا معاً بضغطة واحدة"
+          style={({ pressed }) => [styles.invite, pressed && styles.pressed]}>
+          <View style={styles.emptyIcon}>
+            <Icon name="users" size={18} color={C.yellow} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt v="bold" numberOfLines={1}>
+              المجموعات
+            </Txt>
+            <Txt v="tiny" color={C.muted} numberOfLines={1}>
+              العبوا معاً بضغطة واحدة
+            </Txt>
+          </View>
+          <Icon name="forward" size={16} color={C.dim} />
+        </Pressable>
+        <GroupsIntroModal visible={intro} onClose={() => setIntro(false)} />
+      </>
+    );
+  }
 
   return (
     <View style={{ gap: 8 }}>
       <Row gap={8}>
-        <Txt v="h2" style={{ flex: 1 }}>
+        <Txt v="h3" style={{ flex: 1 }}>
           مجموعاتي
         </Txt>
-        {list.length ? (
-          <Pressable onPress={() => setCreating(true)} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
-            <Icon name="plus" size={15} color={C.yellow} />
-            <Txt v="small" color={C.yellow} style={{ fontFamily: F.bold }}>
-              مجموعة جديدة
-            </Txt>
-          </Pressable>
-        ) : null}
+        <Pressable onPress={() => setCreating(true)} accessibilityRole="button" hitSlop={8} style={({ pressed }) => [styles.link, pressed && { opacity: 0.6 }]}>
+          <Icon name="plus" size={15} color={C.yellow} />
+          <Txt v="small" color={C.yellow} style={{ fontFamily: F.bold }}>
+            مجموعة جديدة
+          </Txt>
+        </Pressable>
       </Row>
-
-      {list.length ? (
-        <Animated.View entering={FadeIn.duration(200)} style={{ gap: 8 }}>
-          {list.map((g) => (
-            <GroupRow key={g.id} group={g} me={profile.id} />
-          ))}
-        </Animated.View>
-      ) : (
-        <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="users" size={22} color={C.yellow} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt v="bold">العبوا معاً بضغطة واحدة</Txt>
-            <Txt v="tiny" color={C.muted}>
-              ضغطة على «لنلعب» تفتح غرفة للجميع وتصلهم الدعوة.
-            </Txt>
-          </View>
-          <Btn size="sm" icon="plus" label="أنشئ" onPress={() => setCreating(true)} />
-        </View>
-      )}
-
+      <View style={{ gap: 8 }}>
+        {list.map((g) => (
+          <GroupRow key={g.id} group={g} me={profile.id} />
+        ))}
+      </View>
       <CreateGroupModal visible={creating} onClose={() => setCreating(false)} />
     </View>
   );
@@ -174,7 +181,7 @@ const styles = StyleSheet.create({
   dot: { position: 'absolute', bottom: -1, start: -1, backgroundColor: C.green, borderWidth: 2, borderColor: C.surface },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   more: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
-  empty: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: alpha(C.yellow, 0.3) },
-  emptyIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
+  invite: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  emptyIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(C.yellow, 0.14) },
   link: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 36, paddingHorizontal: 2 },
 });

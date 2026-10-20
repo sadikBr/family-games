@@ -1,6 +1,7 @@
 /**
- * Per-phone game preferences for the home screen: favourite games and the games played recently.
- * Kept in AsyncStorage; the home screen reads them through useGamePrefs().
+ * Per-phone game preferences for the home screen: favourite games, the games played recently, and
+ * whether the short welcome was dismissed. Kept in AsyncStorage; the home screen reads them through
+ * useGamePrefs().
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
@@ -14,31 +15,49 @@ export interface GamePrefs {
   favorites: GameId[];
   /** most recent first */
   recent: GameId[];
+  /** the first-time welcome on the home screen was dismissed */
+  welcomed: boolean;
+  /** read from storage yet (not saved): the welcome waits for it so it never flashes */
+  loaded: boolean;
 }
 
-let prefs: GamePrefs = { favorites: [], recent: [] };
+let prefs: GamePrefs = { favorites: [], recent: [], welcomed: false, loaded: false };
 const listeners = new Set<() => void>();
-let loaded = false;
+let loading = false;
 
 const valid = (ids: unknown): GameId[] => (Array.isArray(ids) ? ids.filter((x): x is GameId => GAME_IDS.includes(x as GameId)) : []);
 
+function emit() {
+  for (const l of listeners) l();
+}
+
 function set(next: GamePrefs) {
   prefs = next;
-  for (const l of listeners) l();
-  AsyncStorage.setItem(KEY, JSON.stringify(prefs)).catch(() => {});
+  emit();
+  try {
+    const { favorites, recent, welcomed } = prefs;
+    AsyncStorage.setItem(KEY, JSON.stringify({ favorites, recent, welcomed })).catch(() => {});
+  } catch {
+    // storage unavailable: keep the in-memory prefs
+  }
 }
 
 function load() {
-  if (loaded) return;
-  loaded = true;
-  AsyncStorage.getItem(KEY)
-    .then((raw) => {
-      if (!raw) return;
-      const j = JSON.parse(raw) as Partial<GamePrefs>;
-      prefs = { favorites: valid(j.favorites), recent: valid(j.recent).slice(0, MAX_RECENT) };
-      for (const l of listeners) l();
-    })
-    .catch(() => {});
+  if (loading) return;
+  loading = true;
+  const done = (saved: Partial<GamePrefs> | null) => {
+    prefs = saved
+      ? { favorites: valid(saved.favorites), recent: valid(saved.recent).slice(0, MAX_RECENT), welcomed: saved.welcomed === true, loaded: true }
+      : { ...prefs, loaded: true };
+    emit();
+  };
+  try {
+    AsyncStorage.getItem(KEY)
+      .then((raw) => done(raw ? (JSON.parse(raw) as Partial<GamePrefs>) : null))
+      .catch(() => done(null));
+  } catch {
+    done(null);
+  }
 }
 
 function subscribe(l: () => void) {
@@ -64,4 +83,10 @@ export function notePlayed(id: GameId) {
   load();
   if (prefs.recent[0] === id) return;
   set({ ...prefs, recent: [id, ...prefs.recent.filter((x) => x !== id)].slice(0, MAX_RECENT) });
+}
+
+/** «فهمت» on the home screen's welcome: it never shows again on this phone. */
+export function dismissWelcome() {
+  load();
+  if (!prefs.welcomed) set({ ...prefs, welcomed: true });
 }
