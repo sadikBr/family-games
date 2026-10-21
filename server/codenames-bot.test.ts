@@ -33,26 +33,38 @@ test('the word list: about 1,500 single words, no duplicates', () => {
   for (const w of ['رائد فضاء', 'طائرة ورقية', 'قنبلة']) expect(CODENAMES_WORDS).not.toContain(w);
 });
 
-test('every board word has at least 8 links: single words, never a form of the word itself', () => {
+/** Clue words the data must never hold (the bot gives links as clues): drink, smoking, war, weapons, blood, fear. */
+const OFF_LIMITS = ['خمر', 'نبيذ', 'سيجارة', 'تدخين', 'قنبلة', 'مسدس', 'ذخيرة', 'قتل', 'موت', 'رعب', 'يانصيب', 'قمار', 'مخدر'];
+
+test('every board word has 18+ links in three tiers: single words, never a form of the word itself', () => {
   let total = 0;
+  const uses = new Map<string, number>();
   for (const e of CODENAMES_ENTRIES) {
-    expect(e.links.length, e.word).toBeGreaterThanOrEqual(8);
-    expect(new Set(e.links).size, e.word).toBe(e.links.length);
+    expect(e.links.length, e.word).toBeGreaterThanOrEqual(18);
+    expect(e.links.length, e.word).toBeLessThanOrEqual(34);
+    expect(e.tiers.length, e.word).toBe(e.links.length);
+    expect(e.tiers.every((t, i) => t >= 0 && t <= 2 && (i === 0 || t >= e.tiers[i - 1])), e.word).toBe(true);
+    expect(new Set(e.links.map(norm)).size, e.word).toBe(e.links.length);
     for (const l of e.links) {
       expect(l, `${e.word}: ${l}`).toMatch(/^[ء-ي]+$/);
       expect(l.startsWith('ال') && l.length > 4, `${e.word}: ${l}`).toBe(false);
       expect(sameFamily(l, e.word), `${e.word}: ${l}`).toBe(false);
+      expect(OFF_LIMITS.includes(l), `${e.word}: ${l}`).toBe(false);
+      uses.set(norm(l), (uses.get(norm(l)) ?? 0) + 1);
     }
     total += e.links.length;
   }
-  expect(total).toBeGreaterThan(18_000);
+  expect(total).toBeGreaterThan(29_000);
+  expect(total / CODENAMES_ENTRIES.length).toBeGreaterThanOrEqual(20);
+  // shared on purpose: many clue words tie a handful to a few dozen board words together
+  expect([...uses.values()].filter((n) => n >= 5 && n <= 40).length).toBeGreaterThan(1_500);
 });
 
 test('forms of a word count as the same word', () => {
-  for (const [a, b] of [['الكتاب', 'كتاب'], ['سمك', 'سمكة'], ['بحار', 'بحر'], ['نجوم', 'نجم'], ['سيارات', 'سيارة'], ['أسد', 'اسد'], ['منارة', 'نار']]) {
+  for (const [a, b] of [['الكتاب', 'كتاب'], ['سمك', 'سمكة'], ['بحار', 'بحر'], ['نجوم', 'نجم'], ['سيارات', 'سيارة'], ['أسد', 'اسد'], ['منارة', 'نار'], ['طيور', 'طائر'], ['أشجار', 'شجرة'], ['أوراق', 'ورق'], ['بيوت', 'بيت'], ['ألوان', 'لون'], ['ألعاب', 'لعبة'], ['عيون', 'عين']]) {
     expect(sameFamily(a, b), `${a} / ${b}`).toBe(true);
   }
-  for (const [a, b] of [['شمس', 'قمر'], ['بحر', 'سمكة'], ['قلم', 'ورقة']]) expect(sameFamily(a, b), `${a} / ${b}`).toBe(false);
+  for (const [a, b] of [['شمس', 'قمر'], ['بحر', 'سمكة'], ['قلم', 'ورقة'], ['يرقة', 'ورقة'], ['مليون', 'مال'], ['ألبوم', 'لبن']]) expect(sameFamily(a, b), `${a} / ${b}`).toBe(false);
 });
 
 /* ------------------------------------------------------------------ */
@@ -78,51 +90,122 @@ function randomBoard() {
   return { words, key, revealed };
 }
 
-test('the bot never gives an illegal clue, nor one linked to an opponent word or the black word', () => {
+/** Words a family game never gives as a clue (they may still be links, to warn of a risk). */
+const NEVER_A_CLUE = ['أحمر', 'أزرق', 'أسود', 'حرب', 'سلاح', 'دم', 'خوف', 'بندقية', 'رصاص', 'معركة', 'جيش', 'جندي', 'سيف', 'مدفع'];
+
+/** Check one clue against every hard rule, and its guessability. */
+function checkClue(board: ReturnType<typeof randomBoard>, team: Team, level: (typeof LEVELS)[number], used: string[], clue: ReturnType<typeof chooseClue>) {
+  const ctx = `${level}: «${clue.word}» ${clue.n} → ${clue.targets.join('، ')} | ${board.words.join(' ')}`;
+  // one word, not a board word or a form of one, not a clue given before, nothing a family game avoids
+  expect(clue.word, ctx).toMatch(/^[ء-ي]+$/);
+  expect(NEVER_A_CLUE.includes(clue.word), ctx).toBe(false);
+  for (const w of board.words) expect(sameFamily(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
+  for (const u of used) expect(sameFamily(clue.word, u), `${ctx} ~ ${u}`).toBe(false);
+  // never anything to do with the other team's words or the black word
+  const opponent: Team = team === 'red' ? 'blue' : 'red';
+  const open = (k: CodeColor) => board.words.filter((_, i) => !board.revealed[i] && board.key[i] === k);
+  for (const w of [...open(opponent), ...open('assassin')]) expect(linkedAtAll(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
+  // the number = the team's open words the clue aims at
+  expect(clue.n, ctx).toBe(clue.targets.length);
+  expect(clue.n, ctx).toBeGreaterThanOrEqual(1);
+  expect(clue.n, ctx).toBeLessThanOrEqual(level === 'expert' ? 3 : 2);
+  for (const w of clue.targets) {
+    const i = board.words.indexOf(w);
+    expect(board.key[i], ctx).toBe(team);
+    expect(board.revealed[i], ctx).toBe(false);
+    expect(linkStrength(clue.word, w), ctx).toBeGreaterThan(0);
+  }
+  // guessable: the targets are the team words the clue points at most strongly…
+  const weakest = Math.min(...clue.targets.map((w) => linkStrength(clue.word, w)));
+  for (const w of open(team)) if (!clue.targets.includes(w)) expect(linkStrength(clue.word, w) > weakest, `${ctx} ~ ${w}`).toBe(false);
+  // …and a neutral word: never for easy and smart; for an expert only one the clue points at much less than at
+  // its targets, unless the team is behind
+  if (clue.n > 1 || level !== 'expert') {
+    const behind = open(team).length > open(opponent).length;
+    for (const w of open('neutral')) {
+      if (!linkedAtAll(clue.word, w)) continue;
+      expect(level, `${ctx} ~ ${w}`).toBe('expert');
+      if (!behind) expect((linkStrength(clue.word, w) || 0.5) <= weakest - 0.25, `${ctx} ~ ${w}`).toBe(true);
+    }
+  }
+}
+
+test('thousands of boards: never an illegal clue, nor one linked to an opponent word or the black word; under 100 ms', () => {
+  let slowest = 0;
   for (const level of LEVELS) {
-    for (let b = 0; b < 400; b++) {
+    for (let b = 0; b < 1500; b++) {
       const board = randomBoard();
       const team: Team = rand() < 0.5 ? 'red' : 'blue';
       const used = shuffled(CODENAMES_ENTRIES[Math.floor(rand() * CODENAMES_ENTRIES.length)].links).slice(0, 4);
       const t0 = performance.now();
-      const clue = chooseClue(board, team, level, used);
-      const ms = performance.now() - t0;
-      const ctx = `${level}: «${clue.word}» ${clue.n} → ${clue.targets.join('، ')} | ${board.words.join(' ')}`;
-      expect(ms, ctx).toBeLessThan(100);
-      // one word, not a board word or a form of one, not a clue given before
-      expect(clue.word, ctx).toMatch(/^[ء-ي]+$/);
-      for (const w of board.words) expect(sameFamily(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
-      for (const u of used) expect(sameFamily(clue.word, u), `${ctx} ~ ${u}`).toBe(false);
-      // never anything to do with the other team's words or the black word
-      const opponent: Team = team === 'red' ? 'blue' : 'red';
-      board.words.forEach((w, i) => {
-        if (board.revealed[i] || (board.key[i] !== opponent && board.key[i] !== 'assassin')) return;
-        expect(linkedAtAll(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
-      });
-      // the number = the team's open words the clue is linked to
-      expect(clue.n, ctx).toBe(clue.targets.length);
-      expect(clue.n, ctx).toBeGreaterThanOrEqual(1);
-      expect(clue.n, ctx).toBeLessThanOrEqual(level === 'expert' ? 3 : 2);
-      for (const w of clue.targets) {
-        const i = board.words.indexOf(w);
-        expect(board.key[i], ctx).toBe(team);
-        expect(board.revealed[i], ctx).toBe(false);
-        expect(linkStrength(clue.word, w), ctx).toBeGreaterThan(0);
-      }
+      const clue = chooseClue(board, team, level, used, rand);
+      slowest = Math.max(slowest, performance.now() - t0);
+      checkClue(board, team, level, used, clue);
     }
   }
-});
+  expect(slowest).toBeLessThan(100);
+}, 120_000);
 
-test('easy bots mostly aim at one word, smart and expert ones at two when it is clearly safe', () => {
-  const counts = { easy: [0, 0, 0, 0], smart: [0, 0, 0, 0], expert: [0, 0, 0, 0] };
-  for (let b = 0; b < 300; b++) {
-    const board = randomBoard();
-    for (const level of LEVELS) counts[level][chooseClue(board, 'red', level, [], rand).n]++;
+/**
+ * Whole games between two bot spymasters of one level, the people following the clues (the open word the clue
+ * points at most, as many as the number). Returns how many clues aimed at 1, 2, 3 words.
+ */
+function playGames(level: (typeof LEVELS)[number], games: number) {
+  const sizes = [0, 0, 0, 0];
+  let wrong = 0;
+  let clues = 0;
+  for (let g = 0; g < games; g++) {
+    const words = shuffled(CODENAMES_WORDS).slice(0, 25);
+    const first: Team = rand() < 0.5 ? 'red' : 'blue';
+    const second: Team = first === 'red' ? 'blue' : 'red';
+    const key = shuffled<CodeColor>([...Array(9).fill(first), ...Array(8).fill(second), 'assassin', ...Array(7).fill('neutral')]);
+    const board = { words, key, revealed: Array(25).fill(false) as boolean[] };
+    const used: string[] = [];
+    let turn = first;
+    for (let t = 0; t < 60; t++) {
+      const left = (k: CodeColor) => key.filter((c, i) => c === k && !board.revealed[i]).length;
+      if (!left('red') || !left('blue')) break;
+      const t0 = performance.now();
+      const clue = chooseClue(board, turn, level, used, rand);
+      expect(performance.now() - t0).toBeLessThan(100);
+      checkClue(board, turn, level, used, clue);
+      used.push(clue.word);
+      sizes[clue.n]++;
+      clues++;
+      for (let p = 0; p < clue.n; p++) {
+        const open = words.map((w, i) => ({ w, i })).filter((x) => !board.revealed[x.i]);
+        open.sort((x, y) => linkStrength(clue.word, y.w) - linkStrength(clue.word, x.w));
+        board.revealed[open[0].i] = true;
+        // following the clues, nobody ever steps on the black word
+        expect(key[open[0].i]).not.toBe('assassin');
+        if (key[open[0].i] !== turn) {
+          wrong++;
+          break;
+        }
+      }
+      turn = turn === 'red' ? 'blue' : 'red';
+    }
   }
-  expect(counts.easy[1]).toBeGreaterThan(counts.easy[2]);
-  expect(counts.smart[2]).toBeGreaterThan(counts.smart[1]);
-  expect(counts.expert[2] + counts.expert[3]).toBeGreaterThan(counts.expert[1]);
-});
+  expect(wrong / clues).toBeLessThan(0.05);
+  const share = sizes.map((n) => n / clues);
+  return { share, clues };
+}
+
+test('over whole games, smart and expert bots aim at two or three words about half the time, easy ones mostly at one', () => {
+  const easy = playGames('easy', 120).share;
+  const smart = playGames('smart', 250).share;
+  const expert = playGames('expert', 250).share;
+  // measured with 500 games: easy 89 / 11 / 0 %, smart 53 / 47 / 0 %, expert 50 / 44 / 6 %
+  expect(easy[1]).toBeGreaterThan(0.75);
+  expect(easy[3]).toBe(0);
+  expect(smart[1]).toBeGreaterThan(0.42);
+  expect(smart[1]).toBeLessThan(0.6);
+  expect(smart[3]).toBe(0);
+  expect(expert[1]).toBeLessThan(0.56);
+  expect(expert[2]).toBeGreaterThan(0.38);
+  expect(expert[3]).toBeGreaterThan(0.02);
+  expect(expert[3]).toBeLessThan(0.15);
+}, 120_000);
 
 test('a clue never comes back: each turn of a game gets a new one', () => {
   const board = randomBoard();
