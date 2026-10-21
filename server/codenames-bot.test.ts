@@ -3,7 +3,8 @@ import { expect, test } from 'bun:test';
 
 import { norm } from '../src/shared/arabic';
 import type { CodeColor, PlayerInfo, ServerMsg } from '../src/shared/protocol';
-import { chooseClue, linkStrength, linkedAtAll, sameFamily } from './codenames-bot';
+import { SAFETY, chooseClue, linkStrength, linkedAtAll, relatedness, sameFamily } from './codenames-bot';
+import { judgeRelated, judgeSize } from './codenames-judge';
 import { CODENAMES_ENTRIES } from './codenames-links';
 import { CODENAMES_WORDS } from './content-extra';
 import { codenames } from './games/codenames';
@@ -101,10 +102,15 @@ function checkClue(board: ReturnType<typeof randomBoard>, team: Team, level: (ty
   expect(NEVER_A_CLUE.includes(clue.word), ctx).toBe(false);
   for (const w of board.words) expect(sameFamily(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
   for (const u of used) expect(sameFamily(clue.word, u), `${ctx} ~ ${u}`).toBe(false);
-  // never anything to do with the other team's words or the black word
+  // never anything to do with the other team's words or the black word: no link, and hardly related the way a
+  // person sees it (two hops, category, form, words said together)
   const opponent: Team = team === 'red' ? 'blue' : 'red';
   const open = (k: CodeColor) => board.words.filter((_, i) => !board.revealed[i] && board.key[i] === k);
   for (const w of [...open(opponent), ...open('assassin')]) expect(linkedAtAll(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
+  for (const w of open('assassin')) expect(relatedness(clue.word, w), `${ctx} ~ ${w}`).toBeLessThan(SAFETY.assassin);
+  // (a fallback, when the team's last words sit next to their synonyms, may be closer, though still never linked
+  // and still pointing at its word first)
+  if (!clue.fallback) for (const w of open(opponent)) expect(relatedness(clue.word, w), `${ctx} ~ ${w}`).toBeLessThan(SAFETY.opponent);
   // the number = the team's open words the clue aims at
   expect(clue.n, ctx).toBe(clue.targets.length);
   expect(clue.n, ctx).toBeGreaterThanOrEqual(1);
@@ -118,41 +124,68 @@ function checkClue(board: ReturnType<typeof randomBoard>, team: Team, level: (ty
   // guessable: the targets are the team words the clue points at most strongly…
   const weakest = Math.min(...clue.targets.map((w) => linkStrength(clue.word, w)));
   for (const w of open(team)) if (!clue.targets.includes(w)) expect(linkStrength(clue.word, w) > weakest, `${ctx} ~ ${w}`).toBe(false);
-  // …and a neutral word: never for easy and smart; for an expert only one the clue points at much less than at
-  // its targets, unless the team is behind
-  if (clue.n > 1 || level !== 'expert') {
-    const behind = open(team).length > open(opponent).length;
-    for (const w of open('neutral')) {
-      if (!linkedAtAll(clue.word, w)) continue;
-      expect(level, `${ctx} ~ ${w}`).toBe('expert');
-      if (!behind) expect((linkStrength(clue.word, w) || 0.5) <= weakest - 0.25, `${ctx} ~ ${w}`).toBe(true);
+  // …every target comes before every word that is not the team's, the way a person relates them…
+  const weakestR = Math.min(...clue.targets.map((w) => relatedness(clue.word, w)));
+  for (const w of [...open(opponent), ...open('assassin'), ...open('neutral')]) expect(relatedness(clue.word, w), `${ctx} ~ ${w}`).toBeLessThan(weakestR);
+  // …and a neutral word: never linked nor clearly related for easy and smart; for an expert only weakly related,
+  // and much less than its targets unless the team is behind (when no clue meets every rule, late in a game, the
+  // bot falls back on the clue that points at its word most clearly ahead of the neutral words)
+  const behind = open(team).length > open(opponent).length;
+  for (const w of clue.fallback ? [] : open('neutral')) {
+    const r = relatedness(clue.word, w);
+    if (level !== 'expert') {
+      expect(linkedAtAll(clue.word, w), `${ctx} ~ ${w}`).toBe(false);
+      expect(r, `${ctx} ~ ${w}`).toBeLessThan(SAFETY.neutral);
+    } else {
+      expect(r, `${ctx} ~ ${w}`).toBeLessThan(SAFETY.neutralExpert);
+      expect(r, `${ctx} ~ ${w}`).toBeLessThanOrEqual(weakestR - (behind ? SAFETY.neutralGapBehind : SAFETY.neutralGap) + 1e-9);
     }
   }
 }
 
-test('thousands of boards: never an illegal clue, nor one linked to an opponent word or the black word; under 100 ms', () => {
+/**
+ * How long a decision takes, in ms of this process's CPU time: other test files (or other work on the machine)
+ * running at the same time don't count.
+ */
+function timed<T>(fn: () => T): [T, number] {
+  const t0 = process.cpuUsage();
+  const out = fn();
+  const d = process.cpuUsage(t0);
+  return [out, (d.user + d.system) / 1000];
+}
+
+/** The first clues compile the code (a JIT): warm it up before timing a decision. */
+function warmUp() {
+  for (let k = 0; k < 5; k++) chooseClue(randomBoard(), 'red', LEVELS[k % 3], [], rand);
+}
+
+test('thousands of boards: never an illegal clue, nor one linked or related to an opponent word or the black word; under 100 ms', () => {
+  warmUp();
   let slowest = 0;
   for (const level of LEVELS) {
     for (let b = 0; b < 1500; b++) {
       const board = randomBoard();
       const team: Team = rand() < 0.5 ? 'red' : 'blue';
       const used = shuffled(CODENAMES_ENTRIES[Math.floor(rand() * CODENAMES_ENTRIES.length)].links).slice(0, 4);
-      const t0 = performance.now();
-      const clue = chooseClue(board, team, level, used, rand);
-      slowest = Math.max(slowest, performance.now() - t0);
+      const [clue, ms] = timed(() => chooseClue(board, team, level, used, rand));
+      slowest = Math.max(slowest, ms);
       checkClue(board, team, level, used, clue);
     }
   }
   expect(slowest).toBeLessThan(100);
-}, 120_000);
+}, 400_000);
 
 /**
  * Whole games between two bot spymasters of one level, the people following the clues (the open word the clue
- * points at most, as many as the number). Returns how many clues aimed at 1, 2, 3 words.
+ * relates to most, as many as the number). Returns how many clues aimed at 1, 2, 3 words, and how often the
+ * independent judge (codenames-judge.ts, its held-out half) relates a clue to the black word, an opponent's word
+ * or a neutral word.
  */
 function playGames(level: (typeof LEVELS)[number], games: number) {
   const sizes = [0, 0, 0, 0];
+  const judged = { assassin: 0, opponent: 0, neutral: 0, any: 0 };
   let wrong = 0;
+  let fallbacks = 0;
   let clues = 0;
   for (let g = 0; g < games; g++) {
     const words = shuffled(CODENAMES_WORDS).slice(0, 25);
@@ -165,16 +198,21 @@ function playGames(level: (typeof LEVELS)[number], games: number) {
     for (let t = 0; t < 60; t++) {
       const left = (k: CodeColor) => key.filter((c, i) => c === k && !board.revealed[i]).length;
       if (!left('red') || !left('blue')) break;
-      const t0 = performance.now();
-      const clue = chooseClue(board, turn, level, used, rand);
-      expect(performance.now() - t0).toBeLessThan(100);
+      const [clue, ms] = timed(() => chooseClue(board, turn, level, used, rand));
+      expect(ms).toBeLessThan(100);
       checkClue(board, turn, level, used, clue);
       used.push(clue.word);
       sizes[clue.n]++;
       clues++;
+      if (clue.fallback) fallbacks++;
+      const openOf = (k: CodeColor) => words.filter((w, i) => !board.revealed[i] && key[i] === k);
+      const hit = (k: CodeColor) => openOf(k).some((w) => judgeRelated(clue.word, w, 'test'));
+      const hits = { assassin: hit('assassin'), opponent: hit(turn === 'red' ? 'blue' : 'red'), neutral: hit('neutral') };
+      for (const k of ['assassin', 'opponent', 'neutral'] as const) if (hits[k]) judged[k]++;
+      if (hits.assassin || hits.opponent || hits.neutral) judged.any++;
       for (let p = 0; p < clue.n; p++) {
         const open = words.map((w, i) => ({ w, i })).filter((x) => !board.revealed[x.i]);
-        open.sort((x, y) => linkStrength(clue.word, y.w) - linkStrength(clue.word, x.w));
+        open.sort((x, y) => relatedness(clue.word, y.w) - relatedness(clue.word, x.w));
         board.revealed[open[0].i] = true;
         // following the clues, nobody ever steps on the black word
         expect(key[open[0].i]).not.toBe('assassin');
@@ -186,26 +224,78 @@ function playGames(level: (typeof LEVELS)[number], games: number) {
       turn = turn === 'red' ? 'blue' : 'red';
     }
   }
-  expect(wrong / clues).toBeLessThan(0.05);
+  expect(wrong / clues).toBeLessThan(0.02);
+  expect(fallbacks / clues).toBeLessThan(0.01);
   const share = sizes.map((n) => n / clues);
-  return { share, clues };
+  const rate = { assassin: judged.assassin / clues, opponent: judged.opponent / clues, neutral: judged.neutral / clues, any: judged.any / clues };
+  return { share, clues, rate };
 }
 
+const GAMES = { easy: 120, smart: 200, expert: 200 } as const;
+const played = new Map<(typeof LEVELS)[number], ReturnType<typeof playGames>>();
+const gamesOf = (level: (typeof LEVELS)[number]) => {
+  if (!played.has(level)) {
+    warmUp();
+    played.set(level, playGames(level, GAMES[level]));
+  }
+  return played.get(level)!;
+};
+
 test('over whole games, smart and expert bots aim at two or three words about half the time, easy ones mostly at one', () => {
-  const easy = playGames('easy', 120).share;
-  const smart = playGames('smart', 250).share;
-  const expert = playGames('expert', 250).share;
-  // measured with 500 games: easy 89 / 11 / 0 %, smart 53 / 47 / 0 %, expert 50 / 44 / 6 %
-  expect(easy[1]).toBeGreaterThan(0.75);
+  const easy = gamesOf('easy').share;
+  const smart = gamesOf('smart').share;
+  const expert = gamesOf('expert').share;
+  // measured with 3,000 games: easy 90 / 10 / 0 %, smart 55 / 45 / 0 %, expert 55 / 40 / 5 %
+  // (before the broader safety checks: easy 89 / 11 / 0 %, smart 53 / 47 / 0 %, expert 50 / 44 / 6 %)
+  expect(easy[1]).toBeGreaterThan(0.8);
+  expect(easy[1]).toBeLessThan(0.96);
   expect(easy[3]).toBe(0);
-  expect(smart[1]).toBeGreaterThan(0.42);
-  expect(smart[1]).toBeLessThan(0.6);
+  expect(smart[1]).toBeGreaterThan(0.45);
+  expect(smart[1]).toBeLessThan(0.63);
   expect(smart[3]).toBe(0);
-  expect(expert[1]).toBeLessThan(0.56);
-  expect(expert[2]).toBeGreaterThan(0.38);
+  expect(expert[1]).toBeLessThan(0.62);
+  expect(expert[2]).toBeGreaterThan(0.33);
   expect(expert[3]).toBeGreaterThan(0.02);
-  expect(expert[3]).toBeLessThan(0.15);
-}, 120_000);
+  expect(expert[3]).toBeLessThan(0.12);
+}, 400_000);
+
+test('a human-like judge (hand-written, apart from the bot data) rarely relates a clue to the black word, an opponent or a neutral word', () => {
+  // measured over 3,000 games per level, the judge's held-out half: a clue related to any of them
+  // before: easy 0.34 %, smart 0.29 %, expert 0.67 %; now: easy 0.16 %, smart 0.12 %, expert 0.16 %
+  for (const level of LEVELS) {
+    const { rate, clues } = gamesOf(level);
+    const ctx = `${level}: ${(100 * rate.any).toFixed(2)} % of ${clues} clues`;
+    expect(rate.assassin, ctx).toBeLessThan(0.002);
+    expect(rate.any, ctx).toBeLessThan(0.006);
+  }
+}, 400_000);
+
+test('the judge: hundreds of obvious relations, written apart from the link lists', () => {
+  expect(judgeSize('all')).toBeGreaterThan(3000);
+  expect(judgeSize('test')).toBeGreaterThan(1000);
+  for (const [clue, word] of [['كتاب', 'رواية'], ['سرعة', 'قطار'], ['أطفال', 'دمية'], ['مطبخ', 'ملعقة'], ['أسد', 'نمر']]) expect(judgeRelated(clue, word), `${clue} / ${word}`).toBe(true);
+  for (const [clue, word] of [['كتاب', 'نمر'], ['قصيدة', 'صياد'], ['كنز', 'كنزة'], ['خضار', 'شجرة']]) expect(judgeRelated(clue, word), `${clue} / ${word}`).toBe(false);
+});
+
+test('relatedness sees what the link lists miss, and leaves unrelated words alone', () => {
+  // the same rough root, words said together, a category, words much like each other
+  for (const [clue, word] of [['مطبخ', 'طباخ'], ['شوكة', 'ملعقة'], ['حيوان', 'زرافة'], ['قلم', 'ممحاة'], ['كتاب', 'مجلة'], ['صيف', 'ربيع']]) {
+    expect(relatedness(clue, word), `${clue} / ${word}`).toBeGreaterThanOrEqual(SAFETY.assassin);
+  }
+  for (const [clue, word] of [['بحر', 'مفتاح'], ['كتاب', 'صاروخ'], ['شمس', 'ملعقة']]) expect(relatedness(clue, word), `${clue} / ${word}`).toBeLessThan(0.1);
+  // random pairs the lists don't link: hardly ever related
+  let related = 0;
+  let total = 0;
+  const clues = [...new Set(CODENAMES_ENTRIES.flatMap((e) => e.links))];
+  for (let k = 0; k < 5000; k++) {
+    const clue = clues[Math.floor(rand() * clues.length)];
+    const word = CODENAMES_WORDS[Math.floor(rand() * CODENAMES_WORDS.length)];
+    if (linkedAtAll(clue, word) || sameFamily(clue, word)) continue;
+    total++;
+    if (relatedness(clue, word) >= SAFETY.opponent) related++;
+  }
+  expect(related / total).toBeLessThan(0.01);
+});
 
 test('a clue never comes back: each turn of a game gets a new one', () => {
   const board = randomBoard();
@@ -397,9 +487,9 @@ test('a full game with two bot spymasters: the people follow the clues and the g
         // the team's person reveals the open word closest to the clue (or passes after one, sometimes)
         const guesser = s.teams[s.turn].find((id: string) => !id.startsWith('b'));
         const open = s.words.map((w: string, i: number) => ({ w, i })).filter((x: any) => !s.revealed[x.i]);
-        open.sort((a: any, b: any) => linkStrength(s.clue.word, b.w) - linkStrength(s.clue.word, a.w));
+        open.sort((a: any, b: any) => relatedness(s.clue.word, b.w) - relatedness(s.clue.word, a.w));
         const done = s.log.at(-1).picks.length;
-        if (done >= s.clue.n || (done > 0 && linkStrength(s.clue.word, open[0].w) === 0)) codenames.act(ctx, s, guesser, { type: 'pass' });
+        if (done >= s.clue.n || (done > 0 && relatedness(s.clue.word, open[0].w) < 0.3)) codenames.act(ctx, s, guesser, { type: 'pass' });
         else codenames.act(ctx, s, guesser, { type: 'reveal', index: open[0].i });
       }
       expect(s.phase).toBe('final');
