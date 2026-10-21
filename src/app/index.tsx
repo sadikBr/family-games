@@ -1,6 +1,6 @@
 /**
  * Home. Its one job: get the family into a game fast, without showing everything at once.
- * From the top: who you are (and search, sound), a one-line greeting, the two ways in — «العب»
+ * From the top: who you are (a tap: «حالتي» and the way to «ملفي»; and search, sound), a one-line greeting, the two ways in — «العب»
  * (choose a game and open a room) and «ادخل برمز» (a room's or a group's code) — the way back to the
  * last room, a three-step welcome for a first visit, the family's groups, then the games as shelves
  * that scroll sideways: favourites, then one shelf per category with «عرض الكل». A tap on a game opens its short sheet with «ابدأ».
@@ -15,18 +15,22 @@ import { GAMES, GAME_GROUPS } from '@/games/meta';
 import { GroupsSection } from '@/groups/group-card';
 import { CodeSheet } from '@/home/code-sheet';
 import { GameSheet } from '@/home/game-sheet';
+import { StatusSheet } from '@/home/status-sheet';
 import { Shelf } from '@/home/games';
 import { Welcome } from '@/home/welcome';
 import { client, useClient } from '@/lib/client';
 import { useGamePrefs } from '@/lib/prefs';
 import { useProfile } from '@/lib/profile';
+import { useMyStatus } from '@/lib/status';
 import { haptic, isMuted, onMuteChange, setMuted } from '@/lib/sfx';
 import { applyUpdate, useUpdateReady } from '@/lib/updates';
 import type { GameId } from '@/shared/protocol';
+import { STATUS_LABEL } from '@/shared/status';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { IconBtn } from '@/ui/btn';
 import { Screen, useContentWidth } from '@/ui/screen';
+import { StatusDot } from '@/ui/status';
 import { Txt, num } from '@/ui/txt';
 
 function greeting(hour: number) {
@@ -73,6 +77,8 @@ export default function Home() {
   const [muted, setMutedState] = useState(isMuted());
   const [entering, setEntering] = useState(false);
   const [sheet, setSheet] = useState<GameId | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const { effective } = useMyStatus();
   // read once per visit: the greeting
   const [now] = useState(() => new Date());
   const contentWidth = useContentWidth();
@@ -91,12 +97,19 @@ export default function Home() {
     <Screen
       header={
         <Row style={styles.top}>
-          <Pressable onPress={() => router.push('/profile')} style={styles.profile} accessibilityRole="button" accessibilityLabel="ملفي">
-            <Avatar player={profile} size={34} />
+          <Pressable
+            onPress={() => setStatusOpen(true)}
+            style={({ pressed }) => [styles.profile, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`حالتي: ${STATUS_LABEL[effective]} — وملفي`}>
+            <View>
+              <Avatar player={profile} size={34} dim={effective === 'invisible'} />
+              <StatusDot status={effective} size={13} ring={C.surface} style={styles.myDot} />
+            </View>
             <Txt v="bold" numberOfLines={1} style={{ maxWidth: contentWidth < 320 ? 96 : 140 }}>
               {profile.name || 'لاعب'}
             </Txt>
-            <Icon name="edit" size={13} color={C.dim} />
+            <Icon name="chevron" size={13} color={C.dim} />
           </Pressable>
           <View style={{ flex: 1 }} />
           <IconBtn icon="search" size={40} onPress={() => router.push({ pathname: '/games', params: { search: '1' } })} label="ابحث عن لعبة" />
@@ -164,6 +177,7 @@ export default function Home() {
       ))}
 
       <GameSheet id={sheet} onClose={() => setSheet(null)} />
+      <StatusSheet visible={statusOpen} onClose={() => setStatusOpen(false)} />
     </Screen>
   );
 }
@@ -180,6 +194,7 @@ const styles = StyleSheet.create({
     paddingEnd: 12,
     borderRadius: 999,
   },
+  myDot: { position: 'absolute', bottom: -2, start: -2 },
   hello: { marginTop: -2, marginBottom: -6 },
   helloTitle: { flex: 1, fontFamily: F.display, fontSize: 22, lineHeight: 34, color: C.text },
   action: { flex: 1, gap: 4, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, borderRadius: 20, borderWidth: 1 },

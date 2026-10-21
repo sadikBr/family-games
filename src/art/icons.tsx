@@ -53,6 +53,8 @@ export type IconName =
   | 'sparkle'
   | 'bell'
   | 'cards'
+  /** «في لعبة» */
+  | 'dice'
   | 'target'
   | 'chat'
   | 'siren'
@@ -280,6 +282,15 @@ function shapes(name: IconName, c: string) {
       return <Path d="M12 3c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7zM18.5 16c.3 1.8 1 2.5 2.7 2.7-1.7.3-2.4 1-2.7 2.8-.3-1.8-1-2.5-2.7-2.8 1.7-.2 2.4-.9 2.7-2.7z" {...s} />;
     case 'bell':
       return <Path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15zM10 20.5a2.2 2.2 0 004 0" {...s} />;
+    case 'dice':
+      return (
+        <>
+          <Rect x={4} y={4} width={16} height={16} rx={4} {...s} />
+          <Circle cx={8.6} cy={8.6} r={1.5} fill={c} />
+          <Circle cx={12} cy={12} r={1.5} fill={c} />
+          <Circle cx={15.4} cy={15.4} r={1.5} fill={c} />
+        </>
+      );
     case 'cards':
       return (
         <>

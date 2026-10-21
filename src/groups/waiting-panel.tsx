@@ -1,5 +1,6 @@
 /**
- * Top of a group room's waiting room: who we are waiting for (in the room / app open / app closed),
+ * Top of a group room's waiting room: who we are waiting for (in the room / app open / «مشغول» /
+ * «في لعبة» / «بعيد» / app closed),
  * and «ابدأ بالموجودين» for the caller or the host. When everyone is in: «اكتمل الجمع!», then it goes.
  */
 import { useEffect, useState } from 'react';
@@ -20,6 +21,10 @@ import { Face } from './group-card';
 
 function status(e: RoomGroup['expected'][number]): { icon: IconName; label: string; color: string } {
   if (e.inRoom) return { icon: 'check', label: 'في الغرفة', color: C.green };
+  // «مشغول»: not invited (no call, no notification) — the caller can start without them
+  if (e.status === 'busy') return { icon: 'minus', label: `الحالة: مشغول — دون ${e.online ? 'دعوة' : 'إشعار'}`, color: C.red };
+  if (e.online && e.playing) return { icon: 'dice', label: 'في لعبة أخرى', color: C.yellow };
+  if (e.online && e.status === 'away') return { icon: 'clock', label: e.notified ? 'الحالة: بعيد — أُرسل إشعار' : 'الحالة: بعيد', color: C.yellow };
   if (e.online) return { icon: 'clock', label: 'التطبيق مفتوح، في شاشة أخرى', color: C.yellow };
   if (e.notified) return { icon: 'bell', label: 'التطبيق مغلق — أُرسل إشعار', color: C.muted };
   return { icon: 'wifiOff', label: 'التطبيق مغلق', color: C.dim };
@@ -77,7 +82,7 @@ export function GroupWaiting({ room }: { room: RoomView }) {
           const s = status(e);
           return (
             <Row key={e.id} gap={10}>
-              <Face player={e} online={e.online} size={34} />
+              <Face player={e} online={e.online} status={e.inRoom ? 'available' : e.online ? e.status : 'offline'} playing={!e.inRoom && e.playing} size={34} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Txt v="bold" numberOfLines={1} style={{ fontSize: 15 }}>
                   {e.name}

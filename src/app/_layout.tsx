@@ -10,7 +10,7 @@ import { DarkTheme, Stack, ThemeProvider, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewProps } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { GroupCallSheet, PushPrompt } from '@/groups/call-sheet';
@@ -20,11 +20,15 @@ import { initPush } from '@/lib/push';
 import { loadServerOverride } from '@/lib/server-url';
 import { initSfx } from '@/lib/sfx';
 import { initSpeech } from '@/lib/speech';
+import { loadStatus, markActivity } from '@/lib/status';
 import { initUpdates } from '@/lib/updates';
 import { C } from '@/theme';
 import { Toast } from '@/ui/controls';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/** (the capture phase sees every touch, whatever takes it; missing from the View types) */
+const touchProps = { onTouchStartCapture: markActivity } as ViewProps;
 
 const theme = {
   ...DarkTheme,
@@ -42,7 +46,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadProfile(), loadServerOverride(), client.init(), initSfx(), initSpeech()]).finally(() => {
+    Promise.all([loadProfile(), loadStatus(), loadServerOverride(), client.init(), initSfx(), initSpeech()]).finally(() => {
       setReady(true);
       // connected while the app is open: the family sees who is here, and group calls arrive
       client.start();
@@ -71,18 +75,21 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       {/* gesture handlers (the drawing boards) take a drag before the page's scroll can */}
       <GestureHandlerRootView style={styles.root}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: C.bg },
-            animation: 'fade_from_bottom',
-          }}>
-          <Stack.Screen name="profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        </Stack>
-        <Toast />
-        <GroupCallSheet />
-        <PushPrompt />
+        {/* any touch: I'm here (ends the automatic «بعيد», see src/lib/status.ts) */}
+        <View style={styles.root} {...touchProps}>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: C.bg },
+              animation: 'fade_from_bottom',
+            }}>
+            <Stack.Screen name="profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          </Stack>
+          <Toast />
+          <GroupCallSheet />
+          <PushPrompt />
+        </View>
       </GestureHandlerRootView>
     </ThemeProvider>
   );

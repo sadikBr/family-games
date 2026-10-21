@@ -11,6 +11,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { PlayerInfo } from '../src/shared/protocol';
+import { cleanStatus, type MyStatus } from '../src/shared/status';
 import type { TournamentRecord } from './tournament';
 
 export interface GroupRow {
@@ -69,6 +70,12 @@ const MIGRATIONS: string[] = [
      ended_at INTEGER NOT NULL
    );
    CREATE INDEX tournaments_by_group ON tournaments (group_id, ended_at);`,
+  // 4: the last status a phone sent («مشغول» still means no «لنلعب» push once the app is closed)
+  `CREATE TABLE statuses (
+     player_id TEXT PRIMARY KEY,
+     status TEXT NOT NULL,
+     updated_at INTEGER NOT NULL
+   );`,
 ];
 
 export function migrate(db: Database, steps = MIGRATIONS) {
@@ -245,5 +252,19 @@ export class Store {
 
   dropPushToken(token: string) {
     this.db.query('DELETE FROM push_tokens WHERE token = ?').run(token);
+  }
+
+  /* statuses («حالتي») */
+
+  /** The last status this player's phone sent (written only when it changes). */
+  setStatus(playerId: string, status: MyStatus, at: number) {
+    this.db
+      .query('INSERT INTO statuses (player_id, status, updated_at) VALUES (?, ?, ?) ON CONFLICT (player_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at WHERE status != excluded.status')
+      .run(playerId, status, at);
+  }
+
+  status(playerId: string): MyStatus | null {
+    const r = this.db.query('SELECT status FROM statuses WHERE player_id = ?').get(playerId) as { status: string } | null;
+    return cleanStatus(r?.status);
   }
 }

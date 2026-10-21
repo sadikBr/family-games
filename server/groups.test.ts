@@ -10,6 +10,7 @@ import { join } from 'node:path';
 
 import { cleanGroupName, GROUP_CODE_ALPHABET, isExpoPushToken, normalizeGroupCode, typingGroupCode } from '../src/shared/groups';
 import type { ClientMsg, GroupInfo, PlayerInfo, RoomAction, ServerMsg } from '../src/shared/protocol';
+import { AUTO_AWAY_MS, cleanStatus, effectiveStatus, type MyStatus } from '../src/shared/status';
 import { dataLocation, migrate, Store } from './db';
 import { CALL_COOLDOWN_MS, GroupHub, IDLE_ROOM_MS, type PushMessage } from './groups';
 import { Room, type Sock } from './room';
@@ -83,10 +84,11 @@ function world(opts: { ticket?: (m: PushMessage) => unknown; dir?: string; token
     get sock() {
       return this.ws as unknown as Sock;
     }
-    connect() {
+    /** `status`: what the phone sends in its hello (an older app sends none) */
+    connect(status?: MyStatus) {
       this.ws = new FakeSock();
       this.ws.data.player = this.player;
-      hub.hello(this.sock, this.player);
+      hub.hello(this.sock, this.player, status);
       return this;
     }
     close() {
@@ -98,7 +100,7 @@ function world(opts: { ticket?: (m: PushMessage) => unknown; dir?: string; token
     /** like server/index.ts: route a message, errors become toasts */
     send(msg: ClientMsg) {
       try {
-        if (msg.t === 'groups' || msg.t === 'group' || msg.t === 'push') hub.handle(this.sock, this.player, msg);
+        if (msg.t === 'groups' || msg.t === 'group' || msg.t === 'push' || msg.t === 'status') hub.handle(this.sock, this.player, msg);
         else if (msg.t === 'room') this.room()?.roomAction(this.player.id, msg.action);
         else if (msg.t === 'join') {
           const target = rooms.get(msg.code)!;
@@ -137,7 +139,7 @@ function world(opts: { ticket?: (m: PushMessage) => unknown; dir?: string; token
     }
   }
 
-  const phone = (id: string, name = id) => new Phone(id, name).connect();
+  const phone = (id: string, name = id, status?: MyStatus) => new Phone(id, name).connect(status);
   const settle = async () => {
     await Bun.sleep(15); // presence debounce
     await Promise.all([...hub.inFlight]);
@@ -309,7 +311,7 @@ test('persistence: groups survive reopening the database', () => {
   expect(w2.store.pushToken('p-a')).toBe('ExponentPushToken[aaa]');
   // migrating again changes nothing
   migrate(w2.store.db);
-  expect((w2.store.db.query('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(3); // 3: tournaments
+  expect((w2.store.db.query('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(4); // 4: statuses
   expect((w2.store.db.query('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode).toBe('wal');
   const b = w2.phone('p-b');
   b.send({ t: 'groups' });
@@ -597,6 +599,216 @@ test('push failures never break «لنلعب»', async () => {
 /* Through the real server: the wire messages, and a restart            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Status («حالتي»)                                                     */
+/* ------------------------------------------------------------------ */
+
+const memberOf = (p: { groups(): GroupInfo[] }, id: string) => p.groups()[0].members.find((m) => m.id === id)!;
+/** What the others can see of a member (everything but who they are). */
+const looks = (m: GroupInfo['members'][number]) => ({ online: m.online, status: m.status, playing: m.playing });
+
+test('status: the automatic «بعيد» never overrides a chosen status, and ends when the person is back', () => {
+  const on = { active: true, idleMs: 0 };
+  expect(effectiveStatus('available', on)).toBe('available');
+  expect(effectiveStatus('available', { active: false, idleMs: 0 })).toBe('away'); // in the background
+  expect(effectiveStatus('available', { active: true, idleMs: AUTO_AWAY_MS - 1 })).toBe('available');
+  expect(effectiveStatus('available', { active: true, idleMs: AUTO_AWAY_MS })).toBe('away'); // untouched
+  // back (touched / foreground again): «متاح» by itself
+  expect(effectiveStatus('available', on)).toBe('available');
+  // chosen by hand: stays, whatever happens
+  for (const chosen of ['away', 'busy', 'invisible'] as const) {
+    expect(effectiveStatus(chosen, on)).toBe(chosen);
+    expect(effectiveStatus(chosen, { active: false, idleMs: 0 })).toBe(chosen);
+    expect(effectiveStatus(chosen, { active: true, idleMs: AUTO_AWAY_MS * 3 })).toBe(chosen);
+  }
+  expect(cleanStatus('busy')).toBe('busy');
+  for (const bad of ['offline', 'BUSY', '', 'sleeping', 3, null, undefined, {}, ['busy']]) expect(cleanStatus(bad)).toBeNull();
+});
+
+test('status: older phones are «متاح»; changes reach the group (debounced) and are remembered; bad values ignored', async () => {
+  const w = world();
+  const { phones } = family(w, 'p-a', 'p-b');
+  const [a, b] = phones;
+  await w.settle();
+  // no status in the hello (an older app): available
+  expect(looks(memberOf(a, 'p-b'))).toEqual({ online: true, status: 'available', playing: undefined });
+
+  b.send({ t: 'status', status: 'busy' });
+  expect(memberOf(a, 'p-b').status).toBe('available'); // not yet: debounced
+  await w.settle();
+  expect(looks(memberOf(a, 'p-b'))).toEqual({ online: true, status: 'busy', playing: undefined });
+  expect(w.store.status('p-b')).toBe('busy');
+  b.send({ t: 'status', status: 'away' });
+  await w.settle();
+  expect(memberOf(a, 'p-b').status).toBe('away');
+
+  // the same status again, or a bad value: nothing changes, nothing is sent
+  a.clear();
+  b.send({ t: 'status', status: 'away' });
+  for (const bad of ['offline', 'sleeping', 7, null, { s: 'busy' }]) b.send({ t: 'status', status: bad as never });
+  await w.settle();
+  expect(a.all('groups').length).toBe(0);
+  expect(b.errors).toEqual([]);
+  expect(w.store.status('p-b')).toBe('away');
+
+  // a status in the hello; a bad one counts as none
+  b.close();
+  await w.settle();
+  expect(memberOf(a, 'p-b').status).toBe('offline');
+  const b2 = w.phone('p-b', 'p-b', 'busy');
+  await w.settle();
+  expect(memberOf(a, 'p-b').status).toBe('busy');
+  b2.close();
+  w.phone('p-b', 'p-b', 'nap' as never);
+  await w.settle();
+  expect(memberOf(a, 'p-b').status).toBe('available');
+  // a status from a socket that never said hello is ignored
+  const stranger = new FakeSock() as unknown as Sock;
+  w.hub.setStatus(stranger, b.player, 'busy');
+  await w.settle();
+  expect(memberOf(a, 'p-b').status).toBe('available');
+});
+
+test('status: «غير مرئي» looks exactly like a closed app — member list, waiting list, «في لعبة», «أُرسل إشعار»', async () => {
+  const w = world();
+  const { phones, g } = family(w, 'p-a', 'p-b', 'p-c', 'p-d');
+  const [a, b, c, d] = phones;
+  b.send({ t: 'push', token: 'ExponentPushToken[bbb]' });
+  c.send({ t: 'push', token: 'ExponentPushToken[ccc]' });
+  await w.settle();
+  expect(memberOf(a, 'p-b').online).toBe(true);
+
+  b.send({ t: 'status', status: 'invisible' });
+  c.close(); // the app closed, for comparison
+  await w.settle();
+  expect(looks(memberOf(a, 'p-b'))).toEqual({ online: false, status: 'offline', playing: undefined });
+  expect(looks(memberOf(a, 'p-b'))).toEqual(looks(memberOf(a, 'p-c')));
+  // they still use the app: their own list arrives
+  b.send({ t: 'groups' });
+  expect(b.groups()[0].members.length).toBe(4);
+
+  // closing the app while invisible, or opening it invisible: the others are told nothing
+  a.clear();
+  b.close();
+  await w.settle();
+  const b2 = w.phone('p-b', 'p-b', 'invisible');
+  await w.settle();
+  expect(a.all('groups').length).toBe(0);
+  a.send({ t: 'groups' });
+  expect(looks(memberOf(a, 'p-b'))).toEqual(looks(memberOf(a, 'p-c')));
+
+  // playing somewhere else: no «في لعبة» either
+  const other = new Room('5555', d.player, 'xo');
+  w.rooms.set(other.code, other);
+  d.send({ t: 'join', code: '5555' });
+  b2.send({ t: 'join', code: '5555' });
+  d.roomAction({ type: 'start' });
+  expect(other.status).toBe('playing');
+  w.hub.tick();
+  await w.settle();
+  expect(memberOf(a, 'p-d').playing).toBe(true);
+  expect(memberOf(a, 'p-b').playing).toBeUndefined();
+  expect(looks(memberOf(a, 'p-b'))).toEqual({ online: false, status: 'offline', playing: undefined });
+
+  // «لنلعب»: the waiting list shows them like the closed app (a push went to both)
+  b2.send({ t: 'leave' });
+  a.send({ t: 'group', a: 'play', id: g.id });
+  const ex = a.view()!.group!.expected;
+  const strip = (e: (typeof ex)[number]) => ({ online: e.online, inRoom: e.inRoom, notified: e.notified, status: e.status, playing: e.playing });
+  expect(strip(ex.find((e) => e.id === 'p-b')!)).toEqual({ online: false, inRoom: false, notified: true, status: 'offline', playing: undefined });
+  expect(strip(ex.find((e) => e.id === 'p-b')!)).toEqual(strip(ex.find((e) => e.id === 'p-c')!));
+  expect(ex.find((e) => e.id === 'p-d')!.playing).toBe(true);
+  // ...and they still got the invitation, in the app and as a push
+  expect(b2.last('groupCall')?.code).toBe(a.room()!.code);
+  await w.settle();
+  expect(w.sent.flatMap((x) => x.body.map((m) => m.to)).sort()).toEqual(['ExponentPushToken[bbb]', 'ExponentPushToken[ccc]']);
+  // coming into the room shows them, as anyone in the room
+  b2.send({ t: 'join', code: a.room()!.code });
+  const inRoom = a.view()!.group!.expected.find((e) => e.id === 'p-b')!;
+  expect([inRoom.inRoom, inRoom.online, inRoom.status]).toEqual([true, true, 'available']);
+});
+
+test('status: «مشغول» gets no call and no push and shows as busy in the waiting list, even with the app closed', async () => {
+  const dir = tempDir();
+  const w = world({ dir });
+  const { phones, g } = family(w, 'p-a', 'p-b', 'p-c', 'p-d', 'p-e');
+  const [a, b, c, d, e] = phones;
+  for (const p of [b, c, d, e]) p.send({ t: 'push', token: `ExponentPushToken[${p.player.id}]` });
+  b.send({ t: 'status', status: 'busy' }); // busy, app open
+  c.send({ t: 'status', status: 'busy' });
+  c.close(); // busy, then closed the app
+  d.send({ t: 'status', status: 'away' }); // away: the call and a push
+  await w.settle();
+  for (const p of [b, d, e]) p.clear();
+
+  a.send({ t: 'group', a: 'play', id: g.id });
+  const code = a.room()!.code;
+  const ex = a.view()!.group!.expected.map((x) => [x.id, x.online, x.status, !!x.notified]);
+  expect(ex).toEqual([
+    ['p-a', true, 'available', false],
+    ['p-b', true, 'busy', false],
+    ['p-c', false, 'busy', false],
+    ['p-d', true, 'away', true],
+    ['p-e', true, 'available', false],
+  ]);
+  expect(b.last('groupCall')).toBeUndefined();
+  expect(d.last('groupCall')?.code).toBe(code);
+  expect(e.last('groupCall')?.code).toBe(code);
+  await w.settle();
+  expect(w.sent.flatMap((x) => x.body.map((m) => m.to))).toEqual(['ExponentPushToken[p-d]']);
+  // they still see the group playing, and the caller can start without them
+  expect(b.groups()[0].playing?.code).toBe(code);
+  a.roomAction({ type: 'groupGo' });
+  expect(a.view()!.group!.waiting).toBe(false);
+  // a busy member can still come in
+  b.send({ t: 'join', code });
+  expect(b.room()?.code).toBe(code);
+
+  // «مشغول» with the app closed survives a restart of the server
+  w.hub.stop();
+  w.store.close();
+  const w2 = world({ dir });
+  expect(w2.store.status('p-c')).toBe('busy');
+  expect(w2.hub.isBusy('p-c')).toBe(true);
+  // ...until the phone comes back with another status
+  w2.phone('p-c', 'p-c', 'available');
+  expect(w2.hub.isBusy('p-c')).toBe(false);
+});
+
+test('«في لعبة»: set while the person\'s room is playing, cleared after (and when they drop out)', async () => {
+  const w = world();
+  const { phones } = family(w, 'p-a', 'p-b', 'p-c');
+  const [a, b, c] = phones;
+  const room = new Room('6666', b.player, 'xo');
+  w.rooms.set(room.code, room);
+  b.send({ t: 'join', code: '6666' });
+  c.send({ t: 'join', code: '6666' });
+  w.hub.tick();
+  await w.settle();
+  expect(memberOf(a, 'p-b').playing).toBeUndefined(); // in the room's lobby: not yet
+
+  b.roomAction({ type: 'start' });
+  w.hub.tick();
+  await w.settle();
+  expect([memberOf(a, 'p-b').playing, memberOf(a, 'p-c').playing, memberOf(a, 'p-a').playing]).toEqual([true, true, undefined]);
+  // busy and playing: both shown
+  c.send({ t: 'status', status: 'busy' });
+  await w.settle();
+  expect(looks(memberOf(a, 'p-c'))).toEqual({ online: true, status: 'busy', playing: true });
+
+  // c's connection drops: no longer in a game (and offline)
+  c.close();
+  w.hub.tick();
+  await w.settle();
+  expect(looks(memberOf(a, 'p-c'))).toEqual({ online: false, status: 'offline', playing: undefined });
+
+  // back to the room's lobby: the hint goes
+  b.roomAction({ type: 'lobby' });
+  w.hub.tick();
+  await w.settle();
+  expect(memberOf(a, 'p-b').playing).toBeUndefined();
+});
+
 async function freePort() {
   const s = Bun.serve({ port: 0, fetch: () => new Response('') });
   const port = s.port!;
@@ -628,14 +840,15 @@ class WirePhone {
     readonly id: string,
     readonly name: string,
   ) {}
-  async connect() {
+  async connect(status?: unknown) {
     this.ws = new WebSocket(`ws://127.0.0.1:${this.port}/ws`);
     await new Promise<void>((res, rej) => {
       this.ws.onopen = () => res();
       this.ws.onerror = (e) => rej(e);
     });
     this.ws.onmessage = (ev) => this.msgs.push(JSON.parse(String(ev.data)));
-    this.send({ t: 'hello', player: { id: this.id, name: this.name, avatar: 'cat', color: '#2FB67C' } });
+    const hello = { t: 'hello', player: { id: this.id, name: this.name, avatar: 'cat', color: '#2FB67C' } } as ClientMsg;
+    this.send(status === undefined ? hello : ({ ...hello, status } as ClientMsg));
     await this.until('welcome');
     return this;
   }
@@ -696,6 +909,41 @@ test('wire: create, join, presence, «لنلعب», groupGo — and the groups a
     const list = await b.until('groups');
     expect(list.groups.map((x) => [x.name, x.members.length, x.playing])).toEqual([['العائلة', 2, null]]);
     b.ws.close();
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+}, 30_000);
+
+test('wire: the status in the hello and in its own message; an older app is «متاح»; bad values ignored', async () => {
+  const dataDir = tempDir();
+  const port = await freePort();
+  const proc = await startServer(port, dataDir);
+  try {
+    const a = await new WirePhone(port, 'wire-sa', 'سارة').connect('available');
+    const b = await new WirePhone(port, 'wire-sb', 'يوسف').connect('busy');
+    a.send({ t: 'group', a: 'create', name: 'العائلة' });
+    const g = (await a.until('group')).group;
+    b.send({ t: 'group', a: 'join', code: g.code });
+    await a.until('groups', (m) => m.groups[0]?.members.find((x) => x.id === 'wire-sb')?.status === 'busy');
+    b.send({ t: 'status', status: 'invisible' });
+    await a.until('groups', (m) => m.groups[0]?.members.find((x) => x.id === 'wire-sb')?.online === false);
+    b.send({ t: 'status', status: 'bogus' } as never);
+    b.send({ t: 'status', status: 'away' });
+    const seen = await a.until('groups', (m) => m.groups[0]?.members.find((x) => x.id === 'wire-sb')?.status === 'away');
+    expect(seen.groups[0].members.find((x) => x.id === 'wire-sb')!.online).toBe(true);
+    // an older app: no status at all
+    b.ws.close();
+    const old = await new WirePhone(port, 'wire-sb', 'يوسف').connect();
+    await a.until('groups', (m) => {
+      const x = m.groups[0]?.members.find((y) => y.id === 'wire-sb');
+      return x?.online === true && x.status === 'available';
+    });
+    const bad = await new WirePhone(port, 'wire-sc', 'ليلى').connect({ evil: true });
+    expect(bad.last('welcome')).toBeDefined();
+    a.ws.close();
+    old.ws.close();
+    bad.ws.close();
   } finally {
     proc.kill();
     await proc.exited;

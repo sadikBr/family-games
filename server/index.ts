@@ -10,6 +10,7 @@ import { networkInterfaces } from 'node:os';
 
 import { DEFAULT_PORT, resolveGame, type ClientMsg, type GameId, type PlayerInfo } from '../src/shared/protocol';
 import { Store } from './db';
+import { cleanStatus } from '../src/shared/status';
 import { GroupHub } from './groups';
 import { Room, send, type Sock, type SockData } from './room';
 import { GameError } from './types';
@@ -61,7 +62,8 @@ function handle(ws: Sock, msg: ClientMsg) {
     const player = cleanPlayer(msg.player);
     if (!player) return send(ws, { t: 'error', message: 'بيانات اللاعب غير صالحة' });
     ws.data.player = player;
-    groups.hello(ws, player);
+    // an older app sends no status («متاح»); a bad value counts as none
+    groups.hello(ws, player, cleanStatus(msg.status));
     send(ws, { t: 'welcome', now: Date.now() });
     return;
   }
@@ -128,6 +130,7 @@ function handle(ws: Sock, msg: ClientMsg) {
     case 'groups':
     case 'group':
     case 'push':
+    case 'status':
       groups.handle(ws, player, msg);
       return;
   }

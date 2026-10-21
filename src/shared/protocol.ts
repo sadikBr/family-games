@@ -5,6 +5,7 @@
 import type { Card } from './cards';
 import type { ZadKind } from './islamic';
 import type { UnoColor, UnoFace, UnoSide } from './uno';
+import type { MemberStatus, MyStatus } from './status';
 import { PHASE10_DEFAULTS, type Phase10Settings, type Phase10View } from './games/phase10';
 import { SCRABBLE_DEFAULTS, type ScrabbleSettings, type ScrabbleView } from './games/scrabble';
 import { CHARADES_DEFAULTS, type CharadesSettings, type CharadesView } from './games/charades';
@@ -1571,8 +1572,15 @@ export interface RoomView {
 /* ------------------------------------------------------------------ */
 
 export interface GroupMember extends PlayerInfo {
-  /** the app is open on that phone right now */
+  /**
+   * the app is open on that phone right now and the person is visible (false for «غير مرئي»);
+   * kept for older apps, which only know this
+   */
   online: boolean;
+  /** their status as the others see it (an older server doesn't send it: then `online` says it all) */
+  status?: MemberStatus;
+  /** «في لعبة»: in a room that is playing right now (never sent for an invisible person) */
+  playing?: boolean;
 }
 
 export interface GroupInfo {
@@ -1606,7 +1614,15 @@ export interface GroupHonor {
 export interface RoomGroup {
   id: string;
   name: string;
-  expected: (PlayerInfo & { online: boolean; inRoom: boolean; notified?: boolean })[];
+  expected: (PlayerInfo & {
+    online: boolean;
+    inRoom: boolean;
+    notified?: boolean;
+    /** «مشغول»: not invited (no call, no push) — the caller can still start without them */
+    status?: MemberStatus;
+    /** «في لعبة»: playing in another room right now */
+    playing?: boolean;
+  })[];
   /** true until everyone is in, or the caller / host chose «ابدأ بالموجودين» (the game can't start before) */
   waiting: boolean;
   /** player id of whoever pressed «لنلعب» */
@@ -1635,7 +1651,8 @@ export type VoiceSignal = { description: { type: 'offer' | 'answer'; sdp: string
 export type GameAction = { type: string; [key: string]: unknown };
 
 export type ClientMsg =
-  | { t: 'hello'; player: PlayerInfo }
+  /** `status`: an older app doesn't send it (then «متاح») */
+  | { t: 'hello'; player: PlayerInfo; status?: MyStatus }
   | { t: 'create'; game: GameId }
   | { t: 'join'; code: string }
   | { t: 'leave' }
@@ -1646,7 +1663,9 @@ export type ClientMsg =
   | { t: 'signal'; to: string; data: VoiceSignal }
   | { t: 'groups' }
   | GroupRequest
-  | { t: 'push'; token: string };
+  | { t: 'push'; token: string }
+  /** my status changed («حالتي», or the automatic «بعيد») */
+  | { t: 'status'; status: MyStatus };
 
 export type GroupRequest =
   | { t: 'group'; a: 'create'; name: string }

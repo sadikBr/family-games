@@ -7,21 +7,45 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/art/icons';
 import { useClient } from '@/lib/client';
 import { useProfile } from '@/lib/profile';
+import { useMyStatus } from '@/lib/status';
 import type { GroupInfo, PlayerInfo } from '@/shared/protocol';
+import type { MyStatus } from '@/shared/status';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
+import { InGameBadge, StatusDot, shownStatus, type ShownStatus } from '@/ui/status';
 import { Txt, num } from '@/ui/txt';
 
 import { onlineLabel, openGroup, playGroup } from './actions';
 import { CreateGroupModal, GroupsIntroModal } from './group-forms';
 
-/** A member's face with a small green dot while their app is open. */
-export function Face({ player, online, size = 34 }: { player: Pick<PlayerInfo, 'avatar' | 'color'>; online: boolean; size?: number }) {
-  const dot = Math.max(9, Math.round(size * 0.3));
+/**
+ * A member's face with their status dot (متاح / بعيد / مشغول; none when غير متصل) and the «في لعبة»
+ * die. `status` missing (an older server): a green dot while `online`.
+ */
+export function Face({
+  player,
+  online,
+  status,
+  playing,
+  size = 34,
+  ring = C.surface,
+}: {
+  player: Pick<PlayerInfo, 'avatar' | 'color'>;
+  online: boolean;
+  status?: ShownStatus;
+  playing?: boolean;
+  size?: number;
+  /** the colour around the marks (the background the face sits on) */
+  ring?: string;
+}) {
+  const shown: ShownStatus = status ?? (online ? 'available' : 'offline');
+  const dot = Math.max(11, Math.round(size * 0.36));
+  const die = Math.max(13, Math.round(size * 0.42));
   return (
     <View style={{ width: size, height: size }}>
-      <Avatar player={player} size={size} dim={!online} />
-      {online ? <View style={[styles.dot, { width: dot, height: dot, borderRadius: dot / 2 }]} /> : null}
+      <Avatar player={player} size={size} dim={shown === 'offline' || shown === 'invisible'} />
+      <StatusDot status={shown} size={dot} ring={ring} style={styles.dot} />
+      {playing && shown !== 'offline' ? <InGameBadge size={die} ring={ring} style={styles.die} /> : null}
     </View>
   );
 }
@@ -37,7 +61,7 @@ export function Faces({ members, width, size = 34 }: { members: GroupInfo['membe
   return (
     <Row gap={gap}>
       {shown.map((m) => (
-        <Face key={m.id} player={m} online={m.online} size={size} />
+        <Face key={m.id} player={m} online={m.online} status={shownStatus(m)} playing={m.playing} size={size} />
       ))}
       {more > 0 ? (
         <View style={[styles.more, { width: size, height: size, borderRadius: size / 2 }]}>
@@ -51,7 +75,7 @@ export function Faces({ members, width, size = 34 }: { members: GroupInfo['membe
 }
 
 /** Up to four overlapping faces (online ones first) and «+N»: compact enough for one row. */
-function FaceStack({ members, size = 30 }: { members: GroupInfo['members']; size?: number }) {
+function FaceStack({ members, me, size = 30 }: { members: GroupInfo['members']; me: { id: string; status: MyStatus }; size?: number }) {
   const sorted = [...members].sort((a, b) => Number(b.online) - Number(a.online));
   const shown = sorted.slice(0, members.length > 4 ? 3 : 4);
   const more = members.length - shown.length;
@@ -61,7 +85,7 @@ function FaceStack({ members, size = 30 }: { members: GroupInfo['members']; size
     <View style={{ width, height: size, direction: 'ltr' }}>
       {shown.map((m, i) => (
         <View key={m.id} style={[styles.stacked, { left: i * step, borderRadius: size / 2 }]}>
-          <Face player={m} online={m.online} size={size} />
+          <Face player={m} online={m.online} status={shownStatus(m, me)} playing={m.playing} size={size} />
         </View>
       ))}
       {more > 0 ? (
@@ -78,13 +102,14 @@ function FaceStack({ members, size = 30 }: { members: GroupInfo['members']; size
 /** One group on one row: faces, name and who is online, and «لنلعب» (or «ادخل» while they play). */
 function GroupRow({ group, me }: { group: GroupInfo; me: string }) {
   const playing = !!group.playing;
+  const { effective } = useMyStatus();
   return (
     <Pressable
       onPress={() => openGroup(group.id)}
       accessibilityRole="button"
       accessibilityLabel={`مجموعة ${group.name}`}
       style={({ pressed }) => [styles.row, playing && styles.rowPlaying, pressed && styles.pressed]}>
-      <FaceStack members={group.members} />
+      <FaceStack members={group.members} me={{ id: me, status: effective }} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Txt v="bold" numberOfLines={1}>
           {group.name}
@@ -178,7 +203,8 @@ const styles = StyleSheet.create({
   stacked: { position: 'absolute', top: 0, borderWidth: 2, borderColor: C.surface },
   play: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14, borderRadius: 20 },
   pressed: { opacity: 0.9 },
-  dot: { position: 'absolute', bottom: -1, start: -1, backgroundColor: C.green, borderWidth: 2, borderColor: C.surface },
+  dot: { position: 'absolute', bottom: -2, start: -2 },
+  die: { position: 'absolute', top: -3, end: -3 },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   more: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.surfaceStrong },
   invite: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },

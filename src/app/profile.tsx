@@ -17,6 +17,7 @@ import { Field } from '@/ui/field';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 import { SpeakToggle } from '@/games/speak-toggle';
+import { StatusChips } from '@/home/status-sheet';
 import { versionLabel } from '@/lib/updates';
 
 export default function ProfileScreen() {
@@ -111,6 +112,13 @@ export default function ProfileScreen() {
           ))}
         </Row>
       </Card>
+
+      {!isFirst ? (
+        <Card>
+          <Txt v="h3">حالتي</Txt>
+          <StatusChips />
+        </Card>
+      ) : null}
 
       {!isFirst ? (
         <Card>

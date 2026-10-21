@@ -7,11 +7,17 @@
  *   the others a push notification (Expo push service) if their phone registered a token.
  *   The room waits until everyone is in (or the caller chooses «ابدأ بالموجودين»).
  * - Every member with the app open gets a fresh `groups` list whenever one of their groups changes.
+ * - Status («حالتي», see src/shared/status.ts): each phone sends its status on hello and when it
+ *   changes. «مشغول» members get no «لنلعب» call or push (the waiting list shows them as busy);
+ *   «غير مرئي» members look exactly like the ones whose app is closed — in the member lists, the
+ *   waiting list, «في لعبة» and «أُرسل إشعار» — but still get the call (in the app and as a push).
+ *   «بعيد» members get the in-app call and a push too (they may not be looking at the phone).
  */
 import { randomUUID } from 'node:crypto';
 
 import { cleanGroupName, GROUP_CODE_ALPHABET, GROUP_CODE_LEN, isExpoPushToken, MAX_GROUP_MEMBERS, MAX_GROUPS_PER_PLAYER, normalizeGroupCode } from '../src/shared/groups';
 import { resolveGame, type ClientMsg, type GameId, type GroupInfo, type GroupRequest, type PlayerInfo, type ServerMsg } from '../src/shared/protocol';
+import { cleanStatus, type MemberStatus, type MyStatus } from '../src/shared/status';
 import type { GroupRow, Store } from './db';
 import { send, type Room, type Sock } from './room';
 import { buildHonor } from './tournament';
@@ -65,6 +71,10 @@ export class GroupHub {
   private playing = new Map<string, { code: string; by: string; since: number }>();
   private idleSince = new Map<string, number>();
   private lastCall = new Map<string, number>();
+  /** the status each player with the app open sent («متاح» for older apps that send none) */
+  private statuses = new Map<string, MyStatus>();
+  /** people in a room that is playing right now (all of them; only visible ones are shown) */
+  private inGame = new Set<string>();
   /** players whose presence / profile changed since the last flush */
   private dirty = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -84,24 +94,70 @@ export class GroupHub {
   /* Presence                                                          */
   /* ---------------------------------------------------------------- */
 
+  /** The app is open on that phone (whatever its status: used to deliver calls, never shown). */
   isOnline(playerId: string) {
     return (this.sockets.get(playerId)?.size ?? 0) > 0;
   }
 
-  /** A socket said hello (on every connection, and again when the profile changes). */
-  hello(ws: Sock, player: PlayerInfo) {
+  /** What the others see: «غير متصل» when the app is closed or the person chose «غير مرئي». */
+  visibleStatus(playerId: string): MemberStatus {
+    if (!this.isOnline(playerId)) return 'offline';
+    const s = this.statuses.get(playerId) ?? 'available';
+    return s === 'invisible' ? 'offline' : s;
+  }
+
+  /** Shown as present (the app is open and the person is not invisible). */
+  isVisible(playerId: string) {
+    return this.visibleStatus(playerId) !== 'offline';
+  }
+
+  /** «في لعبة», as the others see it (never for an invisible person). */
+  isPlaying(playerId: string) {
+    return this.inGame.has(playerId) && this.isVisible(playerId);
+  }
+
+  /** «مشغول» — also once the app is closed (the last status the phone sent is remembered). */
+  isBusy(playerId: string) {
+    return this.isOnline(playerId) ? this.statuses.get(playerId) === 'busy' : this.store.status(playerId) === 'busy';
+  }
+
+  /** Everything the others see of a person's presence, to compare before / after a change. */
+  private seen(playerId: string) {
+    return `${this.visibleStatus(playerId)}|${this.isPlaying(playerId)}`;
+  }
+
+  /**
+   * A socket said hello (on every connection, and again when the profile changes). `status` is
+   * what the phone sent; an older app sends none: «متاح».
+   */
+  hello(ws: Sock, player: PlayerInfo, status?: MyStatus | null) {
     const before = this.sockPlayer.get(ws);
     if (before && before !== player.id) this.dropSocket(ws, before);
+    const seenBefore = this.seen(player.id);
     let set = this.sockets.get(player.id);
     if (!set) {
       set = new Set();
       this.sockets.set(player.id, set);
     }
-    const wasOnline = set.size > 0;
     set.add(ws);
     this.sockPlayer.set(ws, player.id);
+    // (no status: an older app, or a second socket of the same phone — keep what it has)
+    const s = cleanStatus(status) ?? this.statuses.get(player.id) ?? 'available';
+    this.statuses.set(player.id, s);
+    this.store.setStatus(player.id, s, this.now());
     const renamed = this.store.refreshMember(player);
-    if (!wasOnline || renamed) this.markDirty(player.id);
+    if (renamed || this.seen(player.id) !== seenBefore) this.markDirty(player.id);
+  }
+
+  /** The phone's status changed («حالتي», or the automatic «بعيد»). Bad values are ignored. */
+  setStatus(ws: Sock, player: PlayerInfo, status: unknown) {
+    const s = cleanStatus(status);
+    if (!s || this.sockPlayer.get(ws) !== player.id) return;
+    if (this.statuses.get(player.id) === s) return;
+    const seenBefore = this.seen(player.id);
+    this.statuses.set(player.id, s);
+    this.store.setStatus(player.id, s, this.now());
+    if (this.seen(player.id) !== seenBefore) this.markDirty(player.id);
   }
 
   /** A socket closed. */
@@ -114,10 +170,13 @@ export class GroupHub {
     this.sockPlayer.delete(ws);
     const set = this.sockets.get(id);
     if (!set) return;
+    const seenBefore = this.seen(id);
     set.delete(ws);
     if (set.size === 0) {
       this.sockets.delete(id);
-      this.markDirty(id);
+      this.statuses.delete(id); // the store keeps the last one (see isBusy)
+      // an invisible person closing the app changes nothing the others can see
+      if (this.seen(id) !== seenBefore) this.markDirty(id);
     }
   }
 
@@ -143,7 +202,7 @@ export class GroupHub {
     this.dirty.clear();
     const people = new Set<string>();
     for (const gid of groups) {
-      for (const m of this.store.members(gid)) if (this.isOnline(m.id)) people.add(m.id);
+      for (const m of this.store.members(gid)) if (this.isOnline(m.id)) people.add(m.id); // (invisible ones too: it's their list)
       // the waiting list in the group's room shows who has the app open
       const live = this.livePlaying(gid);
       if (live) this.rooms.get(live.code)?.broadcast();
@@ -155,9 +214,10 @@ export class GroupHub {
   /* Messages                                                          */
   /* ---------------------------------------------------------------- */
 
-  handle(ws: Sock, player: PlayerInfo, msg: Extract<ClientMsg, { t: 'groups' | 'group' | 'push' }>) {
+  handle(ws: Sock, player: PlayerInfo, msg: Extract<ClientMsg, { t: 'groups' | 'group' | 'push' | 'status' }>) {
     try {
       if (msg.t === 'groups') return send(ws, { t: 'groups', groups: this.groupsFor(player.id) });
+      if (msg.t === 'status') return this.setStatus(ws, player, msg.status);
       if (msg.t === 'push') {
         if (isExpoPushToken(msg.token)) this.store.setPushToken(player.id, msg.token, this.now());
         return;
@@ -293,7 +353,9 @@ export class GroupHub {
       waiting: true,
       notified: new Set(),
     };
-    r.isOnline = (id) => this.isOnline(id);
+    r.isOnline = (id) => this.isVisible(id);
+    // the waiting list: «مشغول» (also with the app closed: that's why no notification went), «في لعبة»
+    r.presence = (id) => ({ status: this.isVisible(id) ? this.visibleStatus(id) : this.isBusy(id) && !this.isOnline(id) ? 'busy' : 'offline', playing: this.isPlaying(id) });
     r.onStart = (started) => this.store.setLastGame(g.id, started);
     r.onTournamentEnd = (t) => {
       // the group may have been deleted while the tournament was played
@@ -315,11 +377,15 @@ export class GroupHub {
     const pushes: PushMessage[] = [];
     for (const m of members) {
       if (m.id === player.id) continue;
+      // «مشغول»: no invitation at all (they still see «يلعبون الآن» and can come in)
+      if (this.isBusy(m.id)) continue;
       if (this.isOnline(m.id)) {
         if (r.players.some((p) => p.id === m.id && p.connected)) continue;
         const call: ServerMsg = { t: 'groupCall', group: { id: g.id, name: g.name }, code: r.code, by };
         for (const s of this.sockets.get(m.id) ?? []) send(s, call);
-        continue;
+        // looking at the app: the call is enough. «بعيد» may not be looking, and «غير مرئي» must look
+        // exactly like a closed app (a push and «أُرسل إشعار»; the phone hides a duplicate banner)
+        if (this.visibleStatus(m.id) === 'available') continue;
       }
       const token = this.store.pushToken(m.id);
       if (!token) continue;
@@ -362,6 +428,7 @@ export class GroupHub {
 
   /** Clean-up a few times a second: a group whose room closed or emptied is no longer playing. */
   tick() {
+    this.checkInGame();
     const now = this.now();
     for (const [gid, p] of this.playing) {
       const room = this.rooms.get(p.code);
@@ -377,6 +444,19 @@ export class GroupHub {
         this.notifyGroup(gid);
       }
     }
+  }
+
+  /** «في لعبة»: who is in a room that is playing; the groups of those whose hint changed are told. */
+  checkInGame() {
+    const now = new Set<string>();
+    for (const room of this.rooms.values()) {
+      if (room.status !== 'playing') continue;
+      for (const p of room.players) if (!p.bot && p.connected) now.add(p.id);
+    }
+    const changed = [...now].filter((id) => !this.inGame.has(id)).concat([...this.inGame].filter((id) => !now.has(id)));
+    this.inGame = now;
+    // an invisible person's games are nobody's business: nothing to send
+    for (const id of changed) if (this.isVisible(id)) this.markDirty(id);
   }
 
   /* ---------------------------------------------------------------- */
@@ -415,7 +495,15 @@ export class GroupHub {
   /* ---------------------------------------------------------------- */
 
   private info(g: GroupRow): GroupInfo {
-    const members = this.store.members(g.id).map(({ id, name, avatar, color }) => ({ id, name, avatar, color, online: this.isOnline(id) }));
+    const members = this.store.members(g.id).map(({ id, name, avatar, color }) => ({
+      id,
+      name,
+      avatar,
+      color,
+      online: this.isVisible(id),
+      status: this.visibleStatus(id),
+      playing: this.isPlaying(id) || undefined,
+    }));
     return {
       id: g.id,
       code: g.code,

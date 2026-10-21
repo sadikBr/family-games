@@ -1,7 +1,8 @@
 /**
  * Push notifications on phones (expo-notifications + the Expo push service).
  *
- * - The server sends a push to members whose app is closed when someone in their group presses «لنلعب».
+ * - The server sends a push to members whose app is closed (or who are «بعيد» / «غير مرئي») when
+ *   someone in their group presses «لنلعب» — never to «مشغول» members.
  * - Android gets its push token through Firebase (google-services.json, see README «المجموعات»).
  *   If there is no token (permission refused, no Google services, a build without the Firebase file),
  *   getExpoPushTokenAsync throws: we log it once and carry on without push — the in-app invitation
@@ -10,7 +11,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import type * as NotificationsModule from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { client } from './client';
 import { askUser } from './push-ask';
@@ -78,7 +79,14 @@ export function initPush(onCall: (code: string) => void): () => void {
   // a partly available module (Expo Go) must never take the app down
   try {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+      handleNotification: async (n) => {
+        // the app is open and already shows this invitation (or I'm in that room): no second banner
+        // (a «بعيد» or «غير مرئي» phone gets the in-app call and the push — see server/groups.ts)
+        const data = n.request.content.data as { kind?: unknown; code?: unknown } | undefined;
+        const shown =
+          data?.kind === 'groupCall' && AppState.currentState === 'active' && (client.snap.call?.code === data.code || client.snap.room?.code === data.code);
+        return { shouldShowBanner: !shown, shouldShowList: !shown, shouldPlaySound: !shown, shouldSetBadge: false };
+      },
     });
     ensureChannel().then(async () => {
       try {

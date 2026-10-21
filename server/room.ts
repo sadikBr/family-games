@@ -30,6 +30,7 @@ import {
   type RoomView,
   type ServerMsg,
 } from '../src/shared/protocol';
+import type { MemberStatus } from '../src/shared/status';
 import { HEADSUP_CATEGORIES, IMPOSTER_CATEGORIES } from './content';
 import { headsup } from './games/headsup';
 import { imposter } from './games/imposter';
@@ -286,6 +287,8 @@ export class Room {
   group: RoomGroupState | null = null;
   /** who has the app open right now (the groups hub knows; used for the group waiting list) */
   isOnline: (id: string) => boolean = () => false;
+  /** a group member's status for the waiting list («مشغول», «في لعبة»; the groups hub knows) */
+  presence: (id: string) => { status: MemberStatus; playing: boolean } = () => ({ status: 'available', playing: false });
   /** called when a game starts (a group remembers its last game) */
   onStart: ((game: GameId) => void) | null = null;
   /** a tournament being set up, played or just finished (see server/tournament.ts) */
@@ -417,6 +420,8 @@ export class Room {
       waiting: g.waiting,
       expected: g.expected.map((e) => {
         const p = this.players.find((x) => x.id === e.id && !x.bot);
+        // (only while waiting: the list is shown then, and it may read the database)
+        const pr = g.waiting ? this.presence(e.id) : null;
         return {
           id: e.id,
           name: p?.name ?? e.name,
@@ -425,6 +430,9 @@ export class Room {
           inRoom: !!p?.connected,
           online: !!p?.connected || this.isOnline(e.id),
           notified: g.notified.has(e.id) || undefined,
+          // in the room: visibly here, whatever they chose
+          status: pr ? (p?.connected && pr.status === 'offline' ? 'available' : pr.status) : undefined,
+          playing: (pr && !p?.connected && pr.playing) || undefined,
         };
       }),
     };

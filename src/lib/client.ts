@@ -16,6 +16,7 @@ import type {
 
 import { getProfile } from './profile';
 import { serverUrl } from './server-url';
+import { myStatus, onStatusChange } from './status';
 
 const LAST_ROOM_KEY = 'fg.lastRoom.v1';
 /** the last group list, so the home screen shows the groups at once (refreshed when connected) */
@@ -57,6 +58,7 @@ class GameClient {
   private errorId = 0;
   private code: string | null = null;
   private appStateSub: { remove(): void } | null = null;
+  private statusSub: (() => void) | null = null;
   /** moving from one room to another: states of the old room still on their way are ignored */
   private switchTo: string | null = null;
   /** a room was asked for since the app started (create / join / a group's «لنلعب») */
@@ -100,10 +102,20 @@ class GameClient {
       const raw = await AsyncStorage.getItem(GROUPS_KEY);
       if (raw && !this.snap.groups) {
         // who is online and who is playing is only known once connected
-        const saved = (JSON.parse(raw) as GroupInfo[]).map((g) => ({ ...g, playing: null, members: g.members.map((m) => ({ ...m, online: false })) }));
+        const saved = (JSON.parse(raw) as GroupInfo[]).map((g) => ({
+          ...g,
+          playing: null,
+          members: g.members.map((m) => ({ ...m, online: false, status: 'offline' as const, playing: undefined })),
+        }));
         this.update({ groups: saved });
       }
     } catch {}
+    if (!this.statusSub) {
+      // «حالتي» changed (by hand, or the automatic «بعيد»): the next hello carries it when offline
+      this.statusSub = onStatusChange(() => {
+        if (this.isOpen()) this.raw({ t: 'status', status: myStatus() });
+      });
+    }
     if (!this.appStateSub) {
       this.appStateSub = AppState.addEventListener('change', (s) => {
         if (s === 'active') {
@@ -169,7 +181,7 @@ class GameClient {
       if (this.ws !== ws) return;
       this.retry = 0;
       this.update({ status: 'online' });
-      this.raw({ t: 'hello', player: getProfile() });
+      this.raw({ t: 'hello', player: getProfile(), status: myStatus() });
       if (this.code) this.raw({ t: 'join', code: this.code });
       const q = this.queue;
       this.queue = [];
@@ -374,7 +386,7 @@ class GameClient {
   /** Re-send our profile (name / avatar changed). */
   refreshProfile() {
     if (!this.isOpen()) return;
-    this.raw({ t: 'hello', player: getProfile() });
+    this.raw({ t: 'hello', player: getProfile(), status: myStatus() });
     if (this.code) this.raw({ t: 'join', code: this.code });
   }
 

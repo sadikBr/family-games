@@ -1,6 +1,6 @@
 /**
- * A group: its name (any member renames it), the invite (code + link), who is in it and who has the
- * app open, its tournaments («لوحة الشرف»), «لنلعب», and leaving. Also opened by an invite link (familygames://group?code=XXXXXX):
+ * A group: its name (any member renames it), the invite (code + link), who is in it and their status
+ * (متاح / بعيد / مشغول / غير متصل, «في لعبة»), its tournaments («لوحة الشرف»), «لنلعب», and leaving. Also opened by an invite link (familygames://group?code=XXXXXX):
  * the phone joins the group first (after choosing a name, on a first launch).
  */
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
@@ -14,14 +14,17 @@ import { HonorBoard } from '@/groups/honor-board';
 import { client, useClient } from '@/lib/client';
 import { goBack } from '@/lib/nav';
 import { useProfile } from '@/lib/profile';
+import { useMyStatus } from '@/lib/status';
 import { askForPushOnce } from '@/lib/push';
 import { GROUP_NAME_MAX, cleanGroupName, normalizeGroupCode } from '@/shared/groups';
 import type { GroupInfo } from '@/shared/protocol';
+import { IN_GAME_LABEL, STATUS_LABEL } from '@/shared/status';
 import { C, F, alpha } from '@/theme';
 import { Card, IconBubble, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ConfirmModal, Header } from '@/ui/controls';
 import { Screen } from '@/ui/screen';
+import { STATUS_COLOR, shownStatus } from '@/ui/status';
 import { Txt, num } from '@/ui/txt';
 
 function NameEditor({ group }: { group: GroupInfo }) {
@@ -72,6 +75,8 @@ function NameEditor({ group }: { group: GroupInfo }) {
 function GroupView({ group }: { group: GroupInfo }) {
   const { profile } = useProfile();
   const me = profile.id;
+  const { effective } = useMyStatus();
+  const mine = { id: me, status: effective };
   const [remove, setRemove] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [year] = useState(() => new Date().getFullYear());
@@ -137,18 +142,29 @@ function GroupView({ group }: { group: GroupInfo }) {
           </Txt>
         </Row>
         <View style={{ gap: 6 }}>
-          {members.map((m) => (
+          {members.map((m) => {
+            const st = shownStatus(m, mine);
+            const inGame = !!m.playing && st !== 'offline' && st !== 'invisible';
+            return (
             <Row key={m.id} gap={10} style={styles.member}>
-              <Face player={m} online={m.online} size={38} />
+              <Face player={m} online={m.online} status={st} playing={inGame} size={38} ring={C.bg2} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Txt v="bold" numberOfLines={1}>
                   {m.name}
                   {m.id === me ? ' (أنت)' : ''}
                 </Txt>
-                <Row gap={6}>
-                  <Txt v="tiny" color={m.online ? C.green : C.dim}>
-                    {m.online ? 'التطبيق مفتوح' : 'التطبيق مغلق'}
+                <Row gap={6} wrap>
+                  <Txt v="tiny" color={st === 'offline' || st === 'invisible' ? C.dim : STATUS_COLOR[st]}>
+                    {STATUS_LABEL[st]}
                   </Txt>
+                  {inGame ? (
+                    <Row gap={3}>
+                      <Icon name="dice" size={12} color={C.text} />
+                      <Txt v="tiny" color={C.text}>
+                        {IN_GAME_LABEL}
+                      </Txt>
+                    </Row>
+                  ) : null}
                   {m.id === group.createdBy ? (
                     <Row gap={3}>
                       <Icon name="crown" size={12} color={C.yellow} />
@@ -165,7 +181,8 @@ function GroupView({ group }: { group: GroupInfo }) {
                 </Pressable>
               ) : null}
             </Row>
-          ))}
+            );
+          })}
         </View>
         {group.members.length <= 1 ? (
           <Txt v="small" center color={C.muted}>
