@@ -82,7 +82,9 @@ export type IconName =
   | 'bank'
   | 'go'
   | 'expand'
-  | 'compress';
+  | 'compress'
+  /** «تفاعل»: send a reaction to the room */
+  | 'smile';
 
 const P = {
   fill: 'none',
@@ -414,6 +416,13 @@ function shapes(name: IconName, c: string) {
         <>
           <Circle cx={9} cy={9} r={5} {...s} />
           <Path d="M13.5 10.3a5 5 0 11-4 8.3M9 7v4M7.8 8h2.4" {...s} />
+        </>
+      );
+    case 'smile':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={8.5} {...s} />
+          <Path d="M8.3 13.6a4.4 4.4 0 007.4 0M9.2 9.6h.01M14.8 9.6h.01" {...s} strokeWidth={2.4} />
         </>
       );
     case 'question':

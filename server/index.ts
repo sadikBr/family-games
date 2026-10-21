@@ -127,6 +127,11 @@ function handle(ws: Sock, msg: ClientMsg) {
       if (room && data && isStr(msg.to)) room.relaySignal(player.id, msg.to, data);
       return;
     }
+    case 'react': {
+      // (an unknown key, too soon after the last one, or not in a room: quietly ignored)
+      room?.react(player.id, msg.key);
+      return;
+    }
     case 'groups':
     case 'group':
     case 'push':

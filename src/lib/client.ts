@@ -13,6 +13,7 @@ import type {
   RoomView,
   ServerMsg,
 } from '@/shared/protocol';
+import { reactionAllowed, reactionWait, type ReactionKey } from '@/shared/reactions';
 
 import { getProfile } from './profile';
 import { serverUrl } from './server-url';
@@ -68,6 +69,10 @@ class GameClient {
   private replyId = 0;
   /** voice chat messages go to the voice manager (src/lib/voice.ts) */
   private voiceListener: ((msg: Extract<ServerMsg, { t: 'signal' | 'voiceConfig' }>) => void) | null = null;
+  /** reactions arriving from the room go to the room screen's overlay (src/games/reactions.tsx) */
+  private reactionListeners = new Set<(msg: Extract<ServerMsg, { t: 'reaction' }>) => void>();
+  /** when I sent my last reactions (the server's rate limit, mirrored to rest the button) */
+  private reactTimes: number[] = [];
 
   snap: ClientSnapshot = {
     status: 'idle',
@@ -280,6 +285,11 @@ class GameClient {
       case 'voiceConfig':
         this.voiceListener?.(msg);
         return;
+      case 'reaction':
+        // only for the room on screen (not one we're leaving)
+        if (this.switchTo || !this.snap.room) return;
+        this.reactionListeners.forEach((l) => l(msg));
+        return;
       case 'left':
         if (this.switchTo) return; // the old room letting us go on the way to the new one
         this.code = null;
@@ -291,6 +301,31 @@ class GameClient {
 
   onVoice(fn: typeof this.voiceListener) {
     this.voiceListener = fn;
+  }
+
+  onReaction(fn: (msg: Extract<ServerMsg, { t: 'reaction' }>) => void) {
+    this.reactionListeners.add(fn);
+    return () => {
+      this.reactionListeners.delete(fn);
+    };
+  }
+
+  /**
+   * Send a reaction to everyone in my room. Only while connected (a reaction that arrives late means
+   * nothing), and no more often than the server allows. Returns whether it was sent.
+   */
+  react(key: ReactionKey): boolean {
+    if (!this.isOpen() || !this.snap.room) return false;
+    const r = reactionAllowed(this.reactTimes, Date.now());
+    this.reactTimes = r.times;
+    if (!r.ok) return false;
+    this.raw({ t: 'react', key });
+    return true;
+  }
+
+  /** How long before another reaction may be sent (ms; 0 = now). */
+  reactWait() {
+    return reactionWait(this.reactTimes, Date.now());
   }
 
   /** Voice chat messages: sent only while connected (a stale WebRTC message is worse than none). */

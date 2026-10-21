@@ -52,6 +52,7 @@ import { StaticBall } from './billiards-ball';
 import { BilliardsTable, strike, type Aiming } from './billiards-table';
 import { PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
+import { ReactionButton } from './reactions';
 import { useSettled } from './touch-motion';
 
 const COL = 46;
@@ -775,7 +776,11 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
                 <HitPointBtn spin={a.spin} setSpin={(spin) => setAim((x) => ({ ...x, spin }))} />
               </>
             ) : (
-              <Tray view={view} height={40} width={barW - 46} />
+              <>
+                <Tray view={view} height={40} width={barW - (full ? 92 : 46)} />
+                {/* full screen hides the room's header: its reaction button comes here, while I'm not aiming */}
+                {full ? <ReactionButton size={40} /> : null}
+              </>
             )}
           </View>
         )}

@@ -31,6 +31,7 @@ import {
   type ServerMsg,
 } from '../src/shared/protocol';
 import type { MemberStatus } from '../src/shared/status';
+import { isReactionKey, reactionAllowed } from '../src/shared/reactions';
 import { HEADSUP_CATEGORIES, IMPOSTER_CATEGORIES } from './content';
 import { headsup } from './games/headsup';
 import { imposter } from './games/imposter';
@@ -257,6 +258,9 @@ export class Room {
   sockets = new Map<string, Sock>();
   /** voice chat: who joined, and whether they're muted */
   private voice = new Map<string, { muted: boolean }>();
+  /** when each person last sent reactions (for the rate limit) */
+  private reactions = new Map<string, number[]>();
+  private reactionCounter = 0;
   settings: AllSettings = structuredClone(DEFAULT_SETTINGS);
   state: unknown = null;
   memo = new Map<string, unknown>();
@@ -461,6 +465,28 @@ export class Room {
     const ws = this.sockets.get(to);
     if (!ws) return;
     send(ws, { t: 'signal', from, data: data as never });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Reactions: passed on to everyone in the room, never kept.         */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * A person in the room sent a reaction: relay it to every phone in the room (theirs too, as the
+   * confirmation). Only a key from the fixed list, only from someone connected here, and at most as
+   * often as reactionAllowed lets. Not part of the room's view: nothing to replay on reconnect.
+   * Returns whether it was passed on.
+   */
+  react(by: string, key: unknown, now = Date.now()): boolean {
+    if (!isReactionKey(key) || !this.sockets.has(by)) return false;
+    const p = this.players.find((x) => x.id === by);
+    if (!p || p.bot) return false;
+    const r = reactionAllowed(this.reactions.get(by) ?? [], now);
+    this.reactions.set(by, r.times);
+    if (!r.ok) return false;
+    const msg: ServerMsg = { t: 'reaction', id: ++this.reactionCounter, by, key };
+    for (const ws of this.sockets.values()) send(ws, msg);
+    return true;
   }
 
   disconnect(id: string, ws: Sock) {

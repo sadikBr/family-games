@@ -6,6 +6,7 @@ import type { Card } from './cards';
 import type { ZadKind } from './islamic';
 import type { UnoColor, UnoFace, UnoSide } from './uno';
 import type { MemberStatus, MyStatus } from './status';
+import type { ReactionKey } from './reactions';
 import { PHASE10_DEFAULTS, type Phase10Settings, type Phase10View } from './games/phase10';
 import { SCRABBLE_DEFAULTS, type ScrabbleSettings, type ScrabbleView } from './games/scrabble';
 import { CHARADES_DEFAULTS, type CharadesSettings, type CharadesView } from './games/charades';
@@ -1665,7 +1666,9 @@ export type ClientMsg =
   | GroupRequest
   | { t: 'push'; token: string }
   /** my status changed («حالتي», or the automatic «بعيد») */
-  | { t: 'status'; status: MyStatus };
+  | { t: 'status'; status: MyStatus }
+  /** a reaction to everyone in my room (one of REACTION_KEYS, see src/shared/reactions.ts) */
+  | { t: 'react'; key: ReactionKey };
 
 export type GroupRequest =
   | { t: 'group'; a: 'create'; name: string }
@@ -1745,4 +1748,10 @@ export type ServerMsg =
   /** answer to a group create / join */
   | { t: 'group'; a: 'create' | 'join'; group: GroupInfo }
   /** someone pressed «لنلعب» in one of my groups */
-  | { t: 'groupCall'; group: { id: string; name: string }; code: string; by: PlayerInfo };
+  | { t: 'groupCall'; group: { id: string; name: string }; code: string; by: PlayerInfo }
+  /**
+   * Someone in my room sent a reaction (me too: my own comes back as the confirmation). Only passed
+   * on, never kept: it isn't part of the room's view and isn't sent again on reconnect. An older app
+   * ignores it.
+   */
+  | { t: 'reaction'; id: number; by: string; key: ReactionKey };

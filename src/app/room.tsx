@@ -8,6 +8,7 @@ import { GameView } from '@/games/game-view';
 import { Lobby, LobbyFooter } from '@/games/lobby';
 import { TurnBar } from '@/games/turn-bar';
 import { VoiceButton, VoiceStrip } from '@/games/voice-ui';
+import { ReactionButton, ReactionLayer } from '@/games/reactions';
 import { RoomMenu, shareRoom } from '@/games/room-menu';
 import { EndTournamentModal, TournamentChip, TournamentFallback, TournamentFooter, TournamentScreen, TournamentSlotProvider } from '@/games/tournament';
 import { GAMES } from '@/games/meta';
@@ -162,6 +163,7 @@ export default function RoomScreen() {
   return (
     <AccentContext.Provider value={between && t?.stage === 'final' ? C.yellow : meta.color}>
     <ImmersiveContext.Provider value={setImmersive}>
+    <View style={{ flex: 1 }}>
     <Screen
       bg={night ? C.night : C.bg}
       glow={glow}
@@ -201,8 +203,10 @@ export default function RoomScreen() {
                     <Pill label={room.code} icon="key" />
                   </Pressable>
                 ) : null}
-                <VoiceButton />
-                <IconBtn icon="users" size={38} onPress={() => setMenu(true)} label="قائمة الغرفة" />
+                {/* «تفاعل»: in the header, so it never covers a game's own controls */}
+                <ReactionButton size={width < 360 ? 34 : 38} />
+                <VoiceButton size={width < 360 ? 34 : 38} />
+                <IconBtn icon="users" size={width < 360 ? 34 : 38} onPress={() => setMenu(true)} label="قائمة الغرفة" />
               </Row>
             }
           />
@@ -257,6 +261,9 @@ export default function RoomScreen() {
         }}
       />
     </Screen>
+    {/* reactions: big, over everything in the room (never taking a touch) */}
+    <ReactionLayer room={room} />
+    </View>
     </ImmersiveContext.Provider>
     </AccentContext.Provider>
   );

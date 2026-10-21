@@ -8,12 +8,13 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/art/icons';
 import { client } from '@/lib/client';
+import { setReactionsOn, useReactionsOn } from '@/lib/reactions';
 import { isMuted, onMuteChange, setMuted } from '@/lib/sfx';
 import { BOT_LEVELS, BOT_LEVEL_LABEL, PACES, PACE_LABEL, type RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { ChipPicker, ConfirmModal } from '@/ui/controls';
+import { ChipPicker, ConfirmModal, Toggle } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 import { GAMES } from './meta';
@@ -30,6 +31,7 @@ export function shareRoom(room: RoomView) {
 export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; visible: boolean; onClose: () => void; onLobby: () => void }) {
   const [muted, setMutedState] = useState(isMuted());
   const [remove, setRemove] = useState<string | null>(null);
+  const reactions = useReactionsOn();
   useEffect(() => onMuteChange(setMutedState), []);
   const isHost = room.hostId === room.me;
   const playing = room.status === 'playing';
@@ -54,6 +56,12 @@ export function RoomMenu({ room, visible, onClose, onLobby }: { room: RoomView; 
               <Btn size="md" ghost icon={muted ? 'mute' : 'sound'} label={muted ? 'الصوت مطفأ' : 'الصوت'} onPress={() => setMuted(!muted)} />
             </Row>
             <SpeakToggle />
+            <View style={{ gap: 2 }}>
+              <Toggle label="التفاعلات" value={reactions} onChange={setReactionsOn} />
+              <Txt v="tiny" color={C.muted}>
+                {reactions ? 'تظهر تفاعلات الآخرين كبيرةً وسط الشاشة.' : 'لا تظهر تفاعلات الآخرين على هذا الهاتف (تفاعلاتك تظهر لك).'}
+              </Txt>
+            </View>
 
             <Txt v="bold" color={C.muted}>
               سرعة اللعب{isHost ? '' : ' (يغيّرها المضيف)'}
