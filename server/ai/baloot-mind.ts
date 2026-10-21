@@ -5,13 +5,17 @@
  * the face-up card the buyer took, the projects / announcements shown, «بلوط» said. From the play it
  * deduces voids and «no higher trump» (a duty that was not met means the player could not meet it).
  * Card play is determinized Monte-Carlo: deals of the unknown cards consistent with all that (biased
- * towards the buyer holding the big trumps) are played out with a quick policy (the last 3 tricks
- * solved exactly), and the card with the best average hand score wins. Bidding and doubling simulate
- * whole hands the same way for each possible contract.
+ * towards the buyer holding the big trumps, away from those who passed on the trump suit) are played
+ * out with a quick policy (the last 5 tricks solved exactly), and the card with the best average hand
+ * score wins; cards clearly behind are dropped early so the close calls get the samples.
+ * Purchases: the plain, fitted reading of the hand (./baloot-bid.ts) blended with whole-hand
+ * simulations of each contract and of passing (deals consistent with the passes so far); doubling
+ * simulates the same way.
  */
 import type { BalootOption, BalootRaise, BCard, BSide } from '../../src/shared/games/baloot';
 import { B_SUITS, scoreHand } from '../../src/shared/baloot-rules';
-import { hokmStrength, sunStrength } from '../baloot-bot';
+import { sunStrength } from '../baloot-bot';
+import { BAD_VALUE, BUY_RULE, hokmEval, hokmWhy } from './baloot-bid';
 import { MA_BELOTE, maScoreHand } from '../../src/shared/baloot-morocco';
 import type { State } from '../games/baloot';
 import { cardsOf, claimCertain, ci, ddValue, maskOf, NT, popcount, POW, rollout, Sim, trumpIndex, VAL } from './baloot-engine';
@@ -111,14 +115,21 @@ export function know(s: State, id: string, weights = true): Know {
   const pool = ~known;
   const buyer = seatOf(s, c.buyer);
   const T = t * 32;
+  // who passed on the trump suit before the buyer took it (a player who passes rarely holds its J / 9)
+  let declined = 0;
+  if (s.bid && t < NT) {
+    const order = s.bid.order.map((x) => seatOf(s, x));
+    for (const p of order.slice(0, order.indexOf(buyer))) if (s.bid.calls[s.seats[p]]?.call === 'pass') declined |= 1 << p;
+  }
   const weight = (seat: number, card: number) => {
     if (!weights) return 1;
     if (t < NT) {
       if (card >> 3 !== t) return 1;
       const pw = POW[T + card];
       if (seat === buyer) return pw >= 6 ? 2.6 : 1.5;
-      if (seat === ((buyer + 2) & 3)) return 1.1;
-      return pw >= 6 ? 0.75 : 0.9;
+      const d = declined & (1 << seat) && pw >= 7 ? 0.6 : 1;
+      if (seat === ((buyer + 2) & 3)) return 1.1 * d;
+      return (pw >= 6 ? 0.75 : 0.9) * d;
     }
     // صن: the buyer tends to hold the aces and tens
     if (seat === buyer && VAL[T + card] >= 10) return 1.8;
@@ -129,6 +140,14 @@ export function know(s: State, id: string, weights = true): Know {
 
 /** Deal the unknown cards to the other seats, every known fact respected (relaxed only if it can't be). */
 export function sampleDeal(k: Know, t: number, rnd: () => number = Math.random): number[] | null {
+  return makeSampler(k, t)(rnd);
+}
+
+/**
+ * A dealer of the unknown cards for many samples of the same position: what may go where (voids, «no
+ * trump above X»), the soft weights and the dealing order are worked out once.
+ */
+export function makeSampler(k: Know, t: number): (rnd?: () => number) => number[] | null {
   const cards: number[] = [];
   let m = k.pool;
   while (m) {
@@ -137,65 +156,85 @@ export function sampleDeal(k: Know, t: number, rnd: () => number = Math.random):
     m ^= b;
   }
   const T = t * 32;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const relax = attempt >= 30 ? 2 : attempt >= 20 ? 1 : 0;
-    const h = [0, 0, 0, 0];
-    const left = [0, 0, 0, 0];
-    let total = 0;
-    for (let p = 0; p < 4; p++) {
-      if (p === k.me) {
-        h[p] = k.mine;
-        continue;
-      }
-      h[p] = k.fixed[p];
-      left[p] = k.need[p] - popcount(k.fixed[p]);
-      if (left[p] < 0) return null;
-      total += left[p];
-    }
-    if (total !== cards.length) return null;
-    const ok = (p: number, c: number) => {
-      if (p === k.me || left[p] <= 0) return false;
-      if (relax < 2 && k.voids[p] & (1 << (c >> 3))) return false;
-      if (relax < 1 && c >> 3 === t && POW[T + c] > k.cap[p]) return false;
-      return true;
-    };
-    // shuffle, then the most constrained cards first
-    for (let i = cards.length - 1; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      [cards[i], cards[j]] = [cards[j], cards[i]];
-    }
-    const width = (c: number) => {
-      let n = 0;
-      for (let p = 0; p < 4; p++) if (ok(p, c)) n++;
-      return n;
-    };
-    const order = cards.map((c) => ({ c, w: width(c) })).sort((a, b) => a.w - b.w);
-    let fail = false;
-    for (const { c } of order) {
-      let tot = 0;
-      const ws = [0, 0, 0, 0];
-      for (let p = 0; p < 4; p++) {
-        if (!ok(p, c)) continue;
-        ws[p] = left[p] * k.weight(p, c);
-        tot += ws[p];
-      }
-      if (tot <= 0) {
-        fail = true;
-        break;
-      }
-      let r = rnd() * tot;
-      let p = 0;
-      for (; p < 3; p++) {
-        r -= ws[p];
-        if (r < 0 && ws[p] > 0) break;
-      }
-      while (ws[p] <= 0) p = (p + 1) & 3;
-      h[p] |= 1 << c;
-      left[p] -= 1;
-    }
-    if (!fail) return h;
+  const need = [0, 0, 0, 0];
+  let total = 0;
+  let bad = false;
+  for (let p = 0; p < 4; p++) {
+    if (p === k.me) continue;
+    need[p] = k.need[p] - popcount(k.fixed[p]);
+    if (need[p] < 0) bad = true;
+    total += need[p];
   }
-  return null;
+  if (bad || total !== cards.length) return () => null;
+  // ok[relax][card]: bit per seat that may hold the card (relax 1: «no trump above» dropped, 2: voids too)
+  const ok = [new Int32Array(32), new Int32Array(32), new Int32Array(32)];
+  const w = new Float64Array(4 * 32);
+  for (const c of cards) {
+    for (let p = 0; p < 4; p++) {
+      if (p === k.me || need[p] <= 0) continue;
+      const voidOk = !(k.voids[p] & (1 << (c >> 3)));
+      const capOk = !(c >> 3 === t && POW[T + c] > k.cap[p]);
+      if (voidOk && capOk) ok[0][c] |= 1 << p;
+      if (voidOk) ok[1][c] |= 1 << p;
+      ok[2][c] |= 1 << p;
+      w[p * 32 + c] = k.weight(p, c);
+    }
+  }
+  // the most constrained cards first (ties shuffled each time)
+  const orders = ok.map((o) => cards.slice().sort((a, b) => popcount(o[a]) - popcount(o[b])));
+  const widths = ok.map((o, r) => orders[r].map((c) => popcount(o[c])));
+  const order = new Array<number>(cards.length);
+  return (rnd = Math.random) => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const relax = attempt >= 30 ? 2 : attempt >= 20 ? 1 : 0;
+      const okr = ok[relax];
+      // shuffle inside each group of equal width
+      const src = orders[relax];
+      const wid = widths[relax];
+      for (let i = 0; i < src.length; i++) order[i] = src[i];
+      for (let i = 0; i < order.length; ) {
+        let j = i;
+        while (j < order.length && wid[j] === wid[i]) j++;
+        for (let q = j - 1; q > i; q--) {
+          const r = i + Math.floor(rnd() * (q - i + 1));
+          const tmp = order[q];
+          order[q] = order[r];
+          order[r] = tmp;
+        }
+        i = j;
+      }
+      const h = [0, 0, 0, 0];
+      const left = need.slice();
+      for (let p = 0; p < 4; p++) h[p] = p === k.me ? k.mine : k.fixed[p];
+      let fail = false;
+      for (let i = 0; i < order.length; i++) {
+        const c = order[i];
+        const bits = okr[c];
+        let tot = 0;
+        const ws = [0, 0, 0, 0];
+        for (let p = 0; p < 4; p++) {
+          if (!(bits & (1 << p)) || left[p] <= 0) continue;
+          ws[p] = left[p] * w[p * 32 + c];
+          tot += ws[p];
+        }
+        if (tot <= 0) {
+          fail = true;
+          break;
+        }
+        let r = rnd() * tot;
+        let p = 0;
+        for (; p < 3; p++) {
+          r -= ws[p];
+          if (r < 0 && ws[p] > 0) break;
+        }
+        while (ws[p] <= 0) p = (p + 1) & 3;
+        h[p] |= 1 << c;
+        left[p] -= 1;
+      }
+      if (!fail) return h;
+    }
+    return null;
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -253,7 +292,7 @@ function knownBaloot(s: State, myTeam: number): Record<BSide, number> {
 /* ------------------------------------------------------------------ */
 
 const BUDGET: Record<MindLevel, { ms: number; max: number; min: number; dd: number }> = {
-  expert: { ms: 28, max: 600, min: 24, dd: 12 },
+  expert: { ms: 45, max: 1000, min: 24, dd: 20 },
   smart: { ms: 6, max: 24, min: 8, dd: 0 },
 };
 
@@ -318,10 +357,16 @@ function finish(y: Sim, buyer: number, myTeam: number, score: Scorer, exact: boo
   return score(y.pts, y.tr);
 }
 
-/** The expert / smart card: the legal card with the best average score over sampled deals. */
+/**
+ * The expert / smart card: the legal card with the best average score over sampled deals (the same
+ * deals for every card, so the comparison is paired). Cards that are clearly worse than the leader
+ * (paired difference below 0 by more than 3 standard errors) stop being simulated: the budget goes to
+ * the close calls. With fixed sample counts (tests, the self-play script) the work is counted in
+ * simulated continuations, so the pruning buys more deals for the cards still in the race.
+ */
 export function mindPlay(s: State, id: string, legal: BCard[], level: MindLevel): BCard {
   if (legal.length === 1) return legal[0];
-  const b = fixed ? { ms: Infinity, max: fixed.play, min: fixed.play, dd: BUDGET[level].dd } : BUDGET[level];
+  const b = fixed ? { ms: Infinity, max: fixed.play * legal.length, min: fixed.play, dd: BUDGET[level].dd } : BUDGET[level];
   const t0 = now();
   const me = seatOf(s, id);
   const myTeam = me & 1;
@@ -331,30 +376,73 @@ export function mindPlay(s: State, id: string, legal: BCard[], level: MindLevel)
   base.vd = k.voids.slice();
   const score = makeScorer(s, myTeam);
   const cands = legal.map(ci);
-  const total = new Float64Array(cands.length);
+  const m = cands.length;
   const exact = b.dd > 0 && base.left <= b.dd;
+  // the exact solves of the last 5 tricks cost more per deal: fewer deals are required before the clock decides
+  const minN = exact && !fixed ? Math.min(b.min, 14) : b.min;
+  const work = fixed ? fixed.play * m : Infinity;
+  const scores = new Float64Array(b.max * m);
+  const total = new Float64Array(m);
+  const active = new Array<boolean>(m).fill(true);
+  let alive = m;
+  let done = 0;
+  const sample = makeSampler(k, base.t);
   let n = 0;
-  for (; n < b.max && (n < b.min || now() - t0 < b.ms); n++) {
-    const deal = sampleDeal(k, base.t);
+  for (; n < b.max && done < work && alive > 1 && (n < minN || now() - t0 < b.ms); n++) {
+    const deal = sample();
     if (!deal) break;
     const x = base.clone();
     x.h = deal;
-    for (let i = 0; i < cands.length; i++) {
+    for (let i = 0; i < m; i++) {
+      if (!active[i]) continue;
       const y = x.clone();
       y.play(cands[i]);
-      total[i] += finish(y, buyer, myTeam, score, exact);
+      const v = finish(y, buyer, myTeam, score, exact);
+      scores[n * m + i] = v;
+      total[i] += v;
+      done++;
     }
+    if (n >= 15 && (n + 1) % 8 === 0) alive = prune(scores, total, active, n + 1, m);
     if (now() - t0 > b.ms * 2.2) break;
   }
   if (!n) return legal[0];
-  let best = 0;
+  let best = -1;
   const T = base.t * 32;
-  for (let i = 1; i < cands.length; i++) {
+  for (let i = 0; i < m; i++) {
+    if (!active[i]) continue;
+    if (best < 0) {
+      best = i;
+      continue;
+    }
     const d = total[i] - total[best];
     // equal scores: keep the cheaper card
     if (d > 1e-9 || (Math.abs(d) <= 1e-9 && VAL[T + cands[i]] * 20 + POW[T + cands[i]] < VAL[T + cands[best]] * 20 + POW[T + cands[best]])) best = i;
   }
   return legal[best];
+}
+
+/** Drop the cards clearly worse than the leader (paired over the `n` deals all active cards shared); how many stay. */
+function prune(scores: Float64Array, total: Float64Array, active: boolean[], n: number, m: number): number {
+  let lead = -1;
+  for (let i = 0; i < m; i++) if (active[i] && (lead < 0 || total[i] > total[lead])) lead = i;
+  let alive = 0;
+  for (let i = 0; i < m; i++) {
+    if (!active[i]) continue;
+    if (i !== lead) {
+      let sum = 0;
+      let sq = 0;
+      for (let j = 0; j < n; j++) {
+        const d = scores[j * m + i] - scores[j * m + lead];
+        sum += d;
+        sq += d * d;
+      }
+      const mean = sum / n;
+      const se = Math.sqrt(Math.max(0, sq / n - mean * mean) / n);
+      if (mean + 3 * se < 0) active[i] = false;
+    }
+    if (active[i]) alive++;
+  }
+  return alive;
 }
 
 /* ------------------------------------------------------------------ */
@@ -483,7 +571,8 @@ function playDeal(hands: number[], k: Contract, ma: boolean, leader: number) {
   return { pts: x.pts, tr: x.tr, proj, bal };
 }
 
-/** my team's points minus theirs for one played deal */
+/** my team's points minus theirs for one played deal; `failed`: the buyers' contract failed */
+let lastFailed = false;
 function dealScore(r: ReturnType<typeof playDeal>, k: Contract, ma: boolean, myTeam: number, mult: number, pot: number): number {
   const buyerSide = sideKey(k.buyer & 1);
   const projects = { A: r.proj[0], B: r.proj[1] };
@@ -492,9 +581,11 @@ function dealScore(r: ReturnType<typeof playDeal>, k: Contract, ma: boolean, myT
   const theirs = sideKey(myTeam ^ 1);
   if (ma) {
     const out = maScoreHand({ buyerSide, cards: { A: r.pts[0], B: r.pts[1] }, tricks: { A: r.tr[0], B: r.tr[1] }, ann: projects, belote: bal, pot });
+    lastFailed = out.failed;
     return out.points[mine] - out.points[theirs];
   }
   const out = scoreHand({ mode: k.t === NT ? 'sun' : 'hokm', buyerSide, abnat: { A: r.pts[0], B: r.pts[1] }, tricks: { A: r.tr[0], B: r.tr[1] }, projects, baloot: bal, mult });
+  lastFailed = out.failed;
   return out.points[mine] - out.points[theirs];
 }
 
@@ -507,11 +598,51 @@ function shuffled(cards: number[]): number[] {
   return a;
 }
 
+/** the face-up card and the first player to speak (who also leads the first trick) */
+const leaderOf = (s: State) => (s.dealer + 1) % 4;
+
+/**
+ * Would a sensible player holding `five` (+ the face-up card) buy `suit`? The «smart» rule of
+ * ./baloot-bid.ts: used to read the others' passes and to guess what they buy after mine.
+ */
+function wouldBuy(s: State, seat: number, five: number, suit: number): boolean {
+  const ma = s.settings.mode === 'morocco';
+  const e = hokmEval([...cardsOf(five), s.faceUp!], B_SUITS[suit], ma, seat === leaderOf(s));
+  const rule = BUY_RULE[ma ? 'morocco' : 'saudi'].smart;
+  return e.value >= rule.min && e.fail <= rule.cap;
+}
+
+const wouldSun = (s: State, five: number) => s.settings.mode !== 'morocco' && sunStrength([...cardsOf(five), s.faceUp!]) >= 8.5;
+
+/**
+ * What the passes said so far: [seat, suits it declined (bits), declined صن]. In the 2nd round every
+ * seat declined the face-up suit in the 1st one (nobody bought).
+ */
+function passes(s: State, me: number): [number, number, boolean][] {
+  const b = s.bid!;
+  const ut = trumpIndex(s.faceUp!.suit);
+  const out = new Map<number, [number, number, boolean]>();
+  const order = b.order.map((id) => seatOf(s, id));
+  if (b.round === 2) for (const p of order) if (p !== me) out.set(p, [p, 1 << ut, true]);
+  for (const [id, c] of Object.entries(b.calls)) {
+    const p = seatOf(s, id);
+    if (p === me || c.call !== 'pass') continue;
+    const prev = out.get(p) ?? [p, 0, false];
+    prev[1] |= b.round === 1 ? 1 << ut : 0xf & ~(1 << ut);
+    prev[2] = true;
+    out.set(p, prev);
+  }
+  return [...out.values()];
+}
+
 /**
  * Expected score (my team minus theirs) of each contract, over the same sampled deals: during the
  * bidding I know my 5 cards and the face-up card; the buyer takes it + 2, the others get 3 more.
+ * The deals respect what the passes said (a player who passed rarely holds a hand that buys: such
+ * deals are drawn again, softly — people do pass good hands sometimes). `fails[i]`: how often contract
+ * i failed for its buyers.
  */
-function bidValues(s: State, me: number, contracts: Contract[], samples0: number, ms0: number): number[] {
+function bidValues(s: State, me: number, contracts: Contract[], samples0: number, ms0: number): { vals: number[]; fails: number[] } {
   const samples = fixed ? fixed.bid : samples0;
   const ms = fixed ? Infinity : ms0;
   const ma = s.settings.mode === 'morocco';
@@ -519,20 +650,31 @@ function bidValues(s: State, me: number, contracts: Contract[], samples0: number
   const up = ci(s.faceUp!);
   const unknown: number[] = [];
   for (let c = 0; c < 32; c++) if (!(mine & (1 << c)) && c !== up) unknown.push(c);
-  const leader = (s.dealer + 1) % 4;
+  const leader = leaderOf(s);
+  const said = passes(s, me);
   const out = contracts.map(() => 0);
+  const fails = contracts.map(() => 0);
   const t0 = now();
   let n = 0;
   for (; n < samples && (n < 12 || now() - t0 < ms); n++) {
-    const perm = shuffled(unknown);
+    let perm: number[] = [];
     const five = [0, 0, 0, 0];
-    five[me] = mine;
-    let p = 0;
-    for (let seat = 0; seat < 4; seat++) {
-      if (seat === me) continue;
-      for (let i = 0; i < 5; i++) five[seat] |= 1 << perm[p++];
+    for (let attempt = 0; attempt < 8; attempt++) {
+      perm = shuffled(unknown);
+      five.fill(0);
+      five[me] = mine;
+      let p = 0;
+      for (let seat = 0; seat < 4; seat++) {
+        if (seat === me) continue;
+        for (let i = 0; i < 5; i++) five[seat] |= 1 << perm[p++];
+      }
+      const odd = said.some(([seat, suits, sun]) => {
+        for (let t = 0; t < 4; t++) if (suits & (1 << t) && wouldBuy(s, seat, five[seat], t)) return true;
+        return sun && wouldSun(s, five[seat]);
+      });
+      if (!odd || Math.random() < 0.2) break;
     }
-    const stock = perm.slice(p);
+    const stock = perm.slice(15);
     contracts.forEach((k0, ki) => {
       const k = k0.buyer < 0 ? passOutcome(s, me, five) : k0;
       if (!k) return; // everyone passes: a new deal, worth nothing
@@ -544,12 +686,14 @@ function bidValues(s: State, me: number, contracts: Contract[], samples0: number
         for (let i = 0; i < 3; i++) hands[seat] |= 1 << stock[q++];
       }
       let v = dealScore(playDeal(hands, k, ma, leader), k, ma, me & 1, 1, s.pot);
+      if (lastFailed) fails[ki]++;
       // calibrated on played hands: the simulations underrate صن for its buyers by a few points
       if (!ma && k.t === NT) v += (k.buyer & 1) === (me & 1) ? SUN_BONUS : -SUN_BONUS;
       out[ki] += v;
     });
   }
-  return out.map((v) => v / Math.max(1, n));
+  const d = Math.max(1, n);
+  return { vals: out.map((v) => v / d), fails: fails.map((v) => v / d) };
 }
 
 const SUN_BONUS = 3;
@@ -558,41 +702,37 @@ const SUN_BONUS = 3;
 const PASS: Contract = { t: -1, buyer: -1 };
 
 /**
- * If I pass: what the others would most likely buy with the cards of this sample (a plain reading of
- * their hands: صن with aces and tens, حكم with the J / 9 of trumps), or null when everyone passes.
+ * If I pass: what the others would most likely buy with the cards of this sample (the «smart» reading
+ * of their hands, ./baloot-bid.ts; Saudi صن with aces and tens), or null when everyone passes.
  */
 function passOutcome(s: State, me: number, five: number[]): Contract | null {
   const ma = s.settings.mode === 'morocco';
   const b = s.bid!;
-  const up = s.faceUp!;
-  const ut = trumpIndex(up.suit);
+  const ut = trumpIndex(s.faceUp!.suit);
   const order = b.order.map((id) => seatOf(s, id));
   const after = order.slice(order.indexOf(me) + 1);
-  const hand = (seat: number) => [...cardsOf(five[seat]), up];
   const round2 = (players: number[]): Contract | null => {
     for (const p of players) {
-      const h = hand(p);
-      if (!ma && sunStrength(h) >= 8.5) return { t: NT, buyer: p };
+      if (wouldSun(s, five[p])) return { t: NT, buyer: p };
       let best = -1;
-      let bv = -1;
+      let bv = -1e9;
       for (let t = 0; t < 4; t++) {
-        if (t === ut) continue;
-        const v = hokmStrength(h, B_SUITS[t]);
+        if (t === ut || !wouldBuy(s, p, five[p], t)) continue;
+        const v = hokmEval([...cardsOf(five[p]), s.faceUp!], B_SUITS[t], ma, p === leaderOf(s)).value;
         if (v > bv) {
           bv = v;
           best = t;
         }
       }
-      if (bv >= 6.9) return { t: best, buyer: p };
+      if (best >= 0) return { t: best, buyer: p };
     }
     return null;
   };
   if (b.round === 2) return round2(after);
   let best: Contract | null = b.best ? { t: trumpIndex(b.best.suit), buyer: seatOf(s, b.best.by) } : null;
   for (const p of after) {
-    const h = hand(p);
-    if (!ma && sunStrength(h) >= 8.5) return { t: NT, buyer: p };
-    if (!best && hokmStrength(h, up.suit) >= 6.6) {
+    if (wouldSun(s, five[p])) return { t: NT, buyer: p };
+    if (!best && (wouldBuy(s, p, five[p], ut) || (ma && s.faceUp!.rank === 'J' && p === order[0]))) {
       if (ma) return { t: ut, buyer: p };
       best = { t: ut, buyer: p };
     }
@@ -612,51 +752,125 @@ function buyMargin(s: State, me: number, ma: boolean): number {
   return m;
 }
 
-/** The expert's bid: each contract it may name is simulated; the best one is named when it is worth it. */
+/** the plain reading of buying `suit` with my 5 cards + the face-up card */
+function readHokm(s: State, id: string, suit: string) {
+  const ma = s.settings.mode === 'morocco';
+  return hokmEval([...s.hands[id], s.faceUp!], suit as BCard['suit'], ma, seatOf(s, id) === leaderOf(s));
+}
+
+/** Why a bot would or would not buy `suit` now (the plain reading; for the self-play report). */
+export function bidReason(s: State, id: string, suit: string): string {
+  return hokmWhy(readHokm(s, id, suit));
+}
+
+/**
+ * The smart / expert purchase.
+ * 1. Every حكم it may name is first read plainly (./baloot-bid.ts, fitted on played hands): a suit
+ *    whose estimate is clearly negative is never named, whatever the simulations say.
+ * 2. The simulations (deals consistent with the passes so far, played out quickly) give each contract
+ *    its expected score and failure rate, and «pass» its own (what the next players would buy).
+ * 3. A حكم is named when the blended estimate (simulation + plain reading) clears the level's
+ *    minimum, its failure risk is below the level's cap, and it beats passing by the margin.
+ * Saudi صن keeps its plain gate (aces and tens) and the same simulations.
+ */
 export function mindBid(s: State, id: string, options: BalootOption[], level: MindLevel): { call: BalootOption['call']; suit?: string } {
   const me = seatOf(s, id);
   const ma = s.settings.mode === 'morocco';
   if (options.length === 1) return { call: options[0].call };
   const partner = (me + 2) & 3;
   const up = s.faceUp!;
-  const choices: { call: BalootOption['call']; suit?: string; k: Contract }[] = [];
+  const rule = BUY_RULE[ma ? 'morocco' : 'saudi'][level];
+  const canPass = options.some((o) => o.call === 'pass');
+  const withUp = [...s.hands[id], up];
+  type Choice = { call: BalootOption['call']; suit?: string; k: Contract; read?: ReturnType<typeof readHokm> };
+  const choices: Choice[] = [];
   for (const o of options) {
-    if (o.call === 'hokm' || o.call === 'confirm') {
-      const suit = o.call === 'confirm' ? s.bid!.best!.suit : up.suit;
-      choices.push({ call: o.call, k: { t: trumpIndex(suit), buyer: me } });
-    } else if (o.call === 'sun') choices.push({ call: 'sun', k: { t: NT, buyer: me } });
-    else if (o.call === 'ashkal') choices.push({ call: 'ashkal', k: { t: NT, buyer: partner } });
-    else if (o.call === 'hokm2') for (const suit of o.suits ?? []) choices.push({ call: 'hokm2', suit, k: { t: trumpIndex(suit), buyer: me } });
+    if (o.call === 'confirm') choices.push({ call: 'confirm', k: { t: trumpIndex(s.bid!.best!.suit), buyer: me } });
+    else if (o.call === 'hokm' || o.call === 'hokm2') {
+      for (const suit of o.call === 'hokm' ? [up.suit] : (o.suits ?? [])) {
+        const read = readHokm(s, id, suit);
+        // step 1: a clearly bad hand for this trump is not even simulated (when passing is allowed)
+        if (canPass && read.value < BAD_VALUE[ma ? 'morocco' : 'saudi']) continue;
+        choices.push({ call: o.call, suit: o.call === 'hokm2' ? suit : undefined, k: { t: trumpIndex(suit), buyer: me }, read });
+      }
+    } else if (o.call === 'sun') {
+      if (!canPass || sunStrength(withUp) >= 7.5) choices.push({ call: 'sun', k: { t: NT, buyer: me } });
+    } else if (o.call === 'ashkal') choices.push({ call: 'ashkal', k: { t: NT, buyer: partner } });
   }
+  lastNote = '';
+  if (!choices.length) return { call: canPass ? 'pass' : options[0].call };
   // passing in the «صن?» window leaves the حكم already bought
   const b = s.bid!;
-  const standing: Contract | null = b.stage === 'confirm' && b.best && options.some((o) => o.call === 'pass') ? { t: trumpIndex(b.best.suit), buyer: seatOf(s, b.best.by) } : null;
+  const standing: Contract | null = b.stage === 'confirm' && b.best && canPass ? { t: trumpIndex(b.best.suit), buyer: seatOf(s, b.best.by) } : null;
   const ks = choices.map((c) => c.k);
-  const canPass = options.some((o) => o.call === 'pass');
-  // what passing leads to: the حكم already bought («صن?» window), or what the next players would buy
   if (canPass) ks.push(standing ?? PASS);
-  const samples = level === 'expert' ? 160 : 40;
-  const vals = bidValues(s, me, ks, samples, level === 'expert' ? 30 : 8);
-  const margin = buyMargin(s, me, ma);
-  // a plain reading of the hand guards the simulations against their blind spots: no صن without
-  // aces and tens, no حكم without real trumps (my cards + the face-up card; for أشكل the partner's unknown)
-  const withUp = [...s.hands[id], up];
-  const GATE_SUN = 7.5;
-  const GATE_HOKM = 5.8;
-  const sane = (i: number) => {
-    const k = choices[i].k;
-    if (k.buyer !== me) return true;
-    if (k.t === NT) return sunStrength(withUp) >= GATE_SUN;
-    return hokmStrength(withUp, B_SUITS[k.t]) >= GATE_HOKM;
-  };
-  let best = -1;
-  for (let i = 0; i < choices.length; i++) if ((!canPass || sane(i)) && (best < 0 || vals[i] > vals[best])) best = i;
-  let buy = false;
-  if (best >= 0) buy = !canPass || vals[best] > vals[vals.length - 1] + margin;
-  if (buy) {
+  const samples = level === 'expert' ? 160 : 48;
+  const { vals, fails } = bidValues(s, me, ks, samples, level === 'expert' ? 30 : 8);
+  if (!canPass) {
+    let best = 0;
+    for (let i = 1; i < choices.length; i++) if (vals[i] > vals[best]) best = i;
     return { call: choices[best].call, suit: choices[best].suit };
   }
-  return { call: 'pass' };
+  const passVal = vals[vals.length - 1];
+  const margin = buyMargin(s, me, ma);
+  let best = -1;
+  let bestV = -Infinity;
+  const notes: string[] = [];
+  for (let i = 0; i < choices.length; i++) {
+    const c = choices[i];
+    let v = vals[i];
+    if (c.read) {
+      // the blend (step 3): the plain reading steadies the simulations' noise
+      v = (v + c.read.value) / 2;
+      const fail = (fails[i] + c.read.fail) / 2;
+      const why = fail > rule.cap ? 'too risky' : v < rule.min + margin ? 'too little' : v - passVal < margin ? 'passing is as good' : 'buy';
+      notes.push(`${c.suit ?? up.suit}: plain ${c.read.value.toFixed(0)}, sim ${vals[i].toFixed(0)} → ${v.toFixed(0)} (fail ${(fail * 100).toFixed(0)}%) vs pass ${passVal.toFixed(0)}: ${why}`);
+      if (fail > rule.cap || v < rule.min + margin) continue;
+    } else if (c.k.t === NT && c.k.buyer === me && v < 0) continue;
+    if (v - passVal < margin) continue;
+    if (v > bestV) {
+      bestV = v;
+      best = i;
+    }
+  }
+  lastNote = notes.join('; ');
+  if (best < 0) return { call: 'pass' };
+  return { call: choices[best].call, suit: choices[best].suit };
+}
+
+let lastNote = '';
+/** How the last smart / expert purchase decision weighed its options (the self-play report). */
+export const lastBidNote = () => lastNote;
+
+/**
+ * The purchase without simulations (the easy bots, and the old numeric levels): the plain reading of
+ * ./baloot-bid.ts against the level's minimum. 'easy' adds noise (a person's mood) but never buys a
+ * hand whose estimate is clearly negative, nor one above its failure cap.
+ */
+export function plainBid(s: State, id: string, options: BalootOption[], level: 'easy' | 'smart', rnd: () => number = Math.random): { call: BalootOption['call']; suit?: string } {
+  if (options.length === 1) return { call: options[0].call };
+  const ma = s.settings.mode === 'morocco';
+  const rule = BUY_RULE[ma ? 'morocco' : 'saudi'][level];
+  const can = (c: BalootOption['call']) => options.find((o) => o.call === c);
+  const up = s.faceUp!;
+  const withUp = [...s.hands[id], up];
+  const noise = (rnd() + rnd() - 1) * rule.noise;
+  const sun = sunStrength(withUp);
+  const sunT = 8.5 + (level === 'easy' ? noise / 4 : 0);
+  if (can('confirm')) return { call: sun >= Math.max(7.5, sunT + 1.5) ? 'sun' : 'confirm' };
+  if (can('sun') && sun >= Math.max(7.5, sunT)) return { call: 'sun' };
+  let best: { call: BalootOption['call']; suit?: string; v: number } | null = null;
+  for (const o of options) {
+    if (o.call !== 'hokm' && o.call !== 'hokm2') continue;
+    for (const suit of o.call === 'hokm' ? [up.suit] : (o.suits ?? [])) {
+      const e = readHokm(s, id, suit);
+      if (e.value < BAD_VALUE[ma ? 'morocco' : 'saudi'] || e.fail > rule.cap || e.value + noise < rule.min) continue;
+      if (!best || e.value > best.v) best = { call: o.call, suit: o.call === 'hokm2' ? suit : undefined, v: e.value };
+    }
+  }
+  if (best) return { call: best.call, suit: best.suit };
+  if (can('ashkal') && sunStrength(s.hands[id]) >= sunT - 1 && (up.rank === 'A' || up.rank === '10')) return { call: 'ashkal' };
+  return { call: can('pass') ? 'pass' : options[0].call };
 }
 
 /**
@@ -672,12 +886,13 @@ export function mindRaise(s: State, id: string, step: BalootRaise, level: MindLe
   const samples = fixed ? fixed.bid : level === 'expert' ? 140 : 40;
   const ms = fixed ? Infinity : level === 'expert' ? 30 : 8;
   const leader = (s.dealer + 1) % 4;
+  const sample = makeSampler(kn, k.t);
   const t0 = now();
   let n = 0;
   let buyerWins = 0;
   const ev = [0, 0, 0, 0, 0];
   for (; n < samples && (n < 12 || now() - t0 < ms); n++) {
-    const deal = sampleDeal(kn, k.t);
+    const deal = sample();
     if (!deal) break;
     const r = playDeal(deal, k, false, leader);
     for (const m of [1, 2, 3, 4]) ev[m] += dealScore(r, k, false, myTeam, m, 0);

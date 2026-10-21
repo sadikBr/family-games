@@ -45,15 +45,15 @@ import {
   type Project,
 } from '../../src/shared/baloot-rules';
 import type { BotLevel, CardSide, GameAction } from '../../src/shared/protocol';
-import { botBid, botPlay, botRaise } from '../baloot-bot';
-import { balootClaim, mindBid, mindPlay, mindRaise, type ClaimInfo } from '../ai/baloot-mind';
+import { botPlay, botRaise } from '../baloot-bot';
+import { balootClaim, mindBid, mindPlay, mindRaise, plainBid, type ClaimInfo } from '../ai/baloot-mind';
 import {
   isMorocco,
   maBelote,
   maBidCall,
   maBidOptions,
   maBotDeclare,
-  maDecideBid,
+  maTimeoutBid,
   maDeclare,
   maEndHand,
   maIllegal,
@@ -584,18 +584,20 @@ export function turnOf(s: State): string[] {
 
 /**
  * The move a bot makes (also the move made for a player whose time ran out, with `timeout`).
- * `level`: the room's bot strength — 'expert' / 'smart' simulate (../ai/baloot-mind.ts), 'easy' is the
- * old relaxed bot; a number (1 / 2) is the old bot of that level (kept for the timeout move and tests).
+ * `level`: the room's bot strength — 'expert' / 'smart' simulate (../ai/baloot-mind.ts); 'easy' buys
+ * by the plain reading of its hand (with some noise, never a clearly bad purchase) and plays the simple
+ * bot with human-like slips; a number (1 / 2) is the simple bot of that level (timeouts and tests).
  */
 export function decide(s: State, id: string, lvl: BotLevel | number, timeout = false): GameAction | null {
   if (turnOf(s)[0] !== id) return null;
   if (!timeout && (lvl === 'expert' || lvl === 'smart')) return mindDecide(s, id, lvl);
   const level = typeof lvl === 'number' ? lvl : 1;
-  if (s.phase === 'bid' && isMorocco(s)) return maDecideBid(s, id, level, timeout);
   if (s.phase === 'bid') {
     const options = bidOptions(s, id);
-    if (timeout) return { type: 'bid', call: options.some((o) => o.call === 'confirm') ? 'confirm' : 'pass' };
-    const pick = botBid({ hand: s.hands[id], faceUp: s.faceUp!, options, level, noise: Math.random() * 2 - 1 });
+    if (!options.length) return null;
+    // time ran out: pass (the forced take on a face-up Jack, or the bought حكم, stays)
+    if (timeout) return isMorocco(s) ? maTimeoutBid(s, id) : { type: 'bid', call: options.some((o) => o.call === 'confirm') ? 'confirm' : 'pass' };
+    const pick = plainBid(s, id, options, level < 2 ? 'easy' : 'smart');
     return { type: 'bid', call: pick.call, suit: pick.suit };
   }
   if (s.phase === 'double') {

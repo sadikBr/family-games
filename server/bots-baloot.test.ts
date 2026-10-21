@@ -194,8 +194,8 @@ test('decision time: the expert stays within the budget (time-capped search)', (
     for (let k = 0; k < 3; k++) {
       balootHand(900 + k, k === 1 ? 'morocco' : 'saudi', () => 'expert', () => {});
     }
-    // measure the play decisions of one more hand
-    balootHand(950, 'saudi', (seat) => (seat === 0 ? 'expert' : 2), (s, id) => {
+    // measure the play decisions of more hands (a deal everyone passes is skipped)
+    for (let seed = 950; seed < 990 && times.length < 8; seed++) balootHand(seed, 'saudi', (seat) => (seat === 0 ? 'expert' : 2), (s, id) => {
       if (id !== 'p0') return;
       const legal = s.hands[id].filter((x) => (s.settings.mode === 'morocco' ? maLegal(s.hands[id], s.trick, s.contract!.trump!) : legalCards(s.hands[id], s.trick, s.contract!.trump, s.leadBoss)).some((y) => y.id === x.id));
       const t0 = performance.now();
@@ -203,7 +203,8 @@ test('decision time: the expert stays within the budget (time-capped search)', (
       times.push(performance.now() - t0);
     });
     times.sort((a, b) => a - b);
-    // the search stops itself at ~28 ms (generous margins for a busy test machine)
+    expect(times.length).toBeGreaterThan(0);
+    // the search stops itself at ~45 ms (~100 ms at worst; generous margins for a busy test machine)
     expect(times.reduce((a, b) => a + b, 0) / times.length).toBeLessThan(90);
     expect(times[times.length - 1]).toBeLessThan(500);
   } finally {

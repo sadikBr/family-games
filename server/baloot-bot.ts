@@ -1,14 +1,14 @@
 /**
- * «البلوط» — the bots: bidding from the hand's strength (high cards, trumps, projects), doubling only
- * with a strong hand, and card play that follows the partner, wins cheaply, feeds points to a partner
+ * «البلوط» — the simple bots (easy level, timeouts): hand strengths (the purchases themselves are in
+ * ./ai/baloot-mind.ts), doubling only with a strong hand, and card play that follows the partner, wins cheaply, feeds points to a partner
  * who holds the trick, keeps its trumps and pulls the opponents' trumps when it buys.
  */
-import type { BCard, BalootOption, BalootRaise, BMode, BSuit } from '../src/shared/games/baloot';
+import type { BCard, BalootRaise, BMode, BSuit } from '../src/shared/games/baloot';
 import { B_SUITS, cardValue, findProjects, isBoss, makeBalootDeck, power, projectPoints, trickLeader, type Played } from '../src/shared/baloot-rules';
 
 const DECK = makeBalootDeck();
 
-/** How good a hand is for a حكم in `trump` (about 7–8 is worth buying). */
+/** How good a hand is for a حكم in `trump` (the simple doubling decisions; purchases: ./ai/baloot-bid.ts). */
 export function hokmStrength(cards: BCard[], trump: BSuit): number {
   const tr = cards.filter((c) => c.suit === trump);
   let s = 0;
@@ -48,35 +48,6 @@ function defenceStrength(cards: BCard[], trump: BSuit): number {
   return s;
 }
 
-export interface BidInfo {
-  hand: BCard[];
-  faceUp: BCard;
-  options: BalootOption[];
-  level: number;
-  /** a small random number in [-1, 1] (noise for beginner bots) */
-  noise: number;
-}
-
-export function botBid(x: BidInfo): { call: BalootOption['call']; suit?: BSuit } {
-  const can = (c: BalootOption['call']) => x.options.find((o) => o.call === c);
-  const easy = x.level < 2;
-  const jitter = easy ? x.noise * 1.5 + 0.8 : 0;
-  const withUp = [...x.hand, x.faceUp];
-  const sunT = 8.5 + jitter;
-  const hokmT = 6.6 + jitter;
-  const sun = sunStrength(withUp);
-  if (can('confirm')) return { call: sun >= sunT + 1.5 ? 'sun' : 'confirm' };
-  if (can('sun') && sun >= sunT + (can('hokm') || can('hokm2') ? 0 : 0.5)) return { call: 'sun' };
-  if (can('hokm') && hokmStrength(withUp, x.faceUp.suit) >= hokmT) return { call: 'hokm' };
-  const h2 = can('hokm2');
-  if (h2?.suits?.length) {
-    const best = h2.suits.map((s) => ({ s, v: hokmStrength(withUp, s) })).sort((a, b) => b.v - a.v)[0];
-    if (best.v >= hokmT + 0.3) return { call: 'hokm2', suit: best.s };
-  }
-  if (can('ashkal') && sunStrength(x.hand) >= sunT - 1 && (x.faceUp.rank === 'A' || x.faceUp.rank === '10')) return { call: 'ashkal' };
-  return { call: 'pass' };
-}
-
 export function botRaise(hand: BCard[], mode: BMode, trump: BSuit | null, step: BalootRaise, level: number): boolean {
   if (level < 2 && step !== 'double') return false;
   if (mode === 'sun') return step === 'double' && sunStrength(hand) >= (level < 2 ? 18 : 15);
@@ -112,7 +83,12 @@ function wins(trick: Played[], card: BCard, trump: BSuit | null) {
 export function botPlay(x: PlayInfo): BCard {
   const { hand, legal, trick, trump } = x;
   if (legal.length === 1) return legal[0];
-  if (x.level < 2 && x.roll < 0.3) return legal[Math.floor(x.roll * 1000) % legal.length];
+  // the easy level slips now and then the way people do (a card played without counting, a wrong
+  // guess of who holds what) — never by throwing away the J / 9 of trumps or a side ace that takes the trick
+  if (x.level < 2 && x.roll < 0.2) {
+    const slips = legal.filter((c) => !(c.suit === trump && (c.rank === 'J' || c.rank === '9')) && !(c.suit !== trump && c.rank === 'A' && (!trick.length || wins(trick, c, trump))));
+    if (slips.length) return slips[Math.floor(x.roll * 5000) % slips.length];
+  }
   const seen = new Set([...x.played, ...trick.map((t) => t.card), ...hand].map((c) => c.id));
   const unknown = DECK.filter((c) => !seen.has(c.id));
   const boss = (c: BCard) => isBoss(c, [...unknown, ...hand], trump);

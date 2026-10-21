@@ -9,7 +9,6 @@ import { maLegal, annKey, bestAnnSide, findAnnouncements, maScoreHand, maSuitNam
 import { B_SUITS } from '../src/shared/baloot-rules';
 import type { BalootCall, BalootOption, BCard, BProjectView, BSide, BSuit, MAnnKind } from '../src/shared/games/baloot';
 import type { GameAction } from '../src/shared/protocol';
-import { hokmStrength } from './baloot-bot';
 import type { State } from './games/baloot';
 import { GameError, type GameCtx } from './types';
 import { isStr } from './util';
@@ -181,21 +180,10 @@ export function maEndHand(ctx: GameCtx, s: State): BSide | null {
 /* Bots and the view                                                   */
 /* ------------------------------------------------------------------ */
 
-/** A bot's (or a timed-out player's) purchase: buy when the trump suit is strong (J / 9 of trumps, aces). */
-export function maDecideBid(s: State, id: string, level: number, timeout: boolean): GameAction {
+/** A timed-out player's purchase: pass, unless the take is forced (الفورص). The bots: ./ai/baloot-mind.ts. */
+export function maTimeoutBid(s: State, id: string): GameAction {
   const options = maBidOptions(s, id);
-  if (options.length === 1) return { type: 'bid', call: options[0].call };
-  if (timeout) return { type: 'bid', call: 'pass' };
-  const withUp = [...s.hands[id], s.faceUp!];
-  const jitter = level < 2 ? (Math.random() * 2 - 1) * 1.5 + 0.8 : 0;
-  const T = 6.6 + jitter;
-  if (options.some((o) => o.call === 'hokm') && hokmStrength(withUp, s.faceUp!.suit) >= T) return { type: 'bid', call: 'hokm' };
-  const h2 = options.find((o) => o.call === 'hokm2');
-  if (h2?.suits?.length) {
-    const best = h2.suits.map((x) => ({ x, v: hokmStrength(withUp, x) })).sort((a, b) => b.v - a.v)[0];
-    if (best.v >= T + 0.3) return { type: 'bid', call: 'hokm2', suit: best.x };
-  }
-  return { type: 'bid', call: 'pass' };
+  return { type: 'bid', call: options.length === 1 ? options[0].call : 'pass' };
 }
 
 /** The announcements a bot declares (all of them, on the 2nd trick). */
