@@ -81,7 +81,9 @@ test('huroof reveal: no view ever carries a hidden word or the answer', () => {
         if (shown.length < words.length) expect(json).not.toContain(s.question.text);
         expect(v.question.text).toBe(shownText);
         // every hidden word that isn't also part of the shown text (or a word of the UI) stays out
-        for (const w of words.slice(shown.length)) if (w.length >= 3 && !shownText.includes(w) && !JSON.stringify(v.feed).includes(w)) expect([w, json.includes(w)]).toEqual([w, false]);
+        // (the question's category label, e.g. «إسلامية», is UI text too)
+        const ui = JSON.stringify(v.feed) + String((v.question as { cat?: string }).cat ?? '');
+        for (const w of words.slice(shown.length)) if (w.length >= 3 && !shownText.includes(w) && !ui.includes(w)) expect([w, json.includes(w)]).toEqual([w, false]);
       }
     };
     check();
