@@ -218,6 +218,13 @@ export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView })
         </Animated.View>
       ) : q && letter ? (
         <Animated.View key={`q${view.cell}:${view.last?.id ?? 0}`} entering={FadeIn.duration(200)} style={styles.panel}>
+          {q.cat ? (
+            <View style={styles.cat} accessibilityLabel={`نوع السؤال: ${q.cat}`}>
+              <Txt v="tiny" color={C.muted}>
+                {q.cat}
+              </Txt>
+            </View>
+          ) : null}
           <Row gap={10} style={{ alignItems: 'flex-start' }}>
             <View style={styles.letter}>
               <Txt style={{ fontFamily: F.display, fontSize: 30, lineHeight: 44, color: C.ink }}>{displayLetter(letter)}</Txt>
@@ -331,5 +338,6 @@ const styles = StyleSheet.create({
   dot: { width: 18, height: 8, borderRadius: 4, marginHorizontal: 2, backgroundColor: alpha(C.text, 0.14) },
   dotFrozen: { backgroundColor: alpha(C.yellow, 0.28) },
   frozen: { borderRadius: 12, borderWidth: 1.5, borderColor: alpha(C.yellow, 0.6), backgroundColor: alpha(C.yellow, 0.1), paddingVertical: 6, paddingHorizontal: 10 },
+  cat: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 1, backgroundColor: alpha(C.text, 0.08), marginBottom: -4 },
   last: { gap: 4, borderRadius: 14, borderWidth: 1.5, borderColor: C.borderStrong, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: C.surface },
 });

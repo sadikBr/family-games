@@ -1078,9 +1078,6 @@ export class Room {
       case 'wave':
         this.settings.wave.rounds = int(patch.rounds, this.settings.wave.rounds, 1, 3);
         break;
-      case 'huroof':
-        this.settings.huroof.seconds = int(patch.seconds, this.settings.huroof.seconds, 10, 40);
-        break;
       case 'quiz': {
         const q = this.settings.quiz;
         q.rounds = int(patch.rounds, q.rounds, 5, 30);

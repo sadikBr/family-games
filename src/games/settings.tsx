@@ -3,10 +3,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { client } from '@/lib/client';
 import { MEMORY_SIZES } from '@/shared/memory';
 import { XO_SIZES, inRow } from '@/shared/xo';
-import { CODENAMES_CLUE_SECONDS, CODENAMES_GUESS_SECONDS, type GameId, type RoomView } from '@/shared/protocol';
+import { CODENAMES_CLUE_SECONDS, CODENAMES_GUESS_SECONDS, HUROOF_CATS, huroofCats, type GameId, type RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
-import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
+import { ChipPicker, MultiChipPicker, Stepper, Toggle } from '@/ui/controls';
 import { Txt } from '@/ui/txt';
 
 import { Phase10Settings } from './phase10';
@@ -372,7 +372,18 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <WordleSettings room={room} editable={editable} />;
     case 'huroof': {
       const { settings, change } = settingsFor(room, 'huroof');
-      return <Stepper label="وقت الإجابة" value={settings.seconds} min={10} max={40} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />;
+      return (
+        <View style={{ gap: 10 }}>
+          <Stepper label="وقت الإجابة" value={settings.seconds} min={10} max={40} step={5} editable={editable} onChange={(seconds) => change({ seconds })} format={secs} />
+          <Txt v="bold">أنواع الأسئلة</Txt>
+          <MultiChipPicker options={HUROOF_CATS} value={huroofCats(settings)} allLabel="الكل" editable={editable} onChange={(cats) => change({ cats })} />
+          {editable ? (
+            <Txt v="tiny" color={C.dim}>
+              اختيار عدة أنواع ممكن: تختلط أسئلتها في اللعبة.
+            </Txt>
+          ) : null}
+        </View>
+      );
     }
     case 'quiz': {
       const { settings, change } = settingsFor(room, 'quiz');

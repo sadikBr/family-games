@@ -42,7 +42,7 @@ test('huroof reveal: words appear one by one after a short pause, at ~0.35–0.4
   const start = ctx.now;
   expect(s.reveal.shown).toBe(0);
   expect(s.endsAt).toBeNull();
-  expect(views(ctx, s)[0].question).toEqual({ text: '', hidden: words.length, frozen: false });
+  expect(views(ctx, s)[0].question).toEqual({ text: '', hidden: words.length, frozen: false, cat: 'إسلامية' });
   // the pause before the first word
   ctx.now = start + 600;
   expect(huroof.tick!(ctx, s)).toBe(false);
@@ -61,7 +61,7 @@ test('huroof reveal: words appear one by one after a short pause, at ~0.35–0.4
     expect(huroof.tick!(ctx, s)).toBe(true);
     expect(s.reveal.shown).toBe(k);
     const q = views(ctx, s)[2].question;
-    expect(q).toEqual({ text: words.slice(0, k).join(' '), hidden: words.length - k, frozen: false });
+    expect(q).toEqual({ text: words.slice(0, k).join(' '), hidden: words.length - k, frozen: false, cat: 'إسلامية' });
     if (k < words.length) expect(s.endsAt).toBeNull();
   }
   // all shown: now the question's own timer runs
@@ -109,7 +109,7 @@ test('huroof reveal: the buzzer works from the first word and freezes the questi
     if (ctx.now < s.endsAt) huroof.tick!(ctx, s);
   }
   expect(s.reveal.shown).toBe(2);
-  for (const v of views(ctx, s)) expect(v.question).toEqual({ text: words.slice(0, 2).join(' '), hidden: words.length - 2, frozen: true });
+  for (const v of views(ctx, s)) expect(v.question).toEqual({ text: words.slice(0, 2).join(' '), hidden: words.length - 2, frozen: true, cat: 'إسلامية' });
   expect(s.feed.list().at(-1).text).toContain('قبل اكتمال السؤال');
 });
 
@@ -120,7 +120,7 @@ test('huroof reveal: a wrong early answer shows the whole question, locks that t
   huroof.act(ctx, s, 'g1', { type: 'answer', text: 'كلام فارغ تماما' });
   expect(s.phase).toBe('question');
   expect(s.canAnswer).toEqual(['red']);
-  for (const v of views(ctx, s)) expect(v.question).toEqual({ text: words.join(' '), hidden: 0, frozen: false });
+  for (const v of views(ctx, s)) expect(v.question).toEqual({ text: words.join(' '), hidden: 0, frozen: false, cat: 'إسلامية' });
   expect(s.endsAt).toBe(ctx.now + 15_000); // the timer starts at once: the question is all there
   expect(() => huroof.act(ctx, s, 'g2', { type: 'buzz' })).toThrow();
   huroof.act(ctx, s, 'r2', { type: 'buzz' });
@@ -139,7 +139,7 @@ test('huroof reveal: a buzzer who runs out of time also shows the whole question
   ctx.now += 21_000;
   huroof.tick!(ctx, s); // time's up for r1
   expect(s.canAnswer).toEqual(['green']);
-  expect(views(ctx, s)[3].question).toEqual({ text: words.join(' '), hidden: 0, frozen: false });
+  expect(views(ctx, s)[3].question).toEqual({ text: words.join(' '), hidden: 0, frozen: false, cat: 'إسلامية' });
   huroof.act(ctx, s, 'g1', { type: 'buzz' });
   huroof.act(ctx, s, 'g1', { type: 'answer', text: 'كلام فارغ تماما' });
   expect(s.phase).toBe('pick');

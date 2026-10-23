@@ -436,8 +436,29 @@ export interface EstateSettings {
   rounds: number; // 0 = play until one player is left
 }
 export type QuizCategory = 'all' | 'quran' | 'prophets' | 'seerah' | 'companions' | 'worship' | 'history' | 'places' | 'hajj';
+/** «حروف»: the question categories the host can mix (several at once; at least one). */
+export type HuroofCat = 'islamic' | 'general' | 'geo' | 'nature' | 'science' | 'food' | 'sport' | 'morocco' | 'around';
+export const HUROOF_CATS: { key: HuroofCat; label: string }[] = [
+  { key: 'islamic', label: 'إسلامية' },
+  { key: 'general', label: 'معلومات عامة' },
+  { key: 'geo', label: 'جغرافيا وبلدان' },
+  { key: 'nature', label: 'حيوانات ونباتات' },
+  { key: 'science', label: 'علوم وجسم الإنسان' },
+  { key: 'food', label: 'أكل ومطبخ' },
+  { key: 'sport', label: 'رياضة' },
+  { key: 'morocco', label: 'المغرب' },
+  { key: 'around', label: 'أشياء من حولنا' },
+];
+/** The categories a «حروف» room plays with: the valid ones chosen, or إسلامية (old settings had no `cats`). */
+export function huroofCats(s: { cats?: readonly unknown[] } | null | undefined): HuroofCat[] {
+  const keys = HUROOF_CATS.map((c) => c.key);
+  const out = keys.filter((k) => Array.isArray(s?.cats) && s.cats.includes(k));
+  return out.length ? out : ['islamic'];
+}
 export interface HuroofSettings {
   seconds: number;
+  /** the question categories mixed in this game (missing in older settings = إسلامية only) */
+  cats?: HuroofCat[];
 }
 export interface QuizSettings {
   rounds: number;
@@ -595,7 +616,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   dama: { flyingKings: true, backCapture: true, maxCapture: true },
   draw: { rounds: 2, seconds: 80 },
   estate: { startCash: 1500, rounds: 15 },
-  huroof: { seconds: 20 },
+  huroof: { seconds: 20, cats: ['islamic'] },
   quiz: { rounds: 10, seconds: 15, category: 'all' },
   whois: { rounds: 8, typed: false },
   surah: { rounds: 10, seconds: 20, level: 'easy' },
@@ -1217,7 +1238,7 @@ export interface HuroofView {
    * `hidden` = words still to come, `frozen` = someone pressed the buzzer before the end (the reveal
    * stopped there). A wrong answer shows the rest at once.
    */
-  question: { text: string; hidden: number; frozen: boolean } | null;
+  question: { text: string; hidden: number; frozen: boolean; /** the question's category (label), e.g. «رياضة» */ cat?: string } | null;
   canAnswer: HuroofTeam[];
   buzzer: string | null;
   endsAt: number | null;

@@ -12,6 +12,7 @@ import { CHARADES_ALL } from './charades-content';
 import { HEADSUP_CATEGORIES, IMPOSTER_CATEGORIES, POTATO_PROMPTS, TABOO_CARDS } from './content';
 import { CODENAMES_ENTRIES, CODENAMES_PAIRS } from './codenames-links';
 import { CODENAMES_WORDS, DRAW_WORDS } from './content-extra';
+import { HUROOF_RAW } from './content-huroof';
 import { TRAITS } from './imposter-traits';
 import { SPY_LOCATIONS } from './spy-content';
 import { SURVEY_QUESTIONS } from './survey-content';
@@ -85,6 +86,12 @@ function allContent(): [string, string][] {
     add('spy', l.name);
     l.roles.forEach((r) => add(`spy ${l.name}`, r));
   }
+  // «حروف»: the questions and the answer shown (other accepted spellings are hidden, like survey aliases)
+  for (const [cat, raw] of Object.entries(HUROOF_RAW))
+    for (const [q, a] of raw) {
+      add(`huroof ${cat}`, q);
+      add(`huroof ${cat}`, a.split('|')[0]);
+    }
   for (const q of SURVEY_QUESTIONS) {
     add('survey question', q.q);
     q.answers.forEach((a) => add(`survey ${q.q}`, a.text)); // aliases are hidden: dialect spellings allowed there

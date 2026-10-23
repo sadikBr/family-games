@@ -10,17 +10,21 @@
  * the first word: pressing it freezes the reveal for everyone and the buzzer answers from that part. A
  * wrong answer (or running out of time) shows the whole question at once, and the other team answers.
  * The question's own timer only starts once the whole question is shown.
+ *
+ * Categories: the host mixes one or more (إسلامية, معلومات عامة, رياضة…; see HUROOF_CATS). The board only
+ * shows letters the chosen categories have enough questions for, and each question comes from one of
+ * them (weighted by how many unasked questions each has for the letter).
  */
 import { answerMatches, displayLetter, firstLetter } from '../../src/shared/arabic';
 import { HEX_N, hexWinPath } from '../../src/shared/islamic';
-import type { HuroofSettings, HuroofTeam, HuroofView } from '../../src/shared/protocol';
+import { HUROOF_CATS, huroofCats, type HuroofCat, type HuroofSettings, type HuroofTeam, type HuroofView } from '../../src/shared/protocol';
 import { huroofKnowShare, huroofPick } from '../ai/social-huroof';
 import { quizSkill } from '../ai/social-quiz';
 import { Feed, randDelay } from '../cardkit';
-import { QUESTIONS, type Question } from '../content-islamic';
+import { HUROOF_POOL, type HuroofQ } from '../content-huroof';
 import { qdeck } from '../qdeck';
 import { botLevel, GameError, paced, type GameCtx, type GameModule } from '../types';
-import { isNum, isStr, shuffle } from '../util';
+import { clamp, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceAnd, voiceAnswer, voiceCell, voiceLetter, voiceOnly, voiceTeamWin } from '../voice-calls-party';
 
 /** how often an easy bot's answer is right (smart / expert bots know more: see ai/social-quiz) */
@@ -36,27 +40,67 @@ const WORD_MAX_MS = 450;
 export const wordMs = (w: string) => Math.max(WORD_MIN_MS, Math.min(WORD_MAX_MS, 300 + 22 * w.length));
 const other = (t: HuroofTeam): HuroofTeam => (t === 'red' ? 'green' : 'red');
 
-/** Questions grouped by the first letter of their answer (only real letters, not numbers). */
-export const BY_LETTER: Map<string, Question[]> = (() => {
-  const m = new Map<string, Question[]>();
-  for (const q of QUESTIONS) {
-    const l = firstLetter(q.a);
-    if (!/[ء-ي]/.test(l)) continue;
-    if (!m.has(l)) m.set(l, []);
-    m.get(l)!.push(q);
+const CELLS = HEX_N * HEX_N;
+/** A letter goes on the board only when the chosen categories have at least this many questions for it. */
+export const MIN_PER_LETTER = 3;
+
+/** Each category's questions grouped by the first letter of their answer (only real letters, not numbers). */
+const CAT_LETTERS = Object.fromEntries(
+  HUROOF_CATS.map(({ key }) => {
+    const m = new Map<string, HuroofQ[]>();
+    for (const q of HUROOF_POOL[key]) {
+      const l = firstLetter(q.a);
+      if (!/[ء-ي]/.test(l)) continue;
+      if (!m.has(l)) m.set(l, []);
+      m.get(l)!.push(q);
+    }
+    return [key, m];
+  }),
+) as Record<HuroofCat, Map<string, HuroofQ[]>>;
+
+const UNIONS = new Map<string, Map<string, HuroofQ[]>>();
+/** The chosen categories' questions (their union) grouped by the first letter of the answer. */
+export function huroofByLetter(cats: readonly HuroofCat[]): Map<string, HuroofQ[]> {
+  const key = HUROOF_CATS.map((c) => c.key).filter((k) => cats.includes(k)).join(',');
+  let m = UNIONS.get(key);
+  if (!m) {
+    m = new Map();
+    for (const c of cats) for (const [l, qs] of CAT_LETTERS[c]) m.set(l, [...(m.get(l) ?? []), ...qs]);
+    UNIONS.set(key, m);
   }
   return m;
-})();
+}
+
+/** The Islamic questions by letter (the default category). */
+export const BY_LETTER = huroofByLetter(['islamic']);
+
+/**
+ * The board's 25 letters: different letters that have enough questions; a pool with fewer such letters
+ * repeats the ones with the most questions per hexagon.
+ */
+export function boardLetters(byLetter: Map<string, HuroofQ[]>): string[] {
+  let ok = [...byLetter].filter(([, qs]) => qs.length >= MIN_PER_LETTER).map(([l]) => l);
+  if (!ok.length) ok = [...byLetter.keys()];
+  const letters = shuffle(ok).slice(0, CELLS);
+  while (letters.length < CELLS && ok.length) {
+    const per = (l: string) => byLetter.get(l)!.length / (letters.filter((x) => x === l).length + 1);
+    letters.push(shuffle(ok).reduce((a, b) => (per(b) > per(a) ? b : a)));
+  }
+  return shuffle(letters);
+}
 
 interface State {
   settings: HuroofSettings;
+  /** the categories in play, and their questions by letter */
+  cats: HuroofCat[];
+  byLetter: Map<string, HuroofQ[]>;
   teams: Record<HuroofTeam, string[]>;
   cells: { letter: string; owner: HuroofTeam | null }[];
-  used: Set<Question>; // questions already asked in this game
+  used: Set<HuroofQ>; // questions already asked in this game
   phase: HuroofView['phase'];
   turn: HuroofTeam;
   cell: number | null;
-  question: { text: string; answer: string; wrong: string[] } | null;
+  question: { text: string; answer: string; alt: string[]; wrong: string[]; cat: HuroofCat } | null;
   /**
    * The gradual reveal of `question`: its words, when the reveal started, when each word appears
    * (absolute ms), and how many are shown. Frozen while someone answers; all shown after a miss.
@@ -84,16 +128,26 @@ const teamOf = (s: State, id: string): HuroofTeam | null => (s.teams.red.include
 const TEAM_NAME: Record<HuroofTeam, string> = { red: 'الفريق الأحمر', green: 'الفريق الأخضر' };
 
 /** Questions for `letter` not asked yet in this game. */
-const fresh = (s: State, letter: string) => (BY_LETTER.get(letter) ?? []).filter((q) => !s.used.has(q)).length;
+const fresh = (s: State, letter: string) => (s.byLetter.get(letter) ?? []).filter((q) => !s.used.has(q)).length;
 
 /**
- * The room's deck for the letter (huroof's own, not shared with the other quiz games), skipping questions
- * already asked in this game whenever possible.
+ * A question for the letter: first one of the chosen categories (weighted by its questions for the letter
+ * not asked yet in this game), then the room's deck for that category and letter (huroof's own, not
+ * shared with the other quiz games), skipping questions already asked in this game whenever possible.
  */
 function drawQuestion(ctx: GameCtx, s: State, letter: string) {
-  const q = qdeck(ctx, `huroof:${letter}`, BY_LETTER.get(letter) ?? []).draw((x) => s.used.has(x));
+  const counts = s.cats.map((c) => {
+    const qs = CAT_LETTERS[c].get(letter) ?? [];
+    return { c, qs, n: qs.filter((q) => !s.used.has(q)).length };
+  });
+  const live = counts.filter((x) => x.n > 0);
+  const from = live.length ? live : counts.filter((x) => x.qs.length);
+  const weight = (x: (typeof counts)[number]) => (live.length ? x.n : x.qs.length);
+  let r = Math.random() * from.reduce((t, x) => t + weight(x), 0);
+  const pick = from.find((x) => (r -= weight(x)) < 0) ?? from[from.length - 1];
+  const q = qdeck(ctx, `huroof:${pick.c}:${letter}`, pick.qs).draw((x) => s.used.has(x));
   s.used.add(q);
-  return { text: q.q, answer: q.a, wrong: q.w };
+  return { text: q.q, answer: q.a, alt: q.alt, wrong: q.w, cat: q.cat };
 }
 
 /**
@@ -104,7 +158,9 @@ export function refreshLetter(s: State, i: number): boolean {
   const cell = s.cells[i];
   if (cell.owner || fresh(s, cell.letter)) return false;
   const onBoard = new Set(s.cells.map((c) => c.letter));
-  const spare = shuffle([...BY_LETTER.keys()].filter((l) => !onBoard.has(l) && fresh(s, l)));
+  let spare = shuffle([...s.byLetter.keys()].filter((l) => !onBoard.has(l) && fresh(s, l)));
+  // a small pool: a letter already on the board, the one with the most questions left
+  if (!spare.length) spare = [...s.byLetter.keys()].filter((l) => l !== cell.letter && fresh(s, l)).sort((a, b) => fresh(s, b) - fresh(s, a));
   if (!spare.length) return false;
   const old = cell.letter;
   cell.letter = spare[0];
@@ -204,10 +260,14 @@ export const huroof: GameModule<State, HuroofSettings> = {
     const order = shuffle(participants);
     const teams: Record<HuroofTeam, string[]> = { red: [], green: [] };
     order.forEach((p, i) => teams[i % 2 ? 'green' : 'red'].push(p));
-    const letters = shuffle([...BY_LETTER.keys()]).slice(0, HEX_N * HEX_N);
+    const cats = huroofCats(settings);
+    const byLetter = huroofByLetter(cats);
+    const letters = boardLetters(byLetter);
     ctx.fx('start');
     return {
-      settings,
+      settings: { ...settings, cats },
+      cats,
+      byLetter,
       teams,
       cells: letters.map((letter) => ({ letter, owner: null })),
       used: new Set(),
@@ -268,7 +328,7 @@ export const huroof: GameModule<State, HuroofSettings> = {
       if (s.phase !== 'answer' || !s.question || s.buzzer !== by || !isStr(a.text)) return;
       const text = a.text.trim().slice(0, 60);
       if (!text) return;
-      if (answerMatches(text, s.question.answer)) {
+      if ([s.question.answer, ...s.question.alt].some((f) => answerMatches(text, f))) {
         s.feed.push(`جواب صحيح من ${ctx.playerName(by)} — الحرف ل${TEAM_NAME[team].slice(1)}`, { by });
         ctx.fx('correct', by);
         const said = `${ctx.playerName(by)}: «${s.question.answer}» صحيح — الحرف ل${TEAM_NAME[team].slice(1)}`;
@@ -390,7 +450,8 @@ export const huroof: GameModule<State, HuroofSettings> = {
         ? (() => {
             const words = s.reveal?.words ?? s.question.text.split(/\s+/).filter(Boolean);
             const shown = s.reveal ? s.reveal.shown : words.length;
-            return { text: words.slice(0, shown).join(' '), hidden: words.length - shown, frozen: s.phase === 'answer' && shown < words.length };
+            const cat = HUROOF_CATS.find((c) => c.key === s.question!.cat)?.label;
+            return { text: words.slice(0, shown).join(' '), hidden: words.length - shown, frozen: s.phase === 'answer' && shown < words.length, cat };
           })()
         : null,
       canAnswer: s.canAnswer,
@@ -403,6 +464,15 @@ export const huroof: GameModule<State, HuroofSettings> = {
       winPath: s.winPath,
       feed: s.feed.list(),
     };
+  },
+
+  patchSettings(set, patch) {
+    if (isNum(patch.seconds)) set.seconds = clamp(Math.round(patch.seconds), 10, 40);
+    // several categories at once; unknown ones are ignored and the choice never ends up empty
+    if (Array.isArray(patch.cats)) {
+      const cats = HUROOF_CATS.map((c) => c.key).filter((k) => (patch.cats as unknown[]).includes(k));
+      if (cats.length) set.cats = cats;
+    }
   },
 
   result(s) {

@@ -122,6 +122,62 @@ export function ChipPicker<T extends string>({
   );
 }
 
+/**
+ * Several choices at once (e.g. question categories). `allLabel` adds a first chip that selects every
+ * option (pressed again, it goes back to the first option alone). At least one option always stays
+ * selected: the last one can't be switched off. Read-only, only the chosen chips are shown.
+ */
+export function MultiChipPicker<T extends string>({
+  options,
+  value,
+  onChange,
+  editable = true,
+  allLabel,
+}: {
+  options: { key: T; label: string }[];
+  value: readonly T[];
+  onChange: (v: T[]) => void;
+  editable?: boolean;
+  allLabel?: string;
+}) {
+  const keys = options.map((o) => o.key);
+  const all = keys.every((k) => value.includes(k));
+  const set = (next: T[]) => {
+    haptic.tap();
+    onChange(keys.filter((k) => next.includes(k)));
+  };
+  const chip = (key: string, label: string, active: boolean, onPress: () => void) => {
+    if (!editable && !active) return null;
+    return (
+      <Pressable
+        key={key}
+        disabled={!editable}
+        onPress={onPress}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: active }}
+        style={[styles.chip, active && styles.chipActive]}>
+        <Txt v="bold" color={active ? C.ink : C.text} style={{ fontSize: 14 }}>
+          {label}
+        </Txt>
+      </Pressable>
+    );
+  };
+  return (
+    <Row wrap gap={8}>
+      {allLabel ? chip('__all', allLabel, all, () => set(all ? keys.slice(0, 1) : keys)) : null}
+      {editable || !all || !allLabel
+        ? options.map((o) => {
+            const active = value.includes(o.key);
+            return chip(o.key, o.label, active, () => {
+              if (active && value.length <= 1) return; // one stays chosen
+              set(active ? value.filter((k) => k !== o.key) : [...value, o.key]);
+            });
+          })
+        : null}
+    </Row>
+  );
+}
+
 /** Global error toast, driven by the game client. */
 export function Toast() {
   const { error } = useClient();
