@@ -197,8 +197,9 @@ export default function RoomScreen() {
             }
             right={
               <Row gap={6}>
-                {/* narrow phones: the code moves to the room menu to leave space for the mic */}
-                {width >= 360 ? (
+                {/* the code pill only on wide phones: elsewhere the game's title needs the room (the code
+                    is always in the room menu, and big in the lobby) */}
+                {width >= 412 ? (
                   <Pressable onPress={() => shareRoom(room)} accessibilityLabel={`رمز الغرفة ${room.code} — شارك`} hitSlop={6}>
                     <Pill label={room.code} icon="key" />
                   </Pressable>
