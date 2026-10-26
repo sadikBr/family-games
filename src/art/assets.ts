@@ -31,6 +31,7 @@ export const GAME_IMG: Record<string, number> = {
   'catan': require('../../assets/art/games/catan.webp'),
   'charades': require('../../assets/art/games/charades.webp'),
   'chess': require('../../assets/art/games/chess.webp'),
+  'clue': require('../../assets/art/games/clue.webp'),
   'codebreak': require('../../assets/art/games/codebreak.webp'),
   'codenames': require('../../assets/art/games/codenames.webp'),
   'connect4': require('../../assets/art/games/connect4.webp'),

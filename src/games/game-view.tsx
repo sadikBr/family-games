@@ -47,6 +47,7 @@ import { TruefalseGame } from './truefalse';
 import { FlagsGame } from './flags';
 import { QcondGame } from './qcond';
 import { GuesswhoGame } from './guesswho';
+import { ClueGame } from './clue';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -195,6 +196,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <QcondGame room={room} view={view} />;
     case 'guesswho':
       return <GuesswhoGame room={room} view={view} />;
+    case 'clue':
+      return <ClueGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }
