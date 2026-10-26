@@ -357,6 +357,8 @@ export function hez2() {
     <path d="M77 36 Q80.5 41 77 46 M81.5 33 Q86 41 81.5 49" stroke="#FFE89A" stroke-width="2.2" fill="none" stroke-linecap="round" data-flat/>
     <g transform="translate(68 73)"><circle r="11" fill="#F2C23D"/>
     <text x="0" y="5.2" font-size="14" font-family="Lilita" fill="#5E1747" text-anchor="middle" data-flat>+2</text></g>`);
+}
+
 export function rami() {
   // a run of hearts fanned out (7 8 9) with a joker on top: الرامي's two decks and their jokers
   const card = (x, y, rot, label, suit, red) => `<g transform="translate(${x} ${y}) rotate(${rot})">
