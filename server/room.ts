@@ -77,6 +77,7 @@ import { estimate } from './games/estimate';
 import { truefalse } from './games/truefalse';
 import { flags } from './games/flags';
 import { qcond } from './games/qcond';
+import { balloons } from './games/balloons';
 import { guesswho } from './games/guesswho';
 import { clue } from './games/clue';
 import { triangles } from './games/triangles';
@@ -188,6 +189,7 @@ const MODULES: Record<GameId, AnyModule> = {
   clue,
   triangles,
   realms,
+  balloons,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
