@@ -61,6 +61,7 @@ export const GAME_IMG: Record<string, number> = {
   'phase10': require('../../assets/art/games/phase10.webp'),
   'potato': require('../../assets/art/games/potato.webp'),
   'prophets': require('../../assets/art/games/prophets.webp'),
+  'qcond': require('../../assets/art/games/qcond.webp'),
   'qquote': require('../../assets/art/games/qquote.webp'),
   'quiz': require('../../assets/art/games/quiz.webp'),
   'qword': require('../../assets/art/games/qword.webp'),

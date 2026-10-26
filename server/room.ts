@@ -75,6 +75,7 @@ import { billiards } from './games/billiards';
 import { estimate } from './games/estimate';
 import { truefalse } from './games/truefalse';
 import { flags } from './games/flags';
+import { qcond } from './games/qcond';
 import { prophets } from './games/prophets';
 import { mosque } from './games/mosque';
 import { rami } from './games/rami';
@@ -177,6 +178,7 @@ const MODULES: Record<GameId, AnyModule> = {
   estimate,
   truefalse,
   flags,
+  qcond,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
