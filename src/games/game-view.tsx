@@ -45,6 +45,7 @@ import { BilliardsGame } from './billiards';
 import { EstimateGame } from './estimate';
 import { TruefalseGame } from './truefalse';
 import { FlagsGame } from './flags';
+import { GuesswhoGame } from './guesswho';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -189,6 +190,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <TruefalseGame room={room} view={view} />;
     case 'flags':
       return <FlagsGame room={room} view={view} />;
+    case 'guesswho':
+      return <GuesswhoGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }
