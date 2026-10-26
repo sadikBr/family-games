@@ -65,6 +65,7 @@ export const GAME_IMG: Record<string, number> = {
   'quiz': require('../../assets/art/games/quiz.webp'),
   'qword': require('../../assets/art/games/qword.webp'),
   'rami': require('../../assets/art/games/rami.webp'),
+  'realms': require('../../assets/art/games/realms.webp'),
   'ronda': require('../../assets/art/games/ronda.webp'),
   'scrabble': require('../../assets/art/games/scrabble.webp'),
   'spy': require('../../assets/art/games/spy.webp'),
