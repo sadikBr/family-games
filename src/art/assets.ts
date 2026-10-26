@@ -80,6 +80,7 @@ export const GAME_IMG: Record<string, number> = {
   'tajweed': require('../../assets/art/games/tajweed.webp'),
   'teledraw': require('../../assets/art/games/teledraw.webp'),
   'touti': require('../../assets/art/games/touti.webp'),
+  'triangles': require('../../assets/art/games/triangles.webp'),
   'tris': require('../../assets/art/games/tris.webp'),
   'trivia': require('../../assets/art/games/trivia.webp'),
   'truefalse': require('../../assets/art/games/truefalse.webp'),

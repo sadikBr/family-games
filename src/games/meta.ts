@@ -32,6 +32,7 @@ import { FLAGS_INFO } from '@/shared/games/flags';
 import { QCOND_INFO } from '@/shared/games/qcond';
 import { GUESSWHO_INFO } from '@/shared/games/guesswho';
 import { CLUE_INFO } from '@/shared/games/clue';
+import { TRIANGLES_INFO, trianglesVariant } from '@/shared/games/triangles';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
 import { GAME_ALIASES, MIN_PLAYERS } from '@/shared/protocol';
@@ -107,6 +108,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   qcond: { id: 'qcond', minPlayers: MIN_PLAYERS.qcond, ...QCOND_INFO },
   guesswho: { id: 'guesswho', minPlayers: MIN_PLAYERS.guesswho, ...GUESSWHO_INFO },
   clue: { id: 'clue', minPlayers: MIN_PLAYERS.clue, ...CLUE_INFO },
+  triangles: { id: 'triangles', minPlayers: MIN_PLAYERS.triangles, ...TRIANGLES_INFO, variant: (s) => trianglesVariant(s.triangles) },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -579,7 +581,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue', 'triangles'];
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });

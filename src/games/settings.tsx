@@ -39,6 +39,7 @@ import { FlagsSettings } from './flags';
 import { QcondSettings } from './qcond';
 import { GuesswhoSettings } from './guesswho';
 import { ClueSettings } from './clue';
+import { TrianglesSettings } from './triangles';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -124,6 +125,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <GuesswhoSettings room={room} editable={editable} />;
     case 'clue':
       return <ClueSettings room={room} editable={editable} />;
+    case 'triangles':
+      return <TrianglesSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       return (

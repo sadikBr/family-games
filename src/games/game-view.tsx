@@ -48,6 +48,7 @@ import { FlagsGame } from './flags';
 import { QcondGame } from './qcond';
 import { GuesswhoGame } from './guesswho';
 import { ClueGame } from './clue';
+import { TrianglesGame } from './triangles';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -198,6 +199,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <GuesswhoGame room={room} view={view} />;
     case 'clue':
       return <ClueGame room={room} view={view} />;
+    case 'triangles':
+      return <TrianglesGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }
