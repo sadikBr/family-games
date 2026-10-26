@@ -29,6 +29,7 @@ import {
   resolveGame,
   type RoomView,
   type ServerMsg,
+  IMPOSTER_ANSWER_SECONDS,
 } from '../src/shared/protocol';
 import type { MemberStatus } from '../src/shared/status';
 import { isReactionKey, reactionAllowed } from '../src/shared/reactions';
@@ -996,6 +997,8 @@ export class Room {
         s.imposters = int(patch.imposters, s.imposters, 0, 3);
         s.hintForImposter = bool(patch.hintForImposter, s.hintForImposter);
         s.rounds = int(patch.rounds, s.rounds ?? 5, 1, 15);
+        if (patch.mode === 'word' || patch.mode === 'question') s.mode = patch.mode;
+        if ((IMPOSTER_ANSWER_SECONDS as readonly unknown[]).includes(patch.answerSeconds)) s.answerSeconds = patch.answerSeconds as number;
         break;
       }
       case 'names': {

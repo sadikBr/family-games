@@ -2,13 +2,22 @@
 import { StyleSheet, View } from 'react-native';
 
 import { client } from '@/lib/client';
-import { CHARADES_CATEGORIES, CHARADES_FREE_SKIPS, type CharadesCard, type CharadesSettings as Settings, type CharadesView } from '@/shared/games/charades';
+import { Icon } from '@/art/icons';
+import {
+  CHARADES_CATEGORIES,
+  CHARADES_FREE_SKIPS,
+  CHARADES_PROVERBS,
+  type CharadesCard,
+  type CharadesResult,
+  type CharadesSettings as Settings,
+  type CharadesView,
+} from '@/shared/games/charades';
 import type { RoomView } from '@/shared/protocol';
 import { C, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
 import { Avatar, Card, Pill, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
-import { ChipPicker, Stepper } from '@/ui/controls';
+import { ChipPicker, Stepper, Toggle } from '@/ui/controls';
 import { Confetti, CountdownBig, PopIn, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { li } from '@/shared/li';
@@ -20,6 +29,10 @@ import { TeamCard, TeamResult, TeamStrip } from './taboo-teams';
 
 const LEVEL_LABEL = { 1: 'سهلة', 2: 'متوسطة', 3: 'صعبة' } as const;
 const LEVEL_COLOR = { 1: C.green, 2: C.yellow, 3: C.red } as const;
+/** «نقطة» / «نقطتان» / «3 نقاط» */
+const ptsLabel = (n: number) => (n === 1 ? 'نقطة' : n === 2 ? 'نقطتان' : `${num(n)} نقاط`);
+const COMMAND_COLOR = C.purple;
+const REST_COLOR = C.cyan;
 
 function ScoreHeader({ view, myTeam }: { view: CharadesView; myTeam: number }) {
   return (
@@ -37,21 +50,59 @@ function ScoreHeader({ view, myTeam }: { view: CharadesView; myTeam: number }) {
 
 function WordCard({ card, big }: { card: CharadesCard; big?: boolean }) {
   const accent = useAccent();
+  const proverb = card.kind === 'proverb';
   return (
     <PopIn k={card.index}>
       <View style={styles.card}>
         <View style={[styles.cardTop, { backgroundColor: accent }]}>
-          <Txt v="tiny" color="#FFFFFF">
-            {card.category}
+          <Txt v="tiny" color="#FFFFFF" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {card.ma ? `${card.category} · مثل مغربي` : card.category}
           </Txt>
           <View style={[styles.level, { backgroundColor: LEVEL_COLOR[card.level] }]}>
             <Txt v="tiny" color={C.ink}>
-              {LEVEL_LABEL[card.level]}
+              {proverb ? `${LEVEL_LABEL[card.level]} · ${ptsLabel(card.points)}` : LEVEL_LABEL[card.level]}
             </Txt>
           </View>
         </View>
-        <View style={{ paddingVertical: big ? 26 : 14, paddingHorizontal: 12 }}>
-          <Txt v="display" size={big ? 40 : 30} center color={C.ink} adjustsFontSizeToFit numberOfLines={2}>
+        <View style={{ paddingVertical: big ? (proverb ? 20 : 26) : 14, paddingHorizontal: 12, gap: 6 }}>
+          <Txt v="display" size={big ? (proverb ? 32 : 40) : proverb ? 24 : 30} center color={C.ink} adjustsFontSizeToFit numberOfLines={proverb ? 3 : 2}>
+            {card.word}
+          </Txt>
+          {card.meaning ? (
+            <Txt v="small" center color="#6B6488">
+              المعنى: {card.meaning}
+            </Txt>
+          ) : null}
+        </View>
+      </View>
+    </PopIn>
+  );
+}
+
+/** A command («أمر») or a rest card («استراحة»): for everyone, in their own colours. */
+function SpecialCard({ card }: { card: CharadesCard }) {
+  const command = card.kind === 'command';
+  const color = command ? COMMAND_COLOR : REST_COLOR;
+  return (
+    <PopIn k={card.index}>
+      <View style={[styles.card, { backgroundColor: command ? '#F3EEFF' : '#E9FAF8', borderWidth: 3, borderColor: color }]}>
+        <View style={[styles.cardTop, { backgroundColor: color }]}>
+          <Row gap={6}>
+            <Icon name={command ? 'bolt' : 'tea'} size={16} color="#FFFFFF" />
+            <Txt v="bold" color="#FFFFFF">
+              {command ? 'بطاقة أمر' : 'بطاقة راحة'}
+            </Txt>
+          </Row>
+          {command || card.points > 0 ? (
+            <View style={[styles.level, { backgroundColor: '#FFFFFF' }]}>
+              <Txt v="tiny" color={C.ink}>
+                {ptsLabel(card.points)}
+              </Txt>
+            </View>
+          ) : null}
+        </View>
+        <View style={{ paddingVertical: 18, paddingHorizontal: 14 }}>
+          <Txt v="h2" center color={C.ink} adjustsFontSizeToFit numberOfLines={3}>
             {card.word}
           </Txt>
         </View>
@@ -60,8 +111,34 @@ function WordCard({ card, big }: { card: CharadesCard; big?: boolean }) {
   );
 }
 
-const resultIcon = { ok: 'check', skip: 'skip', penalty: 'skip' } as const;
-const resultColor = { ok: alpha(C.green, 0.25), skip: C.surfaceStrong, penalty: alpha(C.red, 0.3) } as const;
+/** «الوقت متوقّف» while a command or a rest card is on screen. */
+function PausedBar({ left }: { left: number }) {
+  return (
+    <Row gap={8} center style={styles.paused}>
+      <Icon name="clock" size={16} color={C.muted} />
+      <Txt v="small" color={C.muted}>
+        الوقت متوقّف · بقي {num(Math.ceil(left / 1000))} ثانية
+      </Txt>
+    </Row>
+  );
+}
+
+const resultIcon = { ok: 'check', skip: 'skip', penalty: 'skip', done: 'bolt', undone: 'close', rest: 'tea' } as const;
+const resultColor = {
+  ok: alpha(C.green, 0.25),
+  skip: C.surfaceStrong,
+  penalty: alpha(C.red, 0.3),
+  done: alpha(COMMAND_COLOR, 0.4),
+  undone: C.surfaceStrong,
+  rest: alpha(REST_COLOR, 0.3),
+} as const;
+
+function historyLabel(h: { word: string | null; result: CharadesResult; points: number }) {
+  const w = h.word ?? '؟';
+  if (h.result === 'penalty') return `${w} (${num(-1)})`;
+  if (h.points > 1 || h.result === 'done' || (h.result === 'rest' && h.points > 0)) return `${w} · ${ptsLabel(h.points)}`;
+  return w;
+}
 
 export function CharadesGame({ room, view }: { room: RoomView; view: CharadesView }) {
   const { me, isHost, player, act } = helpers(room);
@@ -73,6 +150,9 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
   const onActiveTeam = myTeam === view.activeTeam;
   const active = TEAM[view.activeTeam];
   const okCount = view.history.filter((h) => h.result === 'ok').length;
+  const gained = view.history.reduce((n, h) => n + Math.max(0, h.points), 0);
+  const proverbs = room.settings.charades.category === CHARADES_PROVERBS.key;
+  const foundPill = <Pill label={proverbs ? `نقاط هذا الدور: ${num(gained)}` : `${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />;
   const unlimited = view.skipsLeft >= CHARADES_FREE_SKIPS;
   const notice = view.notice ? (
     <Card color={alpha(C.yellow, 0.18)}>
@@ -115,7 +195,9 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           <Card>
             <Txt center>
               {isActor
-                ? 'ستظهر لك كلمة. مثّلها بلا كلام ولا أصوات، ولا تشر إلى الحروف. اضغط «صحيح» عندما يخمّنها فريقك.'
+                ? proverbs
+                  ? 'سيظهر لك مثل أو حكمة. مثّله بلا كلام، واضغط «صحيح» عندما يقوله فريقك. بطاقة الأمر تنفّذها والفريق الآخر يحكم.'
+                  : 'ستظهر لك كلمة. مثّلها بلا كلام ولا أصوات، ولا تشر إلى الحروف. اضغط «صحيح» عندما يخمّنها فريقك.'
                 : onActiveTeam
                   ? 'شاهد جيداً وقل تخميناتك بصوت عالٍ!'
                   : 'أنتم تراقبون: سترون الكلمة على هواتفكم. ممنوع المساعدة!'}
@@ -141,12 +223,42 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
 
     case 'play': {
       const card = view.card;
+      const special = card && (card.kind === 'command' || card.kind === 'rest') ? card : null;
+      const judgeAs = view.canJudge ? 'judge' : isHost && !isActor ? 'hostJudge' : null;
       return (
         <>
           <ScoreHeader view={view} myTeam={myTeam} />
-          <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={isActor} />
+          {view.pausedLeft !== null ? <PausedBar left={view.pausedLeft} /> : <TimerBar endsAt={view.endsAt} total={view.seconds * 1000} onTick={isActor} />}
           {notice}
-          {isActor && card ? (
+          {special ? (
+            <>
+              <SpecialCard card={special} />
+              {special.kind === 'command' ? (
+                <>
+                  <Txt center color={C.muted}>
+                    {isActor ? 'نفّذ الأمر الآن! الفريق الآخر يحكم.' : `الأمر ينفّذه ${actor.name}${judgeAs ? '، فاحكموا:' : '، والفريق الآخر يحكم'}`}
+                  </Txt>
+                  {judgeAs ? (
+                    <Row gap={10}>
+                      <Btn flex size="lg" icon="check" label="نُفِّذ" color={C.green} onPress={() => act(judgeAs, { index: special.index, done: true })} />
+                      <Btn flex size="lg" icon="close" label="لم يُنفَّذ" color={C.red} onPress={() => act(judgeAs, { index: special.index, done: false })} />
+                    </Row>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Txt center color={C.muted}>
+                    {special.effect === 'points'
+                      ? `${ptsLabel(special.points)} هدية ل${active.name.slice(1)}، بلا تمثيل`
+                      : special.effect === 'freeSkip'
+                        ? 'تخطٍّ مجاني إضافي في هذا الدور'
+                        : 'هذه البطاقة تمرّ بلا تمثيل ولا خسارة'}
+                  </Txt>
+                  {isActor ? <Btn size="lg" icon="next" label="البطاقة التالية" onPress={() => act('goOn', { index: special.index })} /> : null}
+                </>
+              )}
+            </>
+          ) : isActor && card ? (
             <>
               <WordCard card={card} big />
               <Row gap={10}>
@@ -168,23 +280,19 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           ) : onActiveTeam ? (
             <Card style={{ alignItems: 'center', paddingVertical: 28, gap: 8 }}>
               <Avatar player={actor} size={84} ring={active.color} />
-              <Txt v="display">خمّنوا!</Txt>
+              <Txt v="display">{proverbs ? 'خمّنوا المثل!' : 'خمّنوا!'}</Txt>
               <Txt center color={C.muted}>
                 التمثيل من {actor.name}… قولوا تخميناتكم بصوت عالٍ
               </Txt>
-              <View style={{ alignSelf: 'center' }}>
-                <Pill label={`${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
-              </View>
+              <View style={{ alignSelf: 'center' }}>{foundPill}</View>
             </Card>
           ) : card ? (
             <>
               <Txt v="small" center color={C.muted}>
-                كلمة هذا الدور (لا تساعدوهم!)
+                {proverbs ? 'مثل هذا الدور (لا تساعدوهم!)' : 'كلمة هذا الدور (لا تساعدوهم!)'}
               </Txt>
               <WordCard card={card} />
-              <View style={{ alignSelf: 'center' }}>
-                <Pill label={`${num(okCount)} صحيحة`} icon="check" color={alpha(C.green, 0.25)} />
-              </View>
+              <View style={{ alignSelf: 'center' }}>{foundPill}</View>
             </>
           ) : null}
           {isHost ? <Btn size="sm" ghost icon="stop" label="إنهاء الدور" onPress={() => act('endTurn')} /> : null}
@@ -193,7 +301,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
     }
 
     case 'turnEnd': {
-      const pts = view.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'penalty' ? -1 : 0), 0);
+      const pts = view.history.reduce((n, h) => n + h.points, 0);
       const last = view.turn >= view.totalTurns;
       return (
         <>
@@ -203,7 +311,7 @@ export function CharadesGame({ room, view }: { room: RoomView; view: CharadesVie
           <Card>
             <Row wrap gap={6}>
               {view.history.map((h, i) => (
-                <Pill key={i} label={h.result === 'penalty' ? `${h.word ?? '؟'} (${num(-1)})` : (h.word ?? '؟')} icon={resultIcon[h.result]} color={resultColor[h.result]} />
+                <Pill key={i} label={historyLabel(h)} icon={resultIcon[h.result]} color={resultColor[h.result]} />
               ))}
               {view.history.length === 0 ? <Txt color={C.muted}>لا توجد كلمات</Txt> : null}
             </Row>
@@ -248,8 +356,20 @@ export function CharadesSettings({ room, editable }: { room: RoomView; editable:
         editable={editable}
         value={settings.category}
         onChange={(category) => change({ category })}
-        options={[{ key: 'mixed' as const, label: 'خليط' }, ...CHARADES_CATEGORIES]}
+        options={[{ key: 'mixed' as const, label: 'خليط' }, ...CHARADES_CATEGORIES, CHARADES_PROVERBS]}
       />
+      {settings.category === CHARADES_PROVERBS.key ? (
+        <>
+          <Txt v="tiny" color={C.muted}>
+            على طريقة «غصب عنك تقول»: أمثال وحكم مشهورة، ولكل بطاقة نقاط من 1 إلى 3 حسب صعوبتها.
+          </Txt>
+          <Toggle label="بطاقات الأوامر" value={settings.commands !== false} editable={editable} onChange={(commands) => change({ commands })} />
+          <Toggle label="بطاقات الراحة" value={settings.rest !== false} editable={editable} onChange={(rest) => change({ rest })} />
+          <Txt v="tiny" color={C.muted}>
+            الأمر ينفّذه الممثّل ويحكم الفريق الآخر، والراحة نقطة مجانية أو تخطٍّ بلا خسارة.
+          </Txt>
+        </>
+      ) : null}
       <Txt v="bold">الصعوبة</Txt>
       <ChipPicker
         editable={editable}
@@ -306,4 +426,5 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   level: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 1 },
+  paused: { backgroundColor: C.surface, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14, alignSelf: 'center' },
 });

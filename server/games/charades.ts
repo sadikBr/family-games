@@ -2,20 +2,29 @@
 import {
   CHARADES_CATEGORIES,
   CHARADES_FREE_SKIPS,
+  CHARADES_PROVERBS,
   CHARADES_SECONDS,
   type CharadesCard,
+  type CharadesCardKind,
   type CharadesLevel,
   type CharadesResult,
   type CharadesSettings,
   type CharadesView,
 } from '../../src/shared/games/charades';
+import type { GameAction } from '../../src/shared/protocol';
 import { CHARADES_ALL, type CharadesWord } from '../charades-content';
+import { COMMANDS, PROVERBS, REST_CARDS, type CommandCard, type Proverb, type RestCard } from '../content-proverbs';
 import { GameError, paced, type GameCtx, type GameModule } from '../types';
 import { Deck, isNum, isStr, shuffle } from '../util';
 import { PVOICE, voiceOnly, voiceTeamsFinal } from '../voice-calls-party';
 
 export const COUNTDOWN_MS = 3000;
 const NOTICE_MS = 6000;
+/** A rest card stays on screen this long (or until the actor goes on). */
+export const REST_MS = 4000;
+/** «أمثال وحكم»: the chance that a card is a command / a rest card (never two special cards in a row). */
+export const COMMAND_CHANCE = 0.16;
+export const REST_CHANCE = 0.07;
 const TEAM_NAMES = ['الفريق الأحمر', 'الفريق الأزرق'] as const;
 
 interface State {
@@ -31,9 +40,15 @@ interface State {
   endsAt: number | null;
   card: CharadesCard | null;
   counter: number;
-  history: { word: string; result: CharadesResult }[];
+  history: { word: string; result: CharadesResult; points: number; kind: CharadesCardKind }[];
   teamScores: [number, number];
   skipsUsed: number;
+  /** free skips won with a rest card this turn */
+  bonusSkips: number;
+  /** the turn clock stopped on a command / rest card: ms left */
+  pausedLeft: number | null;
+  /** when the rest card on screen goes away by itself */
+  restUntil: number | null;
   notice: { text: string; until: number } | null;
 }
 
@@ -41,21 +56,33 @@ const LEVELS: Record<Exclude<CharadesLevel, 'all'>, 1 | 2 | 3> = { easy: 1, medi
 
 /** The words matching the settings (never empty: falls back to the whole category, then everything). */
 export function charadesPool(settings: CharadesSettings): CharadesWord[] {
-  const byCat = settings.category === 'mixed' ? CHARADES_ALL : CHARADES_ALL.filter((w) => w.cat === settings.category);
+  const byCat = settings.category === 'mixed' || settings.category === CHARADES_PROVERBS.key ? CHARADES_ALL : CHARADES_ALL.filter((w) => w.cat === settings.category);
   const lvl = settings.level === 'all' ? null : LEVELS[settings.level];
   const pool = lvl === null ? byCat : byCat.filter((w) => w.level === lvl);
   return pool.length ? pool : byCat.length ? byCat : CHARADES_ALL;
 }
 
-function deck(ctx: GameCtx, s: State): Deck<CharadesWord> {
-  const key = `charades:${s.settings.category}:${s.settings.level}`;
-  let d = ctx.memo.get(key) as Deck<CharadesWord> | undefined;
+/** «أمثال وحكم» cards matching the difficulty (never empty). */
+export function proverbPool(settings: CharadesSettings): Proverb[] {
+  const lvl = settings.level === 'all' ? null : LEVELS[settings.level];
+  const pool = lvl === null ? PROVERBS : PROVERBS.filter((p) => p.level === lvl);
+  return pool.length ? pool : PROVERBS;
+}
+
+function memoDeck<T>(ctx: GameCtx, key: string, items: () => readonly T[]): Deck<T> {
+  let d = ctx.memo.get(key) as Deck<T> | undefined;
   if (!d) {
-    d = new Deck(charadesPool(s.settings));
+    d = new Deck(items());
     ctx.memo.set(key, d);
   }
   return d;
 }
+
+function deck(ctx: GameCtx, s: State): Deck<CharadesWord> {
+  return memoDeck(ctx, `charades:${s.settings.category}:${s.settings.level}`, () => charadesPool(s.settings));
+}
+
+const isProverbs = (s: State) => s.settings.category === CHARADES_PROVERBS.key;
 
 function makeTeams(participants: string[]): [string[], string[]] {
   const a: string[] = [];
@@ -94,10 +121,75 @@ function pickActor(ctx: GameCtx, s: State) {
   s.actorId = members[s.actorIdx[team]] ?? '';
 }
 
+const isSpecial = (c: CharadesCard | null) => c?.kind === 'command' || c?.kind === 'rest';
+
+/** Stop the turn clock (a command waiting for its judges, a rest card on screen). */
+function pause(ctx: GameCtx, s: State) {
+  if (s.endsAt === null) return;
+  s.pausedLeft = Math.max(1000, s.endsAt - ctx.now);
+  s.endsAt = null;
+}
+
+function resume(ctx: GameCtx, s: State) {
+  if (s.pausedLeft === null) return;
+  s.endsAt = ctx.now + s.pausedLeft;
+  s.pausedLeft = null;
+  s.restUntil = null;
+}
+
 function drawCard(ctx: GameCtx, s: State) {
-  const w = deck(ctx, s).draw();
   s.counter += 1;
-  s.card = { index: s.counter, word: w.word, category: CHARADES_CATEGORIES.find((c) => c.key === w.cat)?.label ?? '', level: w.level };
+  if (!isProverbs(s)) {
+    const w = deck(ctx, s).draw();
+    s.card = { index: s.counter, word: w.word, category: CHARADES_CATEGORIES.find((c) => c.key === w.cat)?.label ?? '', level: w.level, kind: 'word', points: 1 };
+    return;
+  }
+  // «أمثال وحكم»: now and then a command or a rest card, never two in a row
+  const prevSpecial = isSpecial(s.card);
+  const roll = Math.random();
+  const commands = s.settings.commands !== false;
+  const rest = s.settings.rest !== false;
+  if (!prevSpecial && commands && roll < COMMAND_CHANCE) {
+    const c = memoDeck<CommandCard>(ctx, 'charades:commands', () => COMMANDS).draw();
+    s.card = { index: s.counter, word: c.text, category: 'أمر', level: c.points, kind: 'command', points: c.points };
+    pause(ctx, s);
+    ctx.fx('reveal');
+    return;
+  }
+  if (!prevSpecial && rest && roll >= (commands ? COMMAND_CHANCE : 0) && roll < (commands ? COMMAND_CHANCE : 0) + REST_CHANCE) {
+    const r = memoDeck<RestCard>(ctx, 'charades:rest', () => REST_CARDS).draw();
+    const pts = r.effect === 'points' ? r.value : 0;
+    s.card = { index: s.counter, word: r.text, category: 'استراحة', level: 1, kind: 'rest', points: pts, effect: r.effect };
+    // the effect applies by itself
+    if (pts) s.teamScores[activeTeam(s)] += pts;
+    if (r.effect === 'freeSkip') s.bonusSkips += 1;
+    s.history.push({ word: r.text, result: 'rest', points: pts, kind: 'rest' });
+    pause(ctx, s);
+    s.restUntil = ctx.now + paced(ctx, REST_MS);
+    ctx.fx('reveal');
+    return;
+  }
+  const p = memoDeck<Proverb>(ctx, `charades:proverbs:${s.settings.level}`, () => proverbPool(s.settings)).draw();
+  s.card = { index: s.counter, word: p.text, category: CHARADES_PROVERBS.label, level: p.level, kind: 'proverb', points: p.level, ...(p.ma ? { ma: true, meaning: p.meaning } : {}) };
+}
+
+/** Points this turn changed (penalties included). */
+const turnPoints = (s: State) => s.history.reduce((n, h) => n + h.points, 0);
+/** Points won this turn (no penalties): for a classic turn, the words found. */
+const turnGained = (s: State) => s.history.reduce((n, h) => n + Math.max(0, h.points), 0);
+
+/** A command judged («نُفِّذ ✓ / لم يُنفَّذ»): its points or nothing, then the turn goes on. */
+function judge(ctx: GameCtx, s: State, by: string, a: GameAction) {
+  if (s.phase !== 'play' || s.card?.kind !== 'command' || by === s.actorId) return;
+  if (!isNum(a.index) || a.index !== s.card.index) return; // a stale double tap
+  const team = activeTeam(s);
+  const done = a.done === true;
+  s.history.push({ word: s.card.word, result: done ? 'done' : 'undone', points: done ? s.card.points : 0, kind: 'command' });
+  if (done) s.teamScores[team] += s.card.points;
+  ctx.fx(done ? 'correct' : 'skip');
+  ctx.say?.(done ? `نُفِّذ الأمر، والنقاط ل${TEAM_NAMES[team].slice(1)}` : 'لم يُنفَّذ الأمر', by, done ? PVOICE.right : PVOICE.wrong);
+  resume(ctx, s);
+  drawCard(ctx, s);
 }
 
 function endTurn(ctx: GameCtx, s: State) {
@@ -105,9 +197,11 @@ function endTurn(ctx: GameCtx, s: State) {
   s.phase = 'turnEnd';
   s.endsAt = null;
   s.card = null;
+  s.pausedLeft = null;
+  s.restUntil = null;
   ctx.fx('buzz');
   if (!wasPlaying) return;
-  const pts = s.history.reduce((n, h) => n + (h.result === 'ok' ? 1 : h.result === 'penalty' ? -1 : 0), 0);
+  const pts = turnPoints(s);
   ctx.say?.(`انتهى الوقت: ${TEAM_NAMES[activeTeam(s)]} ${pts} في هذا الدور`, undefined, PVOICE.timeUp);
 }
 
@@ -115,12 +209,14 @@ function finish(ctx: GameCtx, s: State) {
   s.phase = 'final';
   s.endsAt = null;
   s.card = null;
+  s.pausedLeft = null;
+  s.restUntil = null;
   ctx.fx('win'); // a team win: no single target
   voiceOnly(ctx, voiceTeamsFinal(s.teamScores));
 }
 
 function freeSkipsLeft(s: State) {
-  return s.settings.skips >= CHARADES_FREE_SKIPS ? CHARADES_FREE_SKIPS : Math.max(0, s.settings.skips - s.skipsUsed);
+  return s.settings.skips >= CHARADES_FREE_SKIPS ? CHARADES_FREE_SKIPS : Math.max(0, s.settings.skips + s.bonusSkips - s.skipsUsed);
 }
 
 function canPlay(s: State) {
@@ -144,7 +240,7 @@ function balanceTeams(ctx: GameCtx, s: State) {
 
 export const charades: GameModule<State, CharadesSettings> = {
   id: 'charades',
-  hostOnly: ['shuffle', 'swap', 'begin', 'endTurn'],
+  hostOnly: ['shuffle', 'swap', 'begin', 'endTurn', 'hostJudge'],
 
   start(ctx, participants, settings) {
     const s: State = {
@@ -163,6 +259,9 @@ export const charades: GameModule<State, CharadesSettings> = {
       history: [],
       teamScores: [0, 0],
       skipsUsed: 0,
+      bonusSkips: 0,
+      pausedLeft: null,
+      restUntil: null,
       notice: null,
     };
     s.totalTurns = computeTotalTurns(s);
@@ -201,23 +300,24 @@ export const charades: GameModule<State, CharadesSettings> = {
         s.endsAt = ctx.now + COUNTDOWN_MS;
         s.history = [];
         s.skipsUsed = 0;
+        s.bonusSkips = 0;
         ctx.fx('start');
         return;
       case 'ok':
       case 'skip': {
-        if (s.phase !== 'play' || !s.card || by !== s.actorId) return;
+        if (s.phase !== 'play' || !s.card || by !== s.actorId || isSpecial(s.card)) return;
         if (!isNum(a.index) || a.index !== s.card.index) return; // a stale double tap
         const team = activeTeam(s);
         if (a.type === 'ok') {
-          s.history.push({ word: s.card.word, result: 'ok' });
-          s.teamScores[team] += 1;
+          s.history.push({ word: s.card.word, result: 'ok', points: s.card.points, kind: s.card.kind });
+          s.teamScores[team] += s.card.points;
           ctx.fx('correct');
           // the actor is silent: the voice calls the found word for the room (never the word itself)
-          ctx.say?.(`خمّنوها! ${TEAM_NAMES[team]}: ${s.history.filter((h) => h.result === 'ok').length} في هذا الدور`, by, PVOICE.right);
+          ctx.say?.(`خمّنوها! ${TEAM_NAMES[team]}: ${turnGained(s)} في هذا الدور`, by, PVOICE.right);
         } else {
           const free = freeSkipsLeft(s) > 0;
           s.skipsUsed += 1;
-          s.history.push({ word: s.card.word, result: free ? 'skip' : 'penalty' });
+          s.history.push({ word: s.card.word, result: free ? 'skip' : 'penalty', points: free ? 0 : -1, kind: s.card.kind });
           if (!free) s.teamScores[team] -= 1;
           ctx.fx('skip');
           ctx.say?.(free ? `تخطٍّ من ${ctx.playerName(by)}` : `تخطٍّ من ${ctx.playerName(by)} (نقطة أقل)`, by);
@@ -225,6 +325,23 @@ export const charades: GameModule<State, CharadesSettings> = {
         drawCard(ctx, s);
         return;
       }
+      case 'judge': {
+        // the other team judges the command on screen
+        const t = teamOf(s, by);
+        if (t === -1 || t === activeTeam(s)) return;
+        judge(ctx, s, by, a);
+        return;
+      }
+      case 'hostJudge':
+        judge(ctx, s, by, a);
+        return;
+      case 'goOn':
+        // the actor leaves the rest card early
+        if (s.phase !== 'play' || s.card?.kind !== 'rest' || (by !== s.actorId && !s.participants.includes(by))) return;
+        if (!isNum(a.index) || a.index !== s.card.index) return;
+        resume(ctx, s);
+        drawCard(ctx, s);
+        return;
       case 'endTurn':
         if (s.phase === 'play' || s.phase === 'countdown') endTurn(ctx, s);
         return;
@@ -260,6 +377,11 @@ export const charades: GameModule<State, CharadesSettings> = {
         return true;
       }
     }
+    if (s.phase === 'play' && s.card?.kind === 'rest' && s.restUntil !== null && ctx.now >= s.restUntil) {
+      resume(ctx, s);
+      drawCard(ctx, s);
+      return true;
+    }
     if (s.notice && ctx.now >= s.notice.until) {
       s.notice = null;
       changed = true;
@@ -273,6 +395,7 @@ export const charades: GameModule<State, CharadesSettings> = {
     // the actor and the OTHER team see the word; the guessing team (and spectators) don't
     const sees = me === s.actorId || (myTeam !== -1 && myTeam !== team);
     const running = s.phase === 'play' || s.phase === 'countdown';
+    const play = s.phase === 'play';
     return {
       game: 'charades',
       phase: s.phase,
@@ -284,8 +407,16 @@ export const charades: GameModule<State, CharadesSettings> = {
       totalTurns: s.totalTurns,
       endsAt: s.endsAt,
       seconds: s.settings.seconds,
-      card: sees && s.phase === 'play' ? s.card : null,
-      history: s.history.map((h) => ({ word: running && !sees ? null : h.word, result: h.result })),
+      // commands and rest cards are for everyone (the other team chooses, judges…)
+      card: play && (sees || isSpecial(s.card)) ? s.card : null,
+      history: s.history.map((h) => ({
+        word: running && !sees && (h.kind === 'word' || h.kind === 'proverb') ? null : h.word,
+        result: h.result,
+        points: h.points,
+        kind: h.kind,
+      })),
+      pausedLeft: play ? s.pausedLeft : null,
+      canJudge: play && s.card?.kind === 'command' && myTeam !== -1 && myTeam !== team,
       teamScores: s.teamScores,
       skipsLeft: freeSkipsLeft(s),
       notice: s.notice?.text ?? null,
@@ -335,9 +466,11 @@ export const charades: GameModule<State, CharadesSettings> = {
       const v = Math.round(patch.skips);
       settings.skips = v >= CHARADES_FREE_SKIPS ? CHARADES_FREE_SKIPS : Math.max(0, Math.min(5, v));
     }
-    if (patch.category === 'mixed' || CHARADES_CATEGORIES.some((c) => c.key === patch.category)) {
+    if (patch.category === 'mixed' || patch.category === CHARADES_PROVERBS.key || CHARADES_CATEGORIES.some((c) => c.key === patch.category)) {
       settings.category = patch.category as CharadesSettings['category'];
     }
     if (patch.level === 'all' || patch.level === 'easy' || patch.level === 'medium' || patch.level === 'hard') settings.level = patch.level;
+    if (typeof patch.commands === 'boolean') settings.commands = patch.commands;
+    if (typeof patch.rest === 'boolean') settings.rest = patch.rest;
   },
 };

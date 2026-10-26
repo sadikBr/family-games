@@ -89,7 +89,7 @@ test('charades: only the actor and the other team see the word', () => {
   // words already played this turn stay hidden from the guessers too
   const first = s.card.word;
   charades.act(ctx, s, s.actorId, { type: 'skip', index: s.card.index });
-  expect(v(ctx, s, mate).history).toEqual([{ word: null, result: 'skip' }]);
+  expect(v(ctx, s, mate).history).toEqual([{ word: null, result: 'skip', points: 0, kind: 'word' }]);
   expect(v(ctx, s, rival).history[0].word).toBe(first);
   ctx.now += 60_000;
   charades.tick!(ctx, s);
@@ -195,7 +195,7 @@ test('charades: settings are validated', () => {
   charades.patchSettings!(s, { seconds: 50, turnsEach: 9, skips: -3, category: 'nope', level: 'x' });
   expect(s).toEqual(settings({ turnsEach: 3, skips: 0 }));
   charades.patchSettings!(s, { seconds: 90, turnsEach: 0, skips: 20, category: 'movies', level: 'hard' });
-  expect(s).toEqual({ seconds: 90, turnsEach: 1, skips: CHARADES_FREE_SKIPS, category: 'movies', level: 'hard' });
+  expect(s).toEqual({ seconds: 90, turnsEach: 1, skips: CHARADES_FREE_SKIPS, category: 'movies', level: 'hard', commands: true, rest: true });
   charades.patchSettings!(s, { category: 'mixed', skips: 3 });
   expect(s.category).toBe('mixed');
   expect(s.skips).toBe(3);

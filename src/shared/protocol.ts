@@ -375,7 +375,16 @@ export interface ImposterSettings {
   imposters: number; // 0 = auto
   hintForImposter: boolean; // imposter sees the category
   rounds: number;
+  /** «نوع اللعب»: «كلمة سرية» (word, the default) or «سؤال مختلف» (question). Missing = word. */
+  mode?: ImposterMode;
+  /** «سؤال مختلف»: seconds to type an answer (IMPOSTER_ANSWER_SECONDS) */
+  answerSeconds?: number;
 }
+
+export type ImposterMode = 'word' | 'question';
+export const IMPOSTER_ANSWER_SECONDS = [30, 45, 60, 90] as const;
+/** «سؤال مختلف»: the longest answer (a number, a word or a short phrase). */
+export const IMPOSTER_ANSWER_MAX = 40;
 
 export interface NamesSettings {
   rounds: number;
@@ -629,7 +638,7 @@ export interface AllSettings {
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
-  imposter: { category: 'random', imposters: 0, hintForImposter: true, rounds: 5 },
+  imposter: { category: 'random', imposters: 0, hintForImposter: true, rounds: 5, mode: 'word', answerSeconds: 60 },
   names: { rounds: 5, seconds: 90, stop: true, dict: 'strict' },
   headsup: { category: 'random', seconds: 60, turnsEach: 1 },
   taboo: { seconds: 60, turnsEach: 3 },
@@ -706,7 +715,9 @@ export const DEFAULT_SETTINGS: AllSettings = {
 
 export type ImposterSecret =
   | { role: 'civilian'; word: string; category: string }
-  | { role: 'imposter'; category: string | null; partners: string[] };
+  | { role: 'imposter'; category: string | null; partners: string[] }
+  /** «سؤال مختلف»: the same shape for everyone, the imposter included (who doesn't know) */
+  | { role: 'question'; question: string };
 
 export interface ImposterResult {
   votes: Record<string, string>;
@@ -718,11 +729,16 @@ export interface ImposterResult {
   guessed: string | null;
   guessCorrect: boolean | null;
   winners: 'civilians' | 'imposters';
+  /** «سؤال مختلف»: the real question and the imposter's */
+  question?: string;
+  imposterQuestion?: string;
 }
 
 export interface ImposterView {
   game: 'imposter';
-  phase: 'reveal' | 'clues' | 'vote' | 'guess' | 'result' | 'final';
+  /** «سؤال مختلف»: answer (type an answer to your question) → answers (all revealed, the real question shown) → vote → result */
+  phase: 'reveal' | 'clues' | 'answer' | 'answers' | 'vote' | 'guess' | 'result' | 'final';
+  mode: ImposterMode;
   round: number;
   totalRounds: number;
   participants: string[];
@@ -739,6 +755,15 @@ export interface ImposterView {
   botClues: Record<string, string>;
   result: ImposterResult | null;
   scores: Record<string, number>;
+  /** «سؤال مختلف»: who has answered (never what, before the reveal) */
+  answered: string[];
+  myAnswer: string | null;
+  /** «سؤال مختلف»: everyone's answers ('' = none in time), only once revealed */
+  answers: Record<string, string>;
+  /** «سؤال مختلف»: the real question, only once the answers are revealed */
+  question: string | null;
+  answerEndsAt: number | null;
+  answerSeconds: number;
 }
 
 export const NAMES_CATEGORIES: CategoryInfo[] = [

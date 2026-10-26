@@ -9,6 +9,8 @@ import { expect, test } from 'bun:test';
 import { norm, stripAl } from '../src/shared/arabic';
 import { IMPOSTER_HINTS, POTATO_ANSWERS } from './bot-content';
 import { CHARADES_ALL } from './charades-content';
+import { COMMANDS, PROVERBS, REST_CARDS } from './content-proverbs';
+import { IMPOSTER_QUESTIONS } from './content-imposter-questions';
 import { HEADSUP_CATEGORIES, IMPOSTER_CATEGORIES, POTATO_PROMPTS, TABOO_CARDS } from './content';
 import { CODENAMES_ENTRIES, CODENAMES_PAIRS } from './codenames-links';
 import { CODENAMES_WORDS, DRAW_WORDS } from './content-extra';
@@ -82,6 +84,17 @@ function allContent(): [string, string][] {
   for (const [a, b] of CODENAMES_PAIRS) add('codenames pairs', `${a} ${b}`);
   DRAW_WORDS.forEach((w) => add('draw', w));
   CHARADES_ALL.forEach((c) => add(`charades ${c.cat}`, c.word));
+  // «أمثال وحكم»: the Moroccan proverbs are Darija on purpose (the owner asked for them, marked «مثل مغربي»);
+  // their meaning, shown under them, is فصحى
+  for (const p of PROVERBS) add(`charades proverb${p.ma ? ' (meaning)' : ''}`, p.ma ? p.meaning! : p.text);
+  COMMANDS.forEach((c) => add('charades command', c.text));
+  REST_CARDS.forEach((r) => add('charades rest', r.text));
+  // «الدخيل» — «سؤال مختلف»: the questions, and the answers the bots type
+  for (const p of IMPOSTER_QUESTIONS)
+    for (const q of [p.real, p.imposter]) {
+      add('imposter question', q.q);
+      q.answers.forEach((x) => add(`imposter answer ${q.q}`, x));
+    }
   for (const l of SPY_LOCATIONS) {
     add('spy', l.name);
     l.roles.forEach((r) => add(`spy ${l.name}`, r));
