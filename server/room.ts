@@ -79,6 +79,7 @@ import { qcond } from './games/qcond';
 import { guesswho } from './games/guesswho';
 import { clue } from './games/clue';
 import { triangles } from './games/triangles';
+import { realms } from './games/realms';
 import { prophets } from './games/prophets';
 import { mosque } from './games/mosque';
 import { rami } from './games/rami';
@@ -185,6 +186,7 @@ const MODULES: Record<GameId, AnyModule> = {
   guesswho,
   clue,
   triangles,
+  realms,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
@@ -192,7 +194,7 @@ const AUTOPILOT_MS = Number(process.env.AUTOPILOT_MS ?? 20_000);
 /** A host offline this long hands the room to a connected player. */
 const HOST_HANDOVER_MS = Number(process.env.HOST_HANDOVER_MS ?? 15_000);
 /** Card games where a seat can't disappear mid-hand: someone who leaves is replaced by a bot. */
-const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2', 'rami', 'touti', 'clue'];
+const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2', 'rami', 'touti', 'clue', 'realms'];
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
