@@ -123,7 +123,17 @@ test('the attributes agree with what a picture can show', () => {
     if (c.hijab || c.earrings) expect([c.id, c.female]).toEqual([c.id, true]);
     // beards and moustaches on grown men only
     if (c.beard || c.moustache) expect([c.id, c.female, c.age !== 'child']).toEqual([c.id, false, true]);
+    // what the drawing uses agrees with the answers: a smiling mouth ⇔ «يبتسم», a frame ⇔ glasses, a beard style ⇔ a beard
+    expect([c.id, c.smile]).toEqual([c.id, ['grin', 'gap', 'laugh', 'gentle'].includes(c.mouth)]);
+    expect([c.id, c.glasses]).toEqual([c.id, c.glassesStyle !== 'none']);
+    expect([c.id, c.beard]).toEqual([c.id, c.beardStyle !== 'none']);
+    // a man's long hair is the low ponytail (long hair framing a bearded face read as a mistake)
+    if (!c.female && ['long', 'wavy', 'braids', 'ponytail'].includes(c.style)) expect([c.id, c.style, c.beard]).toEqual([c.id, 'ponytail', false]);
+    // every character has its own look and background
+    expect([c.id, /^#[0-9A-F]{6}$/.test(c.look.bg)]).toEqual([c.id, true]);
   }
+  // the faces differ: no two characters share face shape, eyes, brows, nose, mouth and background
+  expect(new Set(GW_CHARS.map((c) => [c.look.face, c.look.eyeShape, c.look.brows, c.look.nose, c.mouth, c.look.bg].join())).size).toBe(GW_N);
   // a varied family: every age, both sexes, every skin tone
   expect(new Set(GW_CHARS.map((c) => c.skin)).size).toBe(4);
   for (const age of ['child', 'adult', 'elder'] as const) expect(GW_CHARS.filter((c) => c.age === age).length).toBeGreaterThanOrEqual(6);

@@ -46,8 +46,8 @@ export interface GwQuestion {
   test: (c: GwChar) => boolean;
 }
 
-/** Long hair: it falls below the ears to the shoulders (braids too). */
-const longHair = (c: GwChar) => c.style === 'long' || c.style === 'braids';
+/** Long hair: it falls below the ears to the shoulders (wavy, braids and a ponytail too). */
+const longHair = (c: GwChar) => c.style === 'long' || c.style === 'wavy' || c.style === 'braids' || c.style === 'ponytail';
 
 /** The questions, in the order of the buttons. What the picture shows decides: a hijab or a turban hides the hair. */
 export const GW_QUESTIONS: GwQuestion[] = [

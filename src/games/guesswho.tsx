@@ -48,7 +48,6 @@ import { helpers, type Helpers } from './helpers';
 import { HostNext } from './islamic-ui';
 import { EASE, useScreenClock, useSettled } from './touch-motion';
 
-const TILE = '#DCE7F6';
 const DOWN = '#252A5E';
 const YES = C.green;
 const NO = C.red;
@@ -63,15 +62,14 @@ const standingText = (n: number) => `باقي ${num(n)}`;
 /* A portrait                                                          */
 /* ------------------------------------------------------------------ */
 
-/** A character's portrait, zoomed a little on the face (the bust is cropped at the bottom). */
+/** A character's portrait: a square tile with its own soft background, the head big over the shoulders. */
 export function GwFace({ char, size }: { char: number; size: number }) {
   const c = GW_CHARS[char];
-  const zoom = 1.22;
   return (
-    <View style={{ width: size, height: size, overflow: 'hidden', backgroundColor: TILE }}>
+    <View style={{ width: size, height: size, overflow: 'hidden', backgroundColor: c.look.bg }}>
       <Image
         source={GW_IMG[c.id]}
-        style={{ width: size * zoom, height: size * zoom, marginLeft: -size * (zoom - 1) * 0.5, marginTop: -size * 0.03 }}
+        style={{ width: size, height: size }}
         contentFit="contain"
         transition={0}
         accessibilityLabel={c.name}
