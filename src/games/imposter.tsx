@@ -1,26 +1,114 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
 import { Icon } from '@/art/icons';
-import type { ImposterView, RoomView } from '@/shared/protocol';
-import { C } from '@/theme';
+import { haptic } from '@/lib/sfx';
+import { IMPOSTER_ANSWER_MAX, type ImposterView, type RoomView } from '@/shared/protocol';
+import { C, F, alpha } from '@/theme';
 import { Avatar, Card, PlayerTag, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
+import { Field } from '@/ui/field';
 import { Confetti, HoldReveal, Podium, Scoreboard, TimerBar } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 import { li } from '@/shared/li';
 
 import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator, WaitingFor } from './common';
-import { helpers } from './helpers';
+import { helpers, type Helpers } from './helpers';
 import { RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
 
 const INK_SOFT = '#6B6488';
 const GUESS_MS = 25_000; // keep in sync with server/games/imposter.ts
 
+/** «سؤال مختلف»: a question on a light card. */
+function QuestionCard({ label, text, color = C.ink }: { label: string; text: string; color?: string }) {
+  return (
+    <View style={styles.qCard}>
+      <Txt v="small" color={INK_SOFT} center>
+        {label}
+      </Txt>
+      <Txt v="h2" color={color} center>
+        {text}
+      </Txt>
+    </View>
+  );
+}
+
+/** «سؤال مختلف»: type an answer (it can be changed until the reveal). */
+function AnswerBox({ view, h }: { view: ImposterView; h: Helpers }) {
+  const [edit, setEdit] = useState<{ round: number; text: string } | null>(null);
+  const editing = edit?.round === view.round ? edit : null;
+  if (view.myAnswer && !editing) {
+    return (
+      <View style={styles.answerCard}>
+        <Txt v="small" center color={C.muted}>
+          جوابك
+        </Txt>
+        <Txt v="h2" center color={C.yellow}>
+          {view.myAnswer}
+        </Txt>
+        <Btn size="sm" ghost icon="edit" label="تعديل الجواب" onPress={() => setEdit({ round: view.round, text: view.myAnswer ?? '' })} />
+      </View>
+    );
+  }
+  const text = editing?.text ?? '';
+  const send = () => {
+    if (!text.trim()) return;
+    haptic.medium();
+    h.act('answer', { text });
+    setEdit(null);
+  };
+  return (
+    <View style={styles.answerCard}>
+      <Txt v="bold" center color={C.yellow}>
+        اكتب جوابك
+      </Txt>
+      <Row gap={8}>
+        <Field
+          value={text}
+          onChangeText={(t) => setEdit({ round: view.round, text: t })}
+          onSubmitEditing={send}
+          placeholder="جواب قصير"
+          placeholderTextColor={C.dim}
+          autoCorrect={false}
+          maxLength={IMPOSTER_ANSWER_MAX}
+          returnKeyType="send"
+          style={styles.input}
+        />
+        <Btn size="md" icon="check" label="أرسل" disabled={!text.trim()} onPress={send} />
+      </Row>
+    </View>
+  );
+}
+
+/** «سؤال مختلف»: everyone's answer, with their name. */
+function AnswersList({ view, h }: { view: ImposterView; h: Helpers }) {
+  return (
+    <Card style={{ gap: 8 }}>
+      {view.participants.map((id) => {
+        const a = view.answers[id] ?? '';
+        return (
+          <Row key={id} gap={10}>
+            <Avatar player={h.player(id)} size={34} />
+            <Txt v="small" numberOfLines={1} style={{ width: 76 }} color={C.muted}>
+              {h.player(id).name}
+            </Txt>
+            <View style={[styles.bubble, !a && { backgroundColor: C.surface }]}>
+              <Txt v="bold" color={a ? C.ink : C.dim} numberOfLines={2}>
+                {a || 'لا جواب'}
+              </Txt>
+            </View>
+          </Row>
+        );
+      })}
+    </Card>
+  );
+}
+
 function SecretCard({ view, height, partners }: { view: ImposterView; height?: number; partners?: string }) {
   const s = view.secret;
-  if (!s) return null;
+  if (!s || s.role === 'question') return null;
   return (
     <HoldReveal height={height}>
       {s.role === 'civilian' ? (
@@ -62,12 +150,51 @@ function SecretCard({ view, height, partners }: { view: ImposterView; height?: n
 }
 
 export function ImposterGame({ room, view }: { room: RoomView; view: ImposterView }) {
-  const { me, isHost, player, act } = helpers(room);
+  const h = helpers(room);
+  const { me, isHost, player, act } = h;
   if (!view.participants.includes(me)) return <Spectator room={room} />;
   const partnerNames =
     view.secret?.role === 'imposter' ? view.secret.partners.map((id) => player(id).name).join('، ') : '';
 
+  const qMode = view.mode === 'question';
+  const myQuestion = view.secret?.role === 'question' ? view.secret.question : '';
+
   switch (view.phase) {
+    case 'answer': {
+      const notAnswered = view.participants.filter((id) => !view.answered.includes(id)).map(player);
+      return (
+        <>
+          <RoundHeader label={`الجولة ${num(view.round)} من ${num(view.totalRounds)}`} round={0} rounds={0} />
+          <PhaseTitle icon="question" title="سؤالك" sub="أجب بصدق وباختصار، ولا تُرِ سؤالك لأحد" />
+          <TimerBar endsAt={view.answerEndsAt} total={view.answerSeconds * 1000} onTick={!view.myAnswer} />
+          <QuestionCard label="السؤال" text={myQuestion} />
+          <AnswerBox view={view} h={h} />
+          <WaitingFor players={notAnswered} label="في انتظار جواب" />
+          {isHost && notAnswered.length ? <Btn size="sm" ghost icon="skip" label="اكشف الأجوبة الآن" onPress={() => act('revealAnswers')} /> : null}
+        </>
+      );
+    }
+
+    case 'answers': {
+      return (
+        <>
+          <PhaseTitle icon="chat" title="الأجوبة" sub="ناقشوا بصوت عالٍ: من جاءه سؤال مختلف؟" />
+          <QuestionCard label="السؤال الحقيقي" text={view.question ?? ''} />
+          {myQuestion ? (
+            <Txt v="small" center color={C.dim}>
+              سؤالك أنت: {myQuestion}
+            </Txt>
+          ) : null}
+          <AnswersList view={view} h={h} />
+          {isHost ? (
+            <Btn size="xl" icon="vote" label="افتح التصويت" onPress={() => act('toVote')} />
+          ) : (
+            <HostNote>المضيف يفتح التصويت عندما تنتهون من النقاش</HostNote>
+          )}
+        </>
+      );
+    }
+
     case 'reveal': {
       const ready = view.ready.includes(me);
       const notReady = view.participants.filter((id) => !view.ready.includes(id)).map(player);
@@ -113,7 +240,12 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
       const notVoted = view.participants.filter((id) => !view.voted.includes(id)).map(player);
       return (
         <>
-          <PhaseTitle icon="search" title="من هو الدخيل؟" sub="اضغط على من تشكّ فيه" />
+          <PhaseTitle icon="search" title="من هو الدخيل؟" sub={qMode ? 'من جاءه السؤال المختلف؟ اضغط على من تشكّ فيه' : 'اضغط على من تشكّ فيه'} />
+          {qMode && view.question ? (
+            <Txt v="small" center color={C.muted}>
+              السؤال الحقيقي: {view.question}
+            </Txt>
+          ) : null}
           <Card>
             <Row wrap gap={10} center>
               {others.map((id) => (
@@ -123,7 +255,7 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
                   size={62}
                   selected={view.myVote === id}
                   badge={view.voted.includes(id) ? 'check' : undefined}
-                  sub={view.botClues[id] ? `«${view.botClues[id]}»` : undefined}
+                  sub={qMode ? `«${view.answers[id] || '—'}»` : view.botClues[id] ? `«${view.botClues[id]}»` : undefined}
                   onPress={() => act('vote', { target: id })}
                 />
               ))}
@@ -187,12 +319,21 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
                 <PlayerTag key={id} player={player(id)} size={64} />
               ))}
             </Row>
-            <Txt v="small" color={C.muted}>
-              والكلمة السرية
-            </Txt>
-            <Txt v="display" color={C.yellow}>
-              {r.word}
-            </Txt>
+            {qMode && r.question && r.imposterQuestion ? (
+              <View style={{ alignSelf: 'stretch', gap: 8 }}>
+                <QuestionCard label="السؤال الحقيقي" text={r.question} />
+                <QuestionCard label={r.imposters.length > 1 ? 'سؤال الدخلاء' : 'سؤال الدخيل'} text={r.imposterQuestion} color={C.red} />
+              </View>
+            ) : (
+              <>
+                <Txt v="small" color={C.muted}>
+                  والكلمة السرية
+                </Txt>
+                <Txt v="display" color={C.yellow}>
+                  {r.word}
+                </Txt>
+              </>
+            )}
             {r.guessed ? (
               <Row gap={6}>
                 <Txt v="small">خمّن الدخيل: «{r.guessed}»</Txt>
@@ -257,3 +398,10 @@ export function ImposterGame({ room, view }: { room: RoomView; view: ImposterVie
     }
   }
 }
+
+const styles = StyleSheet.create({
+  qCard: { backgroundColor: '#FBF7EC', borderRadius: 20, paddingVertical: 16, paddingHorizontal: 14, gap: 4 },
+  answerCard: { backgroundColor: C.surface, borderRadius: 20, padding: 12, gap: 8, borderWidth: 2, borderColor: alpha(C.yellow, 0.6) },
+  input: { flex: 1, backgroundColor: C.bg2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, minHeight: 46, color: C.text, fontFamily: F.bold, fontSize: 17, textAlign: 'right', borderWidth: 2, borderColor: C.yellow },
+  bubble: { flex: 1, backgroundColor: '#FBF7EC', borderRadius: 14, paddingVertical: 6, paddingHorizontal: 12 },
+});

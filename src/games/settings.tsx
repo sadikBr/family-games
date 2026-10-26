@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { client } from '@/lib/client';
 import { MEMORY_SIZES } from '@/shared/memory';
 import { XO_SIZES, inRow } from '@/shared/xo';
-import { CODENAMES_CLUE_SECONDS, CODENAMES_GUESS_SECONDS, HUROOF_CATS, huroofCats, type GameId, type RoomView } from '@/shared/protocol';
+import { CODENAMES_CLUE_SECONDS, CODENAMES_GUESS_SECONDS, HUROOF_CATS, IMPOSTER_ANSWER_SECONDS, huroofCats, type GameId, type RoomView } from '@/shared/protocol';
 import { C } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { ChipPicker, MultiChipPicker, Stepper, Toggle } from '@/ui/controls';
@@ -117,15 +117,43 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <FlagsSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
+      const question = settings.mode === 'question';
       return (
         <View style={{ gap: 10 }}>
-          <Txt v="bold">الموضوع</Txt>
+          <Txt v="bold">نوع اللعب</Txt>
           <ChipPicker
             editable={editable}
-            value={settings.category}
-            onChange={(category) => change({ category })}
-            options={[{ key: 'random', label: 'عشوائي' }, ...room.categories.imposter]}
+            value={settings.mode ?? 'word'}
+            onChange={(mode) => change({ mode })}
+            options={[
+              { key: 'word', label: 'كلمة سرية' },
+              { key: 'question', label: 'سؤال مختلف' },
+            ]}
           />
+          {question ? (
+            <>
+              <Txt v="tiny" color={C.muted}>
+                الجميع يجيب عن السؤال نفسه إلا الدخيل: سؤاله مختلف وهو لا يعرف ذلك. تظهر الأجوبة معاً، ثم صوّتوا.
+              </Txt>
+              <Txt v="bold">وقت الإجابة</Txt>
+              <ChipPicker
+                editable={editable}
+                value={String(settings.answerSeconds ?? 60)}
+                onChange={(v) => change({ answerSeconds: Number(v) })}
+                options={IMPOSTER_ANSWER_SECONDS.map((n) => ({ key: String(n), label: `${n} ثانية` }))}
+              />
+            </>
+          ) : (
+            <>
+              <Txt v="bold">الموضوع</Txt>
+              <ChipPicker
+                editable={editable}
+                value={settings.category}
+                onChange={(category) => change({ category })}
+                options={[{ key: 'random', label: 'عشوائي' }, ...room.categories.imposter]}
+              />
+            </>
+          )}
           <Stepper
             label="عدد الدخلاء"
             value={settings.imposters}
@@ -136,12 +164,14 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
             format={(v) => (v === 0 ? 'تلقائي' : String(v))}
           />
           <Stepper label="عدد الجولات" value={settings.rounds ?? 5} min={1} max={15} editable={editable} onChange={(rounds) => change({ rounds })} />
-          <Toggle
-            label="الدخيل يعرف الموضوع"
-            value={settings.hintForImposter}
-            editable={editable}
-            onChange={(hintForImposter) => change({ hintForImposter })}
-          />
+          {question ? null : (
+            <Toggle
+              label="الدخيل يعرف الموضوع"
+              value={settings.hintForImposter}
+              editable={editable}
+              onChange={(hintForImposter) => change({ hintForImposter })}
+            />
+          )}
         </View>
       );
     }
