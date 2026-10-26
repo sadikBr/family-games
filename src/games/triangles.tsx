@@ -478,7 +478,7 @@ export function TrianglesGame({ room, view }: { room: RoomView; view: TrianglesV
   let sub = '';
   if (view.phase === 'final') {
     const ws = view.winners ?? [];
-    title = ws.length === 1 ? (ws[0] === meId ? 'فزت!' : `الفوز ${li(nameOf(h, view, ws[0]))}`) : 'تعادل!';
+    title = ws.length === 1 ? (ws[0] === meId ? 'الفوز لك!' : `الفوز ${li(nameOf(h, view, ws[0]))}`) : 'تعادل!';
     sub = view.reason === 'forfeit' ? 'انسحب الآخرون' : ws.length === 1 ? `${num(view.points[ws[0]] ?? 0)} مثلثاً من ${num(total)}` : 'نفس عدد المثلثات';
   }
 
@@ -493,7 +493,7 @@ export function TrianglesGame({ room, view }: { room: RoomView; view: TrianglesV
             ? msg.text
             : myTurn
               ? justScored
-                ? 'أكملت مثلثاً! العب مرة أخرى'
+                ? 'مثلث مكتمل! دور إضافي'
                 : `اسحب من وتد إلى وتد ${bandHint}`
               : !playing
                 ? 'خرجت من هذه اللعبة… تابع الآخرين'
