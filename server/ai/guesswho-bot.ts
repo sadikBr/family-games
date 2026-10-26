@@ -1,7 +1,9 @@
 /**
  * «خمّن من؟» bots. A bot reasons only from what its own phone shows: the questions it asked about the
- * other's secret and their (truthful) answers, its own wrong guesses, and the public log of the other
- * player's questions (how close they are). Never from the other's secret.
+ * other's secret and their answers, its own wrong guesses, and the public log of the other player's
+ * questions (how close they are). Never from the other's secret. A person may answer a bot's question
+ * wrongly («أسئلة حرة»): the candidates then fall back to the characters that fit the most answers
+ * (gwCandidates), so a bot never gets stuck and never guesses a character it ruled out.
  *
  * - expert: plays the race, not only the puzzle. Every option — each question by how it would split
  *   the remaining candidates, or a guess — is scored by the chance to win the round from where it
@@ -12,21 +14,40 @@
  * - easy: often a weak question (or a useless one), and may guess with a few candidates left.
  */
 import type { BotLevel } from '../../src/shared/protocol';
-import { GW_N, GW_QUESTIONS, gwAnswer, gwConsistent, type GwEvent, type GwQuestionId } from '../../src/shared/games/guesswho';
+import { GW_N, GW_QUESTIONS, gwAnswer, type GwEvent, type GwQuestionId } from '../../src/shared/games/guesswho';
 
 export type GwMove = { type: 'ask'; q: GwQuestionId } | { type: 'guess'; char: number };
 
 type Rnd = () => number;
 
-/** The characters still possible for `by`, from the log alone. */
+/**
+ * The characters still possible for `by`, from the log alone. Answers given by a person can be wrong:
+ * when no character agrees with every answer, these are the characters that disagree with the fewest
+ * of them (a wrong guess always rules its character out). With truthful answers it is exactly the
+ * characters consistent with all of them (gwConsistent), and it is never empty.
+ */
 export function gwCandidates(log: GwEvent[], by: string): number[] {
-  const out: number[] = [];
-  for (let c = 0; c < GW_N; c++) if (gwConsistent(c, log, by)) out.push(c);
-  return out;
+  const miss = Array<number>(GW_N).fill(0);
+  const out = Array<boolean>(GW_N).fill(true);
+  for (const e of log) {
+    if (e.by !== by) continue;
+    if (e.kind === 'guess') {
+      if (!e.right) out[e.char] = false;
+    } else if (e.q && e.yes !== null) {
+      for (let c = 0; c < GW_N; c++) if (gwAnswer(e.q, c) !== e.yes) miss[c]++;
+    }
+  }
+  let best = Infinity;
+  for (let c = 0; c < GW_N; c++) if (out[c]) best = Math.min(best, miss[c]);
+  // (every character guessed wrong: impossible in a real round, the right guess ends it)
+  if (best === Infinity) return Array.from({ length: GW_N }, (_, c) => c);
+  const cands: number[] = [];
+  for (let c = 0; c < GW_N; c++) if (out[c] && miss[c] === best) cands.push(c);
+  return cands;
 }
 
 /** The questions `by` already asked this round. */
-export const gwAsked = (log: GwEvent[], by: string) => new Set(log.flatMap((e) => (e.kind === 'ask' && e.by === by ? [e.q] : [])));
+export const gwAsked = (log: GwEvent[], by: string) => new Set(log.flatMap((e) => (e.kind === 'ask' && e.by === by && e.q ? [e.q] : [])));
 
 /** How unevenly a question splits the candidates: |yes − no| (0 = a perfect half). */
 export function gwSplit(q: GwQuestionId, cands: number[]): number {

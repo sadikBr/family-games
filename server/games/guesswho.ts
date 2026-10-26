@@ -1,10 +1,19 @@
 /**
  * «خمّن من؟» — two players, the same board of 24 family characters, one secret character each. In turn,
- * a player asks a yes/no question from the fixed list (src/shared/games/guesswho.ts); the server answers
- * it truthfully from the other's secret character, logs it for both, and — with «إسقاط تلقائي», and
- * always for bots — flips down the asker's characters that don't match. The answer stays on the screens
- * a moment (GW_ANSWER_MS), then the turn passes; without auto-flip the asker flips by hand and ends the
- * turn with «إنهاء الدور» (or it passes after GW_MANUAL_MS).
+ * a player asks a yes/no question about the other's secret.
+ *
+ * «أسئلة جاهزة»: a question from the fixed list (src/shared/games/guesswho.ts); the server answers it
+ * truthfully from the other's secret character, logs it for both, and — with «إسقاط تلقائي», and always
+ * for bots — flips down the asker's characters that don't match. The answer stays on the screens a moment
+ * (GW_ANSWER_MS), then the turn passes; without auto-flip the asker flips by hand and ends the turn with
+ * «إنهاء الدور» (or it passes after GW_MANUAL_MS).
+ *
+ * «أسئلة حرة» (the default): a typed question (or a tapped ready one) goes to the other player, who
+ * answers نعم / لا within GW_REPLY_MS (`pending`); the asker then flips by hand and ends the turn. In
+ * time or gone (GW_GONE_MS offline): a ready question gets the truthful answer, a typed one «لا أعرف».
+ * Against a bot (or a person a bot plays for), a ready question is answered truthfully as above, and a
+ * typed one is matched to a ready question (guesswho-match.ts) or refused. A bot's (ready) questions to
+ * a person are answered by that person; the bot copes with a wrong answer (gwCandidates).
  *
  * Instead of asking, the player on turn may guess: right wins the round; wrong loses it, or only costs
  * the turn (and that character goes down), by setting. Rounds: 1, best of 3 or best of 5; the first
@@ -18,13 +27,15 @@ import {
   GW_QUESTION,
   gwAnswer,
   gwConsistent,
+  gwCleanText,
   gwToWin,
   type GuesswhoSettings,
   type GuesswhoView,
   type GwEvent,
   type GwQuestionId,
 } from '../../src/shared/games/guesswho';
-import { gwBotMove } from '../ai/guesswho-bot';
+import { GW_MATCH_ERROR, gwMatchQuestion } from '../../src/shared/games/guesswho-match';
+import { gwBotMove, gwCandidates } from '../ai/guesswho-bot';
 import { randDelay } from '../cardkit';
 import { startDuel } from '../duel';
 import { GameError, botLevel, paced, type GameCtx, type GameModule } from '../types';
@@ -39,10 +50,26 @@ export const GW_MISS_MS = 2600;
 export const GW_MANUAL_MS = 45_000;
 /** The round's result (both secrets) stays this long before the next round (at the room's pace). */
 export const GW_REVEAL_MS = 6500;
+/** «أسئلة حرة»: the other player has this long to answer نعم / لا (an answer timer: not paced). */
+export const GW_REPLY_MS = 45_000;
+/** …and is taken as gone after this long offline (the app then answers, see the header). */
+export const GW_GONE_MS = 10_000;
 /** A bot thinks this long before a question or a guess. */
 export const GW_BOT_MS: [number, number] = [1500, 2800];
 
 type Rnd = () => number;
+
+interface Pending {
+  by: string;
+  /** a ready question, or null for a typed one */
+  q: GwQuestionId | null;
+  /** the question as shown (the ready question's text, or what was typed) */
+  text: string;
+  until: number;
+  total: number;
+  /** since when the one to answer has been offline (null: connected) */
+  goneAt: number | null;
+}
 
 interface State {
   settings: GuesswhoSettings;
@@ -61,6 +88,8 @@ interface State {
   pauseTotal: number;
   /** the pause waits for the asker to flip by hand and tap «إنهاء الدور» */
   manual: boolean;
+  /** a question waiting for the other player's answer («أسئلة حرة») */
+  pending: Pending | null;
   roundWinner: string | null;
   how: GuesswhoView['how'];
   winner: string | null;
@@ -73,6 +102,7 @@ interface State {
 export function sanitizeGuesswho(raw: Partial<GuesswhoSettings> | undefined): GuesswhoSettings {
   return {
     bestOf: snapBestOf(raw?.bestOf),
+    mode: raw?.mode === 'ready' || raw?.mode === 'free' ? raw.mode : GUESSWHO_DEFAULTS.mode,
     autoFlip: typeof raw?.autoFlip === 'boolean' ? raw.autoFlip : GUESSWHO_DEFAULTS.autoFlip,
     wrongLoses: typeof raw?.wrongLoses === 'boolean' ? raw.wrongLoses : GUESSWHO_DEFAULTS.wrongLoses,
   };
@@ -97,6 +127,7 @@ function dealRound(ctx: GameCtx, s: State) {
   s.phase = 'play';
   s.turnIdx = ((s.round - 1) % 2) as 0 | 1;
   s.pauseUntil = null;
+  s.pending = null;
   s.roundWinner = null;
   s.how = null;
   s.nextAt = null;
@@ -110,6 +141,57 @@ function dropMismatches(s: State, by: string) {
   for (let c = 0; c < GW_N; c++) if (!gwConsistent(c, s.log, by)) board[c] = true;
 }
 
+/**
+ * A bot's board shows its candidates: the rest goes down; after a wrong answer from a person (no
+ * character fits every answer) the characters that fit the most answers come back up.
+ */
+function botBoard(s: State, by: string) {
+  const board = s.down[by];
+  const cands = new Set(gwCandidates(s.log, by));
+  for (let c = 0; c < GW_N; c++) {
+    if (!cands.has(c)) board[c] = true;
+    else if (!gwConsistent(c, s.log, by)) board[c] = false;
+  }
+}
+
+/** The app answered a ready question (truthfully): auto-flip for bots, or with «إسقاط تلقائي»; then the answer's pause. */
+function afterAppAnswer(ctx: GameCtx, s: State, by: string) {
+  const auto = s.settings.autoFlip || ctx.isBot(by);
+  if (ctx.isBot(by)) botBoard(s, by);
+  else if (auto) dropMismatches(s, by);
+  if (auto) pause(ctx, s, paced(ctx, GW_ANSWER_MS));
+  else pause(ctx, s, GW_MANUAL_MS, true);
+}
+
+/** «نعم» / «لا» / «لا أعرف» */
+const yesNo = (yes: boolean | null) => (yes === null ? 'لا أعرف' : yes ? 'نعم' : 'لا');
+
+/**
+ * The pending question gets its answer: from the other player (`yes`), or — `yes` undefined: no answer
+ * in time — the truth for a ready question and «لا أعرف» for a typed one.
+ */
+function settle(ctx: GameCtx, s: State, yes: boolean | undefined) {
+  const p = s.pending;
+  if (!p) return;
+  s.pending = null;
+  const by = p.by;
+  const other = otherOf(s, by);
+  const human = yes !== undefined;
+  const ans = human ? yes : p.q ? gwAnswer(p.q, s.secrets[other]) : null;
+  s.log.push({ kind: 'ask', n: ++s.n, by, q: p.q, yes: ans, ...(p.q ? {} : { text: p.text }), ...(human ? { human: true } : {}) });
+  // (a typed question stays between the two players: the line under the turn bar leaves it out)
+  ctx.say?.(`${p.q ? `سؤال من ${ctx.playerName(by)}: ${p.text}` : `سؤال من ${ctx.playerName(by)}`} — ${human ? `جواب ${ctx.playerName(other)}` : 'الجواب'}: ${yesNo(ans)}`, by);
+  if (!human && p.q) {
+    afterAppAnswer(ctx, s, by);
+    return;
+  }
+  if (ctx.isBot(by)) {
+    botBoard(s, by);
+    pause(ctx, s, paced(ctx, GW_ANSWER_MS));
+  } else if (ans === null) pause(ctx, s, paced(ctx, GW_ANSWER_MS));
+  else pause(ctx, s, GW_MANUAL_MS, true);
+}
+
 function pause(ctx: GameCtx, s: State, ms: number, manual = false) {
   s.pauseUntil = ctx.now + ms;
   s.pauseTotal = ms;
@@ -121,6 +203,7 @@ const decides = (s: State, winner: string) => (s.wins[winner] ?? 0) + 1 >= gwToW
 
 function endTurn(s: State) {
   s.pauseUntil = null;
+  s.pending = null;
   s.manual = false;
   s.turnIdx = (1 - s.turnIdx) as 0 | 1;
   s.moves++;
@@ -132,6 +215,7 @@ function endRound(ctx: GameCtx, s: State, winner: string, how: NonNullable<Guess
   s.roundWinner = winner;
   s.how = how;
   s.pauseUntil = null;
+  s.pending = null;
   s.manual = false;
   s.moves++;
   const name = ctx.playerName(winner);
@@ -174,6 +258,7 @@ export function startGuesswho(ctx: GameCtx, participants: string[], raw: Partial
     pauseUntil: null,
     pauseTotal: 0,
     manual: false,
+    pending: null,
     roundWinner: null,
     how: null,
     winner: null,
@@ -221,22 +306,47 @@ export const guesswho: GameModule<State, GuesswhoSettings> = {
       if (turnOf(s) === by && s.pauseUntil !== null) endTurn(s);
       return;
     }
+    // the answer to the pending question: only from the one it was asked to
+    if (a.type === 'answer') {
+      if (!s.pending || s.pending.by !== other || typeof a.yes !== 'boolean') return;
+      settle(ctx, s, a.yes);
+      return;
+    }
     if (a.type !== 'ask' && a.type !== 'guess') return;
     if (turnOf(s) !== by) throw new GameError('ليس دورك');
-    if (s.pauseUntil !== null) return; // one question or one guess per turn
+    if (s.pauseUntil !== null || s.pending) return; // one question or one guess per turn
     const name = ctx.playerName(by);
 
     if (a.type === 'ask') {
-      const q = typeof a.q === 'string' ? GW_QUESTION[a.q as GwQuestionId] : undefined;
+      const free = s.settings.mode === 'free';
+      let q = typeof a.q === 'string' ? GW_QUESTION[a.q as GwQuestionId] : undefined;
+      let typed = '';
+      let neg = false;
+      if (!q) {
+        if (!free) return; // «أسئلة جاهزة»: the list only
+        typed = gwCleanText(a.text);
+        if (!typed) throw new GameError('اكتب السؤال أولاً');
+        if (!/[?؟]$/.test(typed)) typed = gwCleanText(`${typed}؟`);
+        if (ctx.isBot(other)) {
+          // a bot can't read free text: understood as one of the ready questions, or refused
+          const m = gwMatchQuestion(typed);
+          if (!m.ok) throw new GameError(GW_MATCH_ERROR[m.why]);
+          q = GW_QUESTION[m.q];
+          neg = m.neg;
+        }
+      }
+      if (q && s.log.some((e) => e.kind === 'ask' && e.by === by && e.q === q.id)) throw new GameError('سبق طرح هذا السؤال');
+      if (free && !ctx.isBot(other)) {
+        // the other player answers on their phone
+        s.pending = { by, q: q?.id ?? null, text: q ? q.text : typed, until: ctx.now + GW_REPLY_MS, total: GW_REPLY_MS, goneAt: null };
+        ctx.say?.(q ? `سؤال من ${name}: ${q.text}` : `سؤال من ${name}`, by);
+        return;
+      }
       if (!q) return;
-      if (s.log.some((e) => e.kind === 'ask' && e.by === by && e.q === q.id)) throw new GameError('سبق طرح هذا السؤال');
       const yes = gwAnswer(q.id, s.secrets[other]);
-      s.log.push({ kind: 'ask', n: ++s.n, by, q: q.id, yes });
-      const auto = s.settings.autoFlip || ctx.isBot(by);
-      if (auto) dropMismatches(s, by);
+      s.log.push({ kind: 'ask', n: ++s.n, by, q: q.id, yes, ...(typed ? { text: typed } : {}), ...(neg ? { neg: true } : {}) });
       ctx.say?.(`سؤال من ${name}: ${q.text} — ${yes ? 'نعم' : 'لا'}`, by);
-      if (auto) pause(ctx, s, paced(ctx, GW_ANSWER_MS));
-      else pause(ctx, s, GW_MANUAL_MS, true);
+      afterAppAnswer(ctx, s, by);
       return;
     }
 
@@ -259,11 +369,25 @@ export const guesswho: GameModule<State, GuesswhoSettings> = {
       return;
     }
     s.down[by][a.char] = true;
+    // (a bot's board follows its candidates: after a wrong answer from a person, the next best ones come up)
+    if (ctx.isBot(by)) botBoard(s, by);
     ctx.say?.(`تخمين خاطئ من ${name}: ليس ${who} — الدور ${li(ctx.playerName(other))}`, by, GV.wrong);
     pause(ctx, s, paced(ctx, GW_MISS_MS));
   },
 
   tick(ctx, s) {
+    const p = s.pending;
+    if (s.phase === 'play' && p) {
+      // no answer in time, or the one to answer is gone: the app answers (see settle)
+      const who = otherOf(s, p.by);
+      const was = p.goneAt;
+      p.goneAt = ctx.isConnected(who) ? null : (p.goneAt ?? ctx.now);
+      if (ctx.now >= p.until || (p.goneAt !== null && ctx.now - p.goneAt >= GW_GONE_MS)) {
+        settle(ctx, s, undefined);
+        return true;
+      }
+      return (was === null) !== (p.goneAt === null);
+    }
     if (s.phase === 'play' && s.pauseUntil !== null && ctx.now >= s.pauseUntil) {
       endTurn(s);
       return true;
@@ -277,13 +401,22 @@ export const guesswho: GameModule<State, GuesswhoSettings> = {
 
   turnOf(s) {
     if (s.phase !== 'play') return [];
+    // a question waits for the other player's answer
+    if (s.pending) return [otherOf(s, s.pending.by)];
     // a pause after an answer waits for nobody, except the asker flipping by hand («إنهاء الدور»)
     if (s.pauseUntil !== null) return s.manual ? [turnOf(s)] : [];
     return [turnOf(s)];
   },
 
   botPlan(ctx, s, bots) {
-    if (s.phase !== 'play' || s.pauseUntil !== null) return;
+    if (s.phase !== 'play') return;
+    // a bot now plays for the one who has to answer (offline for a while): the app answers
+    if (s.pending) {
+      if (!bots.includes(otherOf(s, s.pending.by))) return;
+      settle(ctx, s, undefined);
+      return true;
+    }
+    if (s.pauseUntil !== null) return;
     const id = turnOf(s);
     if (!bots.includes(id)) return;
     const move = gwBotMove({ level: botLevel(ctx), log: s.log, me: id, other: otherOf(s, id), wrongLoses: s.settings.wrongLoses });
@@ -304,10 +437,14 @@ export const guesswho: GameModule<State, GuesswhoSettings> = {
       pauseUntil: s.pauseUntil,
       pauseTotal: s.pauseTotal,
       manual: s.manual,
+      // a typed question is for the two players' eyes only
+      pending: s.pending ? { by: s.pending.by, q: s.pending.q, text: player || s.pending.q ? s.pending.text : null, until: s.pending.until, total: s.pending.total } : null,
+      bots: s.players.filter((p) => ctx.isBot(p)),
+      mode: s.settings.mode,
       mySecret: player ? s.secrets[me] : null,
       myDown: player ? s.down[me].flatMap((d, i) => (d ? [i] : [])) : [],
       standing: Object.fromEntries(s.players.map((p) => [p, s.down[p].filter((d) => !d).length])),
-      log: s.log,
+      log: player ? s.log : s.log.map((e) => (e.kind === 'ask' && e.text !== undefined ? { ...e, text: '' } : e)),
       autoFlip: s.settings.autoFlip,
       wrongLoses: s.settings.wrongLoses,
       // the secrets only once the round is over
@@ -328,6 +465,7 @@ export const guesswho: GameModule<State, GuesswhoSettings> = {
 
   patchSettings(settings, patch) {
     if (isNum(patch.bestOf)) settings.bestOf = snapBestOf(patch.bestOf);
+    if (patch.mode === 'free' || patch.mode === 'ready') settings.mode = patch.mode;
     if (typeof patch.autoFlip === 'boolean') settings.autoFlip = patch.autoFlip;
     if (typeof patch.wrongLoses === 'boolean') settings.wrongLoses = patch.wrongLoses;
   },

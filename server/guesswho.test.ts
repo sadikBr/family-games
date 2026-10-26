@@ -1,4 +1,7 @@
-/** «خمّن من؟» — the characters' attributes, truthful answers, auto-flip, guessing, the turn flow, hidden secrets, bots. */
+/**
+ * «خمّن من؟» — the characters' attributes, truthful answers, auto-flip, guessing, the turn flow, hidden secrets, bots;
+ * «أسئلة حرة»: typed questions answered by the other player, bots' questions answered by a person, the keyword matcher.
+ */
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -14,8 +17,9 @@ import {
   type GwQuestionId,
 } from '../src/shared/games/guesswho';
 import type { BotLevel } from '../src/shared/protocol';
+import { gwMatchQuestion } from '../src/shared/games/guesswho-match';
 import { gwBotMove, gwCandidates, gwSplit, gwWinChance } from './ai/guesswho-bot';
-import { GW_ANSWER_MS, GW_MANUAL_MS, GW_REVEAL_MS, guesswho, sanitizeGuesswho, startGuesswho, type GuesswhoState } from './games/guesswho';
+import { GW_ANSWER_MS, GW_GONE_MS, GW_MANUAL_MS, GW_REPLY_MS, GW_REVEAL_MS, guesswho, sanitizeGuesswho, startGuesswho, type GuesswhoState } from './games/guesswho';
 import { GameError, type GameCtx } from './types';
 
 interface Job {
@@ -26,7 +30,7 @@ interface Job {
 }
 type Said = { text: string; by?: string; voice?: string };
 
-function fakeCtx(bots: string[] = [], level: BotLevel = 'expert') {
+function fakeCtx(bots: string[] = [], level: BotLevel = 'expert', offline: Set<string> = new Set()) {
   const jobs: Job[] = [];
   const keys = new Set<string>();
   const fxs: [string, string | undefined][] = [];
@@ -35,7 +39,7 @@ function fakeCtx(bots: string[] = [], level: BotLevel = 'expert') {
     now: 1_000_000,
     fx: (k, t) => fxs.push([k, t]),
     say: (text, by, voice) => said.push({ text, by, voice }),
-    isConnected: () => true,
+    isConnected: (id) => !offline.has(id),
     isBot: (id) => bots.includes(id),
     playerName: (id) => id,
     botLevel: () => level,
@@ -68,7 +72,8 @@ function seeded(seed: number) {
 const view = (ctx: GameCtx, s: GuesswhoState, me: string) => guesswho.view(ctx, s, me) as GuesswhoView;
 const turn = (s: GuesswhoState) => s.players[s.turnIdx];
 const other = (s: GuesswhoState, id: string) => (s.players[0] === id ? s.players[1] : s.players[0]);
-const settings = (p: Partial<GuesswhoSettings> = {}): GuesswhoSettings => ({ ...GUESSWHO_DEFAULTS, ...p });
+/** (the older tests play «أسئلة جاهزة»; the free-question tests ask for mode 'free') */
+const settings = (p: Partial<GuesswhoSettings> = {}): GuesswhoSettings => ({ ...GUESSWHO_DEFAULTS, mode: 'ready', ...p });
 /** Let the answer's pause run out. */
 const passPause = (ctx: GameCtx, s: GuesswhoState) => {
   if (s.pauseUntil === null) return;
@@ -329,9 +334,16 @@ test('settings are validated', () => {
   expect(sanitizeGuesswho({ bestOf: 99 } as GuesswhoSettings).bestOf).toBe(5);
   const st = { ...GUESSWHO_DEFAULTS };
   guesswho.patchSettings!(st, { bestOf: 1, autoFlip: false, wrongLoses: 'x' });
-  expect(st).toEqual({ bestOf: 1, autoFlip: false, wrongLoses: true });
-  guesswho.patchSettings!(st, { bestOf: '5', wrongLoses: false });
-  expect(st).toEqual({ bestOf: 1, autoFlip: false, wrongLoses: false });
+  expect(st).toEqual({ bestOf: 1, mode: 'free', autoFlip: false, wrongLoses: true });
+  guesswho.patchSettings!(st, { bestOf: '5', wrongLoses: false, mode: 'nope' });
+  expect(st).toEqual({ bestOf: 1, mode: 'free', autoFlip: false, wrongLoses: false });
+  guesswho.patchSettings!(st, { mode: 'ready' });
+  expect(st.mode).toBe('ready');
+  // «أسئلة حرة» is the default, also for settings saved before the setting existed
+  expect(GUESSWHO_DEFAULTS.mode).toBe('free');
+  expect(sanitizeGuesswho({ bestOf: 5, autoFlip: false, wrongLoses: true } as GuesswhoSettings)).toEqual({ bestOf: 5, mode: 'free', autoFlip: false, wrongLoses: true });
+  expect(sanitizeGuesswho({ mode: 'ready' } as GuesswhoSettings).mode).toBe('ready');
+  expect(sanitizeGuesswho({ mode: 'x' } as unknown as GuesswhoSettings).mode).toBe('free');
 });
 
 /* ------------------------------------------------------------------ */
@@ -517,4 +529,413 @@ test('spoken calls: vowelled Arabic only, never a verb about a player', () => {
   for (const v of voices) expect(v.replace(/لِ[ab]\b/g, '')).toMatch(/^[ء-ْ ،]+$/);
   // a question is shown, not read aloud
   expect(ctx.said.filter((x) => x.text.startsWith('سؤال من')).every((x) => !x.voice)).toBe(true);
+});
+
+/* ------------------------------------------------------------------ */
+/* «أسئلة حرة»                                                         */
+/* ------------------------------------------------------------------ */
+
+const free = (p: Partial<GuesswhoSettings> = {}) => settings({ mode: 'free', ...p });
+const askText = (ctx: GameCtx, s: GuesswhoState, by: string, text: string) => guesswho.act(ctx, s, by, { type: 'ask', text });
+const answer = (ctx: GameCtx, s: GuesswhoState, by: string, yes: boolean) => guesswho.act(ctx, s, by, { type: 'answer', yes });
+const lastAsk = (s: GuesswhoState) => s.log[s.log.length - 1] as Extract<GuesswhoState['log'][number], { kind: 'ask' }>;
+
+test('free questions: a typed question goes to the other phone, the answer comes back, the asker flips by hand', () => {
+  const ctx = fakeCtx();
+  const s = startGuesswho(ctx, ['a', 'b'], free(), seeded(21));
+  const by = turn(s);
+  const them = other(s, by);
+  askText(ctx, s, by, '  هل يحب\nالكسكس؟‮  ');
+  // waiting for the other player: nothing in the log yet, the turn alert goes to them
+  expect(s.log).toEqual([]);
+  expect(guesswho.turnOf!(s)).toEqual([them]);
+  const v = view(ctx, s, them);
+  expect(v.pending).toMatchObject({ by, q: null, text: 'هل يحب الكسكس؟', total: GW_REPLY_MS });
+  expect(view(ctx, s, by).pending!.text).toBe('هل يحب الكسكس؟');
+  // one question per turn: no second question, no guess meanwhile
+  askText(ctx, s, by, 'سؤال آخر');
+  guess(ctx, s, by, 0);
+  expect(s.log).toEqual([]);
+  expect(s.pending!.text).toBe('هل يحب الكسكس؟');
+  // only the one asked answers, with a real yes / no
+  answer(ctx, s, by, true);
+  guesswho.act(ctx, s, them, { type: 'answer', yes: 'yes' });
+  answer(ctx, s, 'zz', true);
+  expect(s.pending).not.toBeNull();
+  answer(ctx, s, them, true);
+  expect(s.pending).toBeNull();
+  expect(lastAsk(s)).toMatchObject({ kind: 'ask', by, q: null, yes: true, text: 'هل يحب الكسكس؟', human: true });
+  // a second answer changes nothing
+  answer(ctx, s, them, false);
+  expect(s.log.length).toBe(1);
+  // the asker flips by hand (nothing flips by itself, even with «إسقاط تلقائي»), then ends the turn
+  expect(s.manual).toBe(true);
+  expect(guesswho.turnOf!(s)).toEqual([by]);
+  expect(s.down[by].some(Boolean)).toBe(false);
+  guesswho.act(ctx, s, by, { type: 'dropAll' }); // (a typed question rules nothing out for the app)
+  expect(s.down[by].some(Boolean)).toBe(false);
+  guesswho.act(ctx, s, by, { type: 'flip', char: 5 });
+  expect(s.down[by][5]).toBe(true);
+  guesswho.act(ctx, s, by, { type: 'done' });
+  expect(turn(s)).toBe(them);
+  // both see it in the history
+  for (const me of [by, them]) expect(view(ctx, s, me).log[0]).toMatchObject({ text: 'هل يحب الكسكس؟', yes: true });
+  // the line under the turn bar (shown to everyone in the room) never carries the typed text
+  expect(ctx.said.some((x) => x.text.includes('الكسكس'))).toBe(false);
+  // an empty question is refused; a long one is cut
+  expect(() => askText(ctx, s, them, ' \n\t ')).toThrow(GameError);
+  askText(ctx, s, them, 'ه'.repeat(300));
+  expect(Array.from(s.pending!.text).length).toBeLessThanOrEqual(80);
+});
+
+test('free questions: a ready question tapped goes to the person too; their answer counts for «أسقِط من لا يطابق»', () => {
+  const ctx = fakeCtx();
+  const s = startGuesswho(ctx, ['a', 'b'], free({ autoFlip: true }), seeded(22));
+  const by = turn(s);
+  const them = other(s, by);
+  ask(ctx, s, by, 'glasses');
+  expect(s.pending).toMatchObject({ by, q: 'glasses', text: 'هل يلبس نظارة؟' });
+  // the person may answer anything (here the opposite of the truth)
+  const truth = gwAnswer('glasses', s.secrets[them]);
+  answer(ctx, s, them, !truth);
+  expect(lastAsk(s)).toMatchObject({ q: 'glasses', yes: !truth, human: true });
+  expect(lastAsk(s).text).toBeUndefined();
+  // a person's answer: no automatic flips, the asker flips by hand
+  expect(s.manual).toBe(true);
+  expect(s.down[by].some(Boolean)).toBe(false);
+  guesswho.act(ctx, s, by, { type: 'dropAll' });
+  for (let c = 0; c < GW_N; c++) expect(s.down[by][c]).toBe(gwAnswer('glasses', c) === truth);
+  guesswho.act(ctx, s, by, { type: 'done' });
+  guesswho.act(ctx, s, them, { type: 'done' }); // (not the asker's pause: ignored)
+  expect(turn(s)).toBe(them);
+  // the same ready question twice is refused
+  answer(ctx, s, by, true);
+  askText(ctx, s, them, 'هل هو طفل؟');
+  answer(ctx, s, by, false);
+  guesswho.act(ctx, s, them, { type: 'done' });
+  expect(() => ask(ctx, s, by, 'glasses')).toThrow(GameError);
+});
+
+test('«أسئلة جاهزة»: only the ready questions, answered at once by the app; typed text is ignored', () => {
+  const ctx = fakeCtx();
+  const s = startGuesswho(ctx, ['a', 'b'], settings({ mode: 'ready', autoFlip: true }), seeded(23));
+  const by = turn(s);
+  askText(ctx, s, by, 'هل يلبس نظارة؟');
+  expect(s.log).toEqual([]);
+  expect(s.pending).toBeNull();
+  ask(ctx, s, by, 'glasses');
+  expect(s.pending).toBeNull();
+  expect(lastAsk(s)).toEqual({ kind: 'ask', n: 1, by, q: 'glasses', yes: gwAnswer('glasses', s.secrets[other(s, by)]) });
+  for (let c = 0; c < GW_N; c++) expect(s.down[by][c]).toBe(!gwConsistent(c, s.log, by));
+  expect(view(ctx, s, by).mode).toBe('ready');
+});
+
+test('no answer in time: a ready question gets the truth, a typed one «لا أعرف» and the turn passes', () => {
+  const ctx = fakeCtx();
+  const s = startGuesswho(ctx, ['a', 'b'], free({ autoFlip: true }), seeded(24));
+  const by = turn(s);
+  const them = other(s, by);
+  askText(ctx, s, by, 'هل يحب الرياضة؟');
+  ctx.now += GW_REPLY_MS - 1;
+  expect(guesswho.tick!(ctx, s)).toBe(false);
+  expect(s.pending).not.toBeNull();
+  ctx.now += 1;
+  expect(guesswho.tick!(ctx, s)).toBe(true);
+  expect(lastAsk(s)).toMatchObject({ q: null, yes: null, text: 'هل يحب الرياضة؟' });
+  expect(lastAsk(s).human).toBeUndefined();
+  expect(s.manual).toBe(false);
+  passPause(ctx, s);
+  expect(turn(s)).toBe(them);
+  // a ready question: the truth, and «إسقاط تلقائي» (the app answered) flips the board
+  ask(ctx, s, them, 'hijab');
+  ctx.now += GW_REPLY_MS;
+  guesswho.tick!(ctx, s);
+  expect(lastAsk(s)).toMatchObject({ q: 'hijab', yes: gwAnswer('hijab', s.secrets[by]) });
+  for (let c = 0; c < GW_N; c++) expect(s.down[them][c]).toBe(!gwConsistent(c, s.log, them));
+});
+
+test('the one to answer goes offline: the app answers after a short grace; back in time, the question waits', () => {
+  const offline = new Set<string>();
+  const ctx = fakeCtx([], 'expert', offline);
+  const s = startGuesswho(ctx, ['a', 'b'], free(), seeded(25));
+  const by = turn(s);
+  const them = other(s, by);
+  askText(ctx, s, by, 'هل يحب القطط؟');
+  offline.add(them);
+  guesswho.tick!(ctx, s);
+  ctx.now += GW_GONE_MS - 100;
+  guesswho.tick!(ctx, s);
+  // back just in time: the grace starts over
+  offline.delete(them);
+  guesswho.tick!(ctx, s);
+  offline.add(them);
+  ctx.now += 200;
+  guesswho.tick!(ctx, s);
+  expect(s.pending).not.toBeNull();
+  ctx.now += GW_GONE_MS;
+  guesswho.tick!(ctx, s);
+  expect(s.pending).toBeNull();
+  expect(lastAsk(s).yes).toBeNull();
+  // and a bot playing for that person (the room's autopilot) answers at once
+  passPause(ctx, s);
+  ask(ctx, s, them, 'beard');
+  expect(guesswho.botPlan!(ctx, s, [by])).toBe(true);
+  expect(lastAsk(s)).toMatchObject({ q: 'beard', yes: gwAnswer('beard', s.secrets[by]) });
+});
+
+test('a person answers a bot\'s questions; the bot narrows down from the answers', () => {
+  const ctx = fakeCtx(['b']);
+  const s = startGuesswho(ctx, ['a', 'b'], free(), seeded(26));
+  if (turn(s) !== 'b') s.turnIdx = (1 - s.turnIdx) as 0 | 1;
+  guesswho.botPlan!(ctx, s, ['b']);
+  const job = ctx.jobs.shift()!;
+  expect(job.a.type).toBe('ask');
+  guesswho.act(ctx, s, 'b', job.a);
+  // the person's phone gets the question with the yes / no buttons
+  expect(s.pending).toMatchObject({ by: 'b', q: job.a.q });
+  expect(guesswho.turnOf!(s)).toEqual(['a']);
+  expect(view(ctx, s, 'a').pending).toMatchObject({ by: 'b', q: job.a.q, text: GW_QUESTION_TEXT(job.a.q as GwQuestionId) });
+  // nothing more is planned while waiting
+  guesswho.botPlan!(ctx, s, ['b']);
+  expect(ctx.jobs.length).toBe(0);
+  const truth = gwAnswer(job.a.q as GwQuestionId, s.secrets.a);
+  answer(ctx, s, 'a', truth);
+  expect(lastAsk(s)).toMatchObject({ by: 'b', yes: truth, human: true });
+  // the bot's board shows its candidates
+  const cands = new Set(gwCandidates(s.log, 'b'));
+  for (let c = 0; c < GW_N; c++) expect(s.down.b[c]).toBe(!cands.has(c));
+  expect(cands.has(s.secrets.a)).toBe(true);
+  expect(s.manual).toBe(false);
+  passPause(ctx, s);
+  expect(turn(s)).toBe('a');
+});
+const GW_QUESTION_TEXT = (q: GwQuestionId) => GW_QUESTIONS.find((x) => x.id === q)!.text;
+
+test('the bot recovers from wrong answers: candidates never empty, never a guess of a character it ruled out, the match ends', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    for (const level of ['easy', 'smart', 'expert'] as BotLevel[]) {
+      const rnd = seeded(seed * 7 + level.length);
+      const ctx = fakeCtx(['b'], level);
+      const s = startGuesswho(ctx, ['a', 'b'], free({ bestOf: 1, wrongLoses: seed % 2 === 0 }), rnd);
+      let lies = 0;
+      for (let step = 0; step < 3000 && s.phase === 'play'; step++) {
+        if (s.pending && s.pending.by === 'b') {
+          // the person answers wrongly now and then (a third of the time)
+          const truth = gwAnswer(s.pending.q!, s.secrets.a);
+          const lie = rnd() < 0.33;
+          if (lie) lies++;
+          answer(ctx, s, 'a', lie ? !truth : truth);
+          expect(gwCandidates(s.log, 'b').length).toBeGreaterThan(0);
+          continue;
+        }
+        if (s.pauseUntil !== null) {
+          passPause(ctx, s);
+          continue;
+        }
+        if (turn(s) === 'a') {
+          // the person asks a ready question the app answers (the bot can't lie), or guesses late
+          const asked = new Set(s.log.flatMap((e) => (e.kind === 'ask' && e.by === 'a' && e.q ? [e.q] : [])));
+          const q = GW_QUESTIONS.find((x) => !asked.has(x.id));
+          if (q && step < 40) ask(ctx, s, 'a', q.id);
+          else guess(ctx, s, 'a', gwCandidates(s.log, 'a')[0]);
+          continue;
+        }
+        guesswho.botPlan!(ctx, s, ['b']);
+        const job = ctx.jobs.shift();
+        if (!job) throw new Error('the bot is stuck');
+        if (job.a.type === 'guess') {
+          const c = job.a.char as number;
+          expect(s.down.b[c]).toBe(false);
+          expect(gwCandidates(s.log, 'b')).toContain(c);
+        }
+        guesswho.act(ctx, s, 'b', job.a);
+      }
+      expect([seed, level, s.phase]).toEqual([seed, level, 'final']);
+      void lies;
+    }
+  }
+});
+
+test('gwCandidates: a wrong answer is outvoted by the others', () => {
+  const secret = GW_CHARS.findIndex((c) => c.id === 'karim');
+  const log: GuesswhoState['log'] = [];
+  let n = 0;
+  for (const q of GW_QUESTIONS) log.push({ kind: 'ask', n: ++n, by: 'b', q: q.id, yes: gwAnswer(q.id, secret), human: true });
+  expect(gwCandidates(log, 'b')).toEqual([secret]);
+  // one answer flipped: no character fits everything; karim fits all but one
+  (log[3] as { yes: boolean }).yes = !(log[3] as { yes: boolean }).yes;
+  expect(gwCandidates(log, 'b')).toContain(secret);
+  // a wrong guess always rules its character out
+  log.push({ kind: 'guess', n: ++n, by: 'b', char: secret, right: false });
+  expect(gwCandidates(log, 'b')).not.toContain(secret);
+  expect(gwCandidates(log, 'b').length).toBeGreaterThan(0);
+});
+
+test('asking a bot: ready questions answered truthfully; typed ones understood by keywords, or refused', () => {
+  const ctx = fakeCtx(['b']);
+  const s = startGuesswho(ctx, ['a', 'b'], free({ autoFlip: true }), seeded(27));
+  if (turn(s) !== 'a') s.turnIdx = (1 - s.turnIdx) as 0 | 1;
+  const secret = s.secrets.b;
+  const next = () => {
+    passPause(ctx, s);
+    // (the bot's turn is skipped here: back to the person)
+    s.turnIdx = s.players.indexOf('a') as 0 | 1;
+    s.moves++;
+  };
+  askText(ctx, s, 'a', 'هل يلبس نظارات؟');
+  expect(s.pending).toBeNull();
+  expect(lastAsk(s)).toMatchObject({ q: 'glasses', text: 'هل يلبس نظارات؟', yes: gwAnswer('glasses', secret) });
+  expect(lastAsk(s).human).toBeUndefined();
+  // the app answered: «إسقاط تلقائي» flips the board
+  for (let c = 0; c < GW_N; c++) expect(s.down.a[c]).toBe(!gwConsistent(c, s.log, 'a'));
+  next();
+  // a negation: understood without it, the answer is to the plain question
+  askText(ctx, s, 'a', 'ليس له لحية');
+  expect(lastAsk(s)).toMatchObject({ q: 'beard', neg: true, yes: gwAnswer('beard', secret), text: 'ليس له لحية؟' });
+  next();
+  // the same attribute again, in other words: already asked
+  expect(() => askText(ctx, s, 'a', 'عنده نظارة؟')).toThrow('سبق طرح هذا السؤال');
+  // not understood, two attributes, a name: refused with a hint (the turn stays open)
+  expect(() => askText(ctx, s, 'a', 'هل يحب الكسكس؟')).toThrow('اختر سؤالاً من الأسئلة الجاهزة');
+  expect(() => askText(ctx, s, 'a', 'هل شعره أسود وطويل؟')).toThrow('صفة واحدة');
+  expect(() => askText(ctx, s, 'a', 'هل هي فاطمة؟')).toThrow('خمّن الشخصية');
+  expect(s.pauseUntil).toBeNull();
+  expect(turn(s)).toBe('a');
+  // a ready question tapped
+  ask(ctx, s, 'a', 'hijab');
+  expect(lastAsk(s)).toMatchObject({ q: 'hijab', yes: gwAnswer('hijab', secret) });
+  expect(view(ctx, s, 'a').bots).toEqual(['b']);
+});
+
+test('the keyword matcher: many phrasings, negations, colours by context, refusals', () => {
+  const cases: [string, GwQuestionId, boolean][] = [
+    ['هل يلبس نظارة؟', 'glasses', false],
+    ['عنده نظارات؟', 'glasses', false],
+    ['هل يضع النظارة', 'glasses', false],
+    ['بدون نظارة؟', 'glasses', true],
+    ['هل له لحية', 'beard', false],
+    ['هل هو ملتحٍ؟', 'beard', false],
+    ['ليس له لحية؟', 'beard', true],
+    ['هل له لحية أم لا؟', 'beard', false],
+    ['هل له شارب؟', 'moustache', false],
+    ['هل له شاربان', 'moustache', false],
+    ['هل تلبس حجاباً؟', 'hijab', false],
+    ['هل هي محجّبة', 'hijab', false],
+    ['هل هي غير محجبة', 'hijab', true],
+    ['هل يلبس طربوشاً؟', 'hat', false],
+    ['هل على رأسه قبعة؟', 'hat', false],
+    ['هل يلبس عمامة', 'hat', false],
+    ['هل يلبس جلابة؟', 'jellaba', false],
+    ['هل شعره أسود؟', 'hairBlack', false],
+    ['هل هو أسود الشعر', 'hairBlack', false],
+    ['هل شعرها بني', 'hairBrown', false],
+    ['هل شعره طويل؟', 'hairLong', false],
+    ['هل لها ضفائر', 'hairLong', false],
+    ['هل شعره قصير', 'hairLong', true],
+    ['هل عيناه زرقاوان؟', 'eyesBlue', false],
+    ['هل عيونه زرقاء', 'eyesBlue', false],
+    ['هل عيونها بنية', 'eyesBlue', true],
+    ['هل هو طفل؟', 'child', false],
+    ['هل هي طفلة', 'child', false],
+    ['هل هو صغير', 'child', false],
+    ['هل هو كبير في السن؟', 'elder', false],
+    ['هل هي عجوز', 'elder', false],
+    ['هل هو جد', 'elder', false],
+    ['هل هي امرأة؟', 'female', false],
+    ['هل هي بنت', 'female', false],
+    ['هل هي أنثى', 'female', false],
+    ['هل هو رجل؟', 'female', true],
+    ['هل هو ولد', 'female', true],
+    ['هل الشخصية ذكر', 'female', true],
+    ['ليس رجلاً؟', 'female', false],
+    ['هل يبتسم؟', 'smile', false],
+    ['هل هو مبتسم', 'smile', false],
+    ['هل يضحك', 'smile', false],
+    ['هل تلبس أقراطاً؟', 'earrings', false],
+    ['هل في أذنيها حلق', 'earrings', false],
+    ['هل ثيابه حمراء؟', 'red', false],
+    ['هل يلبس الأحمر', 'red', false],
+    ['هل ملابسه زرقاء', 'blue', false],
+    ['هل امرأة بحجاب؟', 'hijab', false],
+    ['هل هو رجل بلحية', 'beard', false],
+    ['هل يلبس نظارة؟؟', 'glasses', false],
+  ];
+  for (const [text, q, neg] of cases) expect([text, gwMatchQuestion(text)]).toEqual([text, { ok: true, q, neg }]);
+  const refused: [string, 'none' | 'many' | 'name'][] = [
+    ['هل يحب الكسكس؟', 'none'],
+    ['هل شعره أشقر؟', 'none'],
+    ['هل هو طويل؟', 'none'],
+    ['هل عليه شيء؟', 'none'],
+    ['', 'none'],
+    ['هل شعره أسود وطويل', 'many'],
+    ['هل هي بنت صغيرة', 'many'],
+    ['هل يلبس نظارة ولحية', 'many'],
+    ['هل هو سعيد؟', 'name'],
+    ['هل هي فاطمة', 'name'],
+    ['هل هو علي؟', 'name'],
+    ['هل هو عبد الله', 'name'],
+  ];
+  for (const [text, why] of refused) expect([text, gwMatchQuestion(text)]).toEqual([text, { ok: false, why }]);
+  // every ready question, typed as it is, is understood as itself
+  for (const q of GW_QUESTIONS) expect([q.id, gwMatchQuestion(q.text)]).toEqual([q.id, { ok: true, q: q.id, neg: false }]);
+});
+
+test('free questions: a view never tells the other\'s secret, and a typed question stays between the two players', () => {
+  for (let seed = 1; seed <= 10; seed++) {
+    const ctx = fakeCtx();
+    const s = startGuesswho(ctx, ['a', 'b'], free({ wrongLoses: false }), seeded(seed));
+    for (let k = 0; k < 6; k++) {
+      const by = turn(s);
+      if (k % 2) ask(ctx, s, by, GW_QUESTIONS[(seed + k) % GW_QUESTIONS.length].id);
+      else askText(ctx, s, by, `سؤال رقم ${k}`);
+      const check = () => {
+        for (const me of ['a', 'b']) {
+          const v = view(ctx, s, me);
+          expect(v.secrets).toBeNull();
+          const them = other(s, me);
+          const real = s.secrets[them];
+          const alt = (real + 1 + (s.secrets[me] === (real + 1) % GW_N ? 1 : 0)) % GW_N;
+          s.secrets[them] = alt;
+          const v2 = view(ctx, s, me);
+          s.secrets[them] = real;
+          expect(JSON.stringify(v2)).toBe(JSON.stringify(v));
+        }
+        const spec = view(ctx, s, 'spectator');
+        expect(spec.mySecret).toBeNull();
+        if (spec.pending && spec.pending.q === null) expect(spec.pending.text).toBeNull();
+        for (const e of spec.log) if (e.kind === 'ask' && e.text !== undefined) expect(e.text).toBe('');
+        expect(JSON.stringify(spec)).not.toContain('سؤال رقم');
+      };
+      check();
+      answer(ctx, s, other(s, by), k % 3 === 0);
+      check();
+      guesswho.act(ctx, s, by, { type: 'done' });
+    }
+  }
+});
+
+test('bots against bots play the same in both modes', () => {
+  for (const level of ['easy', 'expert'] as BotLevel[]) {
+    for (let seed = 300; seed < 306; seed++) {
+      const run = (mode: 'free' | 'ready') => {
+        const ctx = fakeCtx(['a', 'b'], level);
+        const rnd = seeded(seed);
+        const s = startGuesswho(ctx, ['a', 'b'], settings({ mode, bestOf: 1 }), rnd);
+        // (who starts is shuffled: the same seat order in both runs)
+        const sec = s.players.map((p) => s.secrets[p]);
+        s.players = ['a', 'b'];
+        s.secrets = { a: sec[0], b: sec[1] };
+        for (let k = 0; k < 100 && s.phase === 'play'; k++) {
+          const by = turn(s);
+          guesswho.act(ctx, s, by, gwBotMove({ level, log: s.log, me: by, other: other(s, by), wrongLoses: s.settings.wrongLoses, rnd }));
+          expect(s.pending).toBeNull();
+          passPause(ctx, s);
+        }
+        return { log: s.log, winner: s.winner };
+      };
+      expect(run('free')).toEqual(run('ready'));
+    }
+  }
+  const { s } = botMatch('expert', { mode: 'free', bestOf: 3 }, 9);
+  expect(s.phase).toBe('final');
 });

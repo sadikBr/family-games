@@ -1,9 +1,14 @@
 /**
  * «خمّن من؟» — the screen. My board of 24 characters (tap one to flip it down or back up), my secret
- * character, the question buttons (an asked one keeps its answer: نعم in green, لا in red) and «خمّن».
- * After a question the answer shows on both phones for a moment, then the turn passes; without
- * «إسقاط تلقائي» the asker flips by hand («أسقِط من لا يطابق» helps) and taps «إنهاء الدور».
- * Between rounds both secrets are shown; the match ends with the usual banner.
+ * character, the questions and «خمّن».
+ * - «أسئلة جاهزة»: the question buttons (an asked one keeps its answer: نعم in green, لا in red).
+ * - «أسئلة حرة»: a field to type any question, with the ready ones as quick suggestions (a tap fills the
+ *   field). The question shows on the other phone with big «نعم» / «لا» next to that player's secret
+ *   portrait; against a bot, what the bot will understand shows while typing.
+ * After a question the answer shows on both phones; the asker flips by hand («أسقِط من لا يطابق» helps
+ * for a ready question) and taps «إنهاء الدور» — or, with «إسقاط تلقائي» and an answer from the app, the
+ * board flips itself and the turn passes. Between rounds both secrets are shown; the match ends with the
+ * usual banner.
  */
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
@@ -19,16 +24,19 @@ import {
   GW_CHARS,
   GW_QUESTIONS,
   GW_QUESTION,
+  GW_TEXT_MAX,
   type GuesswhoSettings as Settings,
   type GuesswhoView,
   type GwEvent,
   type GwQuestionId,
 } from '@/shared/games/guesswho';
+import { GW_MATCH_ERROR, gwMatchQuestion } from '@/shared/games/guesswho-match';
 import type { RoomView } from '@/shared/protocol';
-import { C, alpha } from '@/theme';
+import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { Btn } from '@/ui/btn';
 import { ChipPicker, ConfirmModal, Toggle } from '@/ui/controls';
+import { Field } from '@/ui/field';
 import { Confetti, TimerBar } from '@/ui/fun';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
@@ -44,6 +52,7 @@ const TILE = '#DCE7F6';
 const DOWN = '#252A5E';
 const YES = C.green;
 const NO = C.red;
+const DUNNO = '#7D7AA6';
 
 /** «هو» / «هي» for a character. */
 const pron = (char: number) => (GW_CHARS[char].female ? 'هي' : 'هو');
@@ -153,21 +162,31 @@ function Board({
 /* Questions                                                           */
 /* ------------------------------------------------------------------ */
 
+/** The ready questions `by` asked, with their answers (a question nobody answered counts as asked). */
 function asks(log: GwEvent[], by: string) {
-  const m = new Map<GwQuestionId, boolean>();
-  for (const e of log) if (e.kind === 'ask' && e.by === by) m.set(e.q, e.yes);
+  const m = new Map<GwQuestionId, boolean | null>();
+  for (const e of log) if (e.kind === 'ask' && e.by === by && e.q) m.set(e.q, e.yes);
   return m;
 }
 
-/** «نعم» / «لا» as a small coloured tag. */
-function YesNo({ yes, big }: { yes: boolean; big?: boolean }) {
+const ynColor = (yes: boolean | null) => (yes === null ? DUNNO : yes ? YES : NO);
+
+/** «نعم» / «لا» / «لا أعرف» as a small coloured tag. */
+function YesNo({ yes, big }: { yes: boolean | null; big?: boolean }) {
   return (
-    <View style={[styles.yn, { backgroundColor: yes ? YES : NO }, big && styles.ynBig]}>
-      <Txt v="bold" color="#FFFFFF" style={{ fontSize: big ? 18 : 11, lineHeight: big ? 26 : 15 }}>
-        {yes ? 'نعم' : 'لا'}
+    <View style={[styles.yn, { backgroundColor: ynColor(yes) }, big && styles.ynBig]}>
+      <Txt v="bold" color="#FFFFFF" numberOfLines={1} style={{ fontSize: big ? (yes === null ? 15 : 18) : 11, lineHeight: big ? 26 : 15 }}>
+        {yes === null ? 'لا أعرف' : yes ? 'نعم' : 'لا'}
       </Txt>
     </View>
   );
+}
+
+/** A question as listed in the history: the ready question's short label, or what was typed. */
+function askLabel(e: Extract<GwEvent, { kind: 'ask' }>): string {
+  // (typed to a bot: the question it was understood as is the one answered)
+  if (e.q && (!e.text || !e.human)) return GW_QUESTION[e.q].short;
+  return e.text || '…';
 }
 
 function QuestionChips({
@@ -175,16 +194,13 @@ function QuestionChips({
   selected,
   onSelect,
   enabled,
-  onlyAsked,
 }: {
-  asked: Map<GwQuestionId, boolean>;
+  asked: Map<GwQuestionId, boolean | null>;
   selected: GwQuestionId | null;
   onSelect: (q: GwQuestionId) => void;
   enabled: boolean;
-  /** only the questions already asked (read-only, in the order asked) */
-  onlyAsked?: boolean;
 }) {
-  const list = onlyAsked ? [...asked.keys()].map((id) => GW_QUESTION[id]) : GW_QUESTIONS;
+  const list = GW_QUESTIONS;
   return (
     <Row wrap gap={5} center>
       {list.map((q) => {
@@ -199,10 +215,10 @@ function QuestionChips({
               haptic.tap();
               onSelect(q.id);
             }}
-            accessibilityLabel={`${q.text}${done ? ` — ${ans ? 'نعم' : 'لا'}` : ''}`}
+            accessibilityLabel={`${q.text}${done ? ` — ${ans === null ? 'لا أعرف' : ans ? 'نعم' : 'لا'}` : ''}`}
             style={[
               styles.chip,
-              done && { backgroundColor: alpha(ans ? YES : NO, 0.16), borderColor: alpha(ans ? YES : NO, 0.6) },
+              done && { backgroundColor: alpha(ynColor(ans), 0.16), borderColor: alpha(ynColor(ans), 0.6) },
               on && styles.chipOn,
               !enabled && !done && { opacity: 0.55 },
             ]}>
@@ -217,20 +233,20 @@ function QuestionChips({
   );
 }
 
-/** The other player's questions about MY secret (what they know so far). */
-function TheirQuestions({ log, other, h }: { log: GwEvent[]; other: string; h: Helpers }) {
-  const mine = log.filter((e) => e.by === other);
+/** One player's questions and guesses this round, with their answers. */
+function History({ log, by, title }: { log: GwEvent[]; by: string; title: string }) {
+  const mine = log.filter((e) => e.by === by);
   if (!mine.length) return null;
   return (
     <View style={styles.panel}>
       <Txt v="tiny" color={C.muted}>
-        {`أسئلة ${h.player(other).name} عن شخصيتك`}
+        {title}
       </Txt>
       <Row wrap gap={5}>
         {mine.map((e) => (
-          <View key={e.n} style={[styles.smallChip, { borderColor: alpha(e.kind === 'ask' ? (e.yes ? YES : NO) : NO, 0.6) }]}>
-            <Txt v="tiny" style={{ fontSize: 12, lineHeight: 17 }}>
-              {e.kind === 'ask' ? GW_QUESTION[e.q].short : `تخمين: ${GW_CHARS[e.char].name}`}
+          <View key={e.n} style={[styles.smallChip, { borderColor: alpha(e.kind === 'ask' ? ynColor(e.yes) : NO, 0.6) }]}>
+            <Txt v="tiny" numberOfLines={2} style={{ fontSize: 12, lineHeight: 17, flexShrink: 1 }}>
+              {e.kind === 'ask' ? askLabel(e) : `تخمين: ${GW_CHARS[e.char].name}`}
             </Txt>
             {e.kind === 'ask' ? <YesNo yes={e.yes} /> : null}
           </View>
@@ -250,18 +266,28 @@ function LastAnswer({ view, h }: { view: GuesswhoView; h: Helpers }) {
   const mine = e.by === h.me;
   const who = mine ? 'سؤالك' : `سؤال ${h.player(e.by).name}`;
   return (
-    <Animated.View key={e.n} entering={FadeIn.duration(220)} style={[styles.answer, { borderColor: alpha(e.kind === 'ask' && e.yes ? YES : NO, 0.7) }]}>
+    <Animated.View key={e.n} entering={FadeIn.duration(220)} style={[styles.answer, { borderColor: alpha(e.kind === 'ask' ? ynColor(e.yes) : NO, 0.7) }]}>
       <Row gap={8}>
         <Avatar player={h.player(e.by)} size={30} />
         <View style={{ flex: 1, minWidth: 0 }}>
           {e.kind === 'ask' ? (
             <>
               <Txt v="tiny" color={C.muted}>
-                {who}
+                {e.human ? (mine ? `${who} · جواب ${h.player(view.players.find((p) => p !== h.me)).name}` : `${who} · جوابك`) : who}
               </Txt>
               <Txt v="bold" style={{ fontSize: 16, lineHeight: 24 }}>
-                {GW_QUESTION[e.q].text}
+                {e.text || (e.q ? GW_QUESTION[e.q].text : '…')}
               </Txt>
+              {e.text && e.q && !e.human ? (
+                <Txt v="tiny" color={C.yellow} style={{ fontSize: 12.5, lineHeight: 18 }}>
+                  {`${e.neg ? 'فُهم بصيغة معاكسة' : 'فُهم السؤال'}: ${GW_QUESTION[e.q].text}`}
+                </Txt>
+              ) : null}
+              {e.yes === null ? (
+                <Txt v="tiny" color={C.muted} style={{ fontSize: 12, lineHeight: 17 }}>
+                  لا جواب في الوقت
+                </Txt>
+              ) : null}
             </>
           ) : (
             <>
@@ -323,15 +349,150 @@ function Players({ view, h }: { view: GuesswhoView; h: Helpers }) {
   );
 }
 
+/** A question waiting for MY answer: big «نعم» / «لا» next to my secret portrait. */
+function AnswerCard({ view, h }: { view: GuesswhoView; h: Helpers }) {
+  const p = view.pending!;
+  const key = `${p.by}:${p.until}`;
+  const [sent, setSent] = useState<string | null>(null);
+  const answer = (yes: boolean) => {
+    if (sent === key) return;
+    haptic.medium();
+    setSent(key);
+    h.act('answer', { yes });
+  };
+  return (
+    <Animated.View entering={FadeIn.duration(220)} style={[styles.answer, { borderColor: alpha(C.yellow, 0.7) }]}>
+      <Row gap={10} style={{ alignItems: 'flex-start' }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Row gap={6}>
+            <Avatar player={h.player(p.by)} size={24} />
+            <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ flex: 1 }}>
+              {`سؤال من ${h.player(p.by).name}`}
+            </Txt>
+          </Row>
+          <Txt v="bold" style={{ fontSize: 18, lineHeight: 27 }}>
+            {p.text ?? '…'}
+          </Txt>
+          <Txt v="tiny" color={C.muted} style={{ fontSize: 12, lineHeight: 17 }}>
+            الجواب عن شخصيتك السرية
+          </Txt>
+        </View>
+        {view.mySecret !== null ? (
+          <View style={styles.answerSecret}>
+            <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+              <GwFace char={view.mySecret} size={78} />
+            </View>
+            <Txt v="bold" center numberOfLines={1} style={{ fontSize: 13, lineHeight: 18 }}>
+              {GW_CHARS[view.mySecret].name}
+            </Txt>
+          </View>
+        ) : null}
+      </Row>
+      <Row gap={8}>
+        <Btn flex size="lg" icon="check" label="نعم" color={YES} disabled={sent === key} onPress={() => answer(true)} />
+        <Btn flex size="lg" icon="close" label="لا" color={NO} disabled={sent === key} onPress={() => answer(false)} />
+      </Row>
+      <TimerBar endsAt={p.until} total={p.total} />
+    </Animated.View>
+  );
+}
+
+/** My question, waiting for the other player's answer. */
+function WaitCard({ view, h, other }: { view: GuesswhoView; h: Helpers; other: string }) {
+  const p = view.pending!;
+  return (
+    <Animated.View entering={FadeIn.duration(220)} style={[styles.answer, { borderColor: alpha(C.blue, 0.6) }]}>
+      <Txt v="tiny" color={C.muted}>
+        سؤالك
+      </Txt>
+      <Txt v="bold" style={{ fontSize: 16, lineHeight: 24 }}>
+        {p.text ?? '…'}
+      </Txt>
+      <Row gap={6}>
+        <Avatar player={h.player(other)} size={22} />
+        <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ flex: 1 }}>
+          {`بانتظار جواب ${h.player(other).name}…`}
+        </Txt>
+      </Row>
+      <TimerBar endsAt={p.until} total={p.total} />
+    </Animated.View>
+  );
+}
+
+/** «أسئلة حرة»: type a question (the ready ones fill the field), then «اسأل». */
+function FreeAsk({
+  view,
+  h,
+  other,
+  text,
+  setText,
+  mine,
+}: {
+  view: GuesswhoView;
+  h: Helpers;
+  other: string;
+  text: string;
+  setText: (t: string) => void;
+  mine: Map<GwQuestionId, boolean | null>;
+}) {
+  const vsBot = view.bots.includes(other);
+  const t = text.trim();
+  // the field holds a ready question as it is: it goes as that question
+  const ready = GW_QUESTIONS.find((q) => q.text === t);
+  const match = vsBot && t && !ready ? gwMatchQuestion(t) : null;
+  const send = () => {
+    if (!t) return;
+    haptic.medium();
+    if (ready) h.act('ask', { q: ready.id });
+    else h.act('ask', { text: t });
+  };
+  return (
+    <>
+      <Row gap={8} style={{ alignItems: 'center' }}>
+        <Field
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={send}
+          placeholder="اكتب سؤالاً جوابه نعم أو لا…"
+          placeholderTextColor={C.dim}
+          style={[styles.input, { borderColor: t ? alpha(C.yellow, 0.7) : C.border }]}
+          maxLength={GW_TEXT_MAX}
+          returnKeyType="send"
+          submitBehavior="submit"
+          autoCorrect={false}
+          accessibilityLabel="السؤال"
+        />
+        <Btn size="md" icon="question" label="اسأل" disabled={!t || (!!match && !match.ok)} onPress={send} />
+      </Row>
+      <Txt v="tiny" center color={match ? (match.ok ? C.green : C.yellow) : C.muted} style={{ fontSize: 12.5, lineHeight: 18 }}>
+        {match
+          ? match.ok
+            ? `${match.neg ? 'سيُفهم بصيغة معاكسة' : 'سيُفهم السؤال'}: ${GW_QUESTION[match.q].text}`
+            : GW_MATCH_ERROR[match.why]
+          : vsBot
+            ? 'مع البوت: سؤال بسيط عن صفة واحدة، أو سؤال جاهز'
+            : `الجواب من ${h.player(other).name}: نعم أو لا`}
+      </Txt>
+      <Txt v="tiny" color={C.muted}>
+        أسئلة جاهزة
+      </Txt>
+      <QuestionChips asked={mine} selected={ready?.id ?? null} onSelect={(x) => setText(GW_QUESTION[x].text)} enabled />
+    </>
+  );
+}
+
 function Play({ view, h }: { view: GuesswhoView; h: Helpers }) {
   const settled = useSettled();
   const other = view.players[0] === h.me ? view.players[1] : view.players[0];
   const myTurn = view.turn === h.me;
-  const open = myTurn && view.pauseUntil === null;
+  const pending = view.pending;
+  const toAnswer = !!pending && pending.by !== h.me;
+  const open = myTurn && view.pauseUntil === null && !pending;
+  const free = view.mode === 'free';
   // what I'm choosing belongs to this turn only: a new turn (or an answer) starts afresh
   const token = `${view.turn}:${view.log.length}:${open}`;
-  const [sel, setSel] = useState<{ token: string; q: GwQuestionId | null; guessing: boolean; pick: number | null }>({ token, q: null, guessing: false, pick: null });
-  const cur = sel.token === token ? sel : { token, q: null, guessing: false, pick: null };
+  const [sel, setSel] = useState<{ token: string; q: GwQuestionId | null; guessing: boolean; pick: number | null; text: string }>({ token, q: null, guessing: false, pick: null, text: '' });
+  const cur = sel.token === token ? sel : { token, q: null, guessing: false, pick: null, text: '' };
   const { q, guessing, pick } = cur;
   const choose = (patch: Partial<typeof cur>) => setSel({ ...cur, ...patch });
   const [resign, setResign] = useState(false);
@@ -360,30 +521,52 @@ function Play({ view, h }: { view: GuesswhoView; h: Helpers }) {
   const mine = asks(view.log, h.me);
   const standing = GW_CHARS.length - down.size;
   const manualPause = myTurn && view.pauseUntil !== null && view.manual;
+  const last = view.log[view.log.length - 1];
+  // «أسقِط من لا يطابق» works from the answers to ready questions only
+  const lastReady = !!last && last.kind === 'ask' && last.by === h.me && !!last.q && last.yes !== null;
+  const myReady = view.log.filter((e) => e.kind === 'ask' && e.by === h.me && e.q && e.yes !== null);
+  const showDropAll = !manualPause && myReady.length > 0 && (!view.autoFlip || myReady.some((e) => e.kind === 'ask' && e.human));
+
+  const status = guessing
+    ? 'اختر الشخصية في اللوحة'
+    : toAnswer
+      ? 'سؤال عن شخصيتك: أجب بنعم أو لا'
+      : pending
+        ? 'بانتظار الجواب…'
+        : open
+          ? 'دورك: اسأل أو خمّن'
+          : myTurn
+            ? manualPause
+              ? lastReady
+                ? 'أسقِط من لا يطابق ثم أنهِ الدور'
+                : 'أسقِط الشخصيات بلمسها ثم أنهِ الدور'
+              : 'الجواب…'
+            : `الدور ${li(h.player(other).name)}`;
 
   return (
     <>
       <Players view={view} h={h} />
       <Row gap={8} style={{ alignItems: 'stretch' }}>
-        {view.mySecret !== null ? <MySecret char={view.mySecret} /> : null}
-        <View style={[styles.status, open && { borderColor: alpha(C.yellow, 0.6) }]}>
+        {view.mySecret !== null && !toAnswer ? <MySecret char={view.mySecret} /> : null}
+        <View style={[styles.status, (open || toAnswer) && { borderColor: alpha(C.yellow, 0.6) }]}>
           <Txt v="tiny" color={C.muted}>
             {`الجولة ${num(view.round)}${view.bestOf > 1 ? ` · الأفضل من ${num(view.bestOf)}` : ''}`}
           </Txt>
-          <Txt v="bold" color={open ? C.yellow : C.text} numberOfLines={2} style={{ fontSize: 15, lineHeight: 21 }}>
-            {guessing ? 'اختر الشخصية في اللوحة' : open ? 'دورك: اسأل أو خمّن' : myTurn ? (manualPause ? 'أسقِط من لا يطابق ثم أنهِ الدور' : 'الجواب…') : `الدور ${li(h.player(other).name)}`}
+          <Txt v="bold" color={open || toAnswer ? C.yellow : C.text} numberOfLines={2} style={{ fontSize: 15, lineHeight: 21 }}>
+            {status}
           </Txt>
         </View>
       </Row>
 
-      <LastAnswer view={view} h={h} />
+      {toAnswer ? <AnswerCard key={`${pending.by}:${pending.until}`} view={view} h={h} /> : pending ? <WaitCard view={view} h={h} other={other} /> : null}
+      {pending ? null : <LastAnswer view={view} h={h} />}
       {manualPause ? (
         <Row gap={8} center wrap>
-          <Btn size="sm" ghost icon="down" label="أسقِط من لا يطابق" onPress={() => h.act('dropAll')} />
+          {lastReady ? <Btn size="sm" ghost icon="down" label="أسقِط من لا يطابق" onPress={() => h.act('dropAll')} /> : null}
           <Btn size="sm" icon="next" label="إنهاء الدور" onPress={() => h.act('done')} />
         </Row>
       ) : null}
-      {view.pauseUntil !== null ? null : guessing ? (
+      {!open ? null : guessing ? (
         <View style={styles.panel}>
           <Txt v="bold" center>
             {pick !== null ? `هل ${pron(pick)} ${GW_CHARS[pick].name}؟` : 'المس شخصية في اللوحة'}
@@ -409,31 +592,37 @@ function Play({ view, h }: { view: GuesswhoView; h: Helpers }) {
             />
           </Row>
         </View>
-      ) : open ? (
+      ) : (
         <View style={styles.panel}>
-          {q ? (
-            <Row gap={8}>
-              <Txt v="bold" style={{ flex: 1, fontSize: 16, lineHeight: 24 }}>
-                {GW_QUESTION[q].text}
-              </Txt>
-              <Btn
-                size="sm"
-                icon="question"
-                label="اسأل"
-                disabled={!open}
-                onPress={() => {
-                  haptic.medium();
-                  h.act('ask', { q });
-                  choose({ q: null });
-                }}
-              />
-            </Row>
+          {free ? (
+            <FreeAsk view={view} h={h} other={other} text={cur.text} setText={(t) => choose({ text: t })} mine={mine} />
           ) : (
-            <Txt v="tiny" center color={C.muted}>
-              اختر سؤالاً عن شخصية الخصم
-            </Txt>
+            <>
+              {q ? (
+                <Row gap={8}>
+                  <Txt v="bold" style={{ flex: 1, fontSize: 16, lineHeight: 24 }}>
+                    {GW_QUESTION[q].text}
+                  </Txt>
+                  <Btn
+                    size="sm"
+                    icon="question"
+                    label="اسأل"
+                    disabled={!open}
+                    onPress={() => {
+                      haptic.medium();
+                      h.act('ask', { q });
+                      choose({ q: null });
+                    }}
+                  />
+                </Row>
+              ) : (
+                <Txt v="tiny" center color={C.muted}>
+                  اختر سؤالاً عن شخصية الخصم
+                </Txt>
+              )}
+              <QuestionChips asked={mine} selected={q} onSelect={(x) => choose({ q: x })} enabled={open} />
+            </>
           )}
-          <QuestionChips asked={mine} selected={q} onSelect={(x) => choose({ q: x })} enabled={open} />
           <Btn
             size="md"
             icon="target"
@@ -447,26 +636,18 @@ function Play({ view, h }: { view: GuesswhoView; h: Helpers }) {
             }}
           />
         </View>
-      ) : null}
-
+      )}
 
       <Board down={down} onTap={flip} picked={guessing ? pick : null} disabled={false} live={settled} />
 
-      {!open && mine.size ? (
-        <View style={styles.panel}>
-          <Txt v="tiny" color={C.muted}>
-            أسئلتك عن شخصية الخصم
-          </Txt>
-          <QuestionChips asked={mine} selected={null} onSelect={() => {}} enabled={false} onlyAsked />
-        </View>
-      ) : null}
-      {!view.autoFlip && !manualPause ? (
+      {!open ? <History log={view.log} by={h.me} title="أسئلتك عن شخصية الخصم" /> : null}
+      {showDropAll ? (
         <Row center>
           <Btn size="sm" ghost icon="down" label="أسقِط من لا يطابق" onPress={() => h.act('dropAll')} />
         </Row>
       ) : null}
 
-      <TheirQuestions log={view.log} other={other} h={h} />
+      <History log={view.log} by={other} title={`أسئلة ${h.player(other).name} عن شخصيتك`} />
 
       <Row center>
         <Btn size="sm" ghost icon="door" label="انسحاب" onPress={() => setResign(true)} />
@@ -570,12 +751,34 @@ const BEST_OF_OPTIONS = GW_BEST_OF.map((n) => ({ key: String(n), label: n === 1 
 
 export function GuesswhoSettings({ room, editable }: { room: RoomView; editable: boolean }) {
   const s = room.settings.guesswho;
+  // (settings saved before «طريقة الأسئلة» existed: the default)
+  const mode = s.mode ?? 'free';
   const change = (patch: Partial<Settings>) => client.roomAction({ type: 'settings', game: 'guesswho', patch });
   return (
     <View style={{ gap: 10 }}>
       <Txt v="bold">عدد الجولات</Txt>
       <ChipPicker<string> editable={editable} value={String(s.bestOf)} onChange={(v) => change({ bestOf: Number(v) })} options={BEST_OF_OPTIONS} />
-      <Toggle label="إسقاط تلقائي (يُسقط التطبيق من لا يطابق الجواب)" value={s.autoFlip} editable={editable} onChange={(v) => change({ autoFlip: v })} />
+      <Txt v="bold">طريقة الأسئلة</Txt>
+      <ChipPicker<'free' | 'ready'>
+        editable={editable}
+        value={mode}
+        onChange={(v) => change({ mode: v })}
+        options={[
+          { key: 'free', label: 'أسئلة حرة' },
+          { key: 'ready', label: 'أسئلة جاهزة' },
+        ]}
+      />
+      <Txt v="tiny" color={C.muted}>
+        {mode === 'free'
+          ? 'سؤال مكتوب، والجواب من الخصم: نعم أو لا. مع البوت: سؤال بسيط عن صفة واحدة، أو سؤال جاهز.'
+          : 'أسئلة من قائمة ثابتة، والجواب من التطبيق حسب صورة الشخصية.'}
+      </Txt>
+      <Toggle
+        label={mode === 'free' ? 'إسقاط تلقائي (حين يجيب التطبيق عن سؤال جاهز، ضد البوت)' : 'إسقاط تلقائي (يُسقط التطبيق من لا يطابق الجواب)'}
+        value={s.autoFlip}
+        editable={editable}
+        onChange={(v) => change({ autoFlip: v })}
+      />
       <Txt v="bold">التخمين الخاطئ</Txt>
       <ChipPicker<'lose' | 'turn'>
         editable={editable}
@@ -602,6 +805,21 @@ const styles = StyleSheet.create({
   ynBig: { paddingHorizontal: 12, paddingVertical: 4, minWidth: 54 },
   panel: { backgroundColor: C.surface, borderRadius: 16, padding: 10, gap: 8, borderWidth: 1, borderColor: C.border },
   answer: { backgroundColor: C.surface, borderRadius: 16, padding: 10, gap: 8, borderWidth: 1.5 },
+  answerSecret: { alignItems: 'center', gap: 2, backgroundColor: alpha(C.yellow, 0.14), borderRadius: 12, padding: 4, borderWidth: 1.5, borderColor: alpha(C.yellow, 0.5) },
+  input: {
+    flex: 1,
+    fontFamily: F.bold,
+    fontSize: 16,
+    lineHeight: 24,
+    color: C.text,
+    backgroundColor: C.bg3,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    borderWidth: 2,
+  },
   status: { flex: 1, minWidth: 0, backgroundColor: C.surface, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1.5, borderColor: C.border, justifyContent: 'center' },
   secret: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: alpha(C.yellow, 0.14), borderRadius: 14, padding: 5, paddingLeft: 10, borderWidth: 1.5, borderColor: alpha(C.yellow, 0.5) },
   reveal: { alignItems: 'center', gap: 2, backgroundColor: C.surface, borderRadius: 16, padding: 10, flex: 1, maxWidth: 170 },
