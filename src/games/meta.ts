@@ -30,6 +30,7 @@ import { ESTIMATE_INFO } from '@/shared/games/estimate';
 import { TRUEFALSE_INFO } from '@/shared/games/truefalse';
 import { FLAGS_INFO } from '@/shared/games/flags';
 import { QCOND_INFO } from '@/shared/games/qcond';
+import { GUESSWHO_INFO } from '@/shared/games/guesswho';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
 import { GAME_ALIASES, MIN_PLAYERS } from '@/shared/protocol';
@@ -103,6 +104,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   truefalse: { id: 'truefalse', minPlayers: MIN_PLAYERS.truefalse, ...TRUEFALSE_INFO },
   flags: { id: 'flags', minPlayers: MIN_PLAYERS.flags, ...FLAGS_INFO },
   qcond: { id: 'qcond', minPlayers: MIN_PLAYERS.qcond, ...QCOND_INFO },
+  guesswho: { id: 'guesswho', minPlayers: MIN_PLAYERS.guesswho, ...GUESSWHO_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -575,7 +577,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho'];
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
@@ -587,6 +589,6 @@ export const GAME_GROUPS: { title: string; short: string; icon: IconName; games:
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'معلومات وثقافة', short: 'معلومات', icon: 'globe', games: ['estimate', 'truefalse', 'flags', 'trivia', 'huroof'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'billiards', 'connect4', 'battleship'] },
-  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['fast', 'trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak'] },
+  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['fast', 'trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak', 'guesswho'] },
   { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'touti', 'konkan', 'kdab', 'unoflip', 'hez2', 'phase10', 'rami'] },
 ];
