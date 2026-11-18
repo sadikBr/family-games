@@ -7,6 +7,7 @@ import { Zellige } from '@/art/game-art';
 import { C } from '@/theme';
 
 import { KeyboardScrollContext } from './field';
+import { columnWidth, isDesktopSize, type ScreenWidth } from './layout';
 
 export interface ScreenProps {
   children: ReactNode;
@@ -23,7 +24,14 @@ export interface ScreenProps {
   glow?: string;
   /** full screen for a game: no footer, gutters, background art or scrolling (pass a slim header, if any) */
   bare?: boolean;
+  /**
+   * How wide the content may grow on a computer (src/ui/layout.ts): 'phone' (560 px, the default),
+   * 'page' (a wide container: home, the games list) or 'stage' (a room: the phone layout, larger).
+   */
+  width?: ScreenWidth;
 }
+
+const WidthKind = createContext<ScreenWidth>('phone');
 
 /** The game's light: a wide, soft radial glow from the top edge, fading into the night. */
 function Glow({ color, width, height }: { color: string; width: number; height: number }) {
@@ -52,14 +60,19 @@ export function useScrollLock() {
   return use(ScrollLockContext);
 }
 
-/** Usable width inside <Screen> (16px gutters, 560px max), for grids that must fit any phone. */
+/** Usable width inside <Screen> (16px gutters, 560px max on a phone; wider on a computer, see layout.ts). */
 export function useContentWidth() {
-  const { width } = useWindowDimensions();
-  return Math.min(width - 32, 560);
+  const { width, height } = useWindowDimensions();
+  return columnWidth(use(WidthKind), width, height);
 }
 
-export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true, scrollKey, glow, bare = false }: ScreenProps) {
+export function Screen({ children, bg = C.bg, header, footer, scroll = true, contentStyle, pattern = true, scrollKey, glow, bare = false, width: kind = 'phone' }: ScreenProps) {
   const { width, height } = useWindowDimensions();
+  const col = columnWidth(kind, width, height);
+  const desk = isDesktopSize(width);
+  // on a computer the header and footer line up with the content instead of the window's edges
+  const band = desk ? { width: '100%' as const, maxWidth: col + 32, alignSelf: 'center' as const } : null;
+  const inner = [styles.inner, { maxWidth: col }];
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     if (scrollKey !== undefined) scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -77,7 +90,7 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {/* The app is drawn edge-to-edge, so Android does not shrink it for the keyboard: do it here. */}
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
-          {header}
+          {header ? band ? <View style={band}>{header}</View> : header : null}
           {scroll ? (
             <KeyboardScrollContext.Provider value={{ scroll: scrollRef, content: contentRef }}>
               <ScrollLockContext.Provider value={hold}>
@@ -89,20 +102,24 @@ export function Screen({ children, bg = C.bg, header, footer, scroll = true, con
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 showsVerticalScrollIndicator={false}>
-                <View ref={contentRef} style={styles.inner}>
-                  {children}
+                <View ref={contentRef} style={inner}>
+                  <WidthKind.Provider value={kind}>{children}</WidthKind.Provider>
                 </View>
               </ScrollView>
               </ScrollLockContext.Provider>
             </KeyboardScrollContext.Provider>
           ) : (
             <View style={[styles.flex, styles.content, contentStyle]}>
-              <View style={[styles.inner, styles.flex]}>{children}</View>
+              <View style={[inner, styles.flex]}>
+                <WidthKind.Provider value={kind}>{children}</WidthKind.Provider>
+              </View>
             </View>
           )}
           {footer && !bare ? (
             <View style={styles.footer}>
-              <View style={styles.inner}>{footer}</View>
+              <View style={inner}>
+                <WidthKind.Provider value={kind}>{footer}</WidthKind.Provider>
+              </View>
             </View>
           ) : null}
         </KeyboardAvoidingView>
@@ -116,7 +133,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, flexGrow: 1 },
-  inner: { width: '100%', maxWidth: 560, alignSelf: 'center', gap: 14 },
+  inner: { width: '100%', alignSelf: 'center', gap: 14 },
   bare: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
   footer: { paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8 },
 });

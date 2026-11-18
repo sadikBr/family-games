@@ -20,6 +20,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
 import { helpers, type Helpers } from './helpers';
 import { EASE, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const PAPER = '#FFF4DA';
@@ -132,7 +133,7 @@ function Board({ view, h, myTurn }: { view: DotsView; h: Helpers; myTurn: boolea
   const { width } = useWindowDimensions();
   const n = view.n;
   const accent = useAccent();
-  const W = Math.min(width - 16, 460);
+  const W = Math.min(width - 16, dk(460));
   const s = W / (n + 0.9);
   const pad = (W - n * s) / 2;
   const t = Math.max(5, Math.round(s * 0.13)); // line thickness

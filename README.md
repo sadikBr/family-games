@@ -366,5 +366,9 @@ Settings → Pages, with a DNS `CNAME` record `games` → `sadikbr.github.io`; w
   address bar, or ⋮ → «Cast, save and share» → «Install page as app»). It gets its own window and an icon on
   the desktop / taskbar (`public/manifest.json`, icons in `public/pwa/`).
 - **Updates** come by themselves: each push rebuilds the site, and the app takes it the next time it's opened.
+- **Desktop layout** (`src/ui/layout.ts`, browser windows 900 px and wider): the home screen and the games list
+  use a wide container (two columns at the top, every category as a grid instead of a sideways shelf); a room
+  keeps the phone layout in a column sized to the window (≈ 78% of its height, 560–860 px), and the games'
+  boards, tables and cards grow with it (`dk(px)` on their size caps). Phones are unchanged.
 - No vibration and no push notifications on a computer (the in-app group invitation still works).
 - Only the workflow gives the build its base URL (`/<repo>`): `app.json` stays as the phones need it.

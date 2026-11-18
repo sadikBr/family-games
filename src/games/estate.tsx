@@ -19,13 +19,14 @@ import { Txt, num } from '@/ui/txt';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { EstateBoard, INK, PAPER, shortName, squareIcon } from './estate-board';
 import { helpers, type Helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const money = (n: number) => `${num(n)} د`;
 
 export function EstateGame({ room, view }: { room: RoomView; view: EstateView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 16, 540);
+  const W = Math.min(width - 16, dk(540));
   const [landedRoll, setLandedRoll] = useState(view.rollId);
   const [detail, setDetail] = useState<number | null>(null);
   const [sheet, setSheet] = useState<'mine' | 'trade' | null>(null);

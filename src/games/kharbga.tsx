@@ -18,6 +18,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { FadeAside, Glide, Hint, Lift, Settle, SoftMark, glideMs, nudge, useBoardChange } from './board-motion';
 import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const PIECE = { 1: '#F5ECD6', 2: '#B8323F' } as const;
@@ -56,7 +57,7 @@ export function KharbgaGame({ room, view }: { room: RoomView; view: KharbgaView 
   const h = helpers(room);
   const accent = useAccent();
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 24, 440);
+  const W = Math.min(width - 24, dk(440));
   const cell = W / N;
   const [sel, setSel] = useState<{ cell: number; key: string } | null>(null);
   const [resign, setResign] = useState(false);

@@ -21,6 +21,7 @@ import { HostNote, PhaseTitle, PlayAgain, ResultBanner, Spectator } from './comm
 import { helpers } from './helpers';
 import { RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 const COLORS = ['#1B1830', '#E2475F', '#F08A3E', '#F2B33D', '#2FB67C', '#2D9CDB', '#7B61D9', '#8A5A2B'];
 const WIDTHS = [6, 14, 30];
@@ -197,7 +198,7 @@ export function DrawGame({ room, view }: { room: RoomView; view: DrawView }) {
   const h = helpers(room);
   const { width, height } = useWindowDimensions();
   // the board, its colours and the guess box fit on the screen without scrolling
-  const size = Math.max(220, Math.min(width - 32, 440, height - 330));
+  const size = Math.max(220, Math.min(width - 32, dk(440), height - 330));
   const accent = useAccent();
   if (!view.participants.includes(h.me)) return <Spectator room={room} />;
   const isDrawer = view.drawer === h.me;

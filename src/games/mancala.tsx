@@ -18,6 +18,7 @@ import { EASE } from './cards/motion';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
 import { helpers, type Helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const WOOD = '#9A5B2E';
@@ -201,7 +202,7 @@ function Board({ view, h, myTurn, animate }: { view: MancalaView; h: Helpers; my
 
   const bottom = view.mySide ?? 0;
   const top = bottom === 0 ? 1 : 0;
-  const W = Math.min(width - 16, 520);
+  const W = Math.min(width - 16, dk(520));
   const padX = 6;
   const storeW = Math.max(30, Math.min(58, W * 0.11));
   const cw = (W - 6 - 2 * padX - 2 * storeW - 8) / 6;

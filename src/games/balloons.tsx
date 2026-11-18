@@ -43,6 +43,7 @@ import { helpers, type Helpers } from './helpers';
 import { HostNext, QuizFinal, ResultRows, RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
 import { useScreenClock, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const PINK = '#E86FA6';
 const CREAM = '#FFF4DA';
@@ -60,7 +61,7 @@ export function BalloonsGame({ room, view }: { room: RoomView; view: BalloonsVie
 
 function useInner() {
   const { width } = useWindowDimensions();
-  return Math.min(width - 32, 520);
+  return Math.min(width - 32, dk(520));
 }
 
 function BalloonsRound({ room, view, h }: { room: RoomView; view: BalloonsView; h: Helpers }) {

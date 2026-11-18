@@ -23,6 +23,7 @@ import { EventCard, FinishOrder, stackOffsets } from './dice-race';
 import { winLine } from './duel';
 import { helpers } from './helpers';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 
 type Pt = { x: number; y: number };
@@ -182,7 +183,7 @@ type Stage = 'wait' | 'walk' | 'jump' | 'done';
 export function LaddersGame({ room, view }: { room: RoomView; view: LaddersView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 16, 520);
+  const W = Math.min(width - 16, dk(520));
   const [landed, setLanded] = useState(view.rollId);
   const reduced = useReducedMotion();
   const exact = room.settings.ladders.exact;

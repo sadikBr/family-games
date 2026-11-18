@@ -22,6 +22,7 @@ import { li } from '@/shared/li';
 
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const TEAM_COLOR: Record<HuroofTeam, string> = { red: '#E2475F', green: '#2FB67C' };
 const TEAM_NAME: Record<HuroofTeam, string> = { red: 'الفريق الأحمر', green: 'الفريق الأخضر' };
@@ -168,7 +169,7 @@ function Teams({ view, h, mine }: { view: HuroofView; h: Helpers; mine: HuroofTe
 export function HuroofGame({ room, view }: { room: RoomView; view: HuroofView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const size = Math.min(width - 24, 460);
+  const size = Math.min(width - 24, dk(460));
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
   const mine: HuroofTeam | null = view.teams.red.includes(h.me) ? 'red' : view.teams.green.includes(h.me) ? 'green' : null;
   if (!mine && view.phase !== 'final') return <Spectator room={room} />;

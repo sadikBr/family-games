@@ -22,6 +22,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers, type Helpers } from './helpers';
 import { RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 const nameOf = (h: Helpers, view: BoggleView, id: string) => (h.players.some((p) => p.id === id) ? h.player(id).name : (view.names[id] ?? '؟'));
 
@@ -174,7 +175,7 @@ function Play({ room, view, h, width }: { room: RoomView; view: BoggleView; h: H
     setSel({ round: view.round, path: [] });
   };
 
-  const gridW = Math.min(width, 420);
+  const gridW = Math.min(width, dk(420));
   const mine = [...view.myWords].reverse();
   const total = view.myWords.reduce((a, w) => a + w.points, 0);
 

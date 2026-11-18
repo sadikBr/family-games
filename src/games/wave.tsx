@@ -17,6 +17,7 @@ import { Spectator } from './common';
 import { helpers } from './helpers';
 import { McqFinal, RoundHeader } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const REVEAL_MS = 11_000; // WAVE_REVEAL_MS in server/games/wave.ts (stretched to the room's pace there: TimerBar follows)
@@ -115,7 +116,7 @@ function Dial({
 export function WaveGame({ room, view }: { room: RoomView; view: WaveView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const size = Math.min(width - 24, 420);
+  const size = Math.min(width - 24, dk(420));
   const [clue, setClue] = useState('');
   const [dial, setDial] = useState<{ round: number; v: number }>({ round: view.round, v: 50 });
   const accent = useAccent();

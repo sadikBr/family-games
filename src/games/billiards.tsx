@@ -54,6 +54,7 @@ import { PlayAgain, ResultBanner } from './common';
 import { helpers, type Helpers } from './helpers';
 import { ReactionButton } from './reactions';
 import { useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const COL = 46;
 const GAP = 6;
@@ -622,7 +623,7 @@ export function BilliardsGame({ room, view }: { room: RoomView; view: BilliardsV
     tw = Math.floor(Math.min(availW, availH / ratio));
   } else {
     // the controls are in a bar under the table (like full screen), so the table can use the width
-    const byW = Math.min(cw, 470);
+    const byW = Math.min(cw, dk(470));
     // the table and its bar fit the screen without scrolling (short phones: full screen gives a bigger table)
     const th = Math.min(byW * ratio, Math.max(winH - 252 - BAR - 8, 300));
     tw = Math.floor(th / ratio);

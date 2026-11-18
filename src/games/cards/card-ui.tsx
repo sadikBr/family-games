@@ -11,6 +11,7 @@ import { C, F, alpha } from '@/theme';
 import { useAccent } from '@/ui/accent';
 import { Avatar, Card as Panel, Row } from '@/ui/bits';
 import { Podium } from '@/ui/fun';
+import { dk } from '@/ui/layout';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
@@ -26,7 +27,7 @@ const SMALLER: Record<Size, Size> = { lg: 'md', md: 'sm', sm: 'xs', xs: 'xs' };
 function fitSize(size: Size, n: number, gap: number, room: number): Size {
   if (n > 6) return size; // long hands wrap onto several lines anyway
   let s = size;
-  while (s !== 'xs' && n * (WIDTH[s] + 4) + (n - 1) * gap > room) s = SMALLER[s];
+  while (s !== 'xs' && n * (dk(WIDTH[s]) + 4) + (n - 1) * gap > room) s = SMALLER[s];
   return s;
 }
 
@@ -55,7 +56,8 @@ export function PlayingCard({
    */
   steady?: boolean;
 }) {
-  const w = WIDTH[size];
+  // larger on a computer (src/ui/layout.ts)
+  const w = dk(WIDTH[size]);
   // the lift and the dimming glide; the Pressable sits inside the lifted view so the raised card
   // is exactly where a second tap lands
   const look = useCardLook({ lift: selected ? 10 : 0, dim, dimTo: 0.38 });

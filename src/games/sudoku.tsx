@@ -16,6 +16,7 @@ import { Txt, num } from '@/ui/txt';
 import { Spectator } from './common';
 import { helpers } from './helpers';
 import { McqFinal } from './islamic-ui';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const PAPER = '#FFFDF6';
@@ -36,7 +37,7 @@ export function SudokuGame({ room, view }: { room: RoomView; view: SudokuView })
   const h = helpers(room);
   const { width } = useWindowDimensions();
   const accent = useAccent();
-  const W = Math.min(width - 24, 440);
+  const W = Math.min(width - 24, dk(440));
   const cell = W / 9;
   const [sel, setSel] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(0);

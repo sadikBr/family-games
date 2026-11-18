@@ -16,6 +16,7 @@ import { li } from '@/shared/li';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { helpers } from './helpers';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const COLS: Record<number, number> = { 16: 4, 20: 4, 24: 4, 30: 5 };
@@ -31,9 +32,9 @@ export function MemoryGame({ room, view }: { room: RoomView; view: MemoryView })
   const accent = useAccent();
   const cols = COLS[view.size] ?? 5;
   const rows = Math.ceil(view.size / cols);
-  const W = Math.min(width - 24, 460);
+  const W = Math.min(width - 24, dk(460));
   const cw = (W - (cols - 1) * 8) / cols;
-  const ch = Math.min(cw * 1.2, (520 - (rows - 1) * 8) / rows);
+  const ch = Math.min(cw * 1.2, (dk(520) - (rows - 1) * 8) / rows);
   if (!(h.me in view.pairs)) return <Spectator room={room} />;
   const myTurn = view.phase === 'play' && view.turn === h.me && !view.peek;
   const won = view.phase === 'final' && !!view.winner?.includes(h.me);

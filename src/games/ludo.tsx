@@ -19,6 +19,7 @@ import { RankList } from './dice-race';
 import { winLine } from './duel';
 import { helpers } from './helpers';
 import { PlayerStrip } from './player-strip';
+import { dk } from '@/ui/layout';
 
 // board image: viewBox -6..156 → the 15×15 grid spans 6/162 … 156/162
 const INSET = 6 / 162;
@@ -65,7 +66,7 @@ function Pawn({ at, hops, delay, z, interactive, children }: { at: Px; hops: Px[
 export function LudoGame({ room, view }: { room: RoomView; view: LudoView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const boardW = Math.min(width - 32, 460);
+  const boardW = Math.min(width - 32, dk(460));
   const cell = (boardW * SPAN) / 15;
   const off = boardW * INSET;
   const mySeat = view.seats.find((x) => x.id === h.me);

@@ -39,6 +39,7 @@ import { helpers, type Helpers } from './helpers';
 import { HostNext, QuizFinal, ResultRows, RoundHeader, winnerTitle } from './islamic-ui';
 import { PlayerStrip } from './player-strip';
 import { useScreenClock, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const NAVY = '#2B2766';
 const MAGENTA = '#D81B60';
@@ -66,7 +67,7 @@ export function KalimGame({ room, view }: { room: RoomView; view: KalimView }) {
 
 function useInner() {
   const { width } = useWindowDimensions();
-  return Math.min(width - 32, 520);
+  return Math.min(width - 32, dk(520));
 }
 
 function KalimRound({ room, view, h }: { room: RoomView; view: KalimView; h: Helpers }) {
@@ -192,7 +193,7 @@ function Arena({ view, h, target, onTile }: { view: KalimView; h: Helpers; targe
   const inner = useInner();
   const settled = useSettled();
   const gap = 10;
-  const size = Math.min(88, Math.floor((inner - 28 - gap * 2 - 12) / 3));
+  const size = Math.min(dk(88), Math.floor((inner - 28 - gap * 2 - 12) / 3));
   const b = view.board;
   const fresh = view.last && view.last.seq === view.seq ? view.last.pos : -1;
   const lastBy = view.last && view.last.seq === view.seq ? view.last.by : null;
@@ -285,7 +286,7 @@ function Hand({ hand, chosen, faces, dim, onCard }: { hand: KalimCard[]; chosen:
   const inner = useInner();
   const gap = 6;
   const perRow = inner < 340 ? 5 : 6;
-  const w = Math.min(64, Math.floor((inner - gap * (perRow - 1)) / perRow));
+  const w = Math.min(dk(64), Math.floor((inner - gap * (perRow - 1)) / perRow));
   if (!hand.length) return null;
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap, justifyContent: 'center', opacity: dim ? 0.55 : 1, paddingTop: 6 }}>
@@ -363,7 +364,7 @@ function StarPicker({ current, onPick, onCancel }: { current: string; onPick: (k
               onPress={() => onPick(k)}
               accessibilityRole="button"
               accessibilityLabel={`حرف ${cardLetter(k)}`}
-              style={({ pressed }) => [styles.key, { width: w, height: Math.min(46, Math.round(w * 1.1)), opacity: k === current ? 0.3 : 1, backgroundColor: pressed ? alpha(YELLOW, 0.4) : C.surfaceStrong }]}>
+              style={({ pressed }) => [styles.key, { width: w, height: Math.min(dk(46), Math.round(w * 1.1)), opacity: k === current ? 0.3 : 1, backgroundColor: pressed ? alpha(YELLOW, 0.4) : C.surfaceStrong }]}>
               <Txt style={{ fontFamily: F.display, fontSize: Math.round(w * 0.5), lineHeight: Math.round(w * 0.95), color: C.text, textAlign: 'center' }}>{cardLetter(k)}</Txt>
             </Pressable>
           ))}

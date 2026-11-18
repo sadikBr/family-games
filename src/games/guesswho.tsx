@@ -47,6 +47,7 @@ import { GW_IMG } from './guesswho-art';
 import { helpers, type Helpers } from './helpers';
 import { HostNext } from './islamic-ui';
 import { EASE, useScreenClock, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const DOWN = '#252A5E';
 const YES = C.green;
@@ -146,7 +147,7 @@ function Board({
   const width = useContentWidth();
   const gap = 4;
   const cols = 6;
-  const w = Math.floor((Math.min(width, 460) - gap * (cols - 1)) / cols);
+  const w = Math.floor((Math.min(width, dk(460)) - gap * (cols - 1)) / cols);
   return (
     <View style={[styles.board, { gap, width: w * cols + gap * (cols - 1) }]}>
       {GW_CHARS.map((_, i) => (

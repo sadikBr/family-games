@@ -18,6 +18,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { FadeAside, Glide, HOP, Hint, Lift, SoftMark, glideMs, nudge, useBoardChange } from './board-motion';
 import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 // the board image has a frame: squares span 9/98 … 89/98 of its width
 const INSET = 9 / 98;
@@ -41,7 +42,7 @@ export function DamaGame({ room, view }: { room: RoomView; view: DamaView }) {
   const { width } = useWindowDimensions();
   const [sel, setSel] = useState<number | null>(null);
   const [resign, setResign] = useState(false);
-  const boardW = Math.min(width - 32, 460);
+  const boardW = Math.min(width - 32, dk(460));
   const sq = (boardW * SPAN) / 8;
   const off = boardW * INSET;
   const lm = view.lastMove;

@@ -29,6 +29,7 @@ import { STATUS_LABEL } from '@/shared/status';
 import { C, F, alpha } from '@/theme';
 import { Avatar, Row } from '@/ui/bits';
 import { IconBtn } from '@/ui/btn';
+import { useDesktop } from '@/ui/layout';
 import { Screen, useContentWidth } from '@/ui/screen';
 import { StatusDot } from '@/ui/status';
 import { Txt, num } from '@/ui/txt';
@@ -82,6 +83,7 @@ export default function Home() {
   // read once per visit: the greeting
   const [now] = useState(() => new Date());
   const contentWidth = useContentWidth();
+  const desk = useDesktop();
   useEffect(() => onMuteChange(setMutedState), []);
 
   if (loaded && isNew) return <Redirect href="/profile?first=1" />;
@@ -95,6 +97,7 @@ export default function Home() {
 
   return (
     <Screen
+      width="page"
       header={
         <Row style={styles.top}>
           <Pressable
@@ -116,61 +119,68 @@ export default function Home() {
           <IconBtn icon={muted ? 'mute' : 'sound'} size={40} onPress={() => setMuted(!muted)} label={muted ? 'شغّل الصوت' : 'اكتم الصوت'} />
         </Row>
       }>
-      <Row gap={8} style={styles.hello}>
-        <Txt style={styles.helloTitle} numberOfLines={1}>
-          {greeting(now.getHours())}
-          {profile.name ? ` يا ${profile.name}` : ''}
-        </Txt>
-        <HeroArt width={contentWidth < 340 ? 56 : 66} />
-      </Row>
-
-      {updateReady ? (
-        // a newer version of the app was downloaded (over the air): one tap to switch to it
-        <Pressable onPress={applyUpdate} accessibilityRole="button" style={({ pressed }) => [styles.back, styles.update, pressed && styles.pressed]}>
-          <Icon name="refresh" size={18} color={C.yellow} />
-          <View style={{ flex: 1 }}>
-            <Txt v="bold">نسخة جديدة من التطبيق جاهزة</Txt>
-            <Txt v="tiny" color={C.muted}>
-              اضغط لإعادة التشغيل عليها (تُستعمل تلقائياً في المرة القادمة)
+      {/* on a computer: the ways in on one side, the welcome and the groups on the other */}
+      <View style={desk ? styles.deskTop : styles.stack}>
+        <View style={desk ? styles.deskCol : styles.stack}>
+          <Row gap={8} style={styles.hello}>
+            <Txt style={styles.helloTitle} numberOfLines={1}>
+              {greeting(now.getHours())}
+              {profile.name ? ` يا ${profile.name}` : ''}
             </Txt>
+            <HeroArt width={contentWidth < 340 ? 56 : 66} />
+          </Row>
+
+          {updateReady ? (
+            // a newer version of the app was downloaded (over the air): one tap to switch to it
+            <Pressable onPress={applyUpdate} accessibilityRole="button" style={({ pressed }) => [styles.back, styles.update, pressed && styles.pressed]}>
+              <Icon name="refresh" size={18} color={C.yellow} />
+              <View style={{ flex: 1 }}>
+                <Txt v="bold">نسخة جديدة من التطبيق جاهزة</Txt>
+                <Txt v="tiny" color={C.muted}>
+                  اضغط لإعادة التشغيل عليها (تُستعمل تلقائياً في المرة القادمة)
+                </Txt>
+              </View>
+              <Icon name="forward" size={16} color={C.dim} />
+            </Pressable>
+          ) : null}
+
+          {lastCode ? (
+            <Pressable
+              onPress={() => {
+                client.joinRoom(lastCode);
+                router.push('/room');
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+              <Icon name="door" size={18} color={C.green} />
+              <Txt v="bold" style={{ flex: 1 }}>
+                ارجع إلى الغرفة {num(lastCode)}
+              </Txt>
+              <Icon name="forward" size={16} color={C.dim} />
+            </Pressable>
+          ) : null}
+
+          {/* the two ways in */}
+          <Row gap={10} style={{ alignItems: 'stretch' }}>
+            <Action primary icon="play" title="العب" sub="اختر لعبة وافتح غرفة" onPress={() => router.push('/games')} />
+            <Action icon="key" title="ادخل برمز" sub="غرفة أو مجموعة" onPress={() => setEntering(true)} />
+          </Row>
+          <CodeSheet visible={entering} onClose={() => setEntering(false)} />
+        </View>
+        {welcome || inGroups || desk ? (
+          <View style={desk ? styles.deskCol : styles.stack}>
+            {welcome ? <Welcome /> : null}
+            {inGroups || desk ? <GroupsSection /> : null}
           </View>
-          <Icon name="forward" size={16} color={C.dim} />
-        </Pressable>
-      ) : null}
-
-      {lastCode ? (
-        <Pressable
-          onPress={() => {
-            client.joinRoom(lastCode);
-            router.push('/room');
-          }}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-          <Icon name="door" size={18} color={C.green} />
-          <Txt v="bold" style={{ flex: 1 }}>
-            ارجع إلى الغرفة {num(lastCode)}
-          </Txt>
-          <Icon name="forward" size={16} color={C.dim} />
-        </Pressable>
-      ) : null}
-
-      {/* the two ways in */}
-      <Row gap={10} style={{ alignItems: 'stretch' }}>
-        <Action primary icon="play" title="العب" sub="اختر لعبة وافتح غرفة" onPress={() => router.push('/games')} />
-        <Action icon="key" title="ادخل برمز" sub="غرفة أو مجموعة" onPress={() => setEntering(true)} />
-      </Row>
-      <CodeSheet visible={entering} onClose={() => setEntering(false)} />
-
-      {welcome ? <Welcome /> : null}
-
-      {inGroups ? <GroupsSection /> : null}
+        ) : null}
+      </View>
 
       {favIds.length ? (
         <Shelf title="المفضلة" icon="starFull" iconColor={C.yellow} ids={favIds} favorites={favorites} onOpen={setSheet} onSeeAll={favIds.length > 3 ? () => seeAll('fav') : undefined} />
       ) : null}
 
       {/* no group yet: one slim row (what groups are, create or join one) */}
-      {inGroups ? null : <GroupsSection />}
+      {inGroups || desk ? null : <GroupsSection />}
 
       {GAME_GROUPS.map((g, i) => (
         <Shelf key={g.title} title={g.title} icon={g.icon} ids={g.games} favorites={favorites} onOpen={setSheet} onSeeAll={() => seeAll(String(i))} />
@@ -217,4 +227,7 @@ const styles = StyleSheet.create({
     borderColor: alpha(C.green, 0.5),
   },
   pressed: { opacity: 0.85 },
+  stack: { gap: 14 },
+  deskTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, marginBottom: 8 },
+  deskCol: { flex: 1, gap: 14 },
 });

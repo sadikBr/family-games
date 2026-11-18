@@ -13,6 +13,7 @@ import { haptic } from '@/lib/sfx';
 import { BOT_GAMES, type GameId } from '@/shared/protocol';
 import { C, F, alpha, shade } from '@/theme';
 import { Row } from '@/ui/bits';
+import { useDesktop } from '@/ui/layout';
 import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
@@ -92,10 +93,14 @@ export function useShelfCardWidth() {
   return Math.max(88, Math.min(116, Math.round((cw + 16 - 2.4 * GAP) / show)));
 }
 
-/** Card width in a full list: three to a row (four on a tablet). */
+/** Desktop grids: as many columns as cards of about this width fit. */
+const DESK_CARD = 132;
+
+/** Card width in a full list: three to a row (four on a tablet; on a computer, as many as fit). */
 export function useGridCardWidth() {
   const cw = useContentWidth();
-  const cols = cw >= 500 ? 4 : 3;
+  const desk = useDesktop();
+  const cols = desk ? Math.max(4, Math.floor((cw + GAP) / (DESK_CARD + GAP))) : cw >= 500 ? 4 : 3;
   return Math.floor((cw - GAP * (cols - 1)) / cols);
 }
 
@@ -119,6 +124,9 @@ export function Shelf({ title, icon, iconColor = C.muted, ids, favorites, featur
   const { width } = useWindowDimensions();
   const cw = useContentWidth();
   const cardW = useShelfCardWidth();
+  const gridW = useGridCardWidth();
+  // on a computer: every game of the category in a grid (a mouse doesn't swipe sideways)
+  const desk = useDesktop();
   const bleed = Math.max(0, (width - cw) / 2);
   return (
     <View style={{ gap: 8 }}>
@@ -136,6 +144,13 @@ export function Shelf({ title, icon, iconColor = C.muted, ids, favorites, featur
           </Pressable>
         ) : null}
       </Row>
+      {desk ? (
+        <View style={styles.grid}>
+          {ids.map((id) => (
+            <GameCard key={id} game={GAMES[id]} width={gridW} fav={favorites.includes(id)} badge={id === featured ? 'لعبة اليوم' : undefined} onPress={() => onOpen(id)} />
+          ))}
+        </View>
+      ) : (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -147,6 +162,7 @@ export function Shelf({ title, icon, iconColor = C.muted, ids, favorites, featur
           <GameCard key={id} game={GAMES[id]} width={cardW} fav={favorites.includes(id)} badge={id === featured ? 'لعبة اليوم' : undefined} onPress={() => onOpen(id)} />
         ))}
       </ScrollView>
+      )}
     </View>
   );
 }

@@ -24,6 +24,7 @@ import { winLine } from './duel';
 import { helpers } from './helpers';
 import { PlayerStrip } from './player-strip';
 import { AnsweredRow, OptionGrid, useMyResultFx } from './islamic-ui';
+import { dk } from '@/ui/layout';
 
 const ASPECT = 70 / 90; // board image height / width
 const ZAD_LOOK: Record<ZadKind, { color: string; icon: IconName }> = {
@@ -72,7 +73,7 @@ export function HajjGame({ room, view }: { room: RoomView; view: HajjView }) {
   const h = helpers(room);
   const accent = useAccent();
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 16, 560);
+  const W = Math.min(width - 16, dk(560));
   const H = W * ASPECT;
   const [landed, setLanded] = useState(view.rollId);
   const [sadaqa, setSadaqa] = useState<{ turn: string; card: number } | null>(null);

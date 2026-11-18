@@ -11,6 +11,7 @@ import { C, F, alpha, hashRand } from '@/theme';
 import { Avatar, Row } from './bits';
 import { useAccent } from './accent';
 import { Txt, num } from './txt';
+import { dk } from '@/ui/layout';
 
 /* ------------------------------------------------------------------ */
 /* Timer                                                               */
@@ -296,7 +297,7 @@ export function Podium({ players, scores, lowIsBetter }: { players: PlayerPublic
   const accent = useAccent();
   // three columns that always fit the screen (16 px gutters, 10 px between columns)
   const { width } = useWindowDimensions();
-  const colW = Math.min(96, (Math.min(width - 32, 560) - 20) / 3);
+  const colW = Math.min(96, (Math.min(width - 32, dk(560)) - 20) / 3);
   return (
     <View style={{ alignItems: 'center', marginTop: 8 }}>
     <Row gap={10} style={{ alignItems: 'flex-end', justifyContent: 'center', direction: 'ltr' }}>

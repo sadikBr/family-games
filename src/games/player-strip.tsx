@@ -20,6 +20,7 @@ import { CountUp } from '@/ui/fun';
 import { Txt, num } from '@/ui/txt';
 
 import { FloatUp, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 export interface StripEntry {
   id: string;
@@ -36,7 +37,7 @@ export interface StripEntry {
 export function PlayerStrip({ room, entries, active = [], gains = true }: { room: RoomView; entries: StripEntry[]; active?: string[]; gains?: boolean }) {
   const { width } = useWindowDimensions();
   const settled = useSettled();
-  const inner = Math.min(width - 32, 560);
+  const inner = Math.min(width - 32, dk(560));
   const n = entries.length;
   // chips per line: everyone on one line up to 4 (3 on narrow phones), then wrap evenly
   let perLine = n <= (inner < 340 ? 3 : 4) ? n : Math.min(inner < 340 ? 2 : 3, n);

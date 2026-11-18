@@ -19,6 +19,7 @@ import { Txt, num } from '@/ui/txt';
 import { HostNote } from './common';
 import { helpers } from './helpers';
 import { Sketch } from './teledraw-canvas';
+import { dk } from '@/ui/layout';
 
 /** A player, also one who left (their name is kept by the game). */
 export function useWho(room: RoomView, view: TeledrawView) {
@@ -37,7 +38,7 @@ const LABEL: Record<TeledrawPage['kind'], string> = { phrase: 'جملة البد
 /** The width pages are drawn at. */
 export function usePageWidth() {
   const { width } = useWindowDimensions();
-  return Math.min(width - 32, 440);
+  return Math.min(width - 32, dk(440));
 }
 
 /** Author line: avatar, «رسمة من سارة». */

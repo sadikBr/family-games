@@ -19,6 +19,7 @@ import { PhaseTitle, PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
 import { EASE, Ripple, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 const INK = '#151726';
 const SEA = '#2F7FD0';
@@ -119,7 +120,7 @@ function Sea({
 export function BattleshipGame({ room, view }: { room: RoomView; view: BattleshipView }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const big = Math.min(width - 30, 420);
+  const big = Math.min(width - 30, dk(420));
   const [resign, setResign] = useState(false);
   const settled = useSettled();
   // the sea being fired at is the big one: mine while the other player shoots. The switch waits a

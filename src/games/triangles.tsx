@@ -26,6 +26,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar } from './duel';
 import { helpers, type Helpers } from './helpers';
 import { EASE, useSettled } from './touch-motion';
+import { dk } from '@/ui/layout';
 
 /** One colour per seat, bright enough on the dark board. */
 const TRI_COLORS = ['#F0566B', '#4AA8F0', '#3CCB8A', '#B48CF0'];
@@ -193,7 +194,7 @@ function Board({ view, myTurn, onRefuse }: { view: TrianglesView; myTurn: boolea
   const { width } = useWindowDimensions();
   const accent = useAccent();
   const g = triGeometry(view.size);
-  const W = Math.min(width - 16, 480);
+  const W = Math.min(width - 16, dk(480));
   const L = layout(g, W);
   const { u, H, px, py } = L;
   const settled = useSettled();

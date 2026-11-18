@@ -20,6 +20,7 @@ import { PlayAgain, ResultBanner, Spectator } from './common';
 import { FadeAside, Glide, Hint, SoftMark, glideMs, nudge, useBoardChange } from './board-motion';
 import { DuelBar, winLine } from './duel';
 import { helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const LIGHT = '#F3E6C8';
 const DARK = '#5E8C6A';
@@ -73,7 +74,7 @@ export function ChessGame({ room, view }: { room: RoomView; view: ChessView }) {
   const accent = useAccent();
   const { width } = useWindowDimensions();
   // the board fills the content width (inside the 16 px gutters); squares sit inside its 3 px frame
-  const W = Math.min(width - 32, 480);
+  const W = Math.min(width - 32, dk(480));
   const sq = (W - 6) / 8;
   const [sel, setSel] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: number; to: number } | null>(null);

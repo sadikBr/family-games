@@ -57,7 +57,7 @@ export default function GamesScreen() {
   const title = list ? list.title : searchMode ? 'ابحث عن لعبة' : 'اختر لعبة';
 
   return (
-    <Screen header={<Header title={title} onBack={goBack} />}>
+    <Screen width="page" header={<Header title={title} onBack={goBack} />}>
       {list ? null : (
         <View style={styles.search}>
           <Icon name="search" size={18} color={C.dim} />

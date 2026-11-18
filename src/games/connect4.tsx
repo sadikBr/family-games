@@ -17,6 +17,7 @@ import { Txt } from '@/ui/txt';
 import { PlayAgain, ResultBanner, Spectator } from './common';
 import { DuelBar, winLine } from './duel';
 import { helpers, type Helpers } from './helpers';
+import { dk } from '@/ui/layout';
 
 const DISC = { 1: '#E2475F', 2: '#F2C23D' } as const;
 const NAME = { 1: 'الأحمر', 2: 'الأصفر' } as const;
@@ -37,7 +38,7 @@ function Players({ view, h }: { view: Connect4View; h: Helpers }) {
 export function Connect4Game({ room, view }: { room: RoomView; view: Connect4View }) {
   const h = helpers(room);
   const { width } = useWindowDimensions();
-  const W = Math.min(width - 24, 430);
+  const W = Math.min(width - 24, dk(430));
   const cell = W / COLS;
   const [resign, setResign] = useState(false);
   if (view.myDisc === null && view.phase === 'play') return <Spectator room={room} />;

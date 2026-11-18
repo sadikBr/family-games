@@ -165,6 +165,7 @@ export default function RoomScreen() {
     <ImmersiveContext.Provider value={setImmersive}>
     <View style={{ flex: 1 }}>
     <Screen
+      width="stage"
       bg={night ? C.night : C.bg}
       glow={glow}
       bare={bare}
