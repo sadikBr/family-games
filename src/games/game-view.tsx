@@ -60,6 +60,12 @@ import { CoupGame } from './coup';
 import { MillionGame } from './million';
 import { RawabitGame } from './rawabit';
 import { KhaliaGame } from './khalia';
+import { TartibGame } from './tartib';
+import { AkbarGame } from './akbar';
+import { MathalGame } from './mathal';
+import { AynaGame } from './ayna';
+import { BaladGame } from './balad';
+import { EmojiGame } from './emoji';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -234,6 +240,18 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <RawabitGame room={room} view={view} />;
     case 'khalia':
       return <KhaliaGame room={room} view={view} />;
+    case 'tartib':
+      return <TartibGame room={room} view={view} />;
+    case 'akbar':
+      return <AkbarGame room={room} view={view} />;
+    case 'mathal':
+      return <MathalGame room={room} view={view} />;
+    case 'ayna':
+      return <AynaGame room={room} view={view} />;
+    case 'balad':
+      return <BaladGame room={room} view={view} />;
+    case 'emoji':
+      return <EmojiGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

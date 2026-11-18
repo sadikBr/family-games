@@ -51,6 +51,12 @@ import { CoupSettings } from './coup';
 import { MillionSettings } from './million';
 import { RawabitSettings } from './rawabit';
 import { KhaliaSettings } from './khalia';
+import { TartibSettings } from './tartib';
+import { AkbarSettings } from './akbar';
+import { MathalSettings } from './mathal';
+import { AynaSettings } from './ayna';
+import { BaladSettings } from './balad';
+import { EmojiSettings } from './emoji';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -160,6 +166,18 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <RawabitSettings room={room} editable={editable} />;
     case 'khalia':
       return <KhaliaSettings room={room} editable={editable} />;
+    case 'tartib':
+      return <TartibSettings room={room} editable={editable} />;
+    case 'akbar':
+      return <AkbarSettings room={room} editable={editable} />;
+    case 'mathal':
+      return <MathalSettings room={room} editable={editable} />;
+    case 'ayna':
+      return <AynaSettings room={room} editable={editable} />;
+    case 'balad':
+      return <BaladSettings room={room} editable={editable} />;
+    case 'emoji':
+      return <EmojiSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       const question = settings.mode === 'question';

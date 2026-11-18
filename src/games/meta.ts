@@ -44,6 +44,12 @@ import { COUP_INFO } from '@/shared/games/coup';
 import { MILLION_INFO } from '@/shared/games/million';
 import { RAWABIT_INFO } from '@/shared/games/rawabit';
 import { KHALIA_INFO } from '@/shared/games/khalia';
+import { TARTIB_INFO } from '@/shared/games/tartib';
+import { AKBAR_INFO } from '@/shared/games/akbar';
+import { MATHAL_INFO } from '@/shared/games/mathal';
+import { AYNA_INFO } from '@/shared/games/ayna';
+import { BALAD_INFO } from '@/shared/games/balad';
+import { EMOJI_INFO } from '@/shared/games/emoji';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
 import { GAME_ALIASES, HIDDEN_GAMES, MIN_PLAYERS } from '@/shared/protocol';
@@ -131,6 +137,12 @@ export const GAMES: Record<GameId, GameMeta> = {
   million: { id: 'million', minPlayers: MIN_PLAYERS.million, ...MILLION_INFO },
   rawabit: { id: 'rawabit', minPlayers: MIN_PLAYERS.rawabit, ...RAWABIT_INFO },
   khalia: { id: 'khalia', minPlayers: MIN_PLAYERS.khalia, ...KHALIA_INFO },
+  tartib: { id: 'tartib', minPlayers: MIN_PLAYERS.tartib, ...TARTIB_INFO },
+  akbar: { id: 'akbar', minPlayers: MIN_PLAYERS.akbar, ...AKBAR_INFO },
+  mathal: { id: 'mathal', minPlayers: MIN_PLAYERS.mathal, ...MATHAL_INFO },
+  ayna: { id: 'ayna', minPlayers: MIN_PLAYERS.ayna, ...AYNA_INFO },
+  balad: { id: 'balad', minPlayers: MIN_PLAYERS.balad, ...BALAD_INFO },
+  emoji: { id: 'emoji', minPlayers: MIN_PLAYERS.emoji, ...EMOJI_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -618,20 +630,20 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = (['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'qamus', 'mind', 'coup', 'million', 'rawabit', 'khalia'] as GameId[]).filter((id) => !HIDDEN_GAMES.includes(id));
+export const GAME_ORDER: GameId[] = (['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'qamus', 'mind', 'coup', 'million', 'rawabit', 'khalia', 'tartib', 'akbar', 'mathal', 'ayna', 'balad', 'emoji'] as GameId[]).filter((id) => !HIDDEN_GAMES.includes(id));
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
 
 /** Grouping for the home screen (`short`: the filter chip). A game may sit in two groups («كلمة السر»: words and, for its Quran words, Islamic). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
-  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'story', 'wave', 'charades', 'spy', 'survey', 'qamus'] },
-  { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle', 'qcond', 'balloons', 'kalim', 'rawabit', 'khalia'] },
+  { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'story', 'wave', 'charades', 'spy', 'survey', 'qamus', 'codenames'] },
+  { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle', 'qcond', 'balloons', 'kalim', 'rawabit', 'khalia', 'qamus', 'taboo', 'huroof'] },
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
-  { title: 'معلومات وثقافة', short: 'معلومات', icon: 'globe', games: ['estimate', 'truefalse', 'flags', 'trivia', 'huroof', 'million'] },
+  { title: 'معلومات وثقافة', short: 'معلومات', icon: 'globe', games: ['estimate', 'truefalse', 'flags', 'trivia', 'huroof', 'million', 'mapquiz', 'whois', 'tartib', 'akbar', 'mathal', 'ayna', 'balad', 'emoji'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'billiards', 'connect4', 'battleship', 'clue', 'domino', 'tawla'] },
-  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['fast', 'trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak', 'guesswho', 'triangles', 'mind'] },
-  { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'touti', 'konkan', 'kdab', 'unoflip', 'hez2', 'phase10', 'rami', 'realms', 'coup'] },
+  { title: 'ذكاء وذاكرة', short: 'ذكاء', icon: 'bolt', games: ['fast', 'trivia', 'memory', 'sudoku', 'xo', 'dots', 'mancala', 'codebreak', 'guesswho', 'triangles', 'mind', 'rawabit', 'chess', 'khalia'] },
+  { title: 'ألعاب الورق', short: 'الورق', icon: 'cards', games: ['ronda', 'kanza', 'tris', 'baloot', 'touti', 'konkan', 'kdab', 'unoflip', 'hez2', 'phase10', 'rami', 'realms', 'coup', 'mind'] },
 ];
 // games still being built stay off the home screen (HIDDEN_GAMES)
 for (const g of GAME_GROUPS) g.games = g.games.filter((id) => !HIDDEN_GAMES.includes(id));

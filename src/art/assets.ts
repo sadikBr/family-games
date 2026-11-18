@@ -21,7 +21,10 @@ export const AVATAR_IMG: Record<string, number> = {
 };
 
 export const GAME_IMG: Record<string, number> = {
+  'akbar': require('../../assets/art/games/akbar.webp'),
   'asma': require('../../assets/art/games/asma.webp'),
+  'ayna': require('../../assets/art/games/ayna.webp'),
+  'balad': require('../../assets/art/games/balad.webp'),
   'balloons': require('../../assets/art/games/balloons.webp'),
   'baloot': require('../../assets/art/games/baloot.webp'),
   'battleship': require('../../assets/art/games/battleship.webp'),
@@ -41,6 +44,7 @@ export const GAME_IMG: Record<string, number> = {
   'domino': require('../../assets/art/games/domino.webp'),
   'dots': require('../../assets/art/games/dots.webp'),
   'draw': require('../../assets/art/games/draw.webp'),
+  'emoji': require('../../assets/art/games/emoji.webp'),
   'estate': require('../../assets/art/games/estate.webp'),
   'estimate': require('../../assets/art/games/estimate.webp'),
   'fast': require('../../assets/art/games/fast.webp'),
@@ -61,6 +65,7 @@ export const GAME_IMG: Record<string, number> = {
   'ludo': require('../../assets/art/games/ludo.webp'),
   'mancala': require('../../assets/art/games/mancala.webp'),
   'mapquiz': require('../../assets/art/games/mapquiz.webp'),
+  'mathal': require('../../assets/art/games/mathal.webp'),
   'memory': require('../../assets/art/games/memory.webp'),
   'million': require('../../assets/art/games/million.webp'),
   'mind': require('../../assets/art/games/mind.webp'),
@@ -88,6 +93,7 @@ export const GAME_IMG: Record<string, number> = {
   'survey': require('../../assets/art/games/survey.webp'),
   'taboo': require('../../assets/art/games/taboo.webp'),
   'tajweed': require('../../assets/art/games/tajweed.webp'),
+  'tartib': require('../../assets/art/games/tartib.webp'),
   'tawla': require('../../assets/art/games/tawla.webp'),
   'teledraw': require('../../assets/art/games/teledraw.webp'),
   'touti': require('../../assets/art/games/touti.webp'),

@@ -87,6 +87,12 @@ import { coup } from './games/coup';
 import { million } from './games/million';
 import { rawabit } from './games/rawabit';
 import { khalia } from './games/khalia';
+import { tartib } from './games/tartib';
+import { akbar } from './games/akbar';
+import { mathal } from './games/mathal';
+import { ayna } from './games/ayna';
+import { balad } from './games/balad';
+import { emoji } from './games/emoji';
 import { guesswho } from './games/guesswho';
 import { clue } from './games/clue';
 import { triangles } from './games/triangles';
@@ -208,6 +214,12 @@ const MODULES: Record<GameId, AnyModule> = {
   million,
   rawabit,
   khalia,
+  tartib,
+  akbar,
+  mathal,
+  ayna,
+  balad,
+  emoji,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */
