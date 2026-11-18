@@ -215,7 +215,7 @@ const AUTOPILOT_MS = Number(process.env.AUTOPILOT_MS ?? 20_000);
 /** A host offline this long hands the room to a connected player. */
 const HOST_HANDOVER_MS = Number(process.env.HOST_HANDOVER_MS ?? 15_000);
 /** Card games where a seat can't disappear mid-hand: someone who leaves is replaced by a bot. */
-const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2', 'rami', 'touti', 'clue', 'realms'];
+const KEEP_SEATS: GameId[] = ['ronda', 'kanza', 'tris', 'baloot', 'hez2', 'rami', 'touti', 'clue', 'realms', 'domino'];
 /** Tests set BOT_SPEED=0.05 to make bots play 20× faster. */
 const BOT_SPEED = Number(process.env.BOT_SPEED ?? 1) || 1;
 
