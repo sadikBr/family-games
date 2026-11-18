@@ -52,6 +52,14 @@ import { TrianglesGame } from './triangles';
 import { RealmsGame } from './realms';
 import { BalloonsGame } from './balloons';
 import { KalimGame } from './kalim';
+import { DominoGame } from './domino';
+import { TawlaGame } from './tawla';
+import { QamusGame } from './qamus';
+import { MindGame } from './mind';
+import { CoupGame } from './coup';
+import { MillionGame } from './million';
+import { RawabitGame } from './rawabit';
+import { KhaliaGame } from './khalia';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -210,6 +218,22 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <BalloonsGame room={room} view={view} />;
     case 'kalim':
       return <KalimGame room={room} view={view} />;
+    case 'domino':
+      return <DominoGame room={room} view={view} />;
+    case 'tawla':
+      return <TawlaGame room={room} view={view} />;
+    case 'qamus':
+      return <QamusGame room={room} view={view} />;
+    case 'mind':
+      return <MindGame room={room} view={view} />;
+    case 'coup':
+      return <CoupGame room={room} view={view} />;
+    case 'million':
+      return <MillionGame room={room} view={view} />;
+    case 'rawabit':
+      return <RawabitGame room={room} view={view} />;
+    case 'khalia':
+      return <KhaliaGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

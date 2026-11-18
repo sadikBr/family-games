@@ -50,14 +50,14 @@ export const MAX_REPLAYS = 2;
 export const KNOCKOUT_GAMES: GameId[] = [
   'xo', 'connect4', 'chess', 'dama', 'kharbga', 'battleship', 'mancala',
   'dots', 'ludo', 'blocks', 'ladders', 'memory', 'ronda', 'kanza', 'konkan', 'unoflip', 'hez2', 'phase10', 'kdab', 'rami',
-  'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof', 'fast', 'billiards', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'realms', 'balloons', 'kalim',
+  'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof', 'fast', 'billiards', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'coup', 'million', 'rawabit', 'khalia',
 ];
 
 /** Short games that suit an evening league («اختيار عشوائي» picks from these first). */
 export const QUICK_GAMES: GameId[] = [
   'quiz', 'trivia', 'surah', 'whois', 'huroof', 'xo', 'connect4', 'memory', 'dots', 'wordle', 'boggle',
   'qquote', 'tajweed', 'asma', 'mapquiz', 'steps', 'names', 'potato', 'imposter', 'spy', 'oneword',
-  'survey', 'ladders', 'codebreak', 'kdab', 'mancala', 'wave', 'fast', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'balloons', 'kalim',
+  'survey', 'ladders', 'codebreak', 'kdab', 'mancala', 'wave', 'fast', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'balloons', 'kalim', 'domino', 'qamus', 'mind', 'coup', 'rawabit', 'khalia',
 ];
 
 export interface StandingRow {

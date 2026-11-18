@@ -79,6 +79,14 @@ import { flags } from './games/flags';
 import { qcond } from './games/qcond';
 import { balloons } from './games/balloons';
 import { kalim } from './games/kalim';
+import { domino } from './games/domino';
+import { tawla } from './games/tawla';
+import { qamus } from './games/qamus';
+import { mind } from './games/mind';
+import { coup } from './games/coup';
+import { million } from './games/million';
+import { rawabit } from './games/rawabit';
+import { khalia } from './games/khalia';
 import { guesswho } from './games/guesswho';
 import { clue } from './games/clue';
 import { triangles } from './games/triangles';
@@ -192,6 +200,14 @@ const MODULES: Record<GameId, AnyModule> = {
   realms,
   balloons,
   kalim,
+  domino,
+  tawla,
+  qamus,
+  mind,
+  coup,
+  million,
+  rawabit,
+  khalia,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */

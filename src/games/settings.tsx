@@ -43,6 +43,14 @@ import { TrianglesSettings } from './triangles';
 import { RealmsSettings } from './realms';
 import { BalloonsSettings } from './balloons';
 import { KalimSettings } from './kalim';
+import { DominoSettings } from './domino';
+import { TawlaSettings } from './tawla';
+import { QamusSettings } from './qamus';
+import { MindSettings } from './mind';
+import { CoupSettings } from './coup';
+import { MillionSettings } from './million';
+import { RawabitSettings } from './rawabit';
+import { KhaliaSettings } from './khalia';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -136,6 +144,22 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <BalloonsSettings room={room} editable={editable} />;
     case 'kalim':
       return <KalimSettings room={room} editable={editable} />;
+    case 'domino':
+      return <DominoSettings room={room} editable={editable} />;
+    case 'tawla':
+      return <TawlaSettings room={room} editable={editable} />;
+    case 'qamus':
+      return <QamusSettings room={room} editable={editable} />;
+    case 'mind':
+      return <MindSettings room={room} editable={editable} />;
+    case 'coup':
+      return <CoupSettings room={room} editable={editable} />;
+    case 'million':
+      return <MillionSettings room={room} editable={editable} />;
+    case 'rawabit':
+      return <RawabitSettings room={room} editable={editable} />;
+    case 'khalia':
+      return <KhaliaSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       const question = settings.mode === 'question';
