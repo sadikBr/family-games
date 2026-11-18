@@ -42,6 +42,7 @@ import { ClueSettings } from './clue';
 import { TrianglesSettings } from './triangles';
 import { RealmsSettings } from './realms';
 import { BalloonsSettings } from './balloons';
+import { KalimSettings } from './kalim';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -133,6 +134,8 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <RealmsSettings room={room} editable={editable} />;
     case 'balloons':
       return <BalloonsSettings room={room} editable={editable} />;
+    case 'kalim':
+      return <KalimSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       const question = settings.mode === 'question';

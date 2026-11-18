@@ -51,6 +51,7 @@ import { ClueGame } from './clue';
 import { TrianglesGame } from './triangles';
 import { RealmsGame } from './realms';
 import { BalloonsGame } from './balloons';
+import { KalimGame } from './kalim';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -207,6 +208,8 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <RealmsGame room={room} view={view} />;
     case 'balloons':
       return <BalloonsGame room={room} view={view} />;
+    case 'kalim':
+      return <KalimGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }

@@ -35,6 +35,7 @@ import { CLUE_INFO } from '@/shared/games/clue';
 import { TRIANGLES_INFO, trianglesVariant } from '@/shared/games/triangles';
 import { REALMS_INFO } from '@/shared/games/realms';
 import { BALLOONS_INFO } from '@/shared/games/balloons';
+import { KALIM_INFO } from '@/shared/games/kalim';
 import type { IconName } from '@/art/icons';
 import type { AllSettings, GameId } from '@/shared/protocol';
 import { GAME_ALIASES, MIN_PLAYERS } from '@/shared/protocol';
@@ -113,6 +114,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   triangles: { id: 'triangles', minPlayers: MIN_PLAYERS.triangles, ...TRIANGLES_INFO, variant: (s) => trianglesVariant(s.triangles) },
   realms: { id: 'realms', minPlayers: MIN_PLAYERS.realms, ...REALMS_INFO },
   balloons: { id: 'balloons', minPlayers: MIN_PLAYERS.balloons, ...BALLOONS_INFO },
+  kalim: { id: 'kalim', minPlayers: MIN_PLAYERS.kalim, ...KALIM_INFO },
   imposter: {
     id: 'imposter',
     title: 'الدخيل',
@@ -600,7 +602,7 @@ export const GAMES: Record<GameId, GameMeta> = {
   },
 };
 
-export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons'];
+export const GAME_ORDER: GameId[] = ['imposter', 'names', 'ronda', 'kanza', 'tris', 'konkan', 'rami', 'baloot', 'touti', 'unoflip', 'hez2', 'headsup', 'taboo', 'potato', 'werewolf', 'codenames', 'draw', 'teledraw', 'story', 'oneword', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'billiards', 'kdab', 'wave', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'estimate', 'truefalse', 'flags', 'memory', 'fast', 'phase10', 'scrabble', 'charades', 'spy', 'survey', 'dots', 'mancala', 'catan', 'carca', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim'];
 
 // an old id (a game merged into another one, e.g. in a stored tournament) still shows the game it became
 for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.defineProperty(GAMES, old, { value: GAMES[game], enumerable: false });
@@ -608,7 +610,7 @@ for (const [old, { game }] of Object.entries(GAME_ALIASES)) Object.definePropert
 /** Grouping for the home screen (`short`: the filter chip). A game may sit in two groups («كلمة السر»: words and, for its Quran words, Islamic). */
 export const GAME_GROUPS: { title: string; short: string; icon: IconName; games: GameId[] }[] = [
   { title: 'ألعاب الكلام والضحك', short: 'كلام وضحك', icon: 'chat', games: ['imposter', 'headsup', 'taboo', 'potato', 'werewolf', 'draw', 'teledraw', 'story', 'wave', 'charades', 'spy', 'survey'] },
-  { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle', 'qcond', 'balloons'] },
+  { title: 'ألعاب الكلمات', short: 'كلمات', icon: 'book', games: ['names', 'codenames', 'oneword', 'wordle', 'scrabble', 'boggle', 'qcond', 'balloons', 'kalim'] },
   { title: 'ألعاب إسلامية', short: 'إسلامية', icon: 'moon', games: ['huroof', 'quiz', 'whois', 'surah', 'qquote', 'wordle', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'hajj', 'ladders'] },
   { title: 'معلومات وثقافة', short: 'معلومات', icon: 'globe', games: ['estimate', 'truefalse', 'flags', 'trivia', 'huroof'] },
   { title: 'ألعاب اللوحة', short: 'لوحة ونرد', icon: 'layers', games: ['catan', 'carca', 'estate', 'ludo', 'blocks', 'dama', 'kharbga', 'chess', 'billiards', 'connect4', 'battleship', 'clue'] },

@@ -19,7 +19,7 @@ const DIALECT: Record<string, string> = {
 const PHRASES = ['تعال نلعب', 'بدون ما', 'الطريق السيار', 'إذا عندك', 'كل واحد يلعب'];
 
 /** Word lists and other content (checked by their own tests; codenames-judge is a test fixture, never shown). */
-const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|codenames-links|codenames-judge|scrabble-dict|dictionary|boggle-grid)\.ts$|^server\/data\//; // boggle-grid holds the dialect blocklist itself
+const CONTENT = /^server\/(content[^/]*|bot-content|names-words|imposter-traits|charades-content|spy-content|survey-content|codenames-links|codenames-judge|scrabble-dict|dictionary|boggle-grid|kalim-words)\.ts$|^server\/data\//; // boggle-grid holds the dialect blocklist itself, kalim-words the Moroccan words «كلم» accepts in «فصحى وعامية»
 const IN_PROGRESS = /^$/; // every game is checked now
 
 function walk(dir: string, out: string[] = []): string[] {

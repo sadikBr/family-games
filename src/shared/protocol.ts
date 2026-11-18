@@ -43,6 +43,7 @@ import { CLUE_DEFAULTS, type ClueSettings, type ClueView } from './games/clue';
 import { TRIANGLES_DEFAULTS, type TrianglesSettings, type TrianglesView } from './games/triangles';
 import { REALMS_DEFAULTS, type RealmsSettings, type RealmsView } from './games/realms';
 import { BALLOONS_DEFAULTS, type BalloonsSettings, type BalloonsView } from './games/balloons';
+import { KALIM_DEFAULTS, type KalimSettings, type KalimView } from './games/kalim';
 import { BILLIARDS_DEFAULTS, type BilliardsSettings, type BilliardsView } from './games/billiards';
 import type { TournamentConfig, TournamentFormat, TournamentView } from './tournament';
 export type { Phase10Settings, Phase10View } from './games/phase10';
@@ -82,6 +83,7 @@ export type { ClueSettings, ClueView } from './games/clue';
 export type { TrianglesSettings, TrianglesView } from './games/triangles';
 export type { RealmsSettings, RealmsView } from './games/realms';
 export type { BalloonsSettings, BalloonsView } from './games/balloons';
+export type { KalimSettings, KalimView } from './games/kalim';
 
 export type { Card } from './cards';
 
@@ -155,7 +157,8 @@ export type GameId =
   | 'clue'
   | 'triangles'
   | 'realms'
-  | 'balloons';
+  | 'balloons'
+  | 'kalim';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -228,10 +231,11 @@ export const GAME_IDS: GameId[] = [
   'triangles',
   'realms',
   'balloons',
+  'kalim',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim'];
 export const MAX_BOTS = 8;
 /** Games that take fewer bots than MAX_BOTS: in «الكلمات السرية» a bot can only lead a team (one per team). */
 export const GAME_MAX_BOTS: Partial<Record<GameId, number>> = { codenames: 2 };
@@ -307,10 +311,11 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   triangles: 2,
   realms: 2,
   balloons: 2,
+  kalim: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, story: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4, estimate: 12, truefalse: 12, flags: 12, qcond: 8, guesswho: 2, clue: 6, triangles: 4, realms: 7, balloons: 8 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, story: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4, estimate: 12, truefalse: 12, flags: 12, qcond: 8, guesswho: 2, clue: 6, triangles: 4, realms: 7, balloons: 8, kalim: 6 };
 
 /**
  * Games that were merged into another one: older apps may still ask for them (room create, change of
@@ -641,6 +646,7 @@ export interface AllSettings {
   triangles: TrianglesSettings;
   realms: RealmsSettings;
   balloons: BalloonsSettings;
+  kalim: KalimSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -714,6 +720,7 @@ export const DEFAULT_SETTINGS: AllSettings = {
   triangles: TRIANGLES_DEFAULTS,
   realms: REALMS_DEFAULTS,
   balloons: BALLOONS_DEFAULTS,
+  kalim: KALIM_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1627,7 +1634,8 @@ export type GameView =
   | ClueView
   | TrianglesView
   | RealmsView
-  | BalloonsView;
+  | BalloonsView
+  | KalimView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

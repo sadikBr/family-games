@@ -49,6 +49,7 @@ export const GAME_IMG: Record<string, number> = {
   'hez2': require('../../assets/art/games/hez2.webp'),
   'huroof': require('../../assets/art/games/huroof.webp'),
   'imposter': require('../../assets/art/games/imposter.webp'),
+  'kalim': require('../../assets/art/games/kalim.webp'),
   'kanza': require('../../assets/art/games/kanza.webp'),
   'kdab': require('../../assets/art/games/kdab.webp'),
   'kharbga': require('../../assets/art/games/kharbga.webp'),
