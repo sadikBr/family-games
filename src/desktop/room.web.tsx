@@ -75,7 +75,9 @@ function RoomRail({ room, onLeave, onMenu }: { room: RoomView; onLeave: () => vo
   };
   const playing = room.status === 'playing';
   const tour = room.tournament && room.tournament.stage !== 'setup';
-  const turn = new Set(room.turn ?? []);
+  // «الدور» only marks some of the table (a game where everyone plays at once marks nobody)
+  const waiting = room.turn ?? [];
+  const turn = new Set(waiting.length < room.players.length ? waiting : []);
   return (
     <aside className="dk-rail dk-rail-start" aria-label="الغرفة">
       <div className="dk-rail-game" style={cvar(meta.color)}>
