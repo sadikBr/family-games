@@ -1,0 +1,63 @@
+# The web version of the app on GitHub Pages (https://<owner>.github.io/<repo>/): rebuilt on every push to
+# main. On a computer, open it in Chrome or Edge and choose «Install» to get it as a desktop app (its own
+# window and icon). It plays on the same game server as the phones (eas.json → EXPO_PUBLIC_SERVER_URL).
+#
+# One-time setup: the repository's Settings → Pages → Source: "GitHub Actions".
+name: Web app (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # the site lives under /<repo>/: only this build gets the base URL (the phone app keeps app.json as is)
+      - name: Base URL
+        env:
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.experiments = { ...app.expo.experiments, baseUrl: '/' + process.env.REPO };
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+          "
+      - name: Export the web app
+        run: |
+          export EXPO_PUBLIC_SERVER_URL=$(node -e "console.log(require('./eas.json').build.preview.env.EXPO_PUBLIC_SERVER_URL)")
+          echo "Server: $EXPO_PUBLIC_SERVER_URL"
+          EXPO_OFFLINE=1 CI=1 npx expo export -p web --output-dir dist
+          # a link to a page that doesn't exist opens the app (it finds its way from there)
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

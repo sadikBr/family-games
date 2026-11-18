@@ -58,8 +58,15 @@ export function onMuteChange(l: (m: boolean) => void) {
   };
 }
 
+/** A browser refuses sound until the page was clicked or tapped once (it would only log an error). */
+function webSilent(): boolean {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+  const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  return !!ua && !ua.hasBeenActive;
+}
+
 export function play(name: SoundName) {
-  if (muted) return;
+  if (muted || webSilent()) return;
   try {
     let p = players[name];
     if (!p) {

@@ -351,3 +351,19 @@ The APK is signed with a local key, so a phone that has the GitLab-built APK mus
   build a new APK). A mismatch is harmless: phones just don't take the update.
 - The server address can still be changed inside the app («إعدادات الخادم» on the profile screen), for
   example to play on a computer at home over Wi-Fi (`bun run server`).
+
+### On a computer (web app, GitHub Pages)
+
+The same app runs in a browser: `.github/workflows/web.yml` builds the web version on every push to `main` of the
+GitHub repository and publishes it on GitHub Pages, at `https://<owner>.github.io/<repo>/` (here
+https://sadikbr.github.io/family-games/). It plays on the same game server as the phones (the address in
+`eas.json`), so computers and phones share rooms.
+
+- **One-time setup:** in the GitHub repository, Settings → Pages → Source: **GitHub Actions**. Then push, or run
+  the workflow by hand (Actions → «Web app (GitHub Pages)» → Run workflow).
+- **As a desktop app:** open the address in Chrome or Edge and choose «Install» (the icon at the end of the
+  address bar, or ⋮ → «Cast, save and share» → «Install page as app»). It gets its own window and an icon on
+  the desktop / taskbar (`public/manifest.json`, icons in `public/pwa/`).
+- **Updates** come by themselves: each push rebuilds the site, and the app takes it the next time it's opened.
+- No vibration and no push notifications on a computer (the in-app group invitation still works).
+- Only the workflow gives the build its base URL (`/<repo>`): `app.json` stays as the phones need it.
