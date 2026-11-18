@@ -24,10 +24,19 @@ export type ScreenWidth = 'phone' | 'page' | 'stage';
 
 export const isDesktopSize = (width: number) => Platform.OS === 'web' && width >= DESKTOP_MIN;
 
-/** The stage column on a computer: about 78% of the window's height (a square board fits), 560–860 px. */
+/** A room's side rails on a computer (src/desktop/room.web.tsx): one below WIDE_MIN, two from it. */
+export const RAIL = 300;
+export const WIDE_MIN = 1280;
+export const railsWidth = (width: number) => (width >= WIDE_MIN ? 2 * RAIL : RAIL);
+
+/**
+ * The stage column on a computer: what the rails leave, about 78% of the window's height at most (a
+ * square board fits), up to 860 px.
+ */
 export function stageWidth(width: number, height: number): number {
   if (!isDesktopSize(width)) return Math.min(width - 32, PHONE_MAX);
-  return Math.round(Math.max(PHONE_MAX, Math.min(width - 64, height * 0.78, STAGE_MAX)));
+  const room = width - railsWidth(width) - 48;
+  return Math.round(Math.max(Math.min(PHONE_MAX, room), Math.min(room, height * 0.78, STAGE_MAX)));
 }
 
 /** The content width of a screen of this kind. */

@@ -366,9 +366,16 @@ Settings → Pages, with a DNS `CNAME` record `games` → `sadikbr.github.io`; w
   address bar, or ⋮ → «Cast, save and share» → «Install page as app»). It gets its own window and an icon on
   the desktop / taskbar (`public/manifest.json`, icons in `public/pwa/`).
 - **Updates** come by themselves: each push rebuilds the site, and the app takes it the next time it's opened.
-- **Desktop layout** (`src/ui/layout.ts`, browser windows 900 px and wider): the home screen and the games list
-  use a wide container (two columns at the top, every category as a grid instead of a sideways shelf); a room
-  keeps the phone layout in a column sized to the window (≈ 78% of its height, 560–860 px), and the games'
-  boards, tables and cards grow with it (`dk(px)` on their size caps). Phones are unchanged.
+- **Desktop design** (`src/desktop/`, browser windows 900 px and wider; phones and the app never load it): its own
+  look drawn with DOM elements and one CSS sheet (`src/desktop/css.ts`). A sidebar (pages, the categories that
+  scroll the home page and light up as you scroll, «ادخل برمز», back to the last room, the groups, my status and
+  sound). The home's stage: today's game and the newest ones in turn, the name huge in Lalezar, the emblem
+  floating in its colour, «العب الآن» / «كيف نلعب؟». Search («/» jumps to it), «كم عددكم؟», and every category
+  as a grid of game cards (hover: the emblem lifts, «العب» appears, the star adds a favourite; a click opens the
+  game's card). `/games` is the catalogue with category chips. A room gets two rails around the stage: the
+  room (code to copy, the join link, who is at the table and whose turn it is, voice, reactions, sound, the
+  room's settings, «مغادرة الغرفة») and, in wide windows, how to play plus the game's last calls. The game
+  itself is the phone layout made larger: a column sized to the window, the games' size caps grown with
+  `dk(px)` (`src/ui/layout.ts`).
 - No vibration and no push notifications on a computer (the in-app group invitation still works).
 - Only the workflow gives the build its base URL (`/<repo>`): `app.json` stays as the phones need it.

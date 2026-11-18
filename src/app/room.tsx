@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { GameArt } from '@/art/game-art';
+import { DesktopRoom } from '@/desktop/room';
 import { GameView } from '@/games/game-view';
 import { Lobby, LobbyFooter } from '@/games/lobby';
 import { TurnBar } from '@/games/turn-bar';
@@ -25,6 +26,7 @@ import { Btn, IconBtn } from '@/ui/btn';
 import { ConfirmModal, ConnectionBanner, Header } from '@/ui/controls';
 import { AccentContext } from '@/ui/accent';
 import { ImmersiveContext } from '@/ui/immersive';
+import { useDesktop } from '@/ui/layout';
 import { Screen } from '@/ui/screen';
 import { Txt } from '@/ui/txt';
 
@@ -64,6 +66,8 @@ function Connecting() {
 export default function RoomScreen() {
   useKeepAwake();
   const { width } = useWindowDimensions();
+  // a computer-sized browser window: rails around the stage, no phone header (src/desktop/room.web.tsx)
+  const desk = useDesktop();
   const { room, error, lastCode } = useClient();
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmLobby, setConfirmLobby] = useState(false);
@@ -164,6 +168,7 @@ export default function RoomScreen() {
     <AccentContext.Provider value={between && t?.stage === 'final' ? C.yellow : meta.color}>
     <ImmersiveContext.Provider value={setImmersive}>
     <View style={{ flex: 1 }}>
+    <DesktopRoom room={room} bare={bare} onLeave={() => setConfirmLeave(true)} onMenu={() => setMenu(true)}>
     <Screen
       width="stage"
       bg={night ? C.night : C.bg}
@@ -174,6 +179,13 @@ export default function RoomScreen() {
       header={
         bare ? (
           <ConnectionBanner />
+        ) : desk ? (
+          <View style={{ paddingTop: 14, gap: 8 }}>
+            <ConnectionBanner />
+            <VoiceStrip room={room} />
+            <TurnBar room={room} />
+            <TournamentChip room={room} />
+          </View>
         ) : (
         <>
           <Header
@@ -263,6 +275,7 @@ export default function RoomScreen() {
         }}
       />
     </Screen>
+    </DesktopRoom>
     {/* reactions: big, over everything in the room (never taking a touch) */}
     <ReactionLayer room={room} />
     </View>

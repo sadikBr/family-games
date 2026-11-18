@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Icon } from '@/art/icons';
 import { GAMES, GAME_GROUPS, GAME_ORDER } from '@/games/meta';
+import { DesktopHome } from '@/desktop/home';
 import { GameSheet } from '@/home/game-sheet';
 import { CountFilter, GameGrid, fits } from '@/home/games';
 import { goBack } from '@/lib/nav';
@@ -20,6 +21,7 @@ import type { GameId } from '@/shared/protocol';
 import { C, F } from '@/theme';
 import { Btn } from '@/ui/btn';
 import { Header } from '@/ui/controls';
+import { useDesktop } from '@/ui/layout';
 import { Screen } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
@@ -31,6 +33,7 @@ export default function GamesScreen() {
   const [query, setQuery] = useState('');
   const [count, setCount] = useState<number | null>(null);
   const [sheet, setSheet] = useState<GameId | null>(null);
+  const desk = useDesktop();
 
   const favIds = GAME_ORDER.filter((id) => favorites.includes(id));
   const category = group !== null && /^\d+$/.test(group) ? GAME_GROUPS[Number(group)] : undefined;
@@ -55,9 +58,11 @@ export default function GamesScreen() {
   const total = new Set(shown.flatMap((s) => s.ids)).size;
 
   const title = list ? list.title : searchMode ? 'ابحث عن لعبة' : 'اختر لعبة';
+  // a computer-sized browser window: the desktop catalogue (src/desktop/home.web.tsx)
+  if (desk) return <DesktopHome mode="catalog" group={typeof params.group === 'string' ? params.group : undefined} search={searchMode} />;
 
   return (
-    <Screen width="page" header={<Header title={title} onBack={goBack} />}>
+    <Screen header={<Header title={title} onBack={goBack} />}>
       {list ? null : (
         <View style={styles.search}>
           <Icon name="search" size={18} color={C.dim} />

@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { DesktopFrame } from '@/desktop/frame';
 import { GroupCallSheet, PushPrompt } from '@/groups/call-sheet';
 import { client } from '@/lib/client';
 import { loadProfile } from '@/lib/profile';
@@ -78,6 +79,8 @@ export default function RootLayout() {
         {/* any touch: I'm here (ends the automatic «بعيد», see src/lib/status.ts) */}
         <View style={styles.root} {...touchProps}>
           <StatusBar style="light" />
+          {/* on a computer (web): a sidebar beside the pages (src/desktop/frame.web.tsx); phones: nothing */}
+          <DesktopFrame>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -86,6 +89,7 @@ export default function RootLayout() {
             }}>
             <Stack.Screen name="profile" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
+          </DesktopFrame>
           <Toast />
           <GroupCallSheet />
           <PushPrompt />

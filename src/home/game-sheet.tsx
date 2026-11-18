@@ -15,6 +15,7 @@ import { BOT_GAMES, type GameId } from '@/shared/protocol';
 import { C, F, alpha, shade } from '@/theme';
 import { Row } from '@/ui/bits';
 import { Btn, IconBtn } from '@/ui/btn';
+import { useDesktop } from '@/ui/layout';
 import { Txt, num } from '@/ui/txt';
 
 import { playersLabel, startGame } from './games';
@@ -32,6 +33,8 @@ export function GameSheet({ id, onClose }: { id: GameId | null; onClose: () => v
   const { favorites } = useGamePrefs();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  // a computer: a card in the middle of the window, not a sheet from the bottom
+  const desk = useDesktop();
   const game = shown ? GAMES[shown] : null;
   if (!game) return null;
   const fav = favorites.includes(game.id);
@@ -40,9 +43,9 @@ export function GameSheet({ id, onClose }: { id: GameId | null; onClose: () => v
 
   return (
     <Modal visible={!!id} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, desk && styles.backdropDesk]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="إغلاق" />
-        <View style={[styles.sheet, { maxHeight: height - insets.top - 24, paddingBottom: 16 + insets.bottom }]}>
+        <View style={[styles.sheet, { maxHeight: height - insets.top - 24, paddingBottom: 16 + insets.bottom }, desk && styles.sheetDesk]}>
           <Row style={styles.top}>
             <IconBtn
               icon={fav ? 'starFull' : 'star'}
@@ -149,6 +152,8 @@ const styles = StyleSheet.create({
     borderColor: C.borderStrong,
     overflow: 'hidden',
   },
+  backdropDesk: { justifyContent: 'center', padding: 24 },
+  sheetDesk: { maxWidth: 520, borderRadius: 28, borderBottomWidth: 1 },
   top: { marginBottom: -34 },
   stage: { alignSelf: 'center', width: 116, height: 116, borderRadius: 58, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, height: 26, borderRadius: 13, backgroundColor: C.surface },
