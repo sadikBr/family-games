@@ -355,8 +355,9 @@ The APK is signed with a local key, so a phone that has the GitLab-built APK mus
 ### On a computer (web app, GitHub Pages)
 
 The same app runs in a browser: `.github/workflows/web.yml` builds the web version on every push to `main` of the
-GitHub repository and publishes it on GitHub Pages, at `https://<owner>.github.io/<repo>/` (here
-https://sadikbr.github.io/family-games/). It plays on the same game server as the phones (the address in
+GitHub repository and publishes it on GitHub Pages, at https://games.brahimsadik.com (the custom domain set in
+Settings → Pages, with a DNS `CNAME` record `games` → `sadikbr.github.io`; without it,
+`https://<owner>.github.io/<repo>/`). The build reads the site's base path from Pages, so both work. It plays on the same game server as the phones (the address in
 `eas.json`), so computers and phones share rooms.
 
 - **One-time setup:** in the GitHub repository, Settings → Pages → Source: **GitHub Actions**. Then push, or run

@@ -1,8 +1,9 @@
-# The web version of the app on GitHub Pages (https://<owner>.github.io/<repo>/): rebuilt on every push to
-# main. On a computer, open it in Chrome or Edge and choose «Install» to get it as a desktop app (its own
+# The web version of the app on GitHub Pages (https://games.brahimsadik.com, or https://<owner>.github.io/<repo>/
+# without a custom domain): rebuilt on every push to main. On a computer, open it in Chrome or Edge and choose «Install» to get it as a desktop app (its own
 # window and icon). It plays on the same game server as the phones (eas.json → EXPO_PUBLIC_SERVER_URL).
 #
-# One-time setup: the repository's Settings → Pages → Source: "GitHub Actions".
+# One-time setup: the repository's Settings → Pages → Source: "GitHub Actions" (and the custom domain there;
+# after changing the domain, run this workflow again so the site is built for its new address).
 name: Web app (GitHub Pages)
 
 on:
@@ -29,15 +30,21 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # the site lives under /<repo>/: only this build gets the base URL (the phone app keeps app.json as is)
+      # where Pages serves the site: "/<repo>" at <owner>.github.io, "" on a custom domain
+      # (games.brahimsadik.com). Only this build gets the base URL; the phone app keeps app.json as is.
+      - id: pages
+        uses: actions/configure-pages@v5
       - name: Base URL
         env:
-          REPO: ${{ github.event.repository.name }}
+          BASE: ${{ steps.pages.outputs.base_path }}
         run: |
+          echo "Base path: '${BASE}'"
           node -e "
             const fs = require('fs');
+            const base = process.env.BASE || '';
+            if (!base) process.exit(0);
             const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-            app.expo.experiments = { ...app.expo.experiments, baseUrl: '/' + process.env.REPO };
+            app.expo.experiments = { ...app.expo.experiments, baseUrl: base };
             fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
           "
       - name: Export the web app
