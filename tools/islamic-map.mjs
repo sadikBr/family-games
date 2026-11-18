@@ -9,6 +9,10 @@
  *
  * Arcs are simplified once, before rings are put together, so neighbouring countries keep exactly the
  * same border (no gaps or overlaps).
+ *
+ * The owner's rules (as in tools/ayna-map.mjs): Morocco is drawn whole, with its Sahara (the Natural
+ * Earth «W. Sahara» polygon is merged into Morocco, no line between them); Palestine is one country (the
+ * «Israel» polygon is merged into it, no line inside it).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -22,6 +26,10 @@ if (!dir) {
 }
 const require = createRequire(join(dir, 'package.json'));
 const topo = JSON.parse(readFileSync(require.resolve('world-atlas/countries-50m.json'), 'utf8'));
+const { mergeArcs } = require('topojson-client');
+
+/** Natural Earth polygons drawn as part of another country (by ISO numeric id) */
+const PART_OF = { '732': '504', '376': '275' };
 
 /* ------------------------------------------------------------------ */
 /* Projection (keep in sync with the constants written below)          */
@@ -180,7 +188,21 @@ function encode(points) {
 
 let path = '';
 let rings = 0;
-for (const g of topo.objects.countries.geometries) {
+/** the countries after the merges above: a merged group becomes one MultiPolygon with no inner lines */
+const groups = new Map();
+const TARGETS = new Set(Object.values(PART_OF));
+for (const [i, g] of topo.objects.countries.geometries.entries()) {
+  // only the merged countries share a key; every other geometry stays on its own
+  const key = PART_OF[g.id] ?? (TARGETS.has(g.id) ? g.id : `#${i}`);
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key).push(g);
+}
+const countries = [...groups.values()].map((gs) => (gs.length === 1 ? gs[0] : mergeArcs(topo, gs)));
+if (countries.length !== topo.objects.countries.geometries.length - Object.keys(PART_OF).length) {
+  throw new Error('a merge did not happen: check the ids in PART_OF');
+}
+
+for (const g of countries) {
   const polys = g.type === 'Polygon' ? [g.arcs] : g.type === 'MultiPolygon' ? g.arcs : [];
   for (const poly of polys) {
     for (const r of poly) {
