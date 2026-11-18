@@ -10,7 +10,7 @@
  *   when the count isn't a power of two). A draw is replayed (twice at most), then the higher seed goes on.
  * Bots can fill seats in a league game but are never ranked: no points, no titles, not in brackets.
  */
-import { BOT_GAMES, GAME_IDS, MAX_PLAYERS, MIN_PLAYERS, type GameId, type PlayerInfo } from './protocol';
+import { BOT_GAMES, GAME_IDS, HIDDEN_GAMES, MAX_PLAYERS, MIN_PLAYERS, type GameId, type PlayerInfo } from './protocol';
 
 export type TournamentFormat = 'league' | 'knockout';
 
@@ -47,18 +47,18 @@ export const KNOCKOUT_MAX = 16;
 export const MAX_REPLAYS = 2;
 
 /** Games two people can play against each other (duel games first, then those that also work with two). */
-export const KNOCKOUT_GAMES: GameId[] = [
+export const KNOCKOUT_GAMES: GameId[] = ([
   'xo', 'connect4', 'chess', 'dama', 'kharbga', 'battleship', 'mancala',
   'dots', 'ludo', 'blocks', 'ladders', 'memory', 'ronda', 'kanza', 'konkan', 'unoflip', 'hez2', 'phase10', 'kdab', 'rami',
   'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof', 'fast', 'billiards', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'coup', 'million', 'rawabit', 'khalia',
-];
+] as GameId[]).filter((id) => !HIDDEN_GAMES.includes(id));
 
 /** Short games that suit an evening league («اختيار عشوائي» picks from these first). */
-export const QUICK_GAMES: GameId[] = [
+export const QUICK_GAMES: GameId[] = ([
   'quiz', 'trivia', 'surah', 'whois', 'huroof', 'xo', 'connect4', 'memory', 'dots', 'wordle', 'boggle',
   'qquote', 'tajweed', 'asma', 'mapquiz', 'steps', 'names', 'potato', 'imposter', 'spy', 'oneword',
   'survey', 'ladders', 'codebreak', 'kdab', 'mancala', 'wave', 'fast', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'balloons', 'kalim', 'domino', 'qamus', 'mind', 'coup', 'rawabit', 'khalia',
-];
+] as GameId[]).filter((id) => !HIDDEN_GAMES.includes(id));
 
 export interface StandingRow {
   id: string;
@@ -360,7 +360,7 @@ export function randomGames(n: number, people: number, bots: number, rand: () =>
     return a;
   };
   const quick = shuffle(QUICK_GAMES.filter(ok));
-  const rest = shuffle(GAME_IDS.filter((g) => ok(g) && !QUICK_GAMES.includes(g)));
+  const rest = shuffle(GAME_IDS.filter((g) => ok(g) && !QUICK_GAMES.includes(g) && !HIDDEN_GAMES.includes(g)));
   return [...quick, ...rest].slice(0, n);
 }
 
