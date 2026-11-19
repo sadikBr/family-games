@@ -50,7 +50,7 @@ export const MAX_REPLAYS = 2;
 export const KNOCKOUT_GAMES: GameId[] = ([
   'xo', 'connect4', 'chess', 'dama', 'kharbga', 'battleship', 'mancala',
   'dots', 'ludo', 'blocks', 'ladders', 'memory', 'ronda', 'kanza', 'konkan', 'unoflip', 'hez2', 'phase10', 'kdab', 'rami',
-  'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof', 'fast', 'billiards', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'coup', 'million', 'rawabit', 'khalia', 'tartib', 'akbar', 'mathal', 'ayna', 'balad', 'emoji', 'arjah', 'cross', 'makki', 'qaima', 'train', 'silsila', 'bomb',
+  'scrabble', 'boggle', 'wordle', 'quiz', 'trivia', 'surah', 'whois', 'huroof', 'fast', 'billiards', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'coup', 'million', 'rawabit', 'khalia', 'tartib', 'akbar', 'mathal', 'ayna', 'balad', 'emoji', 'cross', 'makki', 'qaima', 'train', 'silsila', 'bomb',
 ] as GameId[]).filter((id) => !HIDDEN_GAMES.includes(id));
 
 /** Short games that suit an evening league («اختيار عشوائي» picks from these first). */
