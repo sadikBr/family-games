@@ -87,7 +87,7 @@ function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisVie
             })}
           />
         ) : null}
-        {final ? null : <TableStrip room={room} ids={order} turn={null} score={score} note={`الهدف ${num(view.target)} نقطة`} />}
+        {final ? null : <TableStrip room={room} sides={view.sides} ids={order} turn={null} score={score} note={`الهدف ${num(view.target)} نقطة`} />}
         {final ? (
           <PlayAgain room={room} />
         ) : h.isHost ? (
@@ -106,6 +106,7 @@ function TrisScreen({ room, view, tap, myTurn }: { room: RoomView; view: TrisVie
       <TableStrip
         room={room}
         ids={order}
+        sides={view.sides}
         turn={view.phase === 'play' ? view.turn : null}
         score={score}
         sub={(id) => (id === partner ? `شريكك · ${cardsWord(view.handCounts[id] ?? 0)}` : cardsWord(view.handCounts[id] ?? 0))}

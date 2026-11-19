@@ -93,7 +93,7 @@ export function PlayerStrip({ room, entries, active = [], gains = true }: { room
 }
 
 /** The chip's number: counts up when it grows, with the gain floating up once above it. */
-function Score({ score, on, small, live, gains }: { score: number | string; on: boolean; small: boolean; live: boolean; gains: boolean }) {
+export function Score({ score, on, small, live, gains }: { score: number | string; on: boolean; small: boolean; live: boolean; gains: boolean }) {
   // the previous score, to see what was gained (only changes seen while the strip is settled float)
   const [st, setSt] = useState({ score, gain: 0, k: 0 });
   if (st.score !== score) {

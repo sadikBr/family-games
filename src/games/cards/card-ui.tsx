@@ -16,7 +16,8 @@ import { useContentWidth } from '@/ui/screen';
 import { Txt, num } from '@/ui/txt';
 
 import type { Helpers } from '../helpers';
-import { PlayerStrip, type StripEntry } from '../player-strip';
+import { PlayerStrip, Score, type StripEntry } from '../player-strip';
+import { useSettled } from '../touch-motion';
 import { CardMotion, useCardLook, type Side } from './motion';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
@@ -183,8 +184,11 @@ export function Felt({ children, minHeight = 130, active, bg }: { children: Reac
 
 /**
  * The players around the table as one strip of chips (the house PlayerStrip): whose turn it is is
- * framed in their colour. Team games list the players team by team, so partners sit side by side and
- * share their team's score. `note` is one small line under the strip (the target…).
+ * framed in their colour. `note` is one small line under the strip (the target…).
+ *
+ * Team games (pass `sides` with partners, e.g. روندا / الكانزة with four players, التريس): each team is
+ * one framed box — «فريقك» first, then «الخصم» — with the team's score shown once and the partners
+ * inside it, so nobody mistakes the table for four players each on their own.
  */
 export function TableStrip({
   room,
@@ -194,6 +198,7 @@ export function TableStrip({
   sub,
   out = [],
   note,
+  sides,
 }: {
   room: RoomView;
   ids: string[];
@@ -202,7 +207,11 @@ export function TableStrip({
   sub?: (id: string) => string | undefined;
   out?: string[];
   note?: string;
+  sides?: CardSide[];
 }) {
+  if (sides && sides.some((x) => x.members.length > 1)) {
+    return <TeamStrip room={room} ids={ids} sides={sides} turn={turn} score={score} sub={sub} out={out} note={note} />;
+  }
   const entries: StripEntry[] = ids.map((id) => ({ id, score: score?.(id), sub: sub?.(id), out: out.includes(id) }));
   return (
     <View style={{ gap: 4 }}>
@@ -215,6 +224,90 @@ export function TableStrip({
     </View>
   );
 }
+
+/** TableStrip for team games: one box per team (mine first), the team score once, the partners inside. */
+function TeamStrip({
+  room,
+  ids,
+  sides,
+  turn,
+  score,
+  sub,
+  out,
+  note,
+}: {
+  room: RoomView;
+  ids: string[];
+  sides: CardSide[];
+  turn: string | null;
+  score?: (id: string) => number | string | undefined;
+  sub?: (id: string) => string | undefined;
+  out: string[];
+  note?: string;
+}) {
+  const settled = useSettled();
+  const mine = sides.find((x) => x.members.includes(room.me));
+  // the teams in the strip's order (mine first), each with its members in that order too
+  const teams = [...sides].sort((a, b) => (a === mine ? -1 : b === mine ? 1 : 0));
+  const order = (x: CardSide) => [...x.members].sort((a, b) => ids.indexOf(a) - ids.indexOf(b));
+  return (
+    <View style={{ gap: 4 }}>
+      <Row gap={8} style={{ alignItems: 'stretch' }}>
+        {teams.map((x) => {
+          const isMine = x === mine;
+          const tone = isMine ? C.cyan : C.orange;
+          const members = order(x);
+          const playing = !!turn && x.members.includes(turn);
+          const teamScore = score?.(members[0]);
+          const label = isMine ? 'فريقك' : teams.length === 2 ? 'الخصم' : sideLabelNames(x, room);
+          return (
+            <View
+              key={x.key}
+              accessibilityLabel={`${label}: ${members.map((m) => room.players.find((p) => p.id === m)?.name ?? '').join(' و ')}${teamScore !== undefined ? ` — ${teamScore}` : ''}`}
+              style={[styles.teamBox, { borderColor: alpha(tone, playing ? 0.9 : 0.45), backgroundColor: alpha(tone, playing ? 0.14 : 0.07) }]}>
+              <Row gap={6} style={{ paddingHorizontal: 4 }}>
+                <Txt v="tiny" color={tone} style={{ flex: 1, fontFamily: F.bold, fontSize: 13 }} numberOfLines={1}>
+                  {label}
+                </Txt>
+                {teamScore !== undefined ? <Score score={teamScore} on={false} small={false} live={settled} gains /> : null}
+              </Row>
+              {members.map((m) => {
+                const p = room.players.find((pl) => pl.id === m);
+                if (!p) return null;
+                const on = turn === m;
+                const line = sub?.(m);
+                return (
+                  <View
+                    key={m}
+                    style={[styles.teamChip, { borderColor: on ? p.color : 'transparent', backgroundColor: on ? alpha(p.color, 0.2) : alpha(C.night, 0.35), opacity: out.includes(m) ? 0.45 : 1 }]}>
+                    <Avatar player={p} size={26} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt v="tiny" numberOfLines={1} style={{ fontSize: 13 }}>
+                        {p.id === room.me ? 'أنت' : p.name}
+                      </Txt>
+                      {line ? (
+                        <Txt v="tiny" color={C.muted} numberOfLines={1} style={{ fontSize: 11 }}>
+                          {line}
+                        </Txt>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
+      </Row>
+      {note ? (
+        <Txt v="tiny" center color={C.dim}>
+          {note}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+const sideLabelNames = (side: CardSide, room: RoomView) => side.members.map((m) => room.players.find((p) => p.id === m)?.name ?? '').join(' و ');
 
 /** Seat order for a strip: team by team (my team first), or the table order when everyone plays alone. */
 export function stripOrder(sides: CardSide[], participants: string[], me: string): string[] {
@@ -508,6 +601,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  teamBox: { flex: 1, gap: 6, padding: 8, borderRadius: 16, borderWidth: 1.5 },
+  teamChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5 },
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface },
   felt: {
     backgroundColor: C.felt,

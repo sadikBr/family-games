@@ -98,7 +98,7 @@ function RondaScreen({ room, view, tap, myTurn }: { room: RoomView; view: RondaV
       <>
         <PhaseTitle art={<GameArt id="ronda" size={60} />} title={`نهاية اليد ${num(view.hand)}`} />
         {summary}
-        <TableStrip room={room} ids={order} turn={null} score={score} note={`الهدف ${num(view.target)} نقطة`} />
+        <TableStrip room={room} sides={view.sides} ids={order} turn={null} score={score} note={`الهدف ${num(view.target)} نقطة`} />
         <FeedList feed={view.feed} h={h} />
         {h.isHost ? <Btn size="xl" icon="cards" label="اليد التالية" onPress={() => h.act('next')} /> : <HostNote>المضيف يوزّع اليد التالية</HostNote>}
       </>
@@ -115,6 +115,7 @@ function RondaScreen({ room, view, tap, myTurn }: { room: RoomView; view: RondaV
       <TableStrip
         room={room}
         ids={order}
+        sides={view.sides}
         turn={view.turn}
         score={score}
         sub={(id) => cardsWord(view.handCounts[id] ?? 0)}

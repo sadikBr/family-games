@@ -131,7 +131,7 @@ function KanzaScreen({ room, view }: { room: RoomView; view: KanzaView }) {
             })}
           />
         ) : null}
-        {final ? null : <TableStrip room={room} ids={order} turn={null} score={score} />}
+        {final ? null : <TableStrip room={room} sides={view.sides} ids={order} turn={null} score={score} />}
         {final ? null : <FeedList feed={view.feed} h={h} />}
         {final ? (
           <PlayAgain room={room} />
@@ -167,6 +167,7 @@ function KanzaScreen({ room, view }: { room: RoomView; view: KanzaView }) {
       <TableStrip
         room={room}
         ids={order}
+        sides={view.sides}
         turn={view.turn}
         score={score}
         sub={(id) => cardsWord(view.handCounts[id] ?? 0)}
