@@ -93,6 +93,13 @@ import { mathal } from './games/mathal';
 import { ayna } from './games/ayna';
 import { balad } from './games/balad';
 import { emoji } from './games/emoji';
+import { arjah } from './games/arjah';
+import { cross } from './games/cross';
+import { makki } from './games/makki';
+import { qaima } from './games/qaima';
+import { train } from './games/train';
+import { silsila } from './games/silsila';
+import { bomb } from './games/bomb';
 import { guesswho } from './games/guesswho';
 import { clue } from './games/clue';
 import { triangles } from './games/triangles';
@@ -220,6 +227,13 @@ const MODULES: Record<GameId, AnyModule> = {
   ayna,
   balad,
   emoji,
+  arjah,
+  cross,
+  makki,
+  qaima,
+  train,
+  silsila,
+  bomb,
 };
 const MAX_PLAYERS = 20;
 /** A person offline this long on a bot-capable game gets a bot playing for them until they're back. */

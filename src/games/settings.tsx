@@ -57,6 +57,13 @@ import { MathalSettings } from './mathal';
 import { AynaSettings } from './ayna';
 import { BaladSettings } from './balad';
 import { EmojiSettings } from './emoji';
+import { ArjahSettings } from './arjah';
+import { CrossSettings } from './cross';
+import { MakkiSettings } from './makki';
+import { QaimaSettings } from './qaima';
+import { TrainSettings } from './train';
+import { SilsilaSettings } from './silsila';
+import { BombSettings } from './bomb';
 import { ProphetsSettings } from './prophets';
 import { MosqueSettings } from './mosque';
 import { Hez2Settings } from './hez2';
@@ -178,6 +185,20 @@ export function GameSettings({ room, editable }: { room: RoomView; editable: boo
       return <BaladSettings room={room} editable={editable} />;
     case 'emoji':
       return <EmojiSettings room={room} editable={editable} />;
+    case 'arjah':
+      return <ArjahSettings room={room} editable={editable} />;
+    case 'cross':
+      return <CrossSettings room={room} editable={editable} />;
+    case 'makki':
+      return <MakkiSettings room={room} editable={editable} />;
+    case 'qaima':
+      return <QaimaSettings room={room} editable={editable} />;
+    case 'train':
+      return <TrainSettings room={room} editable={editable} />;
+    case 'silsila':
+      return <SilsilaSettings room={room} editable={editable} />;
+    case 'bomb':
+      return <BombSettings room={room} editable={editable} />;
     case 'imposter': {
       const { settings, change } = settingsFor(room, 'imposter');
       const question = settings.mode === 'question';

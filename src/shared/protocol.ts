@@ -58,6 +58,13 @@ import { MATHAL_DEFAULTS, type MathalSettings, type MathalView } from './games/m
 import { AYNA_DEFAULTS, type AynaSettings, type AynaView } from './games/ayna';
 import { BALAD_DEFAULTS, type BaladSettings, type BaladView } from './games/balad';
 import { EMOJI_DEFAULTS, type EmojiSettings, type EmojiView } from './games/emoji';
+import { ARJAH_DEFAULTS, type ArjahSettings, type ArjahView } from './games/arjah';
+import { CROSS_DEFAULTS, type CrossSettings, type CrossView } from './games/cross';
+import { MAKKI_DEFAULTS, type MakkiSettings, type MakkiView } from './games/makki';
+import { QAIMA_DEFAULTS, type QaimaSettings, type QaimaView } from './games/qaima';
+import { TRAIN_DEFAULTS, type TrainSettings, type TrainView } from './games/train';
+import { SILSILA_DEFAULTS, type SilsilaSettings, type SilsilaView } from './games/silsila';
+import { BOMB_DEFAULTS, type BombSettings, type BombView } from './games/bomb';
 import { BILLIARDS_DEFAULTS, type BilliardsSettings, type BilliardsView } from './games/billiards';
 import type { TournamentConfig, TournamentFormat, TournamentView } from './tournament';
 export type { Phase10Settings, Phase10View } from './games/phase10';
@@ -112,6 +119,13 @@ export type { MathalSettings, MathalView } from './games/mathal';
 export type { AynaSettings, AynaView } from './games/ayna';
 export type { BaladSettings, BaladView } from './games/balad';
 export type { EmojiSettings, EmojiView } from './games/emoji';
+export type { ArjahSettings, ArjahView } from './games/arjah';
+export type { CrossSettings, CrossView } from './games/cross';
+export type { MakkiSettings, MakkiView } from './games/makki';
+export type { QaimaSettings, QaimaView } from './games/qaima';
+export type { TrainSettings, TrainView } from './games/train';
+export type { SilsilaSettings, SilsilaView } from './games/silsila';
+export type { BombSettings, BombView } from './games/bomb';
 
 export type { Card } from './cards';
 
@@ -200,7 +214,14 @@ export type GameId =
   | 'mathal'
   | 'ayna'
   | 'balad'
-  | 'emoji';
+  | 'emoji'
+  | 'arjah'
+  | 'cross'
+  | 'makki'
+  | 'qaima'
+  | 'train'
+  | 'silsila'
+  | 'bomb';
 
 export const GAME_IDS: GameId[] = [
   'imposter',
@@ -288,13 +309,20 @@ export const GAME_IDS: GameId[] = [
   'ayna',
   'balad',
   'emoji',
+  'arjah',
+  'cross',
+  'makki',
+  'qaima',
+  'train',
+  'silsila',
+  'bomb',
 ];
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
 /** Games still being built: registered, but kept off the lists until they're finished. */
-export const HIDDEN_GAMES: GameId[] = [];
+export const HIDDEN_GAMES: GameId[] = ['arjah', 'cross', 'makki', 'qaima', 'train', 'silsila', 'bomb'];
 
-export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'qamus', 'coup', 'million', 'mathal'];
+export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'qamus', 'coup', 'million', 'mathal', 'arjah', 'cross', 'makki', 'qaima', 'train', 'silsila', 'bomb'];
 export const MAX_BOTS = 8;
 /** Games that take fewer bots than MAX_BOTS: in «الكلمات السرية» a bot can only lead a team (one per team). */
 export const GAME_MAX_BOTS: Partial<Record<GameId, number>> = { codenames: 2 };
@@ -385,10 +413,17 @@ export const MIN_PLAYERS: Record<GameId, number> = {
   ayna: 1,
   balad: 1,
   emoji: 1,
+  arjah: 3,
+  cross: 1,
+  makki: 1,
+  qaima: 1,
+  train: 2,
+  silsila: 1,
+  bomb: 2,
 };
 
 /** Card games have a seat limit. */
-export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, story: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4, estimate: 12, truefalse: 12, flags: 12, qcond: 8, guesswho: 2, clue: 6, triangles: 4, realms: 7, balloons: 8, kalim: 6, domino: 4, tawla: 2, qamus: 10, mind: 6, coup: 6, million: 10, rawabit: 10, khalia: 10, tartib: 12, akbar: 12, mathal: 12, ayna: 12, balad: 12, emoji: 12 };
+export const MAX_PLAYERS: Partial<Record<GameId, number>> = { ronda: 4, kanza: 4, tris: 4, konkan: 4, unoflip: 10, hez2: 4, ludo: 4, dama: 2, draw: 12, estate: 6, huroof: 12, quiz: 12, whois: 12, surah: 12, hajj: 6, ladders: 6, connect4: 2, chess: 2, kdab: 6, wave: 12, wordle: 12, kharbga: 2, battleship: 2, xo: 2, sudoku: 12, trivia: 12, memory: 6, phase10: 6, scrabble: 4, charades: 12, spy: 10, survey: 12, dots: 4, mancala: 2, blocks: 4, codebreak: 6, boggle: 12, qquote: 12, tajweed: 12, asma: 6, steps: 12, mapquiz: 12, prophets: 8, mosque: 8, catan: 4, carca: 5, baloot: 4, teledraw: 12, story: 12, oneword: 10, rami: 6, touti: 4, fast: 12, billiards: 4, estimate: 12, truefalse: 12, flags: 12, qcond: 8, guesswho: 2, clue: 6, triangles: 4, realms: 7, balloons: 8, kalim: 6, domino: 4, tawla: 2, qamus: 10, mind: 6, coup: 6, million: 10, rawabit: 10, khalia: 10, tartib: 12, akbar: 12, mathal: 12, ayna: 12, balad: 12, emoji: 12, arjah: 12, cross: 8, makki: 12, qaima: 12, train: 5, silsila: 12, bomb: 8 };
 
 /**
  * Games that were merged into another one: older apps may still ask for them (room create, change of
@@ -734,6 +769,13 @@ export interface AllSettings {
   ayna: AynaSettings;
   balad: BaladSettings;
   emoji: EmojiSettings;
+  arjah: ArjahSettings;
+  cross: CrossSettings;
+  makki: MakkiSettings;
+  qaima: QaimaSettings;
+  train: TrainSettings;
+  silsila: SilsilaSettings;
+  bomb: BombSettings;
 }
 
 export const DEFAULT_SETTINGS: AllSettings = {
@@ -822,6 +864,13 @@ export const DEFAULT_SETTINGS: AllSettings = {
   ayna: AYNA_DEFAULTS,
   balad: BALAD_DEFAULTS,
   emoji: EMOJI_DEFAULTS,
+  arjah: ARJAH_DEFAULTS,
+  cross: CROSS_DEFAULTS,
+  makki: MAKKI_DEFAULTS,
+  qaima: QAIMA_DEFAULTS,
+  train: TRAIN_DEFAULTS,
+  silsila: SILSILA_DEFAULTS,
+  bomb: BOMB_DEFAULTS,
 };
 
 /* ------------------------------------------------------------------ */
@@ -1750,7 +1799,14 @@ export type GameView =
   | MathalView
   | AynaView
   | BaladView
-  | EmojiView;
+  | EmojiView
+  | ArjahView
+  | CrossView
+  | MakkiView
+  | QaimaView
+  | TrainView
+  | SilsilaView
+  | BombView;
 
 /* ------------------------------------------------------------------ */
 /* Room                                                                */

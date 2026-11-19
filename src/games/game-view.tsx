@@ -66,6 +66,13 @@ import { MathalGame } from './mathal';
 import { AynaGame } from './ayna';
 import { BaladGame } from './balad';
 import { EmojiGame } from './emoji';
+import { ArjahGame } from './arjah';
+import { CrossGame } from './cross';
+import { MakkiGame } from './makki';
+import { QaimaGame } from './qaima';
+import { TrainGame } from './train';
+import { SilsilaGame } from './silsila';
+import { BombGame } from './bomb';
 import { ProphetsGame } from './prophets';
 import { MosqueGame } from './mosque';
 import { RamiGame } from './rami';
@@ -252,6 +259,20 @@ export function GameView({ room, view }: { room: RoomView; view: View }) {
       return <BaladGame room={room} view={view} />;
     case 'emoji':
       return <EmojiGame room={room} view={view} />;
+    case 'arjah':
+      return <ArjahGame room={room} view={view} />;
+    case 'cross':
+      return <CrossGame room={room} view={view} />;
+    case 'makki':
+      return <MakkiGame room={room} view={view} />;
+    case 'qaima':
+      return <QaimaGame room={room} view={view} />;
+    case 'train':
+      return <TrainGame room={room} view={view} />;
+    case 'silsila':
+      return <SilsilaGame room={room} view={view} />;
+    case 'bomb':
+      return <BombGame room={room} view={view} />;
     case 'draw':
       return <DrawGame room={room} view={view} />;
   }
