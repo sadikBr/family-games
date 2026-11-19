@@ -320,7 +320,7 @@ export const GAME_IDS: GameId[] = [
 
 /** Games where bots can take a seat. Heads Up & Taboo need real voices. */
 /** Games still being built: registered, but kept off the lists until they're finished. */
-export const HIDDEN_GAMES: GameId[] = ['train'];
+export const HIDDEN_GAMES: GameId[] = [];
 
 export const BOT_GAMES: GameId[] = ['imposter', 'names', 'potato', 'werewolf', 'ronda', 'kanza', 'tris', 'konkan', 'unoflip', 'hez2', 'ludo', 'dama', 'estate', 'huroof', 'quiz', 'whois', 'surah', 'hajj', 'ladders', 'connect4', 'chess', 'kdab', 'wordle', 'kharbga', 'battleship', 'xo', 'sudoku', 'trivia', 'memory', 'phase10', 'scrabble', 'survey', 'dots', 'mancala', 'blocks', 'codebreak', 'boggle', 'qquote', 'tajweed', 'asma', 'steps', 'mapquiz', 'prophets', 'mosque', 'catan', 'carca', 'baloot', 'oneword', 'rami', 'touti', 'fast', 'billiards', 'codenames', 'estimate', 'truefalse', 'flags', 'qcond', 'guesswho', 'clue', 'triangles', 'realms', 'balloons', 'kalim', 'domino', 'tawla', 'qamus', 'coup', 'million', 'mathal', 'train'];
 export const MAX_BOTS = 8;
